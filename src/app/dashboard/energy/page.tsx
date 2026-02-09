@@ -378,10 +378,10 @@ export default function EnergyDashboardPage() {
         isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
       }`}>
         <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl">
-          <div className="h-full overflow-y-auto px-ha-3 py-ha-4 lg:px-ha-5 lg:py-ha-5" data-scrollable="dashboard">
+          <div className="h-full overflow-y-auto px-ha-3 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:py-ha-5" data-scrollable="dashboard">
             {/* Tabs - sticky on mobile */}
             <div
-              className="sticky top-0 -mx-ha-3 px-ha-3 lg:-mx-ha-5 lg:px-ha-5 pt-ha-1 pb-ha-3 z-10 backdrop-blur-md"
+              className="sticky top-0 -mx-ha-3 px-ha-3 lg:-ml-14 lg:pl-14 lg:-mr-ha-5 lg:pr-ha-5 pt-ha-1 pb-ha-3 z-10 backdrop-blur-md"
               style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 80%, transparent), transparent)' }}
             >
               <EnergyTabs activeTab={activeTab} onTabChange={setActiveTab} />

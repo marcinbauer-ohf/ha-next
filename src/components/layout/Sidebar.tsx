@@ -7,11 +7,13 @@ import { Icon } from '../ui/Icon';
 import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
 import { useSidebarItems } from '@/hooks';
+import { useSearchContext } from '@/contexts';
 import { mdiMagnify } from '@mdi/js';
 
 export function Sidebar() {
   const pathname = usePathname();
   const { items, loading } = useSidebarItems();
+  const { searchOpen, toggleSearch } = useSearchContext();
   const scrollableRef = useRef<HTMLElement | null>(null);
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
@@ -55,14 +57,14 @@ export function Sidebar() {
       </Link>
 
       {/* Search */}
-      <Link
-        href="/panel/search"
+      <button
+        onClick={toggleSearch}
         className={`p-ha-3 rounded-ha-xl transition-colors mb-ha-4 ${
-          pathname === '/panel/search' ? 'bg-fill-primary-normal text-ha-blue' : 'hover:bg-surface-low text-text-secondary'
+          searchOpen ? 'bg-fill-primary-normal text-ha-blue' : 'hover:bg-surface-low text-text-secondary'
         }`}
       >
         <Icon path={mdiMagnify} size={24} />
-      </Link>
+      </button>
 
       {/* All items listed one-by-one with scroll gradients */}
       <div className="flex-1 relative w-full min-h-0">

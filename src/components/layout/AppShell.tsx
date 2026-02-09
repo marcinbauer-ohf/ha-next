@@ -1,9 +1,13 @@
 'use client';
 
 import { useState, useEffect, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav } from '@/components/layout';
 import { useHomeAssistant, useImmersiveMode } from '@/hooks';
+import { useSearchContext } from '@/contexts';
 import { ConnectionToast } from '@/components/ui/ConnectionToast';
+import { SearchOverlay } from '@/components/ui/SearchOverlay';
+import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { InstallBanner } from '@/components/ui/InstallBanner';
 import type { ConnectionStatus } from '@/components/ui/ConnectionToast';
@@ -15,6 +19,8 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const { connecting, connected, error, configured, hydrated, saveCredentials } = useHomeAssistant();
   const { immersivePhase } = useImmersiveMode();
+  const { toggleSearch } = useSearchContext();
+  const router = useRouter();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(null);
   const [wasConnecting, setWasConnecting] = useState(false);
 
@@ -42,6 +48,26 @@ export function AppShell({ children }: AppShellProps) {
       return () => clearTimeout(timer);
     }
   }, [connectionStatus]);
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) {
+        switch (e.key.toLowerCase()) {
+          case 'k':
+            e.preventDefault();
+            toggleSearch();
+            break;
+          case 'h':
+            e.preventDefault();
+            router.push('/');
+            break;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSearch, router]);
 
   if (!hydrated) {
     return null;
@@ -76,6 +102,12 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Connection status toast */}
       <ConnectionToast status={connectionStatus} />
+
+      {/* Global search overlay */}
+      <SearchOverlay />
+
+      {/* Assistant overlay */}
+      <AssistantOverlay />
     </div>
   );
 }

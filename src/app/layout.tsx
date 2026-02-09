@@ -4,7 +4,7 @@ import './globals.css';
 import { HomeAssistantProvider } from '@/hooks/useHomeAssistant';
 import { ThemeProvider } from '@/hooks/useTheme';
 import { ImmersiveModeProvider } from '@/hooks/useImmersiveMode';
-import { PullToRevealProvider, SidebarItemsProvider } from '@/contexts';
+import { PullToRevealProvider, SidebarItemsProvider, SearchProvider, AssistantProvider } from '@/contexts';
 import { AppShell } from '@/components/layout';
 
 const inter = Inter({
@@ -40,7 +40,11 @@ export default function RootLayout({
             <ImmersiveModeProvider>
               <SidebarItemsProvider>
                 <PullToRevealProvider>
-                  <AppShell>{children}</AppShell>
+                  <SearchProvider>
+                    <AssistantProvider>
+                      <AppShell>{children}</AppShell>
+                    </AssistantProvider>
+                  </SearchProvider>
                 </PullToRevealProvider>
               </SidebarItemsProvider>
             </ImmersiveModeProvider>

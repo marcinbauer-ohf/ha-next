@@ -8,7 +8,7 @@ import { Avatar } from '../ui/Avatar';
 import { HALogo } from '../ui/HALogo';
 import { CircularProgress } from '../ui/CircularProgress';
 import { useHomeAssistant } from '@/hooks';
-import { usePullToRevealContext } from '@/contexts';
+import { usePullToRevealContext, useSearchContext, useAssistantContext } from '@/contexts';
 import {
   mdiMagnify,
   mdiMicrophone,
@@ -39,6 +39,8 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
   const pathname = usePathname();
   const { entities, haUrl } = useHomeAssistant();
   const { isRevealed, close, open } = usePullToRevealContext();
+  const { searchOpen, toggleSearch } = useSearchContext();
+  const { openAssistant } = useAssistantContext();
   const [currentTime, setCurrentTime] = useState<string>('');
   const [isAM, setIsAM] = useState(true);
   const [colonVisible, setColonVisible] = useState(true);
@@ -333,7 +335,10 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
         {/* Top row: Ask your home + Media + Timer + Status */}
         <div className="flex items-center gap-ha-2">
           {/* Ask your home */}
-          <button className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill px-ha-3 h-10 flex-1 min-w-0 overflow-hidden">
+          <button
+            onClick={openAssistant}
+            className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill px-ha-3 h-10 flex-1 min-w-0 overflow-hidden active:scale-95 transition-transform"
+          >
             <span className="text-sm text-text-disabled truncate flex-1 text-left">
               Ask <span className="text-text-tertiary/60 capitalize">{
                 pathname === '/' ? 'Home' :
@@ -514,11 +519,14 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
             >
               <HALogo size={28} />
             </Link>
-            <Link href="/panel/search" className={`p-ha-2 rounded-full transition-colors ${
-              pathname === '/panel/search' ? 'bg-fill-primary-normal text-ha-blue' : 'hover:bg-surface-lower text-text-secondary'
-            }`}>
+            <button
+              onClick={toggleSearch}
+              className={`p-ha-2 rounded-full transition-colors ${
+                searchOpen ? 'bg-fill-primary-normal text-ha-blue' : 'hover:bg-surface-lower text-text-secondary'
+              }`}
+            >
               <Icon path={mdiMagnify} size={28} />
-            </Link>
+            </button>
             <Link href="/panel/profile" className={`p-ha-1 rounded-full transition-all ${
               pathname === '/panel/profile' ? 'ring-2 ring-ha-blue' : 'hover:ring-2 hover:ring-surface-lower'
             }`}>

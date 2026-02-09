@@ -12,14 +12,35 @@ import {
 
 interface TopBarProps {
   title?: string;
+  subtitle?: string;
   icon?: string;
 }
 
-export function TopBar({ title = 'Home', icon }: TopBarProps) {
+export function TopBar({ title = 'Home', subtitle, icon }: TopBarProps) {
   const { isRevealed, toggle } = usePullToRevealContext();
 
+  const titleContent = subtitle ? (
+    <div className="flex flex-col leading-none gap-0.5 text-left">
+      <span className="text-xs text-text-secondary capitalize">{subtitle}</span>
+      <span className="text-base font-semibold text-text-primary capitalize">{title}</span>
+    </div>
+  ) : (
+    <span className="text-lg font-semibold text-text-primary capitalize">{title}</span>
+  );
+
+  const desktopTitleContent = subtitle ? (
+    <div className="flex flex-col leading-none gap-0.5 text-left">
+      <span className="text-xs text-text-secondary capitalize">{subtitle}</span>
+      <span className="text-xl font-semibold text-text-primary capitalize">{title}</span>
+    </div>
+  ) : (
+    <h1 className="text-2xl font-semibold text-text-primary capitalize">
+      {title}
+    </h1>
+  );
+
   return (
-    <header className="flex items-center justify-between h-full py-ha-2 px-ha-0 lg:px-0" data-component="TopBar">
+    <header className="flex items-center justify-between h-full py-ha-2 px-ha-0 lg:px-0 lg:pl-6" data-component="TopBar">
       {/* Mobile: Logo/Icon + Title with dropdown */}
       <div className="flex items-center gap-ha-3 lg:hidden">
         {icon ? (
@@ -31,7 +52,7 @@ export function TopBar({ title = 'Home', icon }: TopBarProps) {
           className="flex items-center gap-ha-1"
           onClick={toggle}
         >
-          <span className="text-lg font-semibold text-text-primary capitalize">{title}</span>
+          {titleContent}
           <Icon
             path={mdiChevronDown}
             size={24}
@@ -41,9 +62,9 @@ export function TopBar({ title = 'Home', icon }: TopBarProps) {
       </div>
 
       {/* Title (desktop) */}
-      <h1 className="hidden lg:block text-2xl font-semibold text-text-primary capitalize">
-        {title}
-      </h1>
+      <div className="hidden lg:flex items-center">
+        {desktopTitleContent}
+      </div>
 
       {/* Actions */}
       <div className="flex items-center gap-ha-2">

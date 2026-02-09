@@ -21,6 +21,9 @@ import {
   mdiToyBrickOutline,
   mdiBalcony,
   mdiDeleteOutline,
+  mdiArrowExpandAll,
+  mdiWeatherNight,
+  mdiClockOutline,
 } from '@mdi/js';
 
 // Mock data for static rendering - will be replaced with real HA data
@@ -45,7 +48,7 @@ const rooms = [
 const SCREENSAVER_TIMEOUT = 60000; // 1 minute of inactivity
 
 export default function DashboardPage() {
-  const { toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const { clearCredentials } = useHomeAssistant();
   const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
   const [screensaverActive, setScreensaverActive] = useState(false);
@@ -53,6 +56,7 @@ export default function DashboardPage() {
   const { isRevealed } = usePullToRevealContext();
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
+  const [dashboardReady, setDashboardReady] = useState(false);
 
   const isImmersiveFixed = immersivePhase !== 'normal';
 
@@ -96,6 +100,14 @@ export default function DashboardPage() {
       transition: 'padding 300ms ease-out',
     }),
   } : {};
+
+  // Dashboard entrance animation
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      setDashboardReady(true);
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
 
   // Screensaver idle timer
   const { wake } = useIdleTimer({
@@ -184,13 +196,17 @@ export default function DashboardPage() {
       <div
         className={`min-h-0 overflow-hidden ${
           isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
-        } ${!isImmersiveFixed ? 'px-edge pb-20 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge' : ''} ${
+        } ${!isImmersiveFixed ? 'px-edge pb-20 lg:pb-ha-0 lg:pr-edge' : ''} ${
           immersivePhase === 'normal' ? 'transition-[flex,height,opacity] duration-300 ease-out' : ''
         }`}
         style={contentStyle}
       >
-        <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl">
-          <div className="h-full flex flex-col lg:px-ha-5 lg:pt-ha-5 lg:pb-ha-5 overflow-hidden">
+        <div
+          className={`h-full bg-surface-lower overflow-hidden rounded-ha-3xl transition-[opacity,transform] duration-500 ease-out ${
+            dashboardReady ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.9]'
+          }`}
+        >
+          <div className="h-full flex flex-col lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5 overflow-hidden">
             {/* Content area */}
             <div className="flex-1 flex gap-ha-4 overflow-hidden">
               {/* Main dashboard */}
@@ -199,9 +215,9 @@ export default function DashboardPage() {
                 className="flex-1 lg:pb-0 px-ha-3 lg:px-0 overscroll-none overflow-x-hidden overflow-y-auto touch-pan-y relative"
                 data-scrollable="dashboard"
               >
-                {/* Gradient overlay for desktop - top */}
+                {/* Gradient overlay - top */}
                 {showTopGradient && (
-                  <div className="hidden lg:block sticky top-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent z-10 -mb-12" />
+                  <div className="sticky top-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent z-10 -mb-12" />
                 )}
                 
                 {/* Mobile summary row - sticky with glass effect on scroll */}
@@ -231,12 +247,34 @@ export default function DashboardPage() {
                       temperature={room.temperature}
                       humidity={room.humidity}
                       activeEntities={room.activeEntities}
+                      href={`/room/${room.id}`}
                     />
                   ))}
                 </DashboardSection>
 
                 {/* Debug */}
                 <DashboardSection title="Debug" columns={3}>
+                  <EntityCard
+                    icon={mdiArrowExpandAll}
+                    title="Immersive Mode"
+                    state={immersiveMode ? 'On' : 'Off'}
+                    color={immersiveMode ? 'primary' : 'default'}
+                    onClick={toggleImmersiveMode}
+                  />
+                  <EntityCard
+                    icon={mdiWeatherNight}
+                    title="Dark Mode"
+                    state={theme === 'dark' ? 'On' : 'Off'}
+                    color={theme === 'dark' ? 'primary' : 'default'}
+                    onClick={toggleTheme}
+                  />
+                  <EntityCard
+                    icon={mdiClockOutline}
+                    title="Screensaver"
+                    state={screensaverActive ? 'On' : 'Off'}
+                    color={screensaverActive ? 'primary' : 'default'}
+                    onClick={screensaverActive ? dismissScreensaver : activateScreensaver}
+                  />
                   <EntityCard
                     icon={mdiDeleteOutline}
                     title="Clear credentials"
@@ -246,9 +284,9 @@ export default function DashboardPage() {
                   />
                 </DashboardSection>
 
-                {/* Gradient overlay for desktop - bottom */}
+                {/* Gradient overlay - bottom */}
                 {showBottomGradient && (
-                  <div className="hidden lg:block sticky bottom-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-t from-surface-lower to-transparent z-10 -mt-12" />
+                  <div className="sticky bottom-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-t from-surface-lower to-transparent z-10 -mt-12" />
                 )}
               </main>
 

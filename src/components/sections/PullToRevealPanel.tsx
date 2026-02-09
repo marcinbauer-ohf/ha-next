@@ -266,7 +266,7 @@ export function PullToRevealPanel() {
         <div className={`h-full flex flex-col ${isRevealed ? 'pb-14' : 'justify-end'}`}>
           {/* Expandable content area - only visible when revealed */}
           {isRevealed && (
-            <div className="flex-1 flex flex-col mx-edge bg-surface-default border border-surface-low rounded-ha-3xl overflow-hidden">
+            <div className="flex-1 flex flex-col mx-edge bg-surface-default border border-surface-lower rounded-ha-3xl overflow-hidden">
                 <div className="flex-1 overflow-y-auto">
                   {/* Dashboards section */}
                   <div className="p-ha-3">
