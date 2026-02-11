@@ -33,7 +33,7 @@ export function EntityCard({
       <button
         onClick={onClick}
         className={clsx(
-          'flex items-center gap-ha-3 p-ha-3 rounded-ha-xl transition-all hover:scale-[1.02] active:scale-[0.98]',
+          'relative hover:z-50 flex items-center gap-ha-3 p-ha-3 rounded-ha-xl transition-all hover:scale-[1.02] active:scale-[0.98]',
           colorClasses[color]
         )}
       >
@@ -56,7 +56,7 @@ export function EntityCard({
     <button
       onClick={onClick}
       className={clsx(
-        'flex flex-col items-start p-ha-4 rounded-ha-2xl transition-all hover:scale-[1.02] active:scale-[0.98] min-h-[120px]',
+        'relative hover:z-50 flex flex-col items-start p-ha-4 rounded-ha-2xl transition-all hover:scale-[1.02] active:scale-[0.98] min-h-[120px]',
         colorClasses[color]
       )}
     >

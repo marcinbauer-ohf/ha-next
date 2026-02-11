@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { TopBar } from '@/components/layout';
+import { useState, useEffect, useRef } from 'react';
 import { PullToRevealPanel } from '@/components/sections';
-import { usePullToRevealContext } from '@/contexts';
+import { usePullToRevealContext, useHeader } from '@/contexts';
+import { useTheme } from '@/hooks';
 import { mdiFlash } from '@mdi/js';
 
 type EnergyTab = 'now' | 'all';
@@ -362,13 +362,43 @@ function AllContent() {
 export default function EnergyDashboardPage() {
   const { isRevealed } = usePullToRevealContext();
   const [activeTab, setActiveTab] = useState<EnergyTab>('now');
+  const [showTopGradient, setShowTopGradient] = useState(false);
+  const [showBottomGradient, setShowBottomGradient] = useState(false);
+  const { background } = useTheme();
+  const scrollableRef = useRef<HTMLElement | null>(null);
+  const { setHeader } = useHeader();
+
+  useEffect(() => {
+    setHeader({ title: 'Energy', icon: mdiFlash });
+  }, [setHeader]);
+
+  // Monitor scroll position to show/hide gradients
+  useEffect(() => {
+    const scrollElement = scrollableRef.current;
+    if (!scrollElement) return;
+
+    const updateGradients = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const threshold = 10;
+      setShowTopGradient(scrollTop > threshold);
+
+      const hasOverflow = scrollHeight > clientHeight + threshold;
+      setShowBottomGradient(hasOverflow && scrollTop + clientHeight < scrollHeight - threshold);
+    };
+
+    updateGradients();
+    scrollElement.addEventListener('scroll', updateGradients);
+    window.addEventListener('resize', updateGradients);
+
+    return () => {
+      scrollElement.removeEventListener('scroll', updateGradients);
+      window.removeEventListener('resize', updateGradients);
+    };
+  }, []);
 
   return (
     <>
-      {/* TopBar row */}
-      <div className="px-edge lg:pr-edge overflow-hidden flex-shrink-0 h-16">
-        <TopBar title="Energy" icon={mdiFlash} />
-      </div>
+      {/* TopBar row - rendered by AppShell */}
 
       {/* Pull to reveal - drag handle between TopBar and dashboard (Mobile only) */}
       <PullToRevealPanel />
@@ -377,8 +407,21 @@ export default function EnergyDashboardPage() {
       <div className={`min-h-0 overflow-hidden px-edge pb-20 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
         isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
       }`}>
-        <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl">
-          <div className="h-full overflow-y-auto px-ha-3 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:py-ha-5" data-scrollable="dashboard">
+        <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl relative">
+          {/* Top scroll gradient - absolute to container */}
+          {showTopGradient && background !== 'image' && background !== 'gradient' && (
+            <div className="absolute top-0 left-0 right-0 lg:left-14 lg:right-ha-5 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />
+          )}
+          {/* Bottom scroll gradient - absolute to container */}
+          {showBottomGradient && background !== 'image' && background !== 'gradient' && (
+            <div className="absolute bottom-0 left-0 right-0 lg:left-14 lg:right-ha-5 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />
+          )}
+          <div 
+            ref={(el) => { scrollableRef.current = el; }}
+            className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-3 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5" 
+            data-scrollable="dashboard"
+          >
+
             {/* Tabs - sticky on mobile */}
             <div
               className="sticky top-0 -mx-ha-3 px-ha-3 lg:-ml-14 lg:pl-14 lg:-mr-ha-5 lg:pr-ha-5 pt-ha-1 pb-ha-3 z-10 backdrop-blur-md"

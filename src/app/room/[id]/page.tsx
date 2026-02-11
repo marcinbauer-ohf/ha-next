@@ -1,11 +1,11 @@
 'use client';
 
-import { use, useState, useCallback, useEffect } from 'react';
-import { TopBar } from '@/components/layout';
+import { use, useState, useEffect, useRef } from 'react';
 import { EntityCard } from '@/components/cards';
 import { DashboardSection, PullToRevealPanel } from '@/components/sections';
-import { usePullToRevealContext } from '@/contexts';
+import { usePullToRevealContext, useHeader } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
+import { useTheme } from '@/hooks';
 import Link from 'next/link';
 import {
   mdiSofa,
@@ -30,8 +30,8 @@ import {
   mdiFan,
   mdiLightSwitch,
   mdiArrowLeft,
+  mdiInformation,
   mdiInformationOutline,
-  mdiChevronRight,
 } from '@mdi/js';
 
 // Room metadata lookup
@@ -245,11 +245,28 @@ function InfoPanel({ room, onClose }: { room: { name: string; temperature: numbe
 export default function RoomPage({ params }: RoomPageProps) {
   const { id } = use(params);
   const { isRevealed } = usePullToRevealContext();
+  const { setHeader } = useHeader();
   const [infoOpen, setInfoOpen] = useState(false);
+  const [showTopGradient, setShowTopGradient] = useState(false);
+  const [showBottomGradient, setShowBottomGradient] = useState(false);
+  const { background } = useTheme();
+  const scrollableRef = useRef<HTMLElement | null>(null);
 
   const room = roomData[id] || { icon: mdiDoorOpen, name: id.replace(/_/g, ' '), temperature: 20, humidity: 45 };
   const entities = roomEntities[id] || [];
   const automations = roomAutomations[id] || [];
+
+  useEffect(() => {
+    setHeader({
+      title: room.name,
+      subtitle: 'Home',
+      icon: room.icon,
+      primaryAction: {
+        icon: infoOpen ? mdiInformation : mdiInformationOutline,
+        onClick: () => setInfoOpen(prev => !prev)
+      }
+    });
+  }, [setHeader, room.name, room.icon, infoOpen]);
 
   // Cmd/Ctrl + I to toggle info panel
   useEffect(() => {
@@ -263,6 +280,30 @@ export default function RoomPage({ params }: RoomPageProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Monitor scroll position to show/hide gradients
+  useEffect(() => {
+    const scrollElement = scrollableRef.current;
+    if (!scrollElement) return;
+
+    const updateGradients = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const threshold = 10;
+      setShowTopGradient(scrollTop > threshold);
+      
+      const hasOverflow = scrollHeight > clientHeight + threshold;
+      setShowBottomGradient(hasOverflow && scrollTop + clientHeight < scrollHeight - threshold);
+    };
+
+    updateGradients();
+    scrollElement.addEventListener('scroll', updateGradients);
+    window.addEventListener('resize', updateGradients);
+
+    return () => {
+      scrollElement.removeEventListener('scroll', updateGradients);
+      window.removeEventListener('resize', updateGradients);
+    };
+  }, []);
+
   const lights = entities.filter(e => e.id.startsWith('light.'));
   const climate = entities.filter(e => e.id.startsWith('climate.') || e.id.startsWith('sensor.'));
   const switches = entities.filter(e => e.id.startsWith('switch.') || e.id.startsWith('media_player.') || e.id.startsWith('vacuum.'));
@@ -270,13 +311,7 @@ export default function RoomPage({ params }: RoomPageProps) {
   return (
     <>
       {/* TopBar row */}
-      <div className="px-edge lg:pr-edge overflow-hidden flex-shrink-0 h-16">
-        <TopBar
-          title={room.name}
-          subtitle="Home"
-          icon={room.icon}
-        />
-      </div>
+
 
       {/* Pull to reveal (Mobile only) */}
       <PullToRevealPanel />
@@ -287,17 +322,26 @@ export default function RoomPage({ params }: RoomPageProps) {
       }`}>
         <div className={`h-full flex ${infoOpen ? 'gap-ha-3' : ''}`}>
           {/* Dashboard container */}
-          <div className="flex-1 min-w-0 bg-surface-lower overflow-hidden rounded-ha-3xl transition-all duration-300 ease-out relative">
+            <div className="flex-1 min-w-0 bg-surface-lower overflow-hidden rounded-ha-3xl relative transition-all duration-300 ease-out">
+              {/* Top scroll gradient - absolute to container */}
+              {showTopGradient && background !== 'image' && background !== 'gradient' && (
+                <div className="absolute top-0 left-0 right-0 lg:left-14 lg:right-14 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />
+              )}
+              {/* Bottom scroll gradient - absolute to container */}
+              {showBottomGradient && background !== 'image' && background !== 'gradient' && (
+                <div className="absolute bottom-0 left-0 right-0 lg:left-14 lg:right-14 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />
+              )}
+
             {/* Back arrow in left padding - full height hit area, desktop only */}
             <Link
               href="/"
               className="hidden lg:flex group absolute inset-y-0 left-0 w-14 z-10 items-center justify-center transition-all duration-300"
             >
-              <div className="absolute inset-0 rounded-l-ha-3xl bg-gradient-to-r from-black/0 to-black/0 group-hover:from-black/[0.06] group-hover:to-transparent transition-all duration-300" />
+              <div className="absolute inset-0 rounded-l-ha-3xl bg-gradient-to-r from-transparent to-transparent group-hover:from-ha-blue/[0.06] group-hover:to-transparent transition-all duration-500 delay-0 group-hover:delay-150" />
               <Icon
                 path={mdiArrowLeft}
                 size={16}
-                className="relative opacity-15 group-hover:opacity-60 group-hover:-translate-x-0.5 transition-all duration-300 text-text-primary"
+                className="relative opacity-15 group-hover:opacity-100 group-hover:text-ha-blue group-hover:-translate-x-0.5 transition-all duration-500 delay-0 group-hover:delay-150 text-text-primary"
               />
             </Link>
             {/* Info panel toggle in right padding - full height hit area, desktop only */}
@@ -305,14 +349,18 @@ export default function RoomPage({ params }: RoomPageProps) {
               onClick={() => setInfoOpen(prev => !prev)}
               className="hidden lg:flex group absolute inset-y-0 right-0 w-14 z-10 items-center justify-center transition-all duration-300"
             >
-              <div className={`absolute inset-0 rounded-r-ha-3xl bg-gradient-to-l from-black/0 to-black/0 group-hover:from-black/[0.06] group-hover:to-transparent transition-all duration-300`} />
+              <div className="absolute inset-0 rounded-r-ha-3xl bg-gradient-to-l from-transparent to-transparent group-hover:from-ha-blue/[0.06] group-hover:to-transparent transition-all duration-500 delay-0 group-hover:delay-150" />
               <Icon
-                path={infoOpen ? mdiChevronRight : mdiInformationOutline}
+                path={infoOpen ? mdiClose : mdiInformationOutline}
                 size={16}
-                className="relative opacity-15 group-hover:opacity-60 group-hover:translate-x-0.5 transition-all duration-300 text-text-primary"
+                className="relative opacity-15 group-hover:opacity-100 group-hover:text-ha-blue group-hover:translate-x-0.5 transition-all duration-500 delay-0 group-hover:delay-150 text-text-primary"
               />
             </button>
-            <main className="h-full overflow-y-auto px-ha-3 py-ha-4 lg:pl-14 lg:pr-14 lg:py-ha-5" data-scrollable="dashboard">
+            <main 
+              ref={(el) => { scrollableRef.current = el; }}
+              className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-3 py-ha-4 lg:pl-14 lg:pr-14 lg:pt-ha-5 lg:pb-ha-5" 
+              data-scrollable="dashboard"
+            >
               {/* Lights */}
               {lights.length > 0 && (
                 <DashboardSection title="Lights" columns={2}>
@@ -381,6 +429,7 @@ export default function RoomPage({ params }: RoomPageProps) {
                   </div>
                 </section>
               )}
+              {/* Gradient overlay - bottom */}
             </main>
           </div>
 
@@ -388,7 +437,7 @@ export default function RoomPage({ params }: RoomPageProps) {
           <div className={`hidden lg:block overflow-hidden transition-[width] duration-300 ease-out flex-shrink-0 ${
             infoOpen ? 'w-80' : 'w-0'
           }`}>
-            <div className="w-80 h-full bg-surface-default border border-surface-lower overflow-hidden rounded-ha-3xl">
+            <div className="w-80 h-full bg-surface-default border border-surface-lower overflow-hidden rounded-ha-3xl lg:pt-ha-5 lg:pb-ha-5">
               <InfoPanel room={room} roomId={id} onClose={() => setInfoOpen(false)} />
             </div>
           </div>

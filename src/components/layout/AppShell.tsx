@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, useRef, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Sidebar, StatusBar, MobileNav } from '@/components/layout';
+import { Sidebar, StatusBar, MobileNav, TopBar } from '@/components/layout';
 import { useHomeAssistant, useImmersiveMode } from '@/hooks';
 import { useSearchContext } from '@/contexts';
 import { ConnectionToast } from '@/components/ui/ConnectionToast';
@@ -22,32 +22,30 @@ export function AppShell({ children }: AppShellProps) {
   const { toggleSearch } = useSearchContext();
   const router = useRouter();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(null);
-  const [wasConnecting, setWasConnecting] = useState(false);
+  const wasConnecting = useRef(false);
 
-  // Track connection state changes
+  // Track connection state changes and manage status toast visibility
   useEffect(() => {
     if (connecting) {
       setConnectionStatus('connecting');
-      setWasConnecting(true);
+      wasConnecting.current = true;
     } else if (error) {
       setConnectionStatus('error');
-    } else if (connected && wasConnecting) {
+      wasConnecting.current = false;
+    } else if (connected && wasConnecting.current) {
       setConnectionStatus('connected');
-      setWasConnecting(false);
-    } else if (!connecting && !error && !connected) {
-      setConnectionStatus(null);
-    }
-  }, [connecting, connected, error, wasConnecting]);
-
-  // Auto-hide "connected" status after 3 seconds
-  useEffect(() => {
-    if (connectionStatus === 'connected') {
+      wasConnecting.current = false;
+      
+      // Auto-hide "connected" status after 3 seconds
       const timer = setTimeout(() => {
         setConnectionStatus(null);
       }, 3000);
       return () => clearTimeout(timer);
+    } else if (!connecting && !error && !connected) {
+      setConnectionStatus(null);
+      wasConnecting.current = false;
     }
-  }, [connectionStatus]);
+  }, [connecting, connected, error]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -78,7 +76,7 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-surface-default">
+    <div className="min-h-screen bg-surface-default" data-component="AppShell">
       <div className="h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge">
         {/* Sidebar - Desktop only, spans top bar and content rows */}
         <div className={`hidden lg:block lg:row-span-2 transition-opacity duration-300 ease-out ${
@@ -87,8 +85,17 @@ export function AppShell({ children }: AppShellProps) {
           <Sidebar />
         </div>
 
-        {/* Children includes TopBar and content from page */}
-        {children}
+        {/* TopBar - Desktop & Mobile persistent header */}
+        <div className={`px-edge lg:pr-edge overflow-hidden flex-shrink-0 h-16 transition-opacity duration-300 ease-out ${
+          immersivePhase !== 'normal' ? 'lg:opacity-0 lg:pointer-events-none' : 'opacity-100'
+        }`}>
+          <TopBar />
+        </div>
+
+        {/* Children content area */}
+        <div className="flex-1 min-h-0 overflow-hidden relative">
+          {children}
+        </div>
 
         {/* Status bar row - Desktop only */}
         <StatusBar connectionStatus={connectionStatus} />

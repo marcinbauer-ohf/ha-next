@@ -20,6 +20,12 @@ import {
   mdiWeb,
   mdiSend,
   mdiDevices,
+  mdiCheckCircle,
+  mdiAlertCircle,
+  mdiCloudCheck,
+  mdiCloudOff,
+  mdiClose,
+  mdiChevronRight,
 } from '@mdi/js';
 
 interface Timer {
@@ -85,22 +91,29 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
   const [chatExpanded, setChatExpanded] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Close chat when clicking outside
+  // Status pop-up state
+  const [statusExpanded, setStatusExpanded] = useState(false);
+  const statusContainerRef = useRef<HTMLDivElement>(null);
+
+  // Close chat/status when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (chatContainerRef.current && !chatContainerRef.current.contains(event.target as Node)) {
+      if (chatExpanded && chatContainerRef.current && !chatContainerRef.current.contains(event.target as Node)) {
         setChatExpanded(false);
+      }
+      if (statusExpanded && statusContainerRef.current && !statusContainerRef.current.contains(event.target as Node)) {
+        setStatusExpanded(false);
       }
     };
 
-    if (chatExpanded) {
+    if (chatExpanded || statusExpanded) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [chatExpanded]);
+  }, [chatExpanded, statusExpanded]);
 
   // Update clock
   useEffect(() => {
@@ -230,19 +243,27 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
     return () => clearInterval(interval);
   }, [activeTimers, entities]);
 
-  // Count pending updates
-  const pendingUpdates = useMemo(() => {
+  // Get pending updates
+  const activeUpdates = useMemo(() => {
     return Object.entries(entities).filter(
       ([entityId, entity]) =>
         entityId.startsWith('update.') && entity.state === 'on'
-    ).length;
+    ).map(([id, entity]) => ({
+      id,
+      name: entity.attributes.friendly_name || id,
+      picture: entity.attributes.entity_picture as string | undefined,
+    }));
   }, [entities]);
 
-  // Count active notifications
-  const notificationCount = useMemo(() => {
+  // Get active notifications
+  const activeNotifications = useMemo(() => {
     return Object.entries(entities).filter(([entityId]) =>
       entityId.startsWith('persistent_notification.')
-    ).length;
+    ).map(([id, entity]) => ({
+      id,
+      title: (entity.attributes.title || entity.attributes.friendly_name || 'System Notification') as string,
+      message: entity.attributes.message as string | undefined,
+    }));
   }, [entities]);
 
   // Check cloud/remote connection status
@@ -263,8 +284,8 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
     return false;
   }, [entities]);
 
-  // Count offline devices (only entities that belong to physical devices)
-  const offlineCount = useMemo(() => {
+  // Count/List offline devices (only entities that belong to physical devices)
+  const offlineDevices = useMemo(() => {
     return Object.values(entities).filter((entity) => {
       // Only count entities that belong to a physical device
       const hasDeviceId = entity.attributes.device_id !== undefined && entity.attributes.device_id !== null;
@@ -272,8 +293,16 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
       
       // Check if the device is offline
       return entity.state === 'unavailable' || entity.state === 'unknown';
-    }).length;
+    }).map(entity => ({
+      id: entity.entity_id,
+      name: (entity.attributes.friendly_name || entity.entity_id) as string,
+    }));
   }, [entities]);
+
+  // Calculated counts for display
+  const pendingUpdates = activeUpdates.length;
+  const notificationCount = activeNotifications.length;
+  const offlineCount = offlineDevices.length;
 
   // Get current user's avatar (for immersive mode)
   const userAvatar = useMemo(() => {
@@ -293,7 +322,7 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
   }, [entities, haUrl]);
 
   return (
-    <footer className="hidden lg:flex items-center justify-between bg-surface-default pr-edge pt-ha-2 pb-edge col-span-full" data-component="StatusBar">
+    <footer className="hidden lg:flex items-center justify-between pr-edge pt-ha-2 pb-edge col-span-full" data-component="StatusBar">
       {/* Left side widgets */}
       <div className="flex items-center gap-ha-5">
         {/* User profile avatar */}
@@ -318,13 +347,35 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
               }}
             >
               {/* Messages area */}
-              <div className="h-full overflow-y-auto p-ha-4">
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <p className="text-text-secondary text-sm">
-                    Your AI assistant will appear here.
-                  </p>
-                  <p className="text-text-disabled text-xs mt-ha-2">
-                    Coming soon...
+              <div className="h-full overflow-y-auto p-ha-4 flex flex-col items-center">
+                <div className="flex flex-col items-center justify-center flex-1 text-center py-ha-4">
+                  <div className="relative mb-ha-4 group">
+                    <img 
+                      src="/casita.png" 
+                      alt="Casita Bot" 
+                      className="w-24 h-24 object-contain drop-shadow-xl animate-bounce-slow"
+                    />
+                  </div>
+
+                  {/* Chat Bubble from Casita */}
+                  <div className="relative bg-ha-blue text-white p-ha-3 rounded-ha-xl shadow-md mb-ha-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    {/* Triangle tip */}
+                    <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-ha-blue rotate-45" />
+                    
+                    <p className="text-xs font-medium leading-normal">
+                      Hola! I&apos;m <span className="font-bold">Casita</span>. How can I help you with your <span className="capitalize font-bold">{
+                        pathname === '/' ? 'Home' :
+                        pathname.startsWith('/dashboard/') ? pathname.split('/')[2] :
+                        pathname.startsWith('/panel/') ? pathname.split('/')[2] :
+                        'Home'
+                      }</span> today?
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="w-full mt-auto pt-ha-4 border-t border-surface-low text-center">
+                  <p className="text-text-disabled text-[10px] uppercase tracking-widest font-bold">
+                    System Ready
                   </p>
                 </div>
               </div>
@@ -461,10 +512,158 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
       </div>
 
       {/* Right side: Status icons + time */}
-      <div className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12">
+      <div className="relative" ref={statusContainerRef}>
+        
+        {/* Status Details Pop-up */}
+        {statusExpanded && (
+          <div 
+            className="absolute right-0 bottom-full mb-ha-2 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden transition-all duration-300 z-50 flex flex-col origin-bottom-right animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
+            style={{ maxHeight: 'calc(100vh - 120px)' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-ha-4 border-b border-surface-low bg-surface-low/50 backdrop-blur-md sticky top-0 z-10">
+                <h3 className="font-semibold text-text-primary flex items-center gap-2">
+                  <Icon path={mdiCheckCircle} size={20} className="text-ha-blue" />
+                  Home status
+                </h3>
+                <button 
+                    onClick={() => setStatusExpanded(false)}
+                    className="p-1 hover:bg-surface-mid rounded-full text-text-secondary transition-colors"
+                >
+                    <Icon path={mdiClose} size={20} />
+                </button>
+            </div>
+            
+            <div className="overflow-y-auto p-ha-3 space-y-ha-3 custom-scrollbar">
+                
+                {/* Connection Section */}
+                <div className="bg-surface-low rounded-2xl p-ha-3">
+                    <div className="flex items-center gap-ha-3 mb-ha-3">
+                        <div className={`p-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                          <Icon path={connectionStatus === 'connected' ? mdiCheckCircle : mdiAlertCircle} size={24} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-semibold text-text-primary">Home Assistant</h4>
+                          <p className="text-xs text-text-secondary font-medium">
+                              {connectionStatus === 'connecting' ? 'Connecting...' :
+                               connectionStatus === 'connected' ? 'Connected securely' :
+                               connectionStatus === 'error' ? 'Connection Error' : 'Unknown Status'}
+                          </p>
+                        </div>
+                    </div>
+                      
+                    {/* Connection Details */}
+                    <div className="space-y-2 mt-2 pt-2 border-t border-surface-mid/50">
+                        {/* Remote Access */}
+                        <div className="flex items-center justify-between px-1">
+                          <div className="flex items-center gap-2">
+                            <Icon path={isRemoteConnected ? mdiCloudCheck : mdiCloudOff} size={16} className={isRemoteConnected ? "text-green-500" : "text-text-disabled"} />
+                            <span className="text-sm text-text-secondary">Remote Access</span>
+                          </div>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRemoteConnected ? 'bg-green-500/10 text-green-500' : 'bg-surface-mid text-text-disabled'}`}>
+                             {isRemoteConnected ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Notifications Section - Always shown */}
+                <div className="bg-surface-low rounded-2xl p-ha-3">
+                  <div className="flex items-center justify-between mb-ha-2 px-1">
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Notifications</h4>
+                    {activeNotifications.length > 0 && (
+                      <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
+                    )}
+                  </div>
+                  {activeNotifications.length > 0 ? (
+                    <div className="space-y-2">
+                      {activeNotifications.map(notif => (
+                        <div key={notif.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
+                          <Icon path={mdiBell} size={18} className="text-yellow-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-text-primary leading-tight">{notif.title}</p>
+                            {notif.message && <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-snug">{notif.message}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
+                      <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
+                      No notifications
+                    </p>
+                  )}
+                </div>
+
+                {/* Active Updates Section */}
+                {(activeUpdates.length > 0) && (
+                    <div className="bg-surface-low rounded-2xl p-ha-3">
+                        <div className="flex items-center justify-between mb-ha-2 px-1">
+                          <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Updates Available</h4>
+                          <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
+                        </div>
+                        <div className="space-y-2">
+                            {activeUpdates.map(update => (
+                                <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-xl transition-colors cursor-pointer group">
+                                    <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-110 transition-transform">
+                                        {update.picture ? <img src={`${haUrl}${update.picture}`} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
+                                    </div>
+                                    <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
+                                    <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                
+                {/* Offline Devices Section - Always shown */}
+                <div className="bg-surface-low rounded-2xl p-ha-3">
+                  <div className="flex items-center justify-between mb-ha-2 px-1">
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Offline Devices</h4>
+                    {offlineDevices.length > 0 && (
+                      <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
+                    )}
+                  </div>
+                  {offlineDevices.length > 0 ? (
+                    <div className="space-y-1">
+                      {offlineDevices.map(device => (
+                        <div key={device.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-mid/50 transition-colors">
+                          <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
+                          <span className="text-sm truncate font-medium">{device.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
+                       <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
+                       All devices online
+                    </p>
+                  )}
+                </div>
+
+                {/* Empty State / All Good */}
+                {activeUpdates.length === 0 && activeNotifications.length === 0 && offlineDevices.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-6 text-center opacity-80">
+                        <p className="text-sm font-medium text-text-primary">All systems nominal</p>
+                        <p className="text-xs text-text-secondary mt-1">No issues detected in your home environment.</p>
+                    </div>
+                )}
+            </div>
+            
+            {/* Footer with version or info */}
+            <div className="p-3 border-t border-surface-low bg-surface-low/30 text-center">
+               <p className="text-[10px] text-text-disabled">Home Assistant • Connected</p>
+            </div>
+          </div>
+        )}
+
+        <button 
+          className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50"
+          onClick={() => setStatusExpanded(!statusExpanded)}
+        >
         {/* Updates indicator */}
         <Tooltip content={pendingUpdates > 0 ? `Updates: ${pendingUpdates} update${pendingUpdates > 1 ? 's' : ''} available` : 'Updates: System is up to date'}>
-          <div className="relative cursor-help">
+          <div className="relative">
             <Icon
               path={mdiUpdate}
               size={20}
@@ -478,7 +677,7 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
 
         {/* Remote access indicator */}
         <Tooltip content={isRemoteConnected ? 'Remote Access: Available via internet' : 'Remote Access: Not exposed to internet'}>
-          <div className="relative cursor-help">
+          <div className="relative">
             <Icon
               path={mdiWeb}
               size={20}
@@ -495,7 +694,7 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
 
         {/* Notifications indicator */}
         <Tooltip content={notificationCount > 0 ? `Notifications: ${notificationCount} active` : 'Notifications: None'}>
-          <div className="relative cursor-help">
+          <div className="relative">
             <Icon
               path={mdiBell}
               size={20}
@@ -509,7 +708,7 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
 
         {/* Offline devices indicator */}
         <Tooltip content={offlineCount > 0 ? `Offline: ${offlineCount} device${offlineCount > 1 ? 's' : ''} unavailable` : 'Devices: All online'}>
-          <div className="relative cursor-help">
+          <div className="relative">
             <Icon
               path={mdiDevices}
               size={20}
@@ -521,41 +720,34 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
           </div>
         </Tooltip>
 
-        {/* Time with stacked AM/PM */}
-        <div className="flex items-center gap-ha-1">
-          <span className="text-base font-medium text-text-primary" style={{ fontFamily: 'var(--font-mono)' }}>
-            {currentTime.split(':')[0]}
-            <span className={colonVisible ? 'opacity-100' : 'opacity-0'}>:</span>
-            {currentTime.split(':')[1]}
-          </span>
+          {/* Time with stacked AM/PM */}
           <div className="flex items-center gap-ha-1">
-            <div className="flex flex-col text-[9px] font-medium leading-tight">
-              <span className={isAM ? 'text-text-primary' : 'text-text-disabled'}>AM</span>
-              <span className={!isAM ? 'text-text-primary' : 'text-text-disabled'}>PM</span>
+            <span className="text-base font-medium text-text-primary" style={{ fontFamily: 'var(--font-mono)' }}>
+              {currentTime.split(':')[0]}
+              <span className={colonVisible ? 'opacity-100' : 'opacity-0'}>:</span>
+              {currentTime.split(':')[1]}
+            </span>
+            <div className="flex items-center gap-ha-1">
+              <div className="flex flex-col text-[9px] font-medium leading-tight">
+                <span className={isAM ? 'text-text-primary' : 'text-text-disabled'}>AM</span>
+                <span className={!isAM ? 'text-text-primary' : 'text-text-disabled'}>PM</span>
+              </div>
+              {/* Connection status dot - next to AM/PM */}
+              {connectionStatus && (
+                  <div
+                    className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                      connectionStatus === 'connecting' ? 'bg-ha-blue scale-100' :
+                      connectionStatus === 'connected' ? 'bg-green-500 scale-100' :
+                      connectionStatus === 'error' ? 'bg-red-500 scale-100' : 'scale-0'
+                    }`}
+                  />
+              )}
+              {!connectionStatus && (
+                <div className="w-2 h-2 scale-0" />
+              )}
             </div>
-            {/* Connection status dot - next to AM/PM */}
-            {connectionStatus && (
-              <Tooltip
-                content={
-                  connectionStatus === 'connecting' ? 'Connection: Connecting to Home Assistant...' :
-                  connectionStatus === 'connected' ? 'Connection: Connected' :
-                  connectionStatus === 'error' ? 'Connection: Error connecting' : ''
-                }
-              >
-                <div
-                  className={`w-2 h-2 rounded-full transition-all duration-300 cursor-help ${
-                    connectionStatus === 'connecting' ? 'bg-ha-blue scale-100' :
-                    connectionStatus === 'connected' ? 'bg-green-500 scale-100' :
-                    connectionStatus === 'error' ? 'bg-red-500 scale-100' : 'scale-0'
-                  }`}
-                />
-              </Tooltip>
-            )}
-            {!connectionStatus && (
-              <div className="w-2 h-2 scale-0" />
-            )}
           </div>
-        </div>
+        </button>
       </div>
     </footer>
   );

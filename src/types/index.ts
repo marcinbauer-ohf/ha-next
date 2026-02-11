@@ -36,6 +36,8 @@ export interface SummaryCardProps {
   state: string;
   color?: 'primary' | 'danger' | 'success' | 'yellow' | 'default';
   compact?: boolean;
+  variant?: 'filled' | 'outlined';
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export interface DashboardSectionProps {

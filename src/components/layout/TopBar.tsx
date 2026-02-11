@@ -1,23 +1,23 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Icon } from '../ui/Icon';
 import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
-import { usePullToRevealContext } from '@/contexts';
+import { useHeader, usePullToRevealContext } from '@/contexts';
+import { useTheme } from '@/hooks';
 import {
   mdiPencil,
   mdiPlus,
   mdiChevronDown,
+  mdiArrowLeft,
 } from '@mdi/js';
 
-interface TopBarProps {
-  title?: string;
-  subtitle?: string;
-  icon?: string;
-}
-
-export function TopBar({ title = 'Home', subtitle, icon }: TopBarProps) {
+export function TopBar() {
+  const { theme } = useTheme();
+  const { title, subtitle, icon, primaryAction } = useHeader();
   const { isRevealed, toggle } = usePullToRevealContext();
+  const router = useRouter();
 
   const titleContent = subtitle ? (
     <div className="flex flex-col leading-none gap-0.5 text-left">
@@ -40,10 +40,17 @@ export function TopBar({ title = 'Home', subtitle, icon }: TopBarProps) {
   );
 
   return (
-    <header className="flex items-center justify-between h-full py-ha-2 px-ha-0 lg:px-0 lg:pl-6" data-component="TopBar">
+    <header className="flex items-center justify-between h-full py-ha-2 px-ha-0 lg:pl-7" data-component="TopBar">
       {/* Mobile: Logo/Icon + Title with dropdown */}
       <div className="flex items-center gap-ha-3 lg:hidden">
-        {icon ? (
+        {subtitle ? (
+          <button 
+            onClick={() => router.back()}
+            className="p-1 -ml-1 text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <Icon path={mdiArrowLeft} size={24} />
+          </button>
+        ) : icon ? (
           <MdiIcon icon={icon} size={24} className="text-text-secondary" />
         ) : (
           <HALogo size={24} />
@@ -62,19 +69,41 @@ export function TopBar({ title = 'Home', subtitle, icon }: TopBarProps) {
       </div>
 
       {/* Title (desktop) */}
-      <div className="hidden lg:flex items-center">
+      <div className="hidden lg:flex items-center gap-ha-2">
+        {subtitle && (
+          <button 
+            onClick={() => router.back()}
+            className="p-1 -ml-1 text-text-secondary hover:text-text-primary transition-colors hover:bg-surface-low rounded-full"
+          >
+            <Icon path={mdiArrowLeft} size={24} />
+          </button>
+        )}
         {desktopTitleContent}
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-ha-2">
+        {primaryAction && (
+          <button 
+            onClick={primaryAction.onClick}
+            className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors"
+          >
+            <Icon path={primaryAction.icon} size={24} />
+          </button>
+        )}
         <button className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors">
           <Icon path={mdiPencil} size={24} />
         </button>
-        <button className="p-ha-3 rounded-ha-xl bg-fill-primary-normal text-ha-blue transition-colors hover:bg-fill-primary-quiet">
-          <Icon path={mdiPlus} size={24} />
-        </button>
-      </div>
+      <button 
+        className={`p-ha-3 rounded-ha-xl transition-colors ${
+          theme === 'glass'
+            ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
+            : 'bg-fill-primary-normal text-ha-blue hover:bg-fill-primary-quiet'
+        }`}
+      >
+        <Icon path={mdiPlus} size={24} />
+      </button>
+    </div>
     </header>
   );
 }

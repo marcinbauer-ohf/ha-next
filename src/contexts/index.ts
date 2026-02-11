@@ -3,3 +3,4 @@ export { SidebarItemsProvider, useSidebarItemsContext } from './SidebarItemsCont
 export type { SidebarItem } from './SidebarItemsContext';
 export { SearchProvider, useSearchContext } from './SearchContext';
 export { AssistantProvider, useAssistantContext } from './AssistantContext';
+export { HeaderProvider, useHeader } from './HeaderContext';

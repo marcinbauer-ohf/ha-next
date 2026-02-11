@@ -23,7 +23,7 @@
   --ha-color-yellow-95: #fef3cd;
 
   /* HA Brand Colors */
-  --ha-color-blue: #18BCF2;
+  --ha-color-blue: #18bcf2;
   --ha-color-blue-dark: #11a8db;
 
   /* Yellow colors for notifications */
@@ -54,8 +54,8 @@
   --ha-radius-pill: 9999px;
 }
 
-/* Dark theme */
-[data-theme="dark"] {
+/* Dark Mode (Default Theme) */
+[data-mode="dark"] {
   /* HA Surface Colors - Dark */
   --ha-color-surface-default: #1a1a1a;
   --ha-color-surface-low: #252525;
@@ -80,6 +80,358 @@
   /* Green colors for success states - Dark */
   --ha-color-green-500: #34c77b;
   --ha-color-green-600: #2aa361;
+}
+
+/* Glass Theme - Dark Mode */
+[data-theme="glass"][data-mode="dark"] {
+  /* Surfaces - Higher opacity for overlay elements */
+  --ha-color-surface-default: rgba(30, 30, 30, 0.92);
+  --ha-color-surface-low: rgba(55, 55, 55, 0.88);
+  --ha-color-surface-lower: rgba(75, 75, 75, 0.85);
+
+  /* Text */
+  --ha-color-text-primary: #ffffff;
+  --ha-color-text-secondary: rgba(255, 255, 255, 0.75);
+  --ha-color-text-disabled: rgba(255, 255, 255, 0.45);
+
+  /* Fills */
+  --ha-color-fill-primary-normal: rgba(64, 196, 255, 0.3);
+  --ha-color-fill-primary-quiet: rgba(64, 196, 255, 0.15);
+  --ha-color-fill-danger-normal: rgba(255, 90, 90, 0.3);
+  --ha-color-fill-success-normal: rgba(90, 255, 120, 0.3);
+  --ha-color-yellow-95: rgba(255, 230, 110, 0.25);
+
+  /* Colors */
+  --ha-color-yellow-500: #ffd60a;
+  --ha-color-yellow-600: #ffcc00;
+  --ha-color-green-500: #32d74b;
+  --ha-color-green-600: #28cd41;
+}
+
+/* Glass Theme - Light Mode */
+[data-theme="glass"][data-mode="light"] {
+  /* Surfaces - White/Light Glass - Higher opacity */
+  --ha-color-surface-default: rgba(255, 255, 255, 0.92);
+  --ha-color-surface-low: rgba(245, 245, 245, 0.88);
+  --ha-color-surface-lower: rgba(235, 235, 235, 0.85);
+
+  /* Text - Dark on Light Glass */
+  --ha-color-text-primary: #141414;
+  --ha-color-text-secondary: rgba(0, 0, 0, 0.65);
+  --ha-color-text-disabled: rgba(0, 0, 0, 0.40);
+
+  /* Fills - Light Mode Tints */
+  --ha-color-fill-primary-normal: rgba(24, 188, 242, 0.20);
+  --ha-color-fill-primary-quiet: rgba(24, 188, 242, 0.10);
+  --ha-color-fill-danger-normal: rgba(255, 80, 80, 0.15);
+  --ha-color-fill-success-normal: rgba(80, 255, 100, 0.15);
+  --ha-color-yellow-95: rgba(255, 220, 100, 0.15);
+
+  /* Colors - Standard or slightly tuned */
+  --ha-color-yellow-500: #eab308;
+  --ha-color-yellow-600: #ca8a04;
+  --ha-color-green-500: #2aa361;
+  --ha-color-green-600: #208a4e;
+}
+
+/* Glass Theme Body Background - Gradient (Shared Image) */
+[data-theme="glass"][data-background="gradient"] body {
+  background-color: transparent;
+  background-image: none;
+}
+
+[data-theme="glass"][data-background="gradient"] body::before {
+  content: "";
+  position: fixed;
+  top: -20px;
+  left: -20px;
+  right: -20px;
+  bottom: -20px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  z-index: -2;
+  background-image: url('/gradient-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  pointer-events: none;
+}
+
+
+/* Glass Theme - Background Image (Smart Home) */
+/* Image Background - Shared Foundation */
+/* Glass Theme - Background Image (Smart Home) */
+[data-theme="glass"][data-background="image"] body {
+  background-color: transparent;
+  background-image: none;
+}
+
+[data-theme="glass"][data-background="image"] body::before {
+  content: "";
+  position: fixed;
+  top: -20px;
+  left: -20px;
+  right: -20px;
+  bottom: -20px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  z-index: -2;
+  background-image: url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=3840&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center bottom; /* Anchor to bottom center often looks better for interiors */
+  background-repeat: no-repeat;
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+/* Glass Theme - Solid Background (Grey) */
+[data-theme="glass"][data-background="solid"] body {
+  background-color: var(--ha-color-surface-low);
+  background-image: none;
+}
+
+/* Glass Theme - None Background (Solid Grey, non-translucent) */
+[data-theme="glass"][data-mode="light"][data-background="none"] body {
+  background-color: #e6e6e6;
+  background-image: none;
+}
+
+[data-theme="glass"][data-mode="dark"][data-background="none"] body {
+  background-color: #303030;
+  background-image: none;
+}
+
+/* Add an overlay for dark mode on image background to ensure text readability */
+[data-theme="glass"][data-mode="dark"][data-background="image"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Default Theme - Background Image/Gradient applied to main dashboard container only */
+[data-theme="default"][data-background="image"] [data-component="dashboard-surface"],
+[data-theme="default"][data-background="gradient"] [data-component="dashboard-surface"] {
+  position: relative;
+  /* Ensure we create a stacking context */
+  isolation: isolate;
+  /* Override base background color to transparent so our layers show through cleanly */
+  background-color: transparent !important;
+}
+
+/* Image Layer - Bottom (z-index -2) */
+[data-theme="default"][data-background="image"] [data-component="dashboard-surface"]::before {
+  content: "";
+  position: absolute;
+  inset: -20px;
+  z-index: -2; /* Layout behind the scrim */
+  background-image: url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=3840&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+  filter: blur(8px);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* Gradient Layer - Bottom (z-index -2) */
+[data-theme="default"][data-background="gradient"] [data-component="dashboard-surface"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background-image: url('/gradient-bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* None Background - Solid Grey */
+[data-theme="default"][data-background="none"] [data-component="dashboard-surface"] {
+  background-color: var(--ha-color-surface-lower) !important;
+}
+
+/* Scrim/Overlay Layer - Top (z-index -1) with 80% Opacity */
+[data-theme="default"][data-background="image"] [data-component="dashboard-surface"]::after,
+[data-theme="default"][data-background="gradient"] [data-component="dashboard-surface"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.8; /* High opacity for contrast for contents */
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* Light Mode: White Scrim */
+[data-theme="default"][data-mode="light"][data-background="image"] [data-component="dashboard-surface"]::after,
+[data-theme="default"][data-mode="light"][data-background="gradient"] [data-component="dashboard-surface"]::after {
+  background-color: #ffffff;
+}
+
+/* Dark Mode: Dark Scrim */
+[data-theme="default"][data-mode="dark"][data-background="image"] [data-component="dashboard-surface"]::after,
+[data-theme="default"][data-mode="dark"][data-background="gradient"] [data-component="dashboard-surface"]::after {
+  background-color: #1a1a1a;
+}
+
+/* Make AppShell transparent to show background in Glass Mode only */
+/* Make AppShell transparent to show background in Glass Mode only */
+[data-theme="glass"] [data-component="AppShell"] {
+  background-color: transparent !important;
+}
+
+/* Glass Effect Modifiers */
+[data-theme="glass"] .bg-surface-default,
+[data-theme="glass"] .bg-surface-low,
+[data-theme="glass"] .bg-surface-lower {
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: none !important;
+}
+
+/* Dark Mode Glass Borders */
+[data-theme="glass"][data-mode="dark"] .bg-surface-default,
+[data-theme="glass"][data-mode="dark"] .bg-surface-low,
+[data-theme="glass"][data-mode="dark"] .bg-surface-lower {
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Light Mode Glass Borders */
+[data-theme="glass"][data-mode="light"] .bg-surface-default,
+[data-theme="glass"][data-mode="light"] .bg-surface-low,
+[data-theme="glass"][data-mode="light"] .bg-surface-lower {
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 2px 4px -1px rgba(0, 0, 0, 0.02);
+}
+
+/* Sidebar and Footer (StatusBar) transparent in Glass */
+[data-theme="glass"] [data-component="Sidebar"],
+[data-theme="glass"] [data-component="StatusBar"] {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Specific styling for the Dashboard/Content area in Glass Mode - Keep it more translucent */
+[data-theme="glass"][data-mode="dark"] [data-component="AppShell"] > div > main,
+[data-theme="glass"][data-mode="dark"] [data-component="dashboard-surface"] {
+  background-color: rgba(30, 30, 30, 0.60);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+}
+
+[data-theme="glass"][data-mode="dark"] .bg-surface-default {
+  background-color: var(--ha-color-surface-default); /* Now 0.92 opaque */
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+}
+
+[data-theme="glass"][data-mode="light"] [data-component="AppShell"] > div > main,
+[data-theme="glass"][data-mode="light"] [data-component="dashboard-surface"] {
+  background-color: rgba(255, 255, 255, 0.40);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+}
+
+[data-theme="glass"][data-mode="light"] .bg-surface-default {
+  background-color: var(--ha-color-surface-default); /* Now 0.92 opaque */
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+}
+
+
+/* Screensaver in Glass Mode - More opaque and blurry */
+[data-theme="glass"] [data-component="Screensaver"] {
+  background-color: rgba(0, 0, 0, 0.96) !important;
+  backdrop-filter: blur(64px) saturate(180%);
+  -webkit-backdrop-filter: blur(64px) saturate(180%);
+}
+
+/* Light Glass Screensaver - Lighter but still opaque/blurry */
+[data-theme="glass"][data-mode="light"] [data-component="Screensaver"] {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+}
+
+/* Active Card Styles for Glass Theme - White background, Black text -> 
+   This works well for Dark Glass. For Light Glass, also keep it white/black pop? 
+   Or maybe dark/white pop? Let's stick to the high contrast Pop for now.
+*/
+[data-theme="glass"] .bg-fill-primary-normal,
+[data-theme="glass"] .bg-fill-danger-normal,
+[data-theme="glass"] .bg-fill-success-normal,
+[data-theme="glass"] .bg-yellow-95,
+[data-theme="glass"] .bg-fill-primary-quiet {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+}
+
+/* Force text colors to black inside active white cards */
+[data-theme="glass"] .bg-fill-primary-normal .text-text-primary,
+[data-theme="glass"] .bg-fill-danger-normal .text-text-primary,
+[data-theme="glass"] .bg-fill-success-normal .text-text-primary,
+[data-theme="glass"] .bg-yellow-95 .text-text-primary,
+[data-theme="glass"] .bg-fill-primary-quiet .text-text-primary {
+  color: rgba(0, 0, 0, 0.95) !important;
+}
+
+[data-theme="glass"] .bg-fill-primary-normal .text-text-secondary,
+[data-theme="glass"] .bg-fill-danger-normal .text-text-secondary,
+[data-theme="glass"] .bg-fill-success-normal .text-text-secondary,
+[data-theme="glass"] .bg-yellow-95 .text-text-secondary,
+[data-theme="glass"] .bg-fill-primary-quiet .text-text-secondary {
+  color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Active Card Styles for Default Theme - No hue (White BG, Black Text) 
+   Matches Glass theme logic but with solid colors */
+[data-theme="default"] .bg-fill-primary-normal,
+[data-theme="default"] .bg-fill-danger-normal,
+[data-theme="default"] .bg-fill-success-normal,
+[data-theme="default"] .bg-yellow-95,
+[data-theme="default"] .bg-fill-primary-quiet {
+  background-color: #ffffff !important;
+  color: rgba(0, 0, 0, 0.95) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+}
+
+/* Force text colors to black inside active white cards */
+[data-theme="default"] .bg-fill-primary-normal .text-text-primary,
+[data-theme="default"] .bg-fill-danger-normal .text-text-primary,
+[data-theme="default"] .bg-fill-success-normal .text-text-primary,
+[data-theme="default"] .bg-yellow-95 .text-text-primary,
+[data-theme="default"] .bg-fill-primary-quiet .text-text-primary {
+  color: rgba(0, 0, 0, 0.95) !important;
+}
+
+[data-theme="default"] .bg-fill-primary-normal .text-text-secondary,
+[data-theme="default"] .bg-fill-danger-normal .text-text-secondary,
+[data-theme="default"] .bg-fill-success-normal .text-text-secondary,
+[data-theme="default"] .bg-yellow-95 .text-text-secondary,
+[data-theme="default"] .bg-fill-primary-quiet .text-text-secondary {
+  color: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Card modifications for Glass Mode - Ensure they float nicely */
+[data-theme="glass"] .bg-surface-default {
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 4px 24px -1px rgba(0, 0, 0, 0.2);
 }
 
 @theme inline {
@@ -120,7 +472,9 @@
 
   /* Font */
   --font-sans: var(--font-inter);
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Monaco, Consolas, monospace;
+  --font-mono:
+    ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Monaco,
+    Consolas, monospace;
 
   /* Yellow colors */
   --color-yellow-200: #fef08a;
@@ -144,12 +498,18 @@ body {
   color: var(--ha-color-text-primary);
   font-family: var(--font-sans), system-ui, sans-serif;
   overscroll-behavior: none;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 /* Theme transition for all elements */
 [data-theme-transition] * {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, fill 0.3s ease !important;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    fill 0.3s ease !important;
 }
 
 html {

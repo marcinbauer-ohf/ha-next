@@ -10,8 +10,8 @@ const columnClasses = {
 export function DashboardSection({ title, children, columns = 3 }: DashboardSectionProps) {
   return (
     <section className="mb-ha-6">
-      <h2 className="text-lg font-semibold text-text-primary mb-ha-3">{title}</h2>
-      <div className={clsx('grid gap-ha-3', columnClasses[columns])}>
+      <h2 className="text-lg font-semibold text-text-primary mb-ha-3 pl-2">{title}</h2>
+      <div className={clsx('grid gap-ha-3 p-2', columnClasses[columns])}>
         {children}
       </div>
     </section>

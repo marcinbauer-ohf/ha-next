@@ -9,6 +9,23 @@ import { HALogo } from '../ui/HALogo';
 import { useSidebarItems } from '@/hooks';
 import { useSearchContext } from '@/contexts';
 import { mdiMagnify } from '@mdi/js';
+import { clsx } from 'clsx';
+
+const appPalettes = [
+  { bg: 'bg-[var(--ha-color-fill-primary-normal)]', text: 'text-ha-blue' },
+  { bg: 'bg-[var(--ha-color-fill-danger-normal)]', text: 'text-red-600' },
+  { bg: 'bg-[var(--ha-color-fill-success-normal)]', text: 'text-green-600' },
+  { bg: 'bg-[var(--ha-color-yellow-95)]', text: 'text-yellow-600' },
+];
+
+const getAppPalette = (id: string) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % appPalettes.length;
+  return appPalettes[index];
+};
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -50,7 +67,7 @@ export function Sidebar() {
   }, [items, loading]);
 
   return (
-    <aside className="hidden lg:flex flex-col items-center w-16 bg-surface-default py-ha-3 h-full" data-component="Sidebar">
+    <aside className="hidden lg:flex flex-col items-center w-16 py-ha-2 h-full" data-component="Sidebar">
       {/* Logo - links to home dashboard */}
       <Link href="/" className="h-12 flex items-center justify-center mb-ha-4">
         <HALogo size={32} />
@@ -70,7 +87,7 @@ export function Sidebar() {
       <div className="flex-1 relative w-full min-h-0">
         {/* Top gradient */}
         <div 
-          className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-surface-default to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+          className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
             showTopGradient ? 'opacity-100' : 'opacity-0'
           }`} 
         />
@@ -95,38 +112,41 @@ export function Sidebar() {
                 return a.isApp ? 1 : -1;
               })
               .map((item) => {
-              const isActive = pathname === item.urlPath ||
-                (item.urlPath !== '/' && pathname.startsWith(item.urlPath));
+                const isActive = pathname === item.urlPath ||
+                  (item.urlPath !== '/' && pathname.startsWith(item.urlPath));
+                const palette = item.isApp ? getAppPalette(item.id) : null;
 
-              return (
-                <Link
-                  key={item.id}
-                  href={item.urlPath}
-                  scroll={false}
-                  className={`w-12 h-12 flex-shrink-0 rounded-ha-xl transition-colors flex items-center justify-center ${
-                    item.isApp
-                      ? isActive ? 'bg-ha-blue' : 'bg-surface-lower'
-                      : isActive ? 'bg-fill-primary-normal' : 'hover:bg-surface-low'
-                  }`}
-                  title={item.title}
-                >
-                  <MdiIcon
-                    icon={item.icon || (item.isApp ? 'mdi:application' : 'mdi:view-dashboard')}
-                    size={24}
-                    className={item.isApp
-                      ? isActive ? 'text-white' : 'text-text-secondary'
-                      : isActive ? 'text-ha-blue' : 'text-text-secondary'
-                    }
-                  />
-                </Link>
-              );
-            })
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.urlPath}
+                    scroll={false}
+                    className={clsx(
+                      'w-12 h-12 flex-shrink-0 rounded-ha-xl transition-colors flex items-center justify-center',
+                      item.isApp
+                        ? isActive ? 'bg-ha-blue' : palette?.bg
+                        : isActive ? 'bg-fill-primary-normal' : 'hover:bg-surface-low'
+                    )}
+                    title={item.title}
+                  >
+                    <MdiIcon
+                      icon={item.icon || (item.isApp ? 'mdi:application' : 'mdi:view-dashboard')}
+                      size={24}
+                      className={clsx(
+                        isActive
+                          ? item.isApp ? 'text-white' : 'text-ha-blue'
+                          : 'text-text-secondary'
+                      )}
+                    />
+                  </Link>
+                );
+              })
           )}
         </nav>
 
         {/* Bottom gradient */}
         <div 
-          className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-surface-default to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+          className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
             showBottomGradient ? 'opacity-100' : 'opacity-0'
           }`} 
         />

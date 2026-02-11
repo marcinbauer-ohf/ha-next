@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { Icon } from './Icon';
 import { useAssistantContext } from '@/contexts/AssistantContext';
 import {
-  mdiMicrophone,
   mdiClose,
   mdiLightbulbOnOutline,
   mdiThermometer,
@@ -102,41 +101,39 @@ export function AssistantOverlay() {
           </button>
         </div>
 
-        {/* Microphone area */}
-        <div className={`flex flex-col items-center py-ha-6 transition-all duration-500 ${
+        {/* Casita Bot and Chat Bubble area */}
+        <div className={`flex flex-col items-center py-ha-6 px-ha-4 transition-all duration-500 ${
           visible ? 'opacity-100' : 'opacity-0'
         }`}>
-          {/* Pulsing mic button */}
-          <button
+          {/* Bot Image */}
+          <button 
             onClick={handleMicClick}
-            className="relative mb-ha-4"
+            className="relative mb-ha-4 group active:scale-95 transition-transform outline-none"
           >
-            {/* Pulse rings */}
-            <div className={`absolute inset-0 rounded-full bg-ha-blue/20 transition-all duration-500 ${
-              listening ? 'scale-[2.2] opacity-100 animate-pulse' : 'scale-100 opacity-0'
-            }`} />
-            <div className={`absolute inset-0 rounded-full bg-ha-blue/10 transition-all duration-700 ${
-              listening ? 'scale-[3] opacity-100 animate-pulse' : 'scale-100 opacity-0'
-            }`} style={{ animationDelay: '150ms' }} />
-            {/* Button */}
-            <div className={`relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${
-              listening
-                ? 'bg-ha-blue scale-110 shadow-lg shadow-ha-blue/30'
-                : 'bg-fill-primary-normal hover:bg-fill-primary-quiet'
-            }`}>
-              <Icon
-                path={mdiMicrophone}
-                size={28}
-                className={`transition-colors duration-300 ${listening ? 'text-white' : 'text-ha-blue'}`}
-              />
-            </div>
+             <img 
+               src="/casita.png" 
+               alt="Casita Bot" 
+               className="w-32 h-32 object-contain drop-shadow-2xl animate-bounce-slow"
+             />
+             {/* Interaction ring when listening */}
+             <div className={`absolute inset-0 rounded-full border-4 border-ha-blue/30 transition-all duration-500 scale-125 ${
+               listening ? 'opacity-100 animate-pulse' : 'opacity-0'
+             }`} />
           </button>
 
-          <p className={`text-sm transition-all duration-300 ${
-            listening ? 'text-ha-blue font-medium' : 'text-text-secondary'
-          }`}>
-            {listening ? 'Listening...' : <>Ask <span className="capitalize">{contextName}</span> anything</>}
-          </p>
+          {/* Chat Bubble from Casita */}
+          <div className="relative bg-ha-blue text-white p-ha-4 rounded-ha-2xl shadow-lg max-w-[280px] mb-ha-2 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-300">
+             {/* Triangle tip */}
+             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-ha-blue rotate-45" />
+             
+             <p className="text-sm font-medium text-center">
+                {listening ? (
+                  "I'm listening... Tell me what you need."
+                ) : (
+                  <>Hola! I&apos;m <span className="font-bold">Casita</span>. How can I help you with your <span className="capitalize font-bold">{contextName}</span> today?</>
+                )}
+             </p>
+          </div>
         </div>
 
         {/* Text input */}

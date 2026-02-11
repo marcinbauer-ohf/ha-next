@@ -26,7 +26,7 @@ export function RoomCard({
   const hasActivity = activeEntities > 0;
 
   const className = clsx(
-    'relative flex flex-col items-start p-ha-4 rounded-ha-2xl transition-all hover:scale-[1.02] active:scale-[0.98] min-h-[140px] w-full',
+    'relative hover:z-50 flex flex-col items-start p-ha-4 rounded-ha-2xl transition-all hover:scale-[1.02] active:scale-[0.98] min-h-[140px] w-full',
     hasActivity ? 'bg-fill-primary-quiet' : 'bg-surface-default'
   );
 

@@ -27,10 +27,12 @@ export function PullToRevealPanel() {
 
   // Refs for overscroll tracking (persists across effect re-runs)
   const overscrollStartY = useRef<number | null>(null);
+  const overscrollStartX = useRef<number | null>(null);
   const overscrollStartedAtTop = useRef(false);
   const overscrollIsTracking = useRef(false);
   const pullDistanceRef = useRef(pullDistance);
   const isRevealedRef = useRef(isRevealed);
+  const isPullingRef = useRef(isPulling);
   const handleIsActive = useRef(false); // Track when handle is being dragged
 
   // Keep refs in sync with state
@@ -41,6 +43,10 @@ export function PullToRevealPanel() {
   useEffect(() => {
     isRevealedRef.current = isRevealed;
   }, [isRevealed]);
+
+  useEffect(() => {
+    isPullingRef.current = isPulling;
+  }, [isPulling]);
 
   // Touch event handlers for the drag handle
   useEffect(() => {
@@ -154,6 +160,7 @@ export function PullToRevealPanel() {
       // Check if we're at the top when touch starts
       if (scrollable.scrollTop <= 0) {
         overscrollStartY.current = e.touches[0].clientY;
+        overscrollStartX.current = e.touches[0].clientX;
         overscrollStartedAtTop.current = true;
         overscrollIsTracking.current = true;
       } else {
@@ -167,10 +174,26 @@ export function PullToRevealPanel() {
       if (handleIsActive.current) return;
       // Skip if touch originated from the handle
       if (handle && handle.contains(e.target as Node)) return;
-      if (!overscrollIsTracking.current || overscrollStartY.current === null) return;
+      if (!overscrollIsTracking.current || overscrollStartY.current === null || overscrollStartX.current === null) return;
 
       const currentY = e.touches[0].clientY;
+      const currentX = e.touches[0].clientX;
       const pullDelta = currentY - overscrollStartY.current;
+      const deltaX = Math.abs(currentX - overscrollStartX.current);
+
+      // Check for horizontal dominance or buffer if not already pulling
+      if (!isPullingRef.current) {
+        // If scrolling horizontally more than vertically, stop tracking
+        if (deltaX > Math.abs(pullDelta)) {
+          overscrollIsTracking.current = false;
+          return;
+        }
+        
+        // BUFFER: Ignore small vertical movements (e.g. < 10px) to prevent accidental pulls
+        if (Math.abs(pullDelta) < 10) {
+          return;
+        }
+      }
 
       if (isRevealedRef.current) {
         // When revealed, pulling down closes
@@ -185,7 +208,9 @@ export function PullToRevealPanel() {
           e.preventDefault();
           setPulling(true);
           const resistance = 0.5;
-          const resistedPull = Math.min(pullDelta * resistance, maxPull);
+          // Apply buffer to smoothen the start
+          const effectivePull = Math.max(0, pullDelta - 10);
+          const resistedPull = Math.min(effectivePull * resistance, maxPull);
           setPullDistance(resistedPull);
         }
       }
@@ -220,6 +245,7 @@ export function PullToRevealPanel() {
       }
 
       overscrollStartY.current = null;
+      overscrollStartX.current = null;
       overscrollStartedAtTop.current = false;
       overscrollIsTracking.current = false;
     };

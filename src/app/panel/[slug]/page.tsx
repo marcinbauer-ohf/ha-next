@@ -1,10 +1,9 @@
 'use client';
 
-import { use } from 'react';
-import { TopBar } from '@/components/layout';
+import { use, useEffect } from 'react';
 import { PullToRevealPanel } from '@/components/sections';
 import { useSidebarItems } from '@/hooks';
-import { usePullToRevealContext } from '@/contexts';
+import { usePullToRevealContext, useHeader } from '@/contexts';
 
 interface PanelPageProps {
   params: Promise<{ slug: string }>;
@@ -14,6 +13,7 @@ export default function PanelPage({ params }: PanelPageProps) {
   const { slug } = use(params);
   const { items } = useSidebarItems();
   const { isRevealed } = usePullToRevealContext();
+  const { setHeader } = useHeader();
 
   // Find the panel info
   const panel = items.find(
@@ -22,12 +22,13 @@ export default function PanelPage({ params }: PanelPageProps) {
 
   const title = panel?.title || slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
+  useEffect(() => {
+    setHeader({ title, icon: panel?.icon ?? undefined });
+  }, [setHeader, title, panel?.icon]);
+
   return (
     <>
-      {/* TopBar row */}
-      <div className="px-edge lg:pr-edge overflow-hidden flex-shrink-0 h-16">
-        <TopBar title={title} icon={panel?.icon ?? undefined} />
-      </div>
+      {/* TopBar row - rendered by AppShell */}
 
       {/* Pull to reveal - drag handle between TopBar and dashboard (Mobile only) */}
       <PullToRevealPanel />

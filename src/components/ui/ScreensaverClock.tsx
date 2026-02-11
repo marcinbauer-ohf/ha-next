@@ -7,6 +7,8 @@ import { Tooltip } from './Tooltip';
 import { RollingDigit } from './RollingDigit';
 import { useHomeAssistant } from '@/hooks';
 import { mdiUpdate, mdiWeb, mdiBell, mdiAlertCircle } from '@mdi/js';
+import { SummaryCard } from '../cards/SummaryCard';
+import { PeopleBadge, summaryItems } from '../sections/SummariesPanel';
 
 interface ScreensaverClockProps {
   visible: boolean;
@@ -211,6 +213,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   return (
     <div
       ref={containerRef}
+      data-component="Screensaver"
       className={`fixed inset-0 z-[100] bg-surface-default flex flex-col items-center justify-center transition-all ease-out ${
         isDragging ? 'duration-0' : isDismissing ? 'duration-300' : 'duration-500'
       } ${
@@ -275,6 +278,22 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
 
       {/* Date display */}
       <p className="text-xl lg:text-2xl text-text-secondary mt-6">{date}</p>
+
+      {/* Summary badges */}
+      <div className="flex flex-wrap justify-center gap-ha-4 mt-12 max-w-4xl px-ha-6">
+        <PeopleBadge compact size="lg" />
+        {summaryItems.map((item) => (
+          <SummaryCard
+            key={item.title}
+            icon={item.icon}
+            title={item.title}
+            state={item.state}
+            color={item.color}
+            compact
+            size="lg"
+          />
+        ))}
+      </div>
 
       {/* User and status icons */}
       <div className="flex items-center gap-ha-4 bg-surface-low rounded-ha-pill px-ha-4 py-ha-3 mt-8">

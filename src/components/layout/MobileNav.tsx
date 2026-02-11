@@ -11,7 +11,6 @@ import { useHomeAssistant } from '@/hooks';
 import { usePullToRevealContext, useSearchContext, useAssistantContext } from '@/contexts';
 import {
   mdiMagnify,
-  mdiMicrophone,
   mdiUpdate,
   mdiBell,
   mdiWeb,
@@ -35,15 +34,13 @@ interface MobileNavProps {
   connectionStatus?: ConnectionStatusType;
 }
 
-export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileNavProps) {
+export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   const pathname = usePathname();
   const { entities, haUrl } = useHomeAssistant();
   const { isRevealed, close, open } = usePullToRevealContext();
   const { searchOpen, toggleSearch } = useSearchContext();
   const { openAssistant } = useAssistantContext();
-  const [currentTime, setCurrentTime] = useState<string>('');
-  const [isAM, setIsAM] = useState(true);
-  const [colonVisible, setColonVisible] = useState(true);
+
   const [timerProgress, setTimerProgress] = useState<number>(0);
   const [hideTopRow, setHideTopRow] = useState(false);
   const [hideFromInactivity, setHideFromInactivity] = useState(false);
@@ -149,25 +146,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
     };
   }, [disableAutoHide]);
 
-  // Update clock
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const hours = now.getHours();
-      setIsAM(hours < 12);
-      setColonVisible((prev) => !prev);
-      setCurrentTime(
-        now.toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        }).replace(/\s?(AM|PM)$/i, '')
-      );
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+
 
   // Count pending updates
   const pendingUpdates = useMemo(() => {
@@ -347,7 +326,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
                 'Home'
               }</span>...
             </span>
-            <Icon path={mdiMicrophone} size={18} className="text-text-secondary flex-shrink-0" />
+            <div className="w-6 h-6 relative">
+              <img src="/casita.png" alt="Casita" className="w-full h-full object-contain" />
+            </div>
           </button>
 
           {/* Media + Timer widgets container */}
@@ -470,28 +451,6 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
                   />
                 )}
 
-                {/* Time with stacked AM/PM */}
-                <div className="flex items-center gap-ha-1">
-                  <span className="text-base font-medium text-text-primary whitespace-nowrap" style={{ fontFamily: 'var(--font-mono)' }}>
-                    {currentTime.split(':')[0]}
-                    <span className={colonVisible ? 'opacity-100' : 'opacity-0'}>:</span>
-                    {currentTime.split(':')[1]}
-                  </span>
-                  <div className="flex items-center gap-ha-1">
-                    <div className="flex flex-col text-[9px] font-medium leading-tight">
-                      <span className={isAM ? 'text-text-primary' : 'text-text-disabled'}>AM</span>
-                      <span className={!isAM ? 'text-text-primary' : 'text-text-disabled'}>PM</span>
-                    </div>
-                    {/* Connection status dot - next to AM/PM */}
-                    <div
-                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                        connectionStatus === 'connecting' ? 'bg-ha-blue scale-100' :
-                        connectionStatus === 'connected' ? 'bg-green-500 scale-100' :
-                        connectionStatus === 'error' ? 'bg-red-500 scale-100' : 'scale-0'
-                      }`}
-                    />
-                  </div>
-                </div>
               </div>
             );
           })()}

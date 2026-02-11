@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { SummaryCard } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant } from '@/hooks';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   mdiAccountMultiple,
   mdiLightbulbGroup,
@@ -18,8 +19,9 @@ import {
   mdiClockOutline,
 } from '@mdi/js';
 import { Icon } from '../ui/Icon';
+import { clsx } from 'clsx';
 
-const summaryItems = [
+export const summaryItems = [
   { icon: mdiLightbulbGroup, title: 'Lights', state: '3 on', color: 'yellow' as const },
   { icon: mdiThermometer, title: 'Climate', state: '22°C avg', color: 'primary' as const },
   { icon: mdiShieldHome, title: 'Security', state: 'Armed', color: 'success' as const },
@@ -93,7 +95,7 @@ function TipsCard({ onToggleImmersive, onToggleDarkMode, onToggleScreensaver }: 
   };
 
   return (
-    <div className="flex flex-col gap-ha-2 p-ha-3 rounded-ha-xl bg-surface-low">
+    <div className="flex flex-col gap-ha-2 p-ha-3 rounded-ha-xl bg-surface-default border border-surface-lower">
       <div className="flex items-center gap-ha-2">
         <div className="w-8 h-8 rounded-full bg-fill-primary-normal flex items-center justify-center flex-shrink-0">
           <Icon path={tip.icon} size={18} className="text-ha-blue" />
@@ -133,14 +135,18 @@ function TipsCard({ onToggleImmersive, onToggleDarkMode, onToggleScreensaver }: 
   );
 }
 
-function PeopleBadge({ compact = false }: { compact?: boolean }) {
+export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact?: boolean; size?: 'sm' | 'md' | 'lg'; variant?: 'compact' | 'full' }) {
   const { entities, haUrl } = useHomeAssistant();
+  const isLg = size === 'lg';
+  const isMd = size === 'md';
 
-  const peopleHome = useMemo(() => {
-    return Object.entries(entities)
-      .filter(([entityId, entity]) => entityId.startsWith('person.') && entity.state === 'home')
-      .map(([, entity]) => ({
+  const { peopleHome, peopleAway } = useMemo(() => {
+    const allPeople = Object.entries(entities)
+      .filter(([entityId]) => entityId.startsWith('person.'))
+      .map(([entityId, entity]) => ({
+        id: entityId,
         name: entity.attributes.friendly_name as string || 'User',
+        state: entity.state,
         picture: entity.attributes.entity_picture
           ? `${haUrl}${entity.attributes.entity_picture}`
           : undefined,
@@ -151,39 +157,62 @@ function PeopleBadge({ compact = false }: { compact?: boolean }) {
           .toUpperCase()
           .slice(0, 2),
       }));
+
+    return {
+      peopleHome: allPeople.filter(p => p.state === 'home'),
+      peopleAway: allPeople.filter(p => p.state !== 'home'),
+    };
   }, [entities, haUrl]);
 
-  if (compact) {
+  // Use variant if provided, otherwise fallback to compact prop
+  const isCompact = variant ? variant === 'compact' : compact;
+
+  if (isCompact) {
     // Mobile: stacked avatars + count
     return (
-      <div className="flex items-center gap-ha-2 px-ha-2 py-ha-1 rounded-ha-pill whitespace-nowrap bg-fill-primary-quiet flex-shrink-0">
-        <div className="flex -space-x-1.5 flex-shrink-0">
+      <div className={clsx(
+        'flex items-center rounded-ha-pill whitespace-nowrap bg-fill-primary-quiet flex-shrink-0 transition-all',
+        isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-ha-2.5' : 'gap-ha-2 px-ha-2 py-ha-1'
+      )}>
+        <div className={clsx(
+          'flex flex-shrink-0',
+          isLg ? '-space-x-3' : isMd ? '-space-x-2' : '-space-x-1.5'
+        )}>
           {peopleHome.length > 0 ? (
-            peopleHome.slice(0, 4).map((person, index) => (
+            peopleHome.slice(0, 4).map((person) => (
               <Avatar
-                key={index}
+                key={person.id}
                 src={person.picture}
                 initials={person.initials}
-                size="xs"
-                className="ring-2 ring-fill-primary-quiet flex-shrink-0 bg-surface-default"
+                size={isLg ? 'md' : isMd ? 'sm' : 'xs'}
+                className={clsx(
+                  'ring-2 ring-fill-primary-quiet flex-shrink-0 bg-surface-default',
+                  isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-7 h-7'
+                )}
               />
             ))
           ) : (
-            <div className="w-7 h-7 rounded-full bg-fill-primary-normal flex items-center justify-center flex-shrink-0">
-              <Icon path={mdiAccountMultiple} size={16} className="text-ha-blue" />
+            <div className={clsx(
+              'rounded-full bg-fill-primary-normal flex items-center justify-center flex-shrink-0',
+              isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-7 h-7'
+            )}>
+              <span className={clsx('text-ha-blue font-bold leading-none', isLg ? 'text-lg' : isMd ? 'text-base' : 'text-xs')}>?</span>
             </div>
           )}
         </div>
-        <span className="text-sm font-medium text-text-primary text-left pr-ha-1 flex-shrink-0">
+        <span className={clsx(
+          'font-medium text-text-primary text-left flex-shrink-0',
+          isLg ? 'text-xl pr-ha-3' : isMd ? 'text-base pr-ha-2' : 'text-sm pr-ha-1'
+        )}>
           {peopleHome.length} home
         </span>
       </div>
     );
   }
 
-  // Desktop: icon + text on left, avatars on right
+  // Desktop: icon + text on left, avatars on right (home | away)
   return (
-    <div className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-fill-primary-quiet">
+    <div className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-default border border-surface-lower">
       <div className="flex-shrink-0 text-ha-blue">
         <Icon path={mdiAccountMultiple} size={24} />
       </div>
@@ -191,19 +220,67 @@ function PeopleBadge({ compact = false }: { compact?: boolean }) {
         <span className="text-sm font-medium text-text-primary text-left">People</span>
         <span className="text-xs text-text-secondary text-left">{peopleHome.length} home</span>
       </div>
-      {peopleHome.length > 0 && (
-        <div className="flex -space-x-2 flex-shrink-0">
-          {peopleHome.map((person, index) => (
-            <Avatar
-              key={index}
-              src={person.picture}
-              initials={person.initials}
-              size="sm"
-              className="ring-2 ring-fill-primary-quiet bg-surface-default"
-            />
-          ))}
-        </div>
-      )}
+      <div className="flex items-center gap-ha-2 flex-shrink-0">
+        <AnimatePresence mode="popLayout" initial={false}>
+          {/* Home People */}
+          <motion.div key="home-group" layout className="flex -space-x-2">
+            {peopleHome.map((person) => (
+              <motion.div
+                key={person.id}
+                layout
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                className="relative z-10"
+              >
+                <Avatar
+                  src={person.picture}
+                  initials={person.initials}
+                  size="sm"
+                  className="ring-2 ring-surface-default bg-surface-default"
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Separator */}
+          {peopleHome.length > 0 && peopleAway.length > 0 && (
+            <motion.div
+              key="separator"
+              layout
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 'auto' }}
+              exit={{ opacity: 0, width: 0 }}
+              className="px-1"
+            >
+              <div className="w-px h-6 bg-surface-lower" />
+            </motion.div>
+          )}
+
+          {/* Away People */}
+          <motion.div key="away-group" layout className="flex -space-x-2">
+            {peopleAway.map((person) => (
+              <motion.div
+                key={person.id}
+                layout
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                className="relative opacity-40 grayscale-[0.5]"
+              >
+                <Avatar
+                  src={person.picture}
+                  initials={person.initials}
+                  size="sm"
+                  className="ring-2 ring-surface-default bg-surface-default"
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -240,11 +317,30 @@ interface SummariesPanelProps {
 }
 
 export function SummariesPanel({ onToggleImmersive, onToggleDarkMode, onToggleScreensaver }: SummariesPanelProps) {
+  const [isCompact, setIsCompact] = useState(false);
+
+  // Check window width to clear up space on smaller desktop screens
+  useEffect(() => {
+    const checkWidth = () => {
+      // If width < 1280px (xl breakpoint), switch to compact mode
+      setIsCompact(window.innerWidth < 1280);
+    };
+    
+    // Check initially
+    checkWidth();
+
+    window.addEventListener('resize', checkWidth);
+    return () => window.removeEventListener('resize', checkWidth);
+  }, []);
+
   return (
-    <aside className="hidden lg:block w-80 xl:w-96 bg-surface-default rounded-ha-2xl p-ha-5 h-fit">
+    <aside className={clsx(
+      "hidden lg:block bg-surface-default rounded-ha-2xl h-fit transition-all duration-300",
+      isCompact ? "w-[260px] p-ha-4" : "w-80 xl:w-96 p-ha-5"
+    )}>
       <h2 className="text-lg font-semibold text-text-primary mb-ha-4">Summary</h2>
       <div className="space-y-ha-3">
-        <PeopleBadge />
+        <PeopleBadge variant={isCompact ? 'compact' : 'full'} />
         {summaryItems.map((item) => (
           <SummaryCard
             key={item.title}
@@ -252,11 +348,15 @@ export function SummariesPanel({ onToggleImmersive, onToggleDarkMode, onToggleSc
             title={item.title}
             state={item.state}
             color={item.color}
+            variant={isCompact ? 'filled' : 'outlined'}
+            compact={isCompact}
           />
         ))}
-        <div className="pt-ha-2">
-          <TipsCard onToggleImmersive={onToggleImmersive} onToggleDarkMode={onToggleDarkMode} onToggleScreensaver={onToggleScreensaver} />
-        </div>
+        {!isCompact && (
+          <div className="pt-ha-2">
+            <TipsCard onToggleImmersive={onToggleImmersive} onToggleDarkMode={onToggleDarkMode} onToggleScreensaver={onToggleScreensaver} />
+          </div>
+        )}
       </div>
     </aside>
   );

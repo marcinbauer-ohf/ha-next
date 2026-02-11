@@ -7,7 +7,7 @@ export type ImmersivePhase = 'normal' | 'preparing' | 'expanded' | 'collapsing';
 interface ImmersiveModeContextType {
   immersiveMode: boolean;
   setImmersiveMode: (value: boolean) => void;
-  toggleImmersiveMode: () => void;
+  toggleImmersiveMode: (e?: React.MouseEvent | KeyboardEvent) => void;
   immersivePhase: ImmersivePhase;
 }
 
@@ -24,31 +24,59 @@ export function ImmersiveModeProvider({ children }: { children: ReactNode }) {
   const [immersivePhase, setImmersivePhase] = useState<ImmersivePhase>('normal');
 
   useEffect(() => {
-    if (immersiveMode) {
-      setImmersivePhase('preparing');
-      let id2: number;
-      const id1 = requestAnimationFrame(() => {
-        id2 = requestAnimationFrame(() => {
-          setImmersivePhase('expanded');
-        });
-      });
-      return () => {
-        cancelAnimationFrame(id1);
-        if (id2) cancelAnimationFrame(id2);
-      };
-    } else {
-      setImmersivePhase(prev =>
-        prev === 'expanded' || prev === 'preparing' ? 'collapsing' : prev
-      );
-      const timer = setTimeout(() => {
-        setImmersivePhase('normal');
-      }, 300);
-      return () => clearTimeout(timer);
-    }
+    const handleResize = () => {
+      if (window.innerWidth < 1024 && immersiveMode) {
+        setImmersiveMode(false);
+      }
+    };
+
+    handleResize(); // Check on mount
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [immersiveMode]);
 
-  const toggleImmersiveMode = useCallback(() => {
-    setImmersiveMode(prev => !prev);
+  useEffect(() => {
+    let id1: number;
+    let timeoutId: NodeJS.Timeout;
+
+    if (immersiveMode) {
+      // Start preparing immediately
+      id1 = requestAnimationFrame(() => {
+        setImmersivePhase('preparing');
+        // Add a small delay to ensure the browser paints the preparing state
+        // before transitioning to expanded. rAF nesting sometimes fails on clicks.
+        timeoutId = setTimeout(() => {
+          setImmersivePhase('expanded');
+        }, 50);
+      });
+    } else {
+      // Allow render cycle to complete before starting collapse animation
+      id1 = requestAnimationFrame(() => {
+        setImmersivePhase(prev =>
+          prev === 'expanded' || prev === 'preparing' ? 'collapsing' : prev
+        );
+      });
+      
+      timeoutId = setTimeout(() => {
+        setImmersivePhase('normal');
+      }, 300);
+    }
+
+    return () => {
+      if (id1) cancelAnimationFrame(id1);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [immersiveMode]);
+
+  const toggleImmersiveMode = useCallback((e?: React.MouseEvent | KeyboardEvent) => {
+    if (e && 'preventDefault' in e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    // Only allow immersive mode on desktop (lg breakpoint = 1024px)
+    if (window.innerWidth >= 1024) {
+      setImmersiveMode(prev => !prev);
+    }
   }, []);
 
   return (
