@@ -355,16 +355,16 @@
 }
 
 
-/* Screensaver in Glass Mode - More opaque and blurry */
+/* Screensaver in Glass Mode - More glassy and blurry */
 [data-theme="glass"] [data-component="Screensaver"] {
-  background-color: rgba(0, 0, 0, 0.96) !important;
-  backdrop-filter: blur(64px) saturate(180%);
-  -webkit-backdrop-filter: blur(64px) saturate(180%);
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
 }
 
-/* Light Glass Screensaver - Lighter but still opaque/blurry */
+/* Light Glass Screensaver - Lighter but still glassy/blurry */
 [data-theme="glass"][data-mode="light"] [data-component="Screensaver"] {
-  background-color: rgba(255, 255, 255, 0.96) !important;
+  background-color: rgba(255, 255, 255, 0.5) !important;
 }
 
 /* Active Card Styles for Glass Theme - White background, Black text -> 
