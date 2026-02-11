@@ -308,8 +308,8 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   }, [entities]);
 
   return (
-    <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-default transition-shadow duration-300 ${
-      (hideTopRow || hideFromInactivity) ? 'shadow-none' : 'shadow-[0_-4px_16px_rgba(0,0,0,0.08)]'
+    <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-default shadow-[0_-4px_16px_rgba(0,0,0,0.08)] transition-all duration-500 ease-in-out ${
+      isRevealed ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
     }`} style={{ paddingBottom: `env(safe-area-inset-bottom)` }} data-component="MobileNav">
       <div className="flex flex-col gap-ha-2 px-edge pt-ha-3 pb-ha-5">
         {/* Top row: Ask your home + Media + Timer + Status */}
