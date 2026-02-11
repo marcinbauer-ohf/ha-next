@@ -172,7 +172,7 @@ export default function DashboardPage() {
   const { theme, toggleTheme, mode, toggleMode, background, toggleBackground } = useTheme();
   const { clearCredentials } = useHomeAssistant();
   const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
-  const [screensaverActive, setScreensaverActive] = useState(false);
+  const [screensaverActive, setScreensaverActive] = useState(true);
   const scrollableRef = useRef<HTMLElement | null>(null);
   const { isRevealed } = usePullToRevealContext();
   const [showTopGradient, setShowTopGradient] = useState(false);
