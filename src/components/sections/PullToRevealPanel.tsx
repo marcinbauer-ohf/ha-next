@@ -317,7 +317,7 @@ export function PullToRevealPanel() {
                   <div className="p-ha-3">
                     <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-3">Dashboards</div>
                     <div className="grid grid-cols-3 gap-ha-3">
-                      {dashboards.slice(0, 6).map((dashboard) => (
+                      {dashboards.map((dashboard) => (
                         <Link
                           key={dashboard.id}
                           href={dashboard.urlPath}
