@@ -455,7 +455,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
 
         {/* Bottom row: Navigation pill */}
         <div className={`overflow-hidden transition-all duration-300 ease-out ${
-          (hideTopRow || hideFromInactivity || isRevealed) ? 'h-0 -mt-ha-2 opacity-0' : 'h-14 opacity-100'
+          (hideTopRow || hideFromInactivity) ? 'h-0 -mt-ha-2 opacity-0' : 'h-14 opacity-100'
         }`}>
           <div className="flex items-center justify-around bg-surface-low rounded-ha-2xl px-ha-4 h-14">
             <Link
