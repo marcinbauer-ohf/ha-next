@@ -5,6 +5,7 @@ import { EntityCard, RoomCard } from '@/components/cards';
 import { DashboardSection, MobileSummaryRow, SummariesPanel, PullToRevealPanel } from '@/components/sections';
 import { useTheme, useIdleTimer, useImmersiveMode, useHomeAssistant } from '@/hooks';
 import { usePullToRevealContext, useHeader } from '@/contexts';
+import { HassEntity } from '@/types';
 import { ScreensaverClock } from '@/components/ui/ScreensaverClock';
 import { Icon } from '@/components/ui/Icon';
 import {
@@ -29,9 +30,8 @@ import {
   mdiPalette,
   mdiImage,
   mdiClose,
-  mdiHomeAssistant,
-  mdiThermometer,
-  mdiWaterPercent,
+  mdiPlay,
+  mdiTimerOutline,
 } from '@mdi/js';
 
 // Mock data for static rendering - will be replaced with real HA data
@@ -68,98 +68,37 @@ function HomeInfoPanel({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <div className="flex-1 overflow-y-auto px-ha-4 pb-ha-4 space-y-ha-4">
-        {/* App Info */}
-        <div className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low">
-          <div className="w-10 h-10 rounded-full bg-fill-primary-quiet flex items-center justify-center flex-shrink-0">
-            <Icon path={mdiHomeAssistant} size={24} className="text-ha-blue" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-text-primary">Note HA</div>
-            <div className="text-xs text-text-secondary">v2.0.0-beta · Next.js 14</div>
-          </div>
-        </div>
-
-        {/* Overview Stats */}
+        {/* Overview Stats - Basic cards without data */}
         <div>
           <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Overview</div>
           <div className="grid grid-cols-2 gap-ha-2">
-            <div className="bg-surface-low rounded-ha-xl p-ha-3">
-              <div className="flex items-center gap-ha-2 mb-ha-1">
-                <Icon path={mdiThermometer} size={16} className="text-text-secondary" />
-                <span className="text-xs text-text-secondary">Avg Temp</span>
-              </div>
-              <span className="text-xl font-semibold text-text-primary">21°C</span>
-            </div>
-            <div className="bg-surface-low rounded-ha-xl p-ha-3">
-              <div className="flex items-center gap-ha-2 mb-ha-1">
-                <Icon path={mdiWaterPercent} size={16} className="text-text-secondary" />
-                <span className="text-xs text-text-secondary">Avg Humidity</span>
-              </div>
-              <span className="text-xl font-semibold text-text-primary">49%</span>
-            </div>
+            <div className="bg-surface-low rounded-ha-xl p-ha-3 h-20" />
+            <div className="bg-surface-low rounded-ha-xl p-ha-3 h-20" />
           </div>
         </div>
 
-        {/* Quick Stats */}
+        {/* System - Basic cards without data */}
         <div>
           <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">System</div>
           <div className="space-y-ha-2">
-            <div className="flex justify-between items-center py-ha-2 border-b border-surface-lower">
-              <span className="text-sm text-text-secondary">Lights On</span>
-              <span className="text-sm font-medium text-text-primary">3 of 12</span>
-            </div>
-            <div className="flex justify-between items-center py-ha-2 border-b border-surface-lower">
-              <span className="text-sm text-text-secondary">Active Automations</span>
-              <span className="text-sm font-medium text-text-primary">8</span>
-            </div>
-            <div className="flex justify-between items-center py-ha-2 border-b border-surface-lower">
-              <span className="text-sm text-text-secondary">People Home</span>
-              <span className="text-sm font-medium text-green-500 flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                2
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-ha-2 border-b border-surface-lower">
-              <span className="text-sm text-text-secondary">Security</span>
-              <span className="text-sm font-medium text-green-500 flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                Armed
-              </span>
-            </div>
+            <div className="bg-surface-low rounded-ha-xl p-ha-3 h-12" />
+            <div className="bg-surface-low rounded-ha-xl p-ha-3 h-12" />
+            <div className="bg-surface-low rounded-ha-xl p-ha-3 h-12" />
           </div>
         </div>
 
-        {/* Energy */}
+        {/* Energy - Basic card without data */}
         <div>
-          <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Energy Today</div>
-          <div className="bg-surface-low rounded-ha-xl p-ha-3">
-            <div className="flex justify-between items-baseline mb-ha-2">
-              <span className="text-xl font-semibold text-text-primary">12.4 kWh</span>
-              <span className="text-xs text-text-secondary">$2.86</span>
-            </div>
-            <div className="h-1.5 bg-surface-lower rounded-full overflow-hidden">
-              <div className="h-full bg-ha-blue rounded-full" style={{ width: '62%' }} />
-            </div>
-            <span className="text-[10px] text-text-disabled mt-ha-1 block">62% of daily average</span>
-          </div>
+          <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Energy</div>
+          <div className="bg-surface-low rounded-ha-xl p-ha-3 h-20" />
         </div>
 
-        {/* Recent Activity */}
+        {/* Activity - Basic cards without data */}
         <div>
           <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Recent Activity</div>
           <div className="space-y-ha-2">
-            {[
-              { time: '5m ago', event: 'Living Room light turned on' },
-              { time: '12m ago', event: 'Front door locked' },
-              { time: '30m ago', event: 'Thermostat adjusted to 22°C' },
-              { time: '1h ago', event: 'Away mode deactivated' },
-              { time: '2h ago', event: 'Kitchen motion detected' },
-            ].map((activity, i) => (
-              <div key={i} className="flex items-center gap-ha-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-text-disabled flex-shrink-0" />
-                <span className="text-xs text-text-secondary flex-1">{activity.event}</span>
-                <span className="text-[10px] text-text-disabled flex-shrink-0">{activity.time}</span>
-              </div>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-surface-low rounded-ha-xl h-8" />
             ))}
           </div>
         </div>
@@ -170,9 +109,50 @@ function HomeInfoPanel({ onClose }: { onClose: () => void }) {
 
 export default function DashboardPage() {
   const { theme, toggleTheme, mode, toggleMode, background, toggleBackground } = useTheme();
-  const { clearCredentials } = useHomeAssistant();
+  const { clearCredentials, setMockEntity, entities } = useHomeAssistant();
   const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
-  const [screensaverActive, setScreensaverActive] = useState(true);
+
+  const isSimulatedMediaActive = !!entities['media_player.simulated'];
+  const isSimulatedTimerActive = !!entities['timer.simulated'];
+
+  const toggleSimulatedMedia = () => {
+    if (isSimulatedMediaActive) {
+      setMockEntity('media_player.simulated', null);
+    } else {
+      setMockEntity('media_player.simulated', {
+        entity_id: 'media_player.simulated',
+        state: 'playing',
+        attributes: {
+          friendly_name: 'Simulated Player',
+          entity_picture: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=200&auto=format&fit=crop',
+          media_title: 'Simulation Song',
+          media_artist: 'The Mockers',
+        },
+        last_changed: new Date().toISOString(),
+        last_updated: new Date().toISOString(),
+      } as HassEntity);
+    }
+  };
+
+  const toggleSimulatedTimer = () => {
+    if (isSimulatedTimerActive) {
+      setMockEntity('timer.simulated', null);
+    } else {
+      setMockEntity('timer.simulated', {
+        entity_id: 'timer.simulated',
+        state: 'active',
+        attributes: {
+          friendly_name: 'Simulated Timer',
+          duration: '0:10:00',
+          remaining: '0:05:00',
+          finishes_at: new Date(Date.now() + 300000).toISOString(),
+        },
+        last_changed: new Date().toISOString(),
+        last_updated: new Date().toISOString(),
+      } as HassEntity);
+    }
+  };
+  const [screensaverActive, setScreensaverActive] = useState(false);
   const scrollableRef = useRef<HTMLElement | null>(null);
   const { isRevealed } = usePullToRevealContext();
   const [showTopGradient, setShowTopGradient] = useState(false);
@@ -409,7 +389,7 @@ export default function DashboardPage() {
                   </DashboardSection>
 
                   {/* Debug */}
-                  <DashboardSection title="Debug" columns={3}>
+                  <DashboardSection title="Theme & Layout" columns={3}>
                     <EntityCard
                       icon={mdiArrowExpandAll}
                       title="Immersive Mode"
@@ -426,7 +406,7 @@ export default function DashboardPage() {
                     />
                     <EntityCard
                       icon={mdiPalette}
-                      title="Theme"
+                      title="Theme Appearance"
                       state={theme === 'glass' ? 'Glass' : 'Default'}
                       color={theme === 'glass' ? 'primary' : 'default'}
                       onClick={toggleTheme}
@@ -437,6 +417,23 @@ export default function DashboardPage() {
                       state={background === 'image' ? 'Image' : background === 'gradient' ? 'Home Assistant background' : 'None'}
                       color={background !== 'none' ? 'primary' : 'default'}
                       onClick={toggleBackground}
+                    />
+                  </DashboardSection>
+
+                  <DashboardSection title="Simulation & Debug" columns={3}>
+                    <EntityCard
+                      icon={mdiPlay}
+                      title="Simulate Media"
+                      state={isSimulatedMediaActive ? 'Playing' : 'Idle'}
+                      color={isSimulatedMediaActive ? 'primary' : 'default'}
+                      onClick={toggleSimulatedMedia}
+                    />
+                    <EntityCard
+                      icon={mdiTimerOutline}
+                      title="Simulate Timer"
+                      state={isSimulatedTimerActive ? 'Active' : 'Idle'}
+                      color={isSimulatedTimerActive ? 'primary' : 'default'}
+                      onClick={toggleSimulatedTimer}
                     />
                     <EntityCard
                       icon={mdiClockOutline}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MdiIcon } from '../ui/MdiIcon';
@@ -40,9 +40,12 @@ export function PullToRevealPanel() {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
+  const scrollableRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number | null>(null);
   const threshold = 80;
   const maxPull = 200;
+  const [showTopGradient, setShowTopGradient] = useState(false);
+  const [showBottomGradient, setShowBottomGradient] = useState(false);
 
   // Refs for overscroll tracking (persists across effect re-runs)
   const overscrollStartY = useRef<number | null>(null);
@@ -70,17 +73,10 @@ export function PullToRevealPanel() {
   // Touch event handlers for the drag handle
   useEffect(() => {
     const handle = handleRef.current;
-    const container = containerRef.current;
-    if (!handle || !container) return;
+    if (!handle) return;
 
     const handleTouchStart = (e: TouchEvent) => {
-      // If revealed, we allow dragging anywhere to close
-      // If not revealed, we only allow dragging from the handle
-      if (!isRevealedRef.current && !handle.contains(e.target as Node)) {
-        return;
-      }
-      
-      e.stopPropagation(); // Prevent document-level listener from catching this
+      e.stopPropagation();
       handleIsActive.current = true;
       touchStartY.current = e.touches[0].clientY;
     };
@@ -92,12 +88,14 @@ export function PullToRevealPanel() {
       const diff = currentY - touchStartY.current;
 
       if (isRevealedRef.current) {
+        // When revealed, dragging up closes the panel
         if (diff < 0) {
           e.preventDefault();
           setPulling(true);
           setPullDistance(Math.abs(diff));
         }
       } else {
+        // When closed, dragging down opens the panel
         if (diff > 0) {
           e.preventDefault();
           setPulling(true);
@@ -136,14 +134,15 @@ export function PullToRevealPanel() {
       handleIsActive.current = false;
     };
 
-    container.addEventListener('touchstart', handleTouchStart, { passive: true });
-    container.addEventListener('touchmove', handleTouchMove, { passive: false });
-    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+    // Add listeners directly to handle with non-passive touchstart for better control
+    handle.addEventListener('touchstart', handleTouchStart, { passive: false });
+    handle.addEventListener('touchmove', handleTouchMove, { passive: false });
+    handle.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('touchend', handleTouchEnd);
+      handle.removeEventListener('touchstart', handleTouchStart);
+      handle.removeEventListener('touchmove', handleTouchMove);
+      handle.removeEventListener('touchend', handleTouchEnd);
     };
   }, [threshold, maxPull, setPulling, setPullDistance, setRevealed]);
 
@@ -280,6 +279,38 @@ export function PullToRevealPanel() {
     };
   }, [threshold, maxPull, setPulling, setPullDistance, setRevealed]);
 
+  // Monitor scroll position to show/hide gradients
+  useEffect(() => {
+    const scrollElement = scrollableRef.current;
+    if (!scrollElement || !isRevealed) return;
+
+    const updateGradients = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const threshold = 10; // Small threshold to account for rounding
+
+      // Show top gradient if scrolled down from the top
+      setShowTopGradient(scrollTop > threshold);
+
+      // Show bottom gradient if there's more content below AND we have overflow
+      const hasOverflow = scrollHeight > clientHeight + threshold;
+      setShowBottomGradient(hasOverflow && scrollTop + clientHeight < scrollHeight - threshold);
+    };
+
+    // Check on mount and when content changes
+    updateGradients();
+
+    // Listen to scroll events
+    scrollElement.addEventListener('scroll', updateGradients);
+
+    // Also check on resize
+    window.addEventListener('resize', updateGradients);
+
+    return () => {
+      scrollElement.removeEventListener('scroll', updateGradients);
+      window.removeEventListener('resize', updateGradients);
+    };
+  }, [isRevealed]);
+
     // Separate dashboards and apps
     const dashboards = items.filter(item => !item.isApp);
     const apps = items.filter(item => item.isApp);
@@ -308,11 +339,21 @@ export function PullToRevealPanel() {
         className={`lg:hidden overflow-hidden transition-[height] duration-300 ease-out ${isRevealed ? 'flex-1' : ''}`}
         style={{ height: getHeight() }}
       >
-        <div className={`h-full flex flex-col ${isRevealed ? 'pb-[calc(108px+env(safe-area-inset-bottom,0px))]' : 'justify-end'}`}>
+        <div className={`h-full flex flex-col ${isRevealed ? 'pb-[calc(50px+env(safe-area-inset-bottom,0px))]' : 'justify-end'}`}>
           {/* Expandable content area - only visible when revealed */}
-          {isRevealed && (
-            <div className="flex-1 flex flex-col mx-0 bg-surface-default border-b border-surface-lower rounded-b-ha-3xl shadow-xl overflow-hidden">
-                <div className="flex-1 overflow-y-auto">
+          {isRevealed ? (
+            <div className="flex-1 flex flex-col mx-0 bg-surface-default border-b border-surface-lower shadow-xl overflow-hidden relative">
+                {/* Scroll gradients */}
+                {showTopGradient && (
+                  <div className="absolute top-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-20 transition-opacity duration-300" />
+                )}
+                {showBottomGradient && (
+                  <div className="absolute bottom-ha-5 left-0 right-0 h-12 pointer-events-none bg-gradient-to-t from-surface-default via-surface-default/60 to-transparent z-20 transition-opacity duration-300" />
+                )}
+                <div
+                  ref={scrollableRef}
+                  className="flex-1 overflow-y-auto"
+                >
                   {/* Dashboards section */}
                   <div className="p-ha-3">
                     <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-3">Dashboards</div>
@@ -360,10 +401,10 @@ export function PullToRevealPanel() {
                     <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
                     <div className="flex flex-wrap gap-ha-1">
                       {apps.map((app) => {
-                        const isActive = pathname === app.urlPath || 
+                        const isActive = pathname === app.urlPath ||
                           (app.urlPath !== '/' && pathname.startsWith(app.urlPath));
                         const palette = getAppPalette(app.id);
-                        
+
                         return (
                           <Link
                             key={app.id}
@@ -389,16 +430,24 @@ export function PullToRevealPanel() {
                     </div>
                   </div>
                 </div>
+
+                {/* Drag handle bar - inside the content surface with larger margin */}
+                <div
+                  ref={handleRef}
+                  className="flex justify-center py-ha-2 cursor-grab active:cursor-grabbing select-none flex-shrink-0"
+                >
+                  <div className="w-8 h-1 rounded-full bg-text-secondary/60" />
+                </div>
+            </div>
+          ) : (
+            /* Drag handle bar - standalone when collapsed */
+            <div
+              ref={handleRef}
+              className="flex justify-center py-1 cursor-grab active:cursor-grabbing select-none flex-shrink-0"
+            >
+              <div className="w-8 h-1 rounded-full bg-text-secondary/60" />
             </div>
           )}
-
-          {/* Drag handle bar - at the bottom, moves down as you pull */}
-          <div
-            ref={handleRef}
-            className="flex justify-center py-1 cursor-grab active:cursor-grabbing touch-none select-none flex-shrink-0"
-          >
-            <div className="w-8 h-1 rounded-full bg-text-secondary/60" />
-          </div>
         </div>
       </div>
     );

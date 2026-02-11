@@ -36,6 +36,7 @@ interface HomeAssistantContextValue {
   reconnect: () => Promise<void>;
   saveCredentials: (url: string, token: string) => Promise<void>;
   clearCredentials: () => void;
+  setMockEntity: (entityId: string, entity: HassEntity | null) => void;
 }
 
 const HomeAssistantContext = createContext<HomeAssistantContextValue | null>(null);
@@ -53,6 +54,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entities, setEntities] = useState<HassEntities>({});
+  const [mockEntities, setMockEntities] = useState<HassEntities>({});
   const hasAutoConnected = useRef(false);
 
   // Load credentials from localStorage on mount
@@ -132,6 +134,23 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     }
   }, []);
 
+  const setMockEntity = useCallback((entityId: string, entity: HassEntity | null) => {
+    setMockEntities(prev => {
+      const next = { ...prev };
+      if (entity === null) {
+        delete next[entityId];
+      } else {
+        next[entityId] = entity;
+      }
+      return next;
+    });
+  }, []);
+
+  // Sync real and mock entities
+  const mergedEntities = (Object.keys(mockEntities).length > 0) 
+    ? { ...entities, ...mockEntities } 
+    : entities;
+
   // Auto-connect once on page load if credentials exist in localStorage
   useEffect(() => {
     if (configured && haUrl && haToken && !hasAutoConnected.current) {
@@ -147,7 +166,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
         connected,
         connecting,
         error,
-        entities,
+        entities: mergedEntities,
         haUrl,
         configured,
         hydrated,
@@ -156,6 +175,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
         reconnect,
         saveCredentials,
         clearCredentials,
+        setMockEntity,
       }}
     >
       {children}

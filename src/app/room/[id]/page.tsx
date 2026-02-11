@@ -147,7 +147,7 @@ interface RoomPageProps {
   params: Promise<{ id: string }>;
 }
 
-function InfoPanel({ room, onClose }: { room: { name: string; temperature: number; humidity: number }; onClose: () => void; roomId: string }) {
+function InfoPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex items-center justify-between p-ha-4 flex-shrink-0">
@@ -160,82 +160,35 @@ function InfoPanel({ room, onClose }: { room: { name: string; temperature: numbe
         </button>
       </div>
       <div className="flex-1 overflow-y-auto px-ha-4 pb-ha-4 space-y-ha-4">
-        {/* Climate */}
+        {/* Climate - Basic cards without data */}
         <div>
           <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Climate</div>
           <div className="grid grid-cols-2 gap-ha-2">
-            <div className="bg-surface-low rounded-ha-xl p-ha-3">
-              <div className="flex items-center gap-ha-2 mb-ha-1">
-                <Icon path={mdiThermometer} size={16} className="text-text-secondary" />
-                <span className="text-xs text-text-secondary">Temperature</span>
-              </div>
-              <span className="text-xl font-semibold text-text-primary">{room.temperature}°C</span>
-            </div>
-            <div className="bg-surface-low rounded-ha-xl p-ha-3">
-              <div className="flex items-center gap-ha-2 mb-ha-1">
-                <Icon path={mdiWaterPercent} size={16} className="text-text-secondary" />
-                <span className="text-xs text-text-secondary">Humidity</span>
-              </div>
-              <span className="text-xl font-semibold text-text-primary">{room.humidity}%</span>
-            </div>
+            <div className="bg-surface-low rounded-ha-xl p-ha-3 h-20" />
+            <div className="bg-surface-low rounded-ha-xl p-ha-3 h-20" />
           </div>
         </div>
 
-        {/* Temperature History (mock chart) */}
+        {/* Temperature History - Basic card without data */}
         <div>
           <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Temperature (24h)</div>
-          <div className="bg-surface-low rounded-ha-xl p-ha-3">
-            <div className="h-24 flex items-end justify-around gap-ha-1">
-              {[18, 17, 17, 18, 19, 20, 21, 22, 22, 23, 22, 22, 21, 20, 20, 19, 19, 18, 18, 19, 20, 21, 22, 22].map((temp, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center">
-                  <div
-                    className="w-full bg-ha-blue/30 rounded-t-sm"
-                    style={{ height: `${((temp - 16) / 8) * 100}%` }}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-between mt-ha-1">
-              <span className="text-[10px] text-text-disabled">00:00</span>
-              <span className="text-[10px] text-text-disabled">12:00</span>
-              <span className="text-[10px] text-text-disabled">Now</span>
-            </div>
-          </div>
+          <div className="bg-surface-low rounded-ha-xl p-ha-3 h-32" />
         </div>
 
-        {/* Activity */}
+        {/* Activity - Basic cards without data */}
         <div>
           <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Recent Activity</div>
           <div className="space-y-ha-2">
-            {[
-              { time: '2m ago', event: 'Motion detected' },
-              { time: '15m ago', event: 'Light turned on' },
-              { time: '1h ago', event: 'Temperature changed to 22°C' },
-              { time: '3h ago', event: 'Window opened' },
-              { time: '5h ago', event: 'Light turned off' },
-            ].map((activity, i) => (
-              <div key={i} className="flex items-center gap-ha-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-text-disabled flex-shrink-0" />
-                <span className="text-xs text-text-secondary flex-1">{activity.event}</span>
-                <span className="text-[10px] text-text-disabled flex-shrink-0">{activity.time}</span>
-              </div>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-surface-low rounded-ha-xl h-8" />
             ))}
           </div>
         </div>
 
-        {/* Energy */}
+        {/* Energy - Basic card without data */}
         <div>
           <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Energy Today</div>
-          <div className="bg-surface-low rounded-ha-xl p-ha-3">
-            <div className="flex justify-between items-baseline mb-ha-2">
-              <span className="text-xl font-semibold text-text-primary">1.8 kWh</span>
-              <span className="text-xs text-text-secondary">$0.42</span>
-            </div>
-            <div className="h-1.5 bg-surface-lower rounded-full overflow-hidden">
-              <div className="h-full bg-ha-blue rounded-full" style={{ width: '35%' }} />
-            </div>
-            <span className="text-[10px] text-text-disabled mt-ha-1 block">35% of daily average</span>
-          </div>
+          <div className="bg-surface-low rounded-ha-xl p-ha-3 h-20" />
         </div>
       </div>
     </div>
@@ -438,7 +391,7 @@ export default function RoomPage({ params }: RoomPageProps) {
             infoOpen ? 'w-80' : 'w-0'
           }`}>
             <div className="w-80 h-full bg-surface-default border border-surface-lower overflow-hidden rounded-ha-3xl lg:pt-ha-5 lg:pb-ha-5">
-              <InfoPanel room={room} roomId={id} onClose={() => setInfoOpen(false)} />
+              <InfoPanel onClose={() => setInfoOpen(false)} />
             </div>
           </div>
         </div>
@@ -472,7 +425,7 @@ export default function RoomPage({ params }: RoomPageProps) {
             <div className="w-8 h-1 rounded-full bg-text-secondary/40" />
           </div>
           <div className="overflow-y-auto" style={{ maxHeight: 'calc(80dvh - 20px)' }}>
-            <InfoPanel room={room} roomId={id} onClose={() => setInfoOpen(false)} />
+            <InfoPanel onClose={() => setInfoOpen(false)} />
           </div>
         </div>
       </div>

@@ -9,7 +9,8 @@ import { useTheme } from '@/hooks';
 import {
   mdiPencil,
   mdiPlus,
-  mdiChevronDown,
+  mdiMenu,
+  mdiClose,
   mdiArrowLeft,
 } from '@mdi/js';
 
@@ -60,11 +61,13 @@ export function TopBar() {
           onClick={toggle}
         >
           {titleContent}
-          <Icon
-            path={mdiChevronDown}
-            size={24}
-            className={`text-text-secondary transition-transform duration-300 ${isRevealed ? 'rotate-180' : ''}`}
-          />
+          <div className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-low transition-colors ml-1">
+            <Icon
+              path={isRevealed ? mdiClose : mdiMenu}
+              size={24}
+              className="text-text-secondary"
+            />
+          </div>
         </button>
       </div>
 

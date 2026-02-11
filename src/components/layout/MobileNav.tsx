@@ -19,6 +19,12 @@ import {
   mdiPause,
   mdiChevronRight,
   mdiMicrophone,
+  mdiDevices,
+  mdiCheckCircle,
+  mdiAlertCircle,
+  mdiCloudCheck,
+  mdiCloudOff,
+  mdiClose,
 } from '@mdi/js';
 
 function parseTime(time: string): number {
@@ -35,7 +41,7 @@ interface MobileNavProps {
   connectionStatus?: ConnectionStatusType;
 }
 
-export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
+export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileNavProps) {
   const pathname = usePathname();
   const { entities, haUrl } = useHomeAssistant();
   const { isRevealed, close, open } = usePullToRevealContext();
@@ -49,6 +55,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   const [showTimerWidget, setShowTimerWidget] = useState(false);
   const [mediaFadingOut, setMediaFadingOut] = useState(false);
   const [timerFadingOut, setTimerFadingOut] = useState(false);
+  const [statusExpanded, setStatusExpanded] = useState(false);
   const lastScrollY = useRef(0);
   const scrollAnchor = useRef(0);
   const scrollDirection = useRef<'up' | 'down' | null>(null);
@@ -58,8 +65,8 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   useEffect(() => {
     // When auto-hide is disabled or the top drawer is open, always show the nav
     if (disableAutoHide || isRevealed) {
-      if (hideTopRow) setHideTopRow(false);
-      if (hideFromInactivity) setHideFromInactivity(false);
+      setHideTopRow(prev => prev ? false : prev);
+      setHideFromInactivity(prev => prev ? false : prev);
       return;
     }
 
@@ -105,7 +112,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   // Inactivity detection for hiding bottom row after 10s
   useEffect(() => {
     if (disableAutoHide || isRevealed) {
-      if (hideFromInactivity) setHideFromInactivity(false);
+      setHideFromInactivity(prev => prev ? false : prev);
       return;
     }
 
@@ -247,10 +254,10 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   // Handle media widget fade in/out
   useEffect(() => {
     if (activeMedia) {
-      setMediaFadingOut(false);
-      setShowMediaWidget(true);
+      setMediaFadingOut(prev => prev ? false : prev);
+      setShowMediaWidget(prev => !prev ? true : prev);
     } else if (showMediaWidget) {
-      setMediaFadingOut(true);
+      setMediaFadingOut(prev => !prev ? true : prev);
       const timer = setTimeout(() => {
         setShowMediaWidget(false);
         setMediaFadingOut(false);
@@ -262,10 +269,10 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   // Handle timer widget fade in/out
   useEffect(() => {
     if (activeTimer) {
-      setTimerFadingOut(false);
-      setShowTimerWidget(true);
+      setTimerFadingOut(prev => prev ? false : prev);
+      setShowTimerWidget(prev => !prev ? true : prev);
     } else if (showTimerWidget) {
-      setTimerFadingOut(true);
+      setTimerFadingOut(prev => !prev ? true : prev);
       const timer = setTimeout(() => {
         setShowTimerWidget(false);
         setTimerFadingOut(false);
@@ -277,7 +284,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   // Update timer progress every second
   useEffect(() => {
     if (!activeTimer) {
-      setTimerProgress(0);
+      setTimerProgress(prev => prev !== 0 ? 0 : prev);
       return;
     }
 
@@ -307,6 +314,43 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
         entityId.startsWith('timer.') && (entity.state === 'active' || entity.state === 'paused')
     ).length;
   }, [entities]);
+  
+  // Get active updates with details
+  const activeUpdates = useMemo(() => {
+    return Object.entries(entities).filter(
+      ([entityId, entity]) =>
+        entityId.startsWith('update.') && entity.state === 'on'
+    ).map(([id, entity]) => ({
+      id,
+      name: entity.attributes.friendly_name || id,
+      picture: entity.attributes.entity_picture as string | undefined,
+    }));
+  }, [entities]);
+
+  // Get active notifications with details
+  const activeNotifications = useMemo(() => {
+    return Object.entries(entities).filter(([entityId]) =>
+      entityId.startsWith('persistent_notification.')
+    ).map(([id, entity]) => ({
+      id,
+      title: (entity.attributes.title || entity.attributes.friendly_name || 'System Notification') as string,
+      message: entity.attributes.message as string | undefined,
+    }));
+  }, [entities]);
+
+  // Offline devices
+  const offlineDevices = useMemo(() => {
+    return Object.values(entities).filter((entity) => {
+      const hasDeviceId = entity.attributes.device_id !== undefined && entity.attributes.device_id !== null;
+      if (!hasDeviceId) return false;
+      return entity.state === 'unavailable' || entity.state === 'unknown';
+    }).map(entity => ({
+      id: entity.entity_id,
+      name: (entity.attributes.friendly_name || entity.entity_id) as string,
+    }));
+  }, [entities]);
+
+  const offlineCount = offlineDevices.length;
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-default shadow-[0_-4px_16px_rgba(0,0,0,0.08)]" style={{ paddingBottom: `env(safe-area-inset-bottom)` }} data-component="MobileNav">
@@ -398,10 +442,10 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
             </div>
           )}
 
-          {/* Status pill: icons + time - pushed to the right */}
+          {/* Status pill: icons - pushed to the right */}
           {(() => {
             const statusIcons = [
-              // Updates indicator - gray
+              // Updates indicator
               <div key="updates" className="relative">
                 <Icon
                   path={mdiUpdate}
@@ -413,31 +457,52 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
                 )}
               </div>,
               // Remote access indicator
-              <Icon
-                key="remote"
-                path={mdiWeb}
-                size={18}
-                className={isRemoteConnected ? 'text-text-secondary' : 'text-red-500'}
-              />,
+              <div key="remote" className="relative">
+                <Icon
+                  path={mdiWeb}
+                  size={18}
+                  className="text-text-secondary"
+                />
+                {isRemoteConnected && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full w-2 h-2" />
+                )}
+                {!isRemoteConnected && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2 h-2" />
+                )}
+              </div>,
               // Notifications indicator
               <div key="notifications" className="relative">
                 <Icon
                   path={mdiBell}
                   size={18}
-                  className={notificationCount > 0 ? 'text-yellow-600' : 'text-text-secondary'}
+                  className="text-text-secondary"
                 />
                 {notificationCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 bg-yellow-500 rounded-full w-2 h-2" />
                 )}
               </div>,
+              // Offline devices indicator
+              <div key="offline" className="relative">
+                <Icon
+                  path={mdiDevices}
+                  size={18}
+                  className="text-text-secondary"
+                />
+                {offlineCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2 h-2" />
+                )}
+              </div>,
             ];
 
-            const maxIcons = activeTimer ? 1 : 3;
+            const maxIcons = activeTimer ? 1 : 4;
             const visibleIcons = statusIcons.slice(0, maxIcons);
             const hasMore = statusIcons.length > maxIcons;
 
             return (
-              <div className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-10 flex-shrink-0 ml-auto">
+              <button
+                onClick={() => setStatusExpanded(true)}
+                className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-10 flex-shrink-0 ml-auto active:scale-95 transition-transform"
+              >
                 {visibleIcons}
 
                 {/* Chevron if more icons */}
@@ -449,7 +514,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
                   />
                 )}
 
-              </div>
+              </button>
             );
           })()}
         </div>
@@ -465,12 +530,19 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
                 pathname === '/' ? 'bg-fill-primary-normal' : 'hover:bg-surface-lower'
               }`}
               onClick={(e) => {
-                if (isRevealed) {
+                // Only toggle panel when already on home page
+                if (pathname === '/') {
                   e.preventDefault();
-                  close();
-                } else if (pathname === '/') {
-                  e.preventDefault();
-                  open();
+                  if (isRevealed) {
+                    close();
+                  } else {
+                    open();
+                  }
+                } else {
+                  // Close panel if open, then navigate
+                  if (isRevealed) {
+                    close();
+                  }
                 }
               }}
             >
@@ -492,6 +564,158 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
           </div>
         </div>
       </div>
+
+      {/* Status Details Bottom Sheet */}
+      {statusExpanded && (
+        <div className="fixed inset-0 z-[100] flex flex-col justify-end lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setStatusExpanded(false)}
+          />
+          
+          {/* Sheet */}
+          <div className="relative bg-surface-default w-full rounded-t-ha-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[85vh]">
+            {/* Header handle */}
+            <div className="flex justify-center pt-ha-3 pb-ha-1 flex-shrink-0" onClick={() => setStatusExpanded(false)}>
+              <div className="w-10 h-1.5 rounded-full bg-surface-low" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-ha-4 py-ha-3 border-b border-surface-low flex-shrink-0">
+              <h3 className="font-semibold text-text-primary flex items-center gap-2">
+                <Icon path={mdiCheckCircle} size={20} className="text-ha-blue" />
+                Home status
+              </h3>
+              <button
+                onClick={() => setStatusExpanded(false)}
+                className="p-1 hover:bg-surface-mid rounded-full text-text-secondary transition-colors"
+              >
+                <Icon path={mdiClose} size={24} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto p-ha-4 space-y-ha-4 pb-12">
+              {/* Connection Section */}
+              <div className="bg-surface-low rounded-2xl p-ha-3">
+                <div className="flex items-center gap-ha-3 mb-ha-3">
+                  <div className={`p-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                    <Icon path={connectionStatus === 'connected' ? mdiCheckCircle : mdiAlertCircle} size={24} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-text-primary">Home Assistant</h4>
+                    <p className="text-xs text-text-secondary font-medium">
+                      {connectionStatus === 'connecting' ? 'Connecting...' :
+                       connectionStatus === 'connected' ? 'Connected securely' :
+                       connectionStatus === 'error' ? 'Connection Error' : 'Unknown Status'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 mt-2 pt-2 border-t border-surface-mid/50">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <Icon path={isRemoteConnected ? mdiCloudCheck : mdiCloudOff} size={16} className={isRemoteConnected ? "text-green-500" : "text-text-disabled"} />
+                      <span className="text-sm text-text-secondary">Remote Access</span>
+                    </div>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRemoteConnected ? 'bg-green-500/10 text-green-500' : 'bg-surface-mid text-text-disabled'}`}>
+                       {isRemoteConnected ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notifications Section */}
+              <div className="bg-surface-low rounded-2xl p-ha-3">
+                <div className="flex items-center justify-between mb-ha-2 px-1">
+                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Notifications</h4>
+                  {activeNotifications.length > 0 && (
+                    <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
+                  )}
+                </div>
+                {activeNotifications.length > 0 ? (
+                  <div className="space-y-2">
+                    {activeNotifications.map(notif => (
+                      <div key={notif.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 rounded-xl">
+                        <Icon path={mdiBell} size={18} className="text-yellow-500 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-text-primary leading-tight">{notif.title}</p>
+                          {notif.message && <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-snug">{notif.message}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
+                    <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
+                    No notifications
+                  </p>
+                )}
+              </div>
+
+              {/* Updates Section */}
+              {activeUpdates.length > 0 && (
+                <div className="bg-surface-low rounded-2xl p-ha-3">
+                  <div className="flex items-center justify-between mb-ha-2 px-1">
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Updates Available</h4>
+                    <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
+                  </div>
+                  <div className="space-y-2">
+                    {activeUpdates.map(update => (
+                      <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 bg-surface-mid/30 rounded-xl">
+                        <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
+                          {update.picture ? <img src={`${haUrl}${update.picture}`} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
+                        </div>
+                        <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
+                        <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Offline Devices Section */}
+              <div className="bg-surface-low rounded-2xl p-ha-3">
+                <div className="flex items-center justify-between mb-ha-2 px-1">
+                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Offline Devices</h4>
+                  {offlineDevices.length > 0 && (
+                    <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
+                  )}
+                </div>
+                {offlineDevices.length > 0 ? (
+                  <div className="space-y-1">
+                    {offlineDevices.map(device => (
+                      <div key={device.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg text-text-secondary">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
+                        <span className="text-sm truncate font-medium">{device.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
+                     <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
+                     All devices online
+                  </p>
+                )}
+              </div>
+
+              {/* Empty State / All Good */}
+              {activeUpdates.length === 0 && activeNotifications.length === 0 && offlineDevices.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-10 text-center opacity-80">
+                  <p className="text-base font-semibold text-text-primary">All systems nominal</p>
+                  <p className="text-sm text-text-secondary mt-1">No issues detected in your home environment.</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Footer */}
+            <div className="p-ha-4 border-t border-surface-low bg-surface-low/30 text-center flex-shrink-0">
+               <p className="text-[10px] text-text-disabled uppercase tracking-widest font-bold">Home Assistant • Connected</p>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
