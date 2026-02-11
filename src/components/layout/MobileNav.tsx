@@ -308,10 +308,8 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   }, [entities]);
 
   return (
-    <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-default shadow-[0_-4px_16px_rgba(0,0,0,0.08)] transition-all duration-300 ease-in-out ${
-      isRevealed ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
-    }`} style={{ paddingBottom: `env(safe-area-inset-bottom)` }} data-component="MobileNav">
-      <div className="flex flex-col gap-ha-2 px-edge pt-ha-3 pb-ha-5">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-default shadow-[0_-4px_16px_rgba(0,0,0,0.08)]" style={{ paddingBottom: `env(safe-area-inset-bottom)` }} data-component="MobileNav">
+      <div className="flex flex-col gap-ha-2 px-edge pt-ha-3 pb-ha-4">
         {/* Top row: Ask your home + Media + Timer + Status */}
         <div className="flex items-center gap-ha-2">
           {/* Ask your home */}
@@ -457,7 +455,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
 
         {/* Bottom row: Navigation pill */}
         <div className={`overflow-hidden transition-all duration-300 ease-out ${
-          (hideTopRow || hideFromInactivity) ? 'h-0 -mt-ha-2' : 'h-14'
+          (hideTopRow || hideFromInactivity || isRevealed) ? 'h-0 -mt-ha-2 opacity-0' : 'h-14 opacity-100'
         }`}>
           <div className="flex items-center justify-around bg-surface-low rounded-ha-2xl px-ha-4 h-14">
             <Link

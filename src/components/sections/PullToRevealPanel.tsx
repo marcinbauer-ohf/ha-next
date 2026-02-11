@@ -308,7 +308,7 @@ export function PullToRevealPanel() {
         className="lg:hidden overflow-hidden transition-[height] duration-300 ease-out"
         style={{ height: getHeight() }}
       >
-        <div className={`h-full flex flex-col ${isRevealed ? 'pb-2' : 'justify-end'}`}>
+        <div className={`h-full flex flex-col ${isRevealed ? 'pb-[56px]' : 'justify-end'}`}>
           {/* Expandable content area - only visible when revealed */}
           {isRevealed && (
             <div className="flex-1 flex flex-col mx-1 bg-surface-default border-x border-b border-surface-lower rounded-b-ha-3xl shadow-xl overflow-hidden">
