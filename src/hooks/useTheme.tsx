@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 
 export type Theme = 'default' | 'glass';
-export type ColorMode = 'light' | 'dark';
+export type ColorMode = 'light' | 'dark' | 'system';
 export type Background = 'gradient' | 'image' | 'solid' | 'none';
 
 interface ThemeContextType {
@@ -21,49 +21,52 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('default');
-  const [mode, setModeState] = useState<ColorMode>('light');
-  const [background, setBackgroundState] = useState<Background>('gradient');
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'default';
+    const stored = localStorage.getItem('ha-theme-pref') as Theme | null;
+    return stored || 'default';
+  });
 
-  // Initialize from localStorage or system preference
+  const [mode, setModeState] = useState<ColorMode>(() => {
+    if (typeof window === 'undefined') return 'system';
+    const stored = localStorage.getItem('ha-mode-pref') as ColorMode | null;
+    return stored || 'system';
+  });
+
+  const [background, setBackgroundState] = useState<Background>(() => {
+    if (typeof window === 'undefined') return 'gradient';
+    const stored = localStorage.getItem('ha-bg-pref') as Background | null;
+    return stored || 'gradient';
+  });
+
+  // Sync state to DOM attributes
   useEffect(() => {
-    // Theme (Default / Glass)
-    const storedTheme = localStorage.getItem('ha-theme-pref') as Theme | null;
-    if (storedTheme) {
-      setThemeState(storedTheme);
-      document.documentElement.setAttribute('data-theme', storedTheme);
+    document.documentElement.setAttribute('data-theme', theme);
+    document.documentElement.setAttribute('data-background', background);
+    
+    if (mode === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const updateSystemMode = (e: MediaQueryList | MediaQueryListEvent) => {
+        document.documentElement.setAttribute('data-mode', e.matches ? 'dark' : 'light');
+      };
+      
+      updateSystemMode(mediaQuery);
+      
+      const handleChange = (e: MediaQueryListEvent) => {
+        triggerTransition();
+        updateSystemMode(e);
+      };
+      
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
     } else {
-      document.documentElement.setAttribute('data-theme', 'default');
+      document.documentElement.setAttribute('data-mode', mode);
     }
-
-    // Mode (Light / Dark)
-    const storedMode = localStorage.getItem('ha-mode-pref') as ColorMode | null;
-    if (storedMode) {
-      setModeState(storedMode);
-      document.documentElement.setAttribute('data-mode', storedMode);
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setModeState('dark');
-      document.documentElement.setAttribute('data-mode', 'dark');
-    } else {
-      document.documentElement.setAttribute('data-mode', 'light');
-    }
-
-    // Background (Gradient / Image)
-    const storedBg = localStorage.getItem('ha-bg-pref') as Background | null;
-    if (storedBg) {
-      setBackgroundState(storedBg);
-      document.documentElement.setAttribute('data-background', storedBg);
-    } else {
-      document.documentElement.setAttribute('data-background', 'gradient');
-    }
-  }, []);
+  }, [theme, mode, background]);
 
   const triggerTransition = () => {
-    setIsTransitioning(true);
     document.documentElement.setAttribute('data-theme-transition', 'true');
     setTimeout(() => {
-      setIsTransitioning(false);
       document.documentElement.removeAttribute('data-theme-transition');
     }, 300);
   };
@@ -71,21 +74,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setTheme = useCallback((newTheme: Theme) => {
     triggerTransition();
     setThemeState(newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('ha-theme-pref', newTheme);
   }, []);
 
   const setMode = useCallback((newMode: ColorMode) => {
     triggerTransition();
     setModeState(newMode);
-    document.documentElement.setAttribute('data-mode', newMode);
     localStorage.setItem('ha-mode-pref', newMode);
   }, []);
 
   const setBackground = useCallback((newBg: Background) => {
     triggerTransition();
     setBackgroundState(newBg);
-    document.documentElement.setAttribute('data-background', newBg);
     localStorage.setItem('ha-bg-pref', newBg);
   }, []);
 
@@ -94,7 +94,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme, setTheme]);
 
   const toggleMode = useCallback(() => {
-    setMode(mode === 'light' ? 'dark' : 'light');
+    const modes: ColorMode[] = ['light', 'dark', 'system'];
+    const currentIndex = modes.indexOf(mode);
+    const nextIndex = (currentIndex + 1) % modes.length;
+    setMode(modes[nextIndex]);
   }, [mode, setMode]);
 
   const toggleBackground = useCallback(() => {

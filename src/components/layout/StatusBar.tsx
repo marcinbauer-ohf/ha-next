@@ -353,7 +353,7 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
                     <img 
                       src="/casita.png" 
                       alt="Casita Bot" 
-                      className="w-24 h-24 object-contain drop-shadow-xl animate-bounce-slow"
+                      className="w-28 h-28 object-contain animate-bounce-slow"
                     />
                   </div>
 

@@ -2,12 +2,31 @@
 
 import { useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
 import { useSidebarItems } from '@/hooks';
 import { usePullToRevealContext } from '@/contexts';
+import { clsx } from 'clsx';
+
+const appPalettes = [
+  { bg: 'bg-[var(--ha-color-fill-primary-normal)]', text: 'text-ha-blue' },
+  { bg: 'bg-[var(--ha-color-fill-danger-normal)]', text: 'text-red-600' },
+  { bg: 'bg-[var(--ha-color-fill-success-normal)]', text: 'text-green-600' },
+  { bg: 'bg-[var(--ha-color-yellow-95)]', text: 'text-yellow-600' },
+];
+
+const getAppPalette = (id: string) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % appPalettes.length;
+  return appPalettes[index];
+};
 
 export function PullToRevealPanel() {
+  const pathname = usePathname();
   const { items } = useSidebarItems();
   const {
     pullDistance,
@@ -340,24 +359,33 @@ export function PullToRevealPanel() {
                   <div className="p-ha-3">
                     <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
                     <div className="flex flex-wrap gap-ha-1">
-                      {apps.map((app) => (
-                        <Link
-                          key={app.id}
-                          href={app.urlPath}
-                          onClick={onClose}
-                          className="p-ha-1 rounded-ha-lg hover:bg-surface-low transition-colors flex items-center justify-center"
-                          title={app.title}
-                        >
-                          {/* App-style icon with rounded background */}
-                          <div className="w-9 h-9 rounded-ha-lg bg-surface-lower flex items-center justify-center">
-                            <MdiIcon
-                              icon={app.icon || 'mdi:application'}
-                              size={20}
-                              className="text-text-secondary"
-                            />
-                          </div>
-                        </Link>
-                      ))}
+                      {apps.map((app) => {
+                        const isActive = pathname === app.urlPath || 
+                          (app.urlPath !== '/' && pathname.startsWith(app.urlPath));
+                        const palette = getAppPalette(app.id);
+                        
+                        return (
+                          <Link
+                            key={app.id}
+                            href={app.urlPath}
+                            onClick={onClose}
+                            className="p-ha-1 rounded-ha-xl hover:bg-surface-low transition-colors flex items-center justify-center"
+                            title={app.title}
+                          >
+                            {/* App-style icon with rounded background */}
+                            <div className={clsx(
+                              'w-10 h-10 rounded-ha-xl flex items-center justify-center transition-colors',
+                              isActive ? 'bg-ha-blue' : palette.bg
+                            )}>
+                              <MdiIcon
+                                icon={app.icon || 'mdi:application'}
+                                size={22}
+                                className={isActive ? 'text-white' : 'text-text-secondary'}
+                              />
+                            </div>
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

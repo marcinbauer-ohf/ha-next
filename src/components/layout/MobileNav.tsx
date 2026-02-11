@@ -18,6 +18,7 @@ import {
   mdiTimerOutline,
   mdiPause,
   mdiChevronRight,
+  mdiMicrophone,
 } from '@mdi/js';
 
 function parseTime(time: string): number {
@@ -326,7 +327,8 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
                 'Home'
               }</span>...
             </span>
-            <div className="w-6 h-6 relative">
+            <Icon path={mdiMicrophone} size={18} className="text-text-secondary" />
+            <div className="w-8 h-8 relative flex items-center justify-center">
               <img src="/casita.png" alt="Casita" className="w-full h-full object-contain" />
             </div>
           </button>

@@ -281,7 +281,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
 
       {/* Summary badges */}
       <div className="flex flex-wrap justify-center gap-ha-4 mt-12 max-w-4xl px-ha-6">
-        <PeopleBadge compact size="lg" />
+        <PeopleBadge compact />
         {summaryItems.map((item) => (
           <SummaryCard
             key={item.title}
@@ -290,7 +290,6 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             state={item.state}
             color={item.color}
             compact
-            size="lg"
           />
         ))}
       </div>

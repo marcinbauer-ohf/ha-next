@@ -38,8 +38,8 @@ const tips = [
   {
     id: 'darkmode',
     icon: mdiThemeLightDark,
-    title: 'Dark Mode',
-    description: 'Press ⌘ + Shift + D to toggle dark mode',
+    title: 'Color Mode',
+    description: 'Press ⌘ + Shift + D to cycle between Light, Dark, and System',
   },
   {
     id: 'screensaver',
@@ -80,7 +80,7 @@ function TipsCard({ onToggleImmersive, onToggleDarkMode, onToggleScreensaver }: 
     if (tip.id === 'darkmode' && onToggleDarkMode) {
       return (
         <button onClick={onToggleDarkMode} className="text-ha-blue font-medium hover:underline">
-          Try it now
+          Cycle mode
         </button>
       );
     }
@@ -288,7 +288,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
 export function MobileSummaryRow() {
   return (
     <div
-      className="lg:hidden sticky top-0 -mx-ha-4 px-ha-4 pt-ha-4 pb-ha-3 z-10 backdrop-blur-md"
+      className="lg:hidden sticky top-0 -mx-ha-4 px-ha-4 pt-ha-4 pb-ha-3 z-30 backdrop-blur-md"
       style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent), transparent)' }}
     >
       <div className="overflow-x-auto scrollbar-hide">

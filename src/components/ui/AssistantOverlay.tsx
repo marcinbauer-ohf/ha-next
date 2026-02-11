@@ -113,7 +113,7 @@ export function AssistantOverlay() {
              <img 
                src="/casita.png" 
                alt="Casita Bot" 
-               className="w-32 h-32 object-contain drop-shadow-2xl animate-bounce-slow"
+               className="w-40 h-40 object-contain animate-bounce-slow filter drop-shadow-lg"
              />
              {/* Interaction ring when listening */}
              <div className={`absolute inset-0 rounded-full border-4 border-ha-blue/30 transition-all duration-500 scale-125 ${

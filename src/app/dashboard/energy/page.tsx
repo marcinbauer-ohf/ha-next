@@ -424,7 +424,7 @@ export default function EnergyDashboardPage() {
 
             {/* Tabs - sticky on mobile */}
             <div
-              className="sticky top-0 -mx-ha-3 px-ha-3 lg:-ml-14 lg:pl-14 lg:-mr-ha-5 lg:pr-ha-5 pt-ha-1 pb-ha-3 z-10 backdrop-blur-md"
+              className="sticky top-0 -mx-ha-3 px-ha-3 lg:-ml-14 lg:pl-14 lg:-mr-ha-5 lg:pr-ha-5 pt-ha-1 pb-ha-3 z-30 backdrop-blur-md"
               style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 80%, transparent), transparent)' }}
             >
               <EnergyTabs activeTab={activeTab} onTabChange={setActiveTab} />

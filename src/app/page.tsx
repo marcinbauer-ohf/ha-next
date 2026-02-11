@@ -420,8 +420,8 @@ export default function DashboardPage() {
                     <EntityCard
                       icon={mdiWeatherNight}
                       title="Color Mode"
-                      state={mode === 'dark' ? 'Dark' : 'Light'}
-                      color={mode === 'dark' ? 'primary' : 'default'}
+                      state={mode === 'dark' ? 'Dark' : mode === 'light' ? 'Light' : 'System'}
+                      color={mode === 'dark' ? 'primary' : mode === 'system' ? 'primary' : 'default'}
                       onClick={toggleMode}
                     />
                     <EntityCard
