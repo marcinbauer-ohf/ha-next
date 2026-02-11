@@ -295,7 +295,7 @@ export function PullToRevealPanel() {
         // Shrinking while closing - use calc to reduce from full height
         return `calc(100% - ${pullDistance}px)`;
       }
-      if (isRevealed) return '100dvh'; // Use 100dvh to ensure valid transition target
+      if (isRevealed) return '100%'; 
       if (pullDistance > 0) {
         return `${pullDistance + handleHeight}px`;
       }
@@ -308,10 +308,10 @@ export function PullToRevealPanel() {
         className="lg:hidden overflow-hidden transition-[height] duration-300 ease-out"
         style={{ height: getHeight() }}
       >
-        <div className={`h-full flex flex-col ${isRevealed ? 'pb-ha-4' : 'justify-end'}`}>
+        <div className={`h-full flex flex-col ${isRevealed ? 'pb-2' : 'justify-end'}`}>
           {/* Expandable content area - only visible when revealed */}
           {isRevealed && (
-            <div className="flex-1 flex flex-col mx-edge bg-surface-default border border-surface-lower rounded-ha-3xl overflow-hidden">
+            <div className="flex-1 flex flex-col mx-1 bg-surface-default border-x border-b border-surface-lower rounded-b-ha-3xl shadow-xl overflow-hidden">
                 <div className="flex-1 overflow-y-auto">
                   {/* Dashboards section */}
                   <div className="p-ha-3">
