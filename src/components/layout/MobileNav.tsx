@@ -58,8 +58,8 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
   useEffect(() => {
     // When auto-hide is disabled or the top drawer is open, always show the nav
     if (disableAutoHide || isRevealed) {
-      setHideTopRow(false);
-      setHideFromInactivity(false);
+      if (hideTopRow) setHideTopRow(false);
+      if (hideFromInactivity) setHideFromInactivity(false);
       return;
     }
 
@@ -100,7 +100,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
 
     scrollable.addEventListener('scroll', handleScroll, { passive: true });
     return () => scrollable.removeEventListener('scroll', handleScroll);
-  }, [disableAutoHide, isRevealed]);
+  }, [disableAutoHide, isRevealed, hideTopRow, hideFromInactivity]);
 
   // Inactivity detection for hiding bottom row after 10s
   useEffect(() => {
@@ -117,7 +117,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
         clearTimeout(inactivityTimer.current);
       }
       inactivityTimer.current = setTimeout(() => {
-        setHideFromInactivity(true);
+        if (!isRevealed) setHideFromInactivity(true);
       }, 10000); // 10 seconds
     };
 
@@ -146,7 +146,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
         scrollable.removeEventListener('scroll', resetInactivityTimer);
       }
     };
-  }, [disableAutoHide]);
+  }, [disableAutoHide, isRevealed, hideFromInactivity, hideTopRow]);
 
 
 
