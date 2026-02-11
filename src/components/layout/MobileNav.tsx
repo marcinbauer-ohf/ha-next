@@ -328,9 +328,6 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
               }</span>...
             </span>
             <Icon path={mdiMicrophone} size={18} className="text-text-secondary" />
-            <div className="w-8 h-8 relative flex items-center justify-center">
-              <img src="/casita.png" alt="Casita" className="w-full h-full object-contain" />
-            </div>
           </button>
 
           {/* Media + Timer widgets container */}
