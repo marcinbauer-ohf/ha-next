@@ -56,9 +56,10 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
 
   // Scroll detection for hiding bottom row
   useEffect(() => {
-    // When auto-hide is disabled, always show the bottom row
-    if (disableAutoHide) {
+    // When auto-hide is disabled or the top drawer is open, always show the nav
+    if (disableAutoHide || isRevealed) {
       setHideTopRow(false);
+      setHideFromInactivity(false);
       return;
     }
 
@@ -86,7 +87,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
 
       // Only toggle after scrolling past buffer
       if (distanceFromAnchor > SCROLL_BUFFER) {
-        if (currentDirection === 'down' && currentScrollY > 50) {
+        if (currentDirection === 'down' && currentScrollY > 50 && !isRevealed) {
           setHideTopRow(true);
         } else if (currentDirection === 'up' && !isNearBottom) {
           // Only show when scrolling up AND not in iOS bottom bounce
@@ -99,12 +100,12 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
 
     scrollable.addEventListener('scroll', handleScroll, { passive: true });
     return () => scrollable.removeEventListener('scroll', handleScroll);
-  }, [disableAutoHide]);
+  }, [disableAutoHide, isRevealed]);
 
   // Inactivity detection for hiding bottom row after 10s
   useEffect(() => {
-    if (disableAutoHide) {
-      setHideFromInactivity(false);
+    if (disableAutoHide || isRevealed) {
+      if (hideFromInactivity) setHideFromInactivity(false);
       return;
     }
 
@@ -455,7 +456,7 @@ export function MobileNav({ disableAutoHide = false }: MobileNavProps) {
 
         {/* Bottom row: Navigation pill */}
         <div className={`overflow-hidden transition-all duration-300 ease-out ${
-          (hideTopRow || hideFromInactivity) ? 'h-0 -mt-ha-2 opacity-0' : 'h-14 opacity-100'
+          (hideTopRow || hideFromInactivity) && !isRevealed ? 'h-0 -mt-ha-2 opacity-0' : 'h-14 opacity-100'
         }`}>
           <div className="flex items-center justify-around bg-surface-low rounded-ha-2xl px-ha-4 h-14">
             <Link
