@@ -88,6 +88,21 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     }
     return { picture: undefined, name: 'User', initials: 'U' };
   }, [entities, haUrl]);
+  
+  const buildInfo = useMemo(() => {
+    const now = new Date();
+    const date = now.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+    const time = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    return `Build 2026.2.11 • ${date} • ${time}`;
+  }, []);
 
   // Handle mount/unmount with animation
   useEffect(() => {
@@ -231,6 +246,13 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       }}
       onTransitionEnd={handleTransitionEnd}
     >
+      {/* Build Info - Top */}
+      <div className="absolute top-8 left-0 right-0 flex justify-center px-ha-6 pointer-events-none">
+        <p className="text-[10px] lg:text-xs text-text-disabled opacity-40 font-mono text-center">
+          {buildInfo}
+        </p>
+      </div>
+
       {/* Main time display */}
       <div className="flex items-center gap-1" style={{ fontFamily: 'var(--font-mono)' }}>
         <div className="flex items-center">
@@ -369,11 +391,6 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         Tap anywhere to dismiss
       </p>
 
-      {/* Desktop: Build Info */}
-      <p className="hidden lg:block absolute bottom-6 text-xs text-text-disabled opacity-40 font-mono">
-        Build 2026.2.0 • Feb 6, 2026 • 22:01
-      </p>
-
       {/* Mobile: Drag handle visual at bottom */}
       <div
         className="lg:hidden absolute bottom-0 left-0 right-0 flex flex-col items-center"
@@ -383,9 +400,6 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
           Drag up to dismiss
         </p>
         <div className="w-10 h-1.5 rounded-full bg-text-secondary/40 mb-4" />
-        <p className="text-[10px] text-text-disabled opacity-40 font-mono">
-          Build 2026.2.0 • Feb 6, 2026 • 22:01
-        </p>
       </div>
     </div>
   );
