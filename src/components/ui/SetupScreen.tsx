@@ -13,13 +13,20 @@ interface SetupScreenProps {
 export function SetupScreen({ onSave, error, connecting }: SetupScreenProps) {
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
+  const [securityAnswer, setSecurityAnswer] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (securityAnswer.toLowerCase().trim() !== 'home assistant sync') {
+      return; 
+    }
+    
     if (url.trim() && token.trim() && !connecting) {
       onSave(url.trim(), token.trim());
     }
   };
+
+  const isSecurityCorrect = securityAnswer.toLowerCase().trim() === 'home assistant sync';
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-surface-lower p-ha-4">
@@ -32,6 +39,10 @@ export function SetupScreen({ onSave, error, connecting }: SetupScreenProps) {
           <p className="text-sm text-text-secondary mt-ha-2 text-center">
             Enter your Home Assistant URL and a Long-Lived Access Token to get started.
           </p>
+          
+          <div className="mt-ha-4 p-ha-3 rounded-ha-xl bg-orange-500/10 border border-orange-500/20 text-xs text-orange-600 dark:text-orange-400 max-w-sm text-center">
+             This page does not store your url and token. They are stored in your local browser storage, which can be cleared once logged in.
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-ha-4">
@@ -80,6 +91,22 @@ export function SetupScreen({ onSave, error, connecting }: SetupScreenProps) {
             </p>
           </div>
 
+          <div>
+             <label htmlFor="security-q" className="block text-sm font-medium text-text-primary mb-ha-1">
+               Restricted access: What is the name of the meeting we all attend on mondays?
+             </label>
+             <input
+               id="security-q"
+               type="text"
+               required
+               value={securityAnswer}
+               onChange={(e) => setSecurityAnswer(e.target.value)}
+               placeholder="Answer..."
+               disabled={connecting}
+               className="w-full px-4 py-3 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-ha-blue/50 focus:border-ha-blue transition-colors disabled:opacity-50"
+             />
+          </div>
+
           {error && (
             <div className="p-ha-3 rounded-ha-xl bg-red-500/10 border border-red-500/20 text-sm text-red-500">
               {error}
@@ -88,7 +115,7 @@ export function SetupScreen({ onSave, error, connecting }: SetupScreenProps) {
 
           <button
             type="submit"
-            disabled={!url.trim() || !token.trim() || connecting}
+            disabled={!url.trim() || !token.trim() || connecting || !isSecurityCorrect}
             className="w-full flex items-center justify-center gap-ha-2 py-3 px-4 rounded-ha-xl bg-ha-blue text-white font-medium hover:bg-ha-blue/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {connecting ? 'Connecting...' : 'Connect'}
