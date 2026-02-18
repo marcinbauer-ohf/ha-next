@@ -22,8 +22,9 @@ export const metadata: Metadata = {
     title: 'HA Dashboard',
   },
   icons: {
-    icon: '/icon.svg',
-    apple: '/apple-touch-icon.png',
+    icon: [{ url: '/icon-512.png', type: 'image/png', sizes: '180x180' }],
+    shortcut: '/icon-512.png',
+    apple: [{ url: '/icon-512.png', type: 'image/png', sizes: '180x180' }],
   },
 };
 
