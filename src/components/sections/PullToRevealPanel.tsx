@@ -39,7 +39,8 @@ export function PullToRevealPanel() {
   } = usePullToRevealContext();
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const handleRef = useRef<HTMLDivElement>(null);
+  const collapsedHandleRef = useRef<HTMLDivElement>(null);
+  const revealedHandleRef = useRef<HTMLDivElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef<number | null>(null);
   const threshold = 80;
@@ -74,7 +75,7 @@ export function PullToRevealPanel() {
 
   // Touch event handlers for the drag handle
   useEffect(() => {
-    const handle = handleRef.current;
+    const handle = isRevealed ? revealedHandleRef.current : collapsedHandleRef.current;
     if (!handle) return;
 
     const handleTouchStart = (e: TouchEvent) => {
@@ -155,11 +156,12 @@ export function PullToRevealPanel() {
       handle.removeEventListener('touchend', handleTouchEnd);
       handle.removeEventListener('touchcancel', handleTouchCancel);
     };
-  }, [threshold, maxPull, setPulling, setPullDistance, setRevealed]);
+  }, [isRevealed, threshold, maxPull, setPulling, setPullDistance, setRevealed]);
 
   // Overscroll pull detection on the dashboard content (mobile)
   useEffect(() => {
-    const handle = handleRef.current;
+    const collapsedHandle = collapsedHandleRef.current;
+    const revealedHandle = revealedHandleRef.current;
 
     const resetTracking = () => {
       overscrollStartY.current = null;
@@ -174,7 +176,11 @@ export function PullToRevealPanel() {
       if (!target) return;
 
       // Ignore content gestures while dragging the dedicated handle.
-      if (handleIsActive.current || (handle && handle.contains(target))) {
+      if (
+        handleIsActive.current ||
+        (collapsedHandle && collapsedHandle.contains(target)) ||
+        (revealedHandle && revealedHandle.contains(target))
+      ) {
         resetTracking();
         return;
       }
@@ -451,16 +457,20 @@ export function PullToRevealPanel() {
 
                 {/* Drag handle bar - inside the content surface with larger margin */}
                 <div
-                  ref={handleRef}
                   className="flex justify-center py-ha-2 cursor-grab active:cursor-grabbing select-none flex-shrink-0"
                 >
-                  <div className="w-8 h-1 rounded-full bg-text-secondary/60" />
+                  <div
+                    ref={revealedHandleRef}
+                    className="h-6 w-12 -my-2 flex items-center justify-center touch-none"
+                  >
+                    <div className="w-8 h-1 rounded-full bg-text-secondary/60" />
+                  </div>
                 </div>
             </div>
           ) : (
             /* Drag handle bar - standalone when collapsed */
             <div
-              ref={handleRef}
+              ref={collapsedHandleRef}
               className="flex justify-center py-1 cursor-grab active:cursor-grabbing select-none flex-shrink-0"
             >
               <div className="w-8 h-1 rounded-full bg-text-secondary/60" />

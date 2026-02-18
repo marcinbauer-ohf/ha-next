@@ -15,6 +15,7 @@ const ImmersiveModeContext = createContext<ImmersiveModeContextType | null>(null
 
 export function ImmersiveModeProvider({ children }: { children: ReactNode }) {
   const [immersiveMode, setImmersiveMode] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(true);
 
   // Animation phases:
   // normal → preparing (fixed + compensating padding, no visual change)
@@ -25,19 +26,21 @@ export function ImmersiveModeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth < 1024 && immersiveMode) {
-        setImmersiveMode(false);
-      }
+      setIsDesktop(window.innerWidth >= 1024);
     };
 
-    handleResize(); // Check on mount
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [immersiveMode]);
+  }, []);
 
   useEffect(() => {
     let id1: number;
     let timeoutId: NodeJS.Timeout;
+
+    if (!isDesktop) {
+      return;
+    }
 
     if (immersiveMode) {
       // Start preparing immediately
@@ -66,21 +69,20 @@ export function ImmersiveModeProvider({ children }: { children: ReactNode }) {
       if (id1) cancelAnimationFrame(id1);
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [immersiveMode]);
+  }, [immersiveMode, isDesktop]);
 
   const toggleImmersiveMode = useCallback((e?: React.MouseEvent | KeyboardEvent) => {
     if (e && 'preventDefault' in e) {
         e.preventDefault();
         e.stopPropagation();
     }
-    // Only allow immersive mode on desktop (lg breakpoint = 1024px)
-    if (window.innerWidth >= 1024) {
-      setImmersiveMode(prev => !prev);
-    }
+    setImmersiveMode(prev => !prev);
   }, []);
 
+  const effectiveImmersivePhase: ImmersivePhase = isDesktop ? immersivePhase : 'normal';
+
   return (
-    <ImmersiveModeContext.Provider value={{ immersiveMode, setImmersiveMode, toggleImmersiveMode, immersivePhase }}>
+    <ImmersiveModeContext.Provider value={{ immersiveMode, setImmersiveMode, toggleImmersiveMode, immersivePhase: effectiveImmersivePhase }}>
       {children}
     </ImmersiveModeContext.Provider>
   );

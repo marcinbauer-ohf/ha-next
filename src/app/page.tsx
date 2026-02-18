@@ -282,6 +282,7 @@ export default function DashboardPage() {
   }, [setHeader, infoOpen]);
 
   const isImmersiveFixed = immersivePhase !== 'normal';
+  const isMobileImmersive = immersiveMode && !isImmersiveFixed;
 
   // Status bar height: pt-ha-2 (8px) + h-12 content (48px) + pb-edge (12px)
   const statusBarHeight = 'calc(var(--ha-space-2) + 48px + var(--ha-edge-padding))';
@@ -323,6 +324,12 @@ export default function DashboardPage() {
       transition: 'padding 300ms ease-out',
     }),
   } : {};
+
+  const contentPaddingClasses = isImmersiveFixed
+    ? ''
+    : isMobileImmersive
+      ? 'pb-20 lg:px-edge lg:pb-ha-0 lg:pr-edge'
+      : 'px-edge pb-20 lg:pb-ha-0 lg:pr-edge';
 
   // Dashboard entrance animation
   useEffect(() => {
@@ -384,7 +391,6 @@ export default function DashboardPage() {
     };
   }, []);
 
-
   return (
     <>
       {/* TopBar row */}
@@ -397,8 +403,8 @@ export default function DashboardPage() {
       <div
         className={`min-h-0 overflow-hidden ${
           isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
-        } ${!isImmersiveFixed ? 'px-edge pb-20 lg:pb-ha-0 lg:pr-edge' : ''} ${
-          immersivePhase === 'normal' ? 'transition-[flex,height,opacity] duration-300 ease-out' : ''
+        } ${contentPaddingClasses} ${
+          immersivePhase === 'normal' ? 'transition-[flex,height,opacity,padding] duration-300 ease-out' : ''
         }`}
         style={contentStyle}
       >
@@ -406,9 +412,13 @@ export default function DashboardPage() {
           {/* Dashboard container */}
           <div
             data-component="dashboard-surface"
-            className={`flex-1 min-w-0 bg-surface-lower overflow-hidden rounded-ha-3xl transition-[opacity,transform] duration-500 ease-out ${
+            className={`flex-1 min-w-0 overflow-hidden transition-[opacity,transform,border-radius,background-color] duration-500 ease-out ${
               dashboardReady ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.9]'
-            } relative`}
+            } relative ${
+              isMobileImmersive
+                ? 'bg-surface-lower rounded-none lg:rounded-ha-3xl'
+                : 'bg-surface-lower rounded-ha-3xl'
+            }`}
           >
             {/* Info panel toggle in right padding - full height hit area, desktop only */}
             <button
@@ -436,7 +446,7 @@ export default function DashboardPage() {
                   )}
                   <main
                     ref={(el) => { scrollableRef.current = el; }}
-                    className="flex-1 lg:pb-ha-5 px-ha-1 lg:px-0 overscroll-none overflow-x-hidden overflow-y-auto touch-pan-y relative scrollbar-hide lg:scrollbar-hide"
+                    className={`flex-1 lg:pb-ha-5 ${isMobileImmersive ? 'px-ha-4' : 'px-ha-1'} lg:px-0 overscroll-none overflow-x-hidden overflow-y-auto touch-pan-y relative scrollbar-hide lg:scrollbar-hide transition-[padding] duration-300 ease-out`}
                     data-scrollable="dashboard"
                   >
                   {/* Mobile summary row - sticky with glass effect on scroll */}
