@@ -52,6 +52,8 @@ export function PullToRevealPanel() {
   const overscrollStartX = useRef<number | null>(null);
   const overscrollStartedAtTop = useRef(false);
   const overscrollIsTracking = useRef(false);
+  const overscrollScrollable = useRef<HTMLElement | null>(null);
+  const previousPathname = useRef(pathname);
   const pullDistanceRef = useRef(pullDistance);
   const isRevealedRef = useRef(isRevealed);
   const isPullingRef = useRef(isPulling);
@@ -134,129 +136,156 @@ export function PullToRevealPanel() {
       handleIsActive.current = false;
     };
 
+    const handleTouchCancel = () => {
+      setPulling(false);
+      setPullDistance(0);
+      touchStartY.current = null;
+      handleIsActive.current = false;
+    };
+
     // Add listeners directly to handle with non-passive touchstart for better control
     handle.addEventListener('touchstart', handleTouchStart, { passive: false });
     handle.addEventListener('touchmove', handleTouchMove, { passive: false });
     handle.addEventListener('touchend', handleTouchEnd, { passive: true });
+    handle.addEventListener('touchcancel', handleTouchCancel, { passive: true });
 
     return () => {
       handle.removeEventListener('touchstart', handleTouchStart);
       handle.removeEventListener('touchmove', handleTouchMove);
       handle.removeEventListener('touchend', handleTouchEnd);
+      handle.removeEventListener('touchcancel', handleTouchCancel);
     };
   }, [threshold, maxPull, setPulling, setPullDistance, setRevealed]);
 
-  // Overscroll detection on dashboard - open panel when pulling down at top
+  // Overscroll pull detection on the dashboard content (mobile)
   useEffect(() => {
     const handle = handleRef.current;
 
+    const resetTracking = () => {
+      overscrollStartY.current = null;
+      overscrollStartX.current = null;
+      overscrollStartedAtTop.current = false;
+      overscrollIsTracking.current = false;
+      overscrollScrollable.current = null;
+    };
+
     const handleTouchStart = (e: TouchEvent) => {
-      // Skip if handle is being used
-      if (handleIsActive.current) return;
+      const target = e.target as Node | null;
+      if (!target) return;
 
-      // Skip if touch originated from the handle
-      if (handle && handle.contains(e.target as Node)) {
+      // Ignore content gestures while dragging the dedicated handle.
+      if (handleIsActive.current || (handle && handle.contains(target))) {
+        resetTracking();
         return;
       }
 
-      const scrollable = document.querySelector('[data-scrollable="dashboard"]') as HTMLElement;
-
+      // We only open from a closed state.
       if (isRevealedRef.current) {
-        // When panel is open, we don't start any gestures from the content area
-        // to avoid conflicts with native scrolling. Gestures only on handle.
-        overscrollIsTracking.current = false;
+        resetTracking();
         return;
       }
 
-      if (!scrollable) return;
+      const scrollable = document.querySelector('[data-scrollable="dashboard"]') as HTMLElement | null;
+      if (!scrollable || !scrollable.contains(target)) {
+        resetTracking();
+        return;
+      }
 
-      // Check if we're at the top when touch starts
-      if (scrollable.scrollTop <= 0) {
+      overscrollScrollable.current = scrollable;
+
+      // Start only when gesture begins at top (allow tiny rounding noise).
+      if (scrollable.scrollTop <= 2) {
         overscrollStartY.current = e.touches[0].clientY;
         overscrollStartX.current = e.touches[0].clientX;
         overscrollStartedAtTop.current = true;
         overscrollIsTracking.current = true;
       } else {
-        overscrollStartedAtTop.current = false;
-        overscrollIsTracking.current = false;
+        resetTracking();
       }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      // Skip if handle is being used or touch originated from handle
-      if (handleIsActive.current) return;
-      if (handle && handle.contains(e.target as Node)) return;
-      if (!overscrollIsTracking.current || overscrollStartY.current === null || overscrollStartX.current === null) return;
+      if (handleIsActive.current || !overscrollIsTracking.current) return;
+      if (overscrollStartY.current === null || overscrollStartX.current === null) return;
+      if (isRevealedRef.current) {
+        resetTracking();
+        return;
+      }
+
+      const scrollable = overscrollScrollable.current;
+      if (!scrollable) {
+        resetTracking();
+        return;
+      }
 
       const currentY = e.touches[0].clientY;
       const currentX = e.touches[0].clientX;
-      const pullDelta = currentY - overscrollStartY.current;
+      const deltaY = currentY - overscrollStartY.current;
       const deltaX = Math.abs(currentX - overscrollStartX.current);
 
-      // Check for horizontal dominance
-      if (!isPullingRef.current) {
-        if (deltaX > Math.abs(pullDelta)) {
-          overscrollIsTracking.current = false;
-          return;
-        }
-        if (Math.abs(pullDelta) < 10) return;
+      // If content has already scrolled down, cancel pull tracking.
+      if (scrollable.scrollTop > 2 && !isPullingRef.current) {
+        resetTracking();
+        return;
       }
 
-      if (!isRevealedRef.current && overscrollStartedAtTop.current) {
-        // When closed and started at top, pulling down opens
-        if (pullDelta > 0) {
-          e.preventDefault();
-          setPulling(true);
-          const resistance = 0.5;
-          const effectivePull = Math.max(0, pullDelta - 10);
-          const resistedPull = Math.min(effectivePull * resistance, maxPull);
-          setPullDistance(resistedPull);
-        }
+      // Avoid hijacking horizontal swipes (carousel-like interactions).
+      if (!isPullingRef.current && deltaX > Math.abs(deltaY) && Math.abs(deltaY) < 12) {
+        resetTracking();
+        return;
+      }
+
+      if (deltaY > 0 && overscrollStartedAtTop.current) {
+        if (e.cancelable) e.preventDefault();
+        setPulling(true);
+        const resistance = 0.5;
+        const effectivePull = Math.max(0, deltaY - 6);
+        const resistedPull = Math.min(effectivePull * resistance, maxPull);
+        setPullDistance(resistedPull);
+      } else if (isPullingRef.current) {
+        setPulling(false);
+        setPullDistance(0);
       }
     };
 
-    const handleTouchEnd = (e: TouchEvent) => {
-      // Skip if handle is being used
-      if (handleIsActive.current) return;
-      // Skip if touch originated from the handle
-      if (handle && handle.contains(e.target as Node)) return;
-      if (!overscrollIsTracking.current) return;
-
-      const currentPullDistance = pullDistanceRef.current;
-      const revealed = isRevealedRef.current;
-
-      if (!revealed) {
-        // When closed, open if pulled enough
-        if (currentPullDistance >= threshold) {
-          setRevealed(true);
-          setPullDistance(maxPull);
-        } else {
-          setPullDistance(0);
-        }
-        setPulling(false);
-      } else {
-        // When revealed, we don't handle closing from general overscroll anymore
-        // to prevent conflicts with content scrolling. Handle-only closure is now preferred.
-        setPullDistance(0);
-        setPulling(false);
+    const handleTouchEnd = () => {
+      if (handleIsActive.current || !overscrollIsTracking.current) {
+        return;
       }
 
-      overscrollStartY.current = null;
-      overscrollStartX.current = null;
-      overscrollStartedAtTop.current = false;
-      overscrollIsTracking.current = false;
+      const currentPullDistance = pullDistanceRef.current;
+      if (!isRevealedRef.current && currentPullDistance >= threshold) {
+        setRevealed(true);
+        setPullDistance(maxPull);
+      } else if (!isRevealedRef.current) {
+        setPullDistance(0);
+      }
+
+      setPulling(false);
+      resetTracking();
+    };
+
+    const handleTouchCancel = () => {
+      if (!overscrollIsTracking.current) return;
+      setPulling(false);
+      setPullDistance(0);
+      resetTracking();
     };
 
     document.addEventListener('touchstart', handleTouchStart, { passive: true });
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    document.addEventListener('touchcancel', handleTouchCancel, { passive: true });
 
     return () => {
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('touchcancel', handleTouchCancel);
     };
   }, [threshold, maxPull, setPulling, setPullDistance, setRevealed]);
+
+
 
   // Monitor scroll position to show/hide gradients
   useEffect(() => {
@@ -290,12 +319,13 @@ export function PullToRevealPanel() {
     };
   }, [isRevealed]);
 
-  // Close panel when pathname changes (navigation)
+  // Close panel only when route actually changes.
   useEffect(() => {
-    if (isRevealed) {
+    if (pathname !== previousPathname.current && isRevealedRef.current) {
       onClose();
     }
-  }, [pathname, isRevealed, onClose]);
+    previousPathname.current = pathname;
+  }, [pathname, onClose]);
 
     // Separate dashboards and apps
     const dashboards = items.filter(item => !item.isApp);

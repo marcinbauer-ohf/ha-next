@@ -22,16 +22,19 @@ export function PullToRevealProvider({ children }: { children: ReactNode }) {
   const [pullDistance, setPullDistance] = useState(0);
 
   const open = useCallback(() => {
+    setIsPulling(false);
     setIsRevealed(true);
     setPullDistance(0);
   }, []);
 
   const close = useCallback(() => {
+    setIsPulling(false);
     setIsRevealed(false);
     setPullDistance(0);
   }, []);
 
   const toggle = useCallback(() => {
+    setIsPulling(false);
     setIsRevealed(prev => !prev);
     setPullDistance(0);
   }, []);
