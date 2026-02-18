@@ -110,7 +110,7 @@ export function InfoSidebar({ open, onClose }: InfoSidebarProps) {
             
             <div className="space-y-ha-2">
               <a 
-                href="https://github.com/marcinbauer85/ha-next" 
+                href="https://github.com/marcinbauer-ohf/ha-next" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl hover:bg-surface-low transition-colors group"
@@ -118,7 +118,7 @@ export function InfoSidebar({ open, onClose }: InfoSidebarProps) {
                 <Icon path={mdiGithub} size={24} className="text-text-primary group-hover:text-black dark:group-hover:text-white transition-colors" />
                 <div className="flex-1">
                   <div className="text-sm font-medium text-text-primary">Project Source</div>
-                  <div className="text-xs text-text-tertiary">marcinbauer85/ha-next</div>
+                  <div className="text-xs text-text-tertiary">marcinbauer-ohf/ha-next</div>
                 </div>
               </a>
 
