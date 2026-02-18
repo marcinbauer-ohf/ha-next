@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 40" fill="none">
+  <!-- House icon -->
+  <g transform="translate(0, 2)">
+    <!-- Chimney -->
+    <rect x="8" y="4" width="5" height="9" rx="1.5" fill="#0d2030"/>
+    <!-- Roof peak -->
+    <path d="M2 20 L18 6 L34 20" stroke="#0d2030" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <!-- House body -->
+    <rect x="6" y="19" width="24" height="14" rx="2" fill="#0d2030"/>
+    <!-- Door -->
+    <rect x="14" y="25" width="8" height="8" rx="1.5" fill="white" opacity="0.9"/>
+  </g>
+  <!-- Text: OPEN HOME FOUNDATION -->
+  <text x="44" y="26" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif" font-size="14" font-weight="700" letter-spacing="1.5" fill="#0d2030">OPEN HOME FOUNDATION</text>
+</svg>

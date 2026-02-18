@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Icon } from '../ui/Icon';
 import { MdiIcon } from '../ui/MdiIcon';
+import { Tooltip } from '../ui/Tooltip';
 import { HALogo } from '../ui/HALogo';
 import { useSidebarItems } from '@/hooks';
 import { useSearchContext } from '@/contexts';
@@ -31,7 +32,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { items, loading } = useSidebarItems();
   const { searchOpen, toggleSearch } = useSearchContext();
-  const scrollableRef = useRef<HTMLElement | null>(null);
+  const scrollableRef = useRef<HTMLDivElement | null>(null);
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
 
@@ -84,18 +85,27 @@ export function Sidebar() {
       </button>
 
       {/* All items listed one-by-one with scroll gradients */}
-      <div className="flex-1 relative w-full min-h-0">
+      <div className="flex-1 relative w-full min-h-0 mask-linear-fade flex flex-col items-center">
         {/* Top gradient */}
         <div 
-          className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+          className={`absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-surface-default to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
             showTopGradient ? 'opacity-100' : 'opacity-0'
           }`} 
         />
 
-        <nav 
+        <div 
           ref={scrollableRef}
-          className="h-full w-full flex flex-col items-center gap-ha-2 overflow-y-auto scrollbar-hide"
+          onScroll={() => {
+            const el = scrollableRef.current;
+            if (el) {
+              const { scrollTop, scrollHeight, clientHeight } = el;
+              setShowTopGradient(scrollTop > 0);
+              setShowBottomGradient(scrollTop + clientHeight < scrollHeight - 1);
+            }
+          }}
+          className="h-full w-full flex flex-col items-center gap-ha-2 overflow-y-auto scrollbar-hide py-2"
         >
+          {/* ... existing list items mapping ... */}
           {loading ? (
             // Loading placeholders
             <>
@@ -104,49 +114,50 @@ export function Sidebar() {
               ))}
             </>
           ) : (
-            [...items]
-              .filter(item => item.urlPath !== '/')
+            (items || [])
+              .filter(item => item && item.urlPath !== '/')
               .sort((a, b) => {
                 // Dashboards first, then apps
                 if (a.isApp === b.isApp) return 0;
                 return a.isApp ? 1 : -1;
               })
               .map((item) => {
+                if (!item) return null;
                 const isActive = pathname === item.urlPath ||
-                  (item.urlPath !== '/' && pathname.startsWith(item.urlPath));
+                  (item.urlPath !== '/' && pathname?.startsWith(item.urlPath));
                 const palette = item.isApp ? getAppPalette(item.id) : null;
 
                 return (
-                  <Link
-                    key={item.id}
-                    href={item.urlPath}
-                    scroll={false}
-                    className={clsx(
-                      'w-12 h-12 flex-shrink-0 rounded-ha-xl transition-colors flex items-center justify-center',
-                      item.isApp
-                        ? isActive ? 'bg-ha-blue' : palette?.bg
-                        : isActive ? 'bg-fill-primary-normal' : 'hover:bg-surface-low'
-                    )}
-                    title={item.title}
-                  >
-                    <MdiIcon
-                      icon={item.icon || (item.isApp ? 'mdi:application' : 'mdi:view-dashboard')}
-                      size={24}
+                  <Tooltip key={item.id} content={item.title} placement="right">
+                    <Link
+                      href={item.urlPath}
+                      scroll={false}
                       className={clsx(
+                        'w-12 h-12 flex-shrink-0 rounded-ha-xl transition-colors flex items-center justify-center',
                         isActive
-                          ? item.isApp ? 'text-white' : 'text-ha-blue'
-                          : 'text-text-secondary'
+                           ? (item.isApp ? 'bg-ha-blue' : 'bg-fill-primary-normal')
+                           : (item.isApp && palette ? palette.bg : 'hover:bg-surface-low')
                       )}
-                    />
-                  </Link>
+                    >
+                      <MdiIcon
+                        icon={item.icon || (item.isApp ? 'mdi:application' : 'mdi:view-dashboard')}
+                        size={24}
+                        className={clsx(
+                          isActive
+                            ? item.isApp ? 'text-white' : 'text-ha-blue'
+                            : item.isApp && palette ? palette.text : 'text-text-secondary'
+                        )}
+                      />
+                    </Link>
+                  </Tooltip>
                 );
               })
           )}
-        </nav>
+        </div>
 
         {/* Bottom gradient */}
         <div 
-          className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
+          className={`absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-surface-default to-transparent z-10 pointer-events-none transition-opacity duration-200 ${
             showBottomGradient ? 'opacity-100' : 'opacity-0'
           }`} 
         />

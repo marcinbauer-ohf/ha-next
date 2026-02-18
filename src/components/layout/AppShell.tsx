@@ -10,6 +10,8 @@ import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { InstallBanner } from '@/components/ui/InstallBanner';
+import { Preloader } from '@/components/ui/Preloader';
+import { AnimatePresence } from 'framer-motion';
 import type { ConnectionStatus } from '@/components/ui/ConnectionToast';
 
 interface AppShellProps {
@@ -22,6 +24,7 @@ export function AppShell({ children }: AppShellProps) {
   const { toggleSearch } = useSearchContext();
   const router = useRouter();
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(null);
+  const [showPreloader, setShowPreloader] = useState(true);
   const wasConnecting = useRef(false);
 
   // Track connection state changes and manage status toast visibility
@@ -67,6 +70,13 @@ export function AppShell({ children }: AppShellProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleSearch, router]);
 
+  // Reset preloader when user logs out so it shows again on next login
+  useEffect(() => {
+    if (!configured && hydrated) {
+      setShowPreloader(true);
+    }
+  }, [configured, hydrated]);
+
   if (!hydrated) {
     return null;
   }
@@ -77,7 +87,19 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="min-h-screen bg-surface-default" data-component="AppShell">
-      <div className="h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge">
+      {/* Preloader overlay — shown after login, fades out to reveal dashboard */}
+      <AnimatePresence>
+        {showPreloader && (
+          <Preloader onFinish={() => setShowPreloader(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Main app shell — fades in as preloader exits */}
+      <div
+        className={`h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge transition-opacity duration-700 ${
+          showPreloader ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
+      >
         {/* Sidebar - Desktop only, spans top bar and content rows */}
         <div className={`hidden lg:block lg:row-span-2 transition-opacity duration-300 ease-out ${
           immersivePhase !== 'normal' ? 'opacity-0 pointer-events-none' : 'opacity-100'
@@ -93,7 +115,7 @@ export function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Children content area */}
-        <div className="flex-1 min-h-0 overflow-hidden relative">
+        <div className="flex-1 min-h-0 overflow-hidden relative z-0">
           {children}
         </div>
 
@@ -101,8 +123,8 @@ export function AppShell({ children }: AppShellProps) {
         <StatusBar connectionStatus={connectionStatus} />
       </div>
 
-      {/* Mobile navigation - Outside grid for proper fixed positioning */}
-      <MobileNav connectionStatus={connectionStatus} />
+      {/* Mobile navigation - hidden during preloader */}
+      {!showPreloader && <MobileNav connectionStatus={connectionStatus} />}
 
       {/* Install app banner - mobile browsers only */}
       <InstallBanner />

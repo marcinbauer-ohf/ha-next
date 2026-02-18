@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback, CSSProperties } from 'react';
 import { EntityCard, RoomCard } from '@/components/cards';
-import { DashboardSection, MobileSummaryRow, SummariesPanel, PullToRevealPanel } from '@/components/sections';
-import { useTheme, useIdleTimer, useImmersiveMode, useHomeAssistant } from '@/hooks';
-import { usePullToRevealContext, useHeader } from '@/contexts';
+import { DashboardSection, MobileSummaryRow, PullToRevealPanel } from '@/components/sections';
+import { useTheme, useImmersiveMode, useHomeAssistant } from '@/hooks';
+import { usePullToRevealContext, useHeader, useScreensaver } from '@/contexts';
 import { HassEntity } from '@/types';
-import { ScreensaverClock } from '@/components/ui/ScreensaverClock';
+import { SimulationListModal } from '@/components/ui/SimulationListModal';
 import { Icon } from '@/components/ui/Icon';
 import {
   mdiLightbulb,
@@ -32,6 +32,9 @@ import {
   mdiClose,
   mdiPlay,
   mdiTimerOutline,
+  mdiCctv,
+  mdiPrinter3d,
+  mdiRefresh,
 } from '@mdi/js';
 
 // Mock data for static rendering - will be replaced with real HA data
@@ -53,8 +56,6 @@ const rooms = [
   { id: 'hallway', icon: mdiDoorOpen, name: 'Hallway', temperature: 20, humidity: 44, activeEntities: 0 },
 ];
 
-const SCREENSAVER_TIMEOUT = 60000; // 1 minute of inactivity
-
 function HomeInfoPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -67,7 +68,7 @@ function HomeInfoPanel({ onClose }: { onClose: () => void }) {
           <Icon path={mdiClose} size={20} />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto px-ha-4 pb-ha-4 space-y-ha-4">
+      <div className="flex-1 overflow-y-auto scrollbar-hide px-ha-4 pb-ha-4 space-y-ha-4">
         {/* Overview Stats - Basic cards without data */}
         <div>
           <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Overview</div>
@@ -108,51 +109,157 @@ function HomeInfoPanel({ onClose }: { onClose: () => void }) {
 }
 
 export default function DashboardPage() {
-  const { theme, toggleTheme, mode, toggleMode, background, toggleBackground } = useTheme();
+  const { theme, toggleTheme, mode, toggleMode, background, toggleBackground, setTheme, setMode, setBackground } = useTheme();
   const { clearCredentials, setMockEntity, entities } = useHomeAssistant();
+
+  const resetLayoutToDefaults = () => {
+    setTheme('default');
+    setMode('system');
+    setBackground('gradient');
+  };
   const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
+  const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
 
-  const isSimulatedMediaActive = !!entities['media_player.simulated'];
-  const isSimulatedTimerActive = !!entities['timer.simulated'];
+  const [simulationModal, setSimulationModal] = useState<{ type: string; title: string; prefix: string } | null>(null);
 
-  const toggleSimulatedMedia = () => {
-    if (isSimulatedMediaActive) {
-      setMockEntity('media_player.simulated', null);
-    } else {
-      setMockEntity('media_player.simulated', {
-        entity_id: 'media_player.simulated',
-        state: 'playing',
-        attributes: {
-          friendly_name: 'Simulated Player',
-          entity_picture: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=200&auto=format&fit=crop',
-          media_title: 'Simulation Song',
-          media_artist: 'The Mockers',
-        },
-        last_changed: new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-      } as HassEntity);
-    }
+  const getSimulatedEntities = useCallback((prefix: string) => {
+    return Object.entries(entities)
+      .filter(([id]) => id.startsWith(prefix))
+      .map(([id, entity]) => ({
+        id,
+        name: (entity.attributes.friendly_name as string) || id,
+        state: entity.state
+      })).sort((a, b) => a.id.localeCompare(b.id)); // Stable sort
+  }, [entities]);
+
+  const createMockEntity = (type: string, id: string): HassEntity => {
+      const now = new Date().toISOString();
+      const nextHalfHour = new Date(Date.now() + 1800000).toISOString();
+      const suffix = id.split('_').pop();
+      const nameSuffix = suffix && !isNaN(Number(suffix)) ? ` ${suffix}` : '';
+      
+      switch(type) {
+          case 'media':
+              return {
+                  entity_id: id,
+                  state: 'playing',
+                  attributes: {
+                      friendly_name: `Simulated Player${nameSuffix}`,
+                      entity_picture: 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=200&auto=format&fit=crop',
+                      media_title: 'Simulation Song',
+                      media_artist: 'The Mockers',
+                  },
+                  last_changed: now,
+                  last_updated: now,
+              } as HassEntity;
+          case 'timer':
+              return {
+                  entity_id: id,
+                  state: 'active',
+                  attributes: {
+                      friendly_name: `Simulated Timer${nameSuffix}`,
+                      duration: '0:10:00',
+                      remaining: '0:05:00',
+                      finishes_at: nextHalfHour,
+                  },
+                  last_changed: now,
+                  last_updated: now,
+              } as HassEntity;
+          case 'camera':
+              return {
+                  entity_id: id,
+                  state: 'on',
+                  attributes: {
+                      friendly_name: `Front Door Camera${nameSuffix}`,
+                      device_class: 'motion',
+                      event_type: 'Person detected',
+                  },
+                  last_changed: now,
+                  last_updated: now,
+              } as HassEntity;
+          case 'printer':
+              return {
+                  entity_id: id,
+                  state: 'printing',
+                  attributes: {
+                      friendly_name: `Voron 2.4${nameSuffix}`,
+                      progress: Math.floor(Math.random() * 100),
+                      file_name: 'test_print.stl',
+                      time_remaining: '00:45:00',
+                  },
+                  last_changed: now,
+                  last_updated: now,
+              } as HassEntity;
+          default:
+              throw new Error('Unknown type');
+      }
   };
 
-  const toggleSimulatedTimer = () => {
-    if (isSimulatedTimerActive) {
-      setMockEntity('timer.simulated', null);
-    } else {
-      setMockEntity('timer.simulated', {
-        entity_id: 'timer.simulated',
-        state: 'active',
-        attributes: {
-          friendly_name: 'Simulated Timer',
-          duration: '0:10:00',
-          remaining: '0:05:00',
-          finishes_at: new Date(Date.now() + 300000).toISOString(),
-        },
-        last_changed: new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-      } as HassEntity);
-    }
-  };
-  const [screensaverActive, setScreensaverActive] = useState(false);
+  const addSimulation = useCallback((type: 'media' | 'timer' | 'camera' | 'printer') => {
+      let prefix = '';
+      if (type === 'media') prefix = 'media_player.simulated';
+      if (type === 'timer') prefix = 'timer.simulated';
+      if (type === 'camera') prefix = 'binary_sensor.camera_simulated';
+      if (type === 'printer') prefix = 'sensor.printer_simulated';
+      
+      const existing = getSimulatedEntities(prefix);
+      
+      // If none exist, create the base one
+      if (existing.length === 0) {
+          setMockEntity(prefix, createMockEntity(type, prefix));
+          return;
+      }
+
+      // Find next available numeric suffix starting from 2
+      let counter = 2;
+      while (existing.some(e => e.id === `${prefix}_${counter}`)) {
+          counter++;
+      }
+      
+      const newId = `${prefix}_${counter}`;
+      setMockEntity(newId, createMockEntity(type, newId));
+  }, [getSimulatedEntities, setMockEntity]);
+
+  const removeLastSimulation = useCallback((type: 'media' | 'timer' | 'camera' | 'printer') => {
+      let prefix = '';
+      if (type === 'media') prefix = 'media_player.simulated';
+      if (type === 'timer') prefix = 'timer.simulated';
+      if (type === 'camera') prefix = 'binary_sensor.camera_simulated';
+      if (type === 'printer') prefix = 'sensor.printer_simulated';
+
+      const existing = getSimulatedEntities(prefix);
+      if (existing.length === 0) return;
+      
+      // Remove the last added one (highest sort order)
+      const last = existing[existing.length - 1];
+      setMockEntity(last.id, null);
+      
+      // If we removed the last one while modal was open, we might need to close it?
+      // Modal handles live updates via props usually, but here we pass static title/prefix.
+  }, [getSimulatedEntities, setMockEntity]);
+
+  const handleSimulationClick = useCallback((type: 'media' | 'timer' | 'camera' | 'printer', title: string) => {
+      let prefix = '';
+      if (type === 'media') prefix = 'media_player.simulated';
+      if (type === 'timer') prefix = 'timer.simulated';
+      if (type === 'camera') prefix = 'binary_sensor.camera_simulated';
+      if (type === 'printer') prefix = 'sensor.printer_simulated';
+      
+      const existing = getSimulatedEntities(prefix);
+      
+      if (existing.length === 0) {
+          addSimulation(type); // Toggle on
+      } else if (existing.length === 1) {
+          setMockEntity(existing[0].id, null); // Toggle off standard logic
+      } else {
+          setSimulationModal({ type, title, prefix }); // Show list
+      }
+  }, [getSimulatedEntities, addSimulation, setMockEntity]);
+
+  const removeSimulationById = useCallback((id: string) => {
+      setMockEntity(id, null);
+  }, [setMockEntity]);
+  
   const scrollableRef = useRef<HTMLElement | null>(null);
   const { isRevealed } = usePullToRevealContext();
   const [showTopGradient, setShowTopGradient] = useState(false);
@@ -225,23 +332,6 @@ export default function DashboardPage() {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  // Screensaver idle timer
-  const { wake } = useIdleTimer({
-    timeout: SCREENSAVER_TIMEOUT,
-    onIdle: () => {
-      setScreensaverActive(true);
-    },
-  });
-
-  const dismissScreensaver = useCallback(() => {
-    setScreensaverActive(false);
-    wake();
-  }, [wake]);
-
-  const activateScreensaver = useCallback(() => {
-    setScreensaverActive(true);
-  }, []);
-
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -250,15 +340,7 @@ export default function DashboardPage() {
         e.preventDefault();
         toggleImmersiveMode();
       }
-      // Cmd/Ctrl + Shift + S for screensaver
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        if (screensaverActive) {
-          dismissScreensaver();
-        } else {
-          activateScreensaver();
-        }
-      }
+      
       // Cmd/Ctrl + I to toggle info panel
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'i') {
         e.preventDefault();
@@ -268,7 +350,7 @@ export default function DashboardPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screensaverActive, dismissScreensaver, activateScreensaver, toggleImmersiveMode]);
+  }, [toggleImmersiveMode]);
 
   // Monitor scroll position to show/hide gradients
   useEffect(() => {
@@ -301,6 +383,7 @@ export default function DashboardPage() {
       window.removeEventListener('resize', updateGradients);
     };
   }, []);
+
 
   return (
     <>
@@ -340,9 +423,9 @@ export default function DashboardPage() {
               />
             </button>
             
-            <div className="h-full flex flex-col lg:pl-14 lg:pr-14 overflow-hidden">
+            <div className="h-full flex flex-col overflow-hidden">
               {/* Content area */}
-              <div className="flex-1 flex gap-ha-4 overflow-hidden">
+              <div className="flex-1 flex gap-ha-4 overflow-hidden w-full">
                 {/* Main dashboard wrapper for gradients */}
                 <div className="flex-1 min-w-0 relative flex flex-col overflow-hidden">
                   {showTopGradient && background !== 'image' && background !== 'gradient' && (
@@ -353,114 +436,155 @@ export default function DashboardPage() {
                   )}
                   <main
                     ref={(el) => { scrollableRef.current = el; }}
-                    className="flex-1 lg:pt-ha-5 lg:pb-ha-5 px-ha-3 lg:px-0 overscroll-none overflow-x-hidden overflow-y-auto touch-pan-y relative"
+                    className="flex-1 lg:pb-ha-5 px-ha-1 lg:px-0 overscroll-none overflow-x-hidden overflow-y-auto touch-pan-y relative scrollbar-hide lg:scrollbar-hide"
                     data-scrollable="dashboard"
                   >
                   {/* Mobile summary row - sticky with glass effect on scroll */}
                   <MobileSummaryRow />
 
-                  {/* Favorites */}
-                  <DashboardSection title="Favorites" columns={2}>
+                  <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
+                    {/* Favorites */}
+                    <DashboardSection title="Favorites" columns={2}>
                     {favoriteEntities.map((entity) => (
-                      <EntityCard
-                        key={entity.id}
-                        icon={entity.icon}
-                        title={entity.title}
-                        state={entity.state}
-                        color={entity.color}
-                        size="sm"
-                      />
-                    ))}
-                  </DashboardSection>
+                        <EntityCard
+                          key={entity.id}
+                          icon={entity.icon}
+                          title={entity.title}
+                          state={entity.state}
+                          color={entity.color}
+                          size="sm"
+                        />
+                      ))}
+                    </DashboardSection>
 
-                  {/* Rooms */}
-                  <DashboardSection title="Rooms" columns={3}>
+                    {/* Rooms */}
+                    <DashboardSection title="Rooms" columns={3}>
                     {rooms.map((room) => (
-                      <RoomCard
-                        key={room.id}
-                        icon={room.icon}
-                        name={room.name}
-                        temperature={room.temperature}
-                        humidity={room.humidity}
-                        activeEntities={room.activeEntities}
-                        href={`/room/${room.id}`}
+                        <RoomCard
+                          key={room.id}
+                          icon={room.icon}
+                          name={room.name}
+                          temperature={room.temperature}
+                          humidity={room.humidity}
+                          activeEntities={room.activeEntities}
+                          href={`/room/${room.id}`}
+                        />
+                      ))}
+                    </DashboardSection>
+
+                    {/* Debug */}
+                    <DashboardSection title="Theme & Layout" columns={3}>
+                      <EntityCard
+                        icon={mdiArrowExpandAll}
+                        title="Immersive Mode"
+                        state={immersiveMode ? 'On' : 'Off'}
+                        color={immersiveMode ? 'primary' : 'default'}
+                        onClick={toggleImmersiveMode}
                       />
-                    ))}
-                  </DashboardSection>
+                      <EntityCard
+                        icon={mdiWeatherNight}
+                        title="Color Mode"
+                        state={mode === 'dark' ? 'Dark' : mode === 'light' ? 'Light' : 'System'}
+                        color={mode === 'dark' ? 'primary' : mode === 'system' ? 'primary' : 'default'}
+                        onClick={toggleMode}
+                      />
+                      <EntityCard
+                        icon={mdiPalette}
+                        title="Theme Appearance"
+                        state={theme === 'glass' ? 'Glass' : 'Default'}
+                        color={theme === 'glass' ? 'primary' : 'default'}
+                        onClick={toggleTheme}
+                      />
+                      <EntityCard
+                        icon={mdiImage}
+                        title="Background"
+                        state={background === 'image' ? 'Image' : background === 'gradient' ? 'Home Assistant background' : 'None'}
+                        color={background !== 'none' ? 'primary' : 'default'}
+                        onClick={toggleBackground}
+                      />
+                    </DashboardSection>
 
-                  {/* Debug */}
-                  <DashboardSection title="Theme & Layout" columns={3}>
-                    <EntityCard
-                      icon={mdiArrowExpandAll}
-                      title="Immersive Mode"
-                      state={immersiveMode ? 'On' : 'Off'}
-                      color={immersiveMode ? 'primary' : 'default'}
-                      onClick={toggleImmersiveMode}
-                    />
-                    <EntityCard
-                      icon={mdiWeatherNight}
-                      title="Color Mode"
-                      state={mode === 'dark' ? 'Dark' : mode === 'light' ? 'Light' : 'System'}
-                      color={mode === 'dark' ? 'primary' : mode === 'system' ? 'primary' : 'default'}
-                      onClick={toggleMode}
-                    />
-                    <EntityCard
-                      icon={mdiPalette}
-                      title="Theme Appearance"
-                      state={theme === 'glass' ? 'Glass' : 'Default'}
-                      color={theme === 'glass' ? 'primary' : 'default'}
-                      onClick={toggleTheme}
-                    />
-                    <EntityCard
-                      icon={mdiImage}
-                      title="Background"
-                      state={background === 'image' ? 'Image' : background === 'gradient' ? 'Home Assistant background' : 'None'}
-                      color={background !== 'none' ? 'primary' : 'default'}
-                      onClick={toggleBackground}
-                    />
-                  </DashboardSection>
+                    <DashboardSection title="Task bar activities" columns={3}>
+                      <EntityCard
+                        icon={mdiPlay}
+                        title="Simulate Media"
+                        state={getSimulatedEntities('media_player.simulated').length > 0 ? `${getSimulatedEntities('media_player.simulated').length} Playing` : 'Idle'}
+                        color={getSimulatedEntities('media_player.simulated').length > 0 ? 'primary' : 'default'}
+                        onClick={() => handleSimulationClick('media', 'Simulate Media')}
+                        count={getSimulatedEntities('media_player.simulated').length}
+                        onIncrement={() => addSimulation('media')}
+                        onDecrement={() => removeLastSimulation('media')}
+                      />
+                      <EntityCard
+                        icon={mdiTimerOutline}
+                        title="Simulate Timer"
+                        state={getSimulatedEntities('timer.simulated').length > 0 ? `${getSimulatedEntities('timer.simulated').length} Active` : 'Idle'}
+                        color={getSimulatedEntities('timer.simulated').length > 0 ? 'primary' : 'default'}
+                        onClick={() => handleSimulationClick('timer', 'Simulate Timer')}
+                        count={getSimulatedEntities('timer.simulated').length}
+                        onIncrement={() => addSimulation('timer')}
+                        onDecrement={() => removeLastSimulation('timer')}
+                      />
+                      <EntityCard
+                        icon={mdiCctv}
+                        title="Simulate Camera"
+                        state={getSimulatedEntities('binary_sensor.camera_simulated').length > 0 ? `${getSimulatedEntities('binary_sensor.camera_simulated').length} Motion` : 'Idle'}
+                        color={getSimulatedEntities('binary_sensor.camera_simulated').length > 0 ? 'danger' : 'default'}
+                        onClick={() => handleSimulationClick('camera', 'Simulate Camera')}
+                        count={getSimulatedEntities('binary_sensor.camera_simulated').length}
+                        onIncrement={() => addSimulation('camera')}
+                        onDecrement={() => removeLastSimulation('camera')}
+                      />
+                      <EntityCard
+                        icon={mdiPrinter3d}
+                        title="Simulate Printer"
+                        state={getSimulatedEntities('sensor.printer_simulated').length > 0 ? `${getSimulatedEntities('sensor.printer_simulated').length} Printing` : 'Idle'}
+                        color={getSimulatedEntities('sensor.printer_simulated').length > 0 ? 'primary' : 'default'}
+                        onClick={() => handleSimulationClick('printer', 'Simulate Printer')}
+                        count={getSimulatedEntities('sensor.printer_simulated').length}
+                        onIncrement={() => addSimulation('printer')}
+                        onDecrement={() => removeLastSimulation('printer')}
+                      />
+                      <EntityCard
+                        icon={mdiClockOutline}
+                        title="Screensaver"
+                        state={screensaverActive ? 'On' : 'Off'}
+                        color={screensaverActive ? 'primary' : 'default'}
+                        onClick={screensaverActive ? dismissScreensaver : activateScreensaver}
+                      />
+                    </DashboardSection>
 
-                  <DashboardSection title="Simulation & Debug" columns={3}>
-                    <EntityCard
-                      icon={mdiPlay}
-                      title="Simulate Media"
-                      state={isSimulatedMediaActive ? 'Playing' : 'Idle'}
-                      color={isSimulatedMediaActive ? 'primary' : 'default'}
-                      onClick={toggleSimulatedMedia}
-                    />
-                    <EntityCard
-                      icon={mdiTimerOutline}
-                      title="Simulate Timer"
-                      state={isSimulatedTimerActive ? 'Active' : 'Idle'}
-                      color={isSimulatedTimerActive ? 'primary' : 'default'}
-                      onClick={toggleSimulatedTimer}
-                    />
-                    <EntityCard
-                      icon={mdiClockOutline}
-                      title="Screensaver"
-                      state={screensaverActive ? 'On' : 'Off'}
-                      color={screensaverActive ? 'primary' : 'default'}
-                      onClick={screensaverActive ? dismissScreensaver : activateScreensaver}
-                    />
-                    <EntityCard
-                      icon={mdiDeleteOutline}
-                      title="Clear credentials"
-                      state="Reset connection"
-                      color="danger"
-                      onClick={clearCredentials}
-                    />
-                  </DashboardSection>
-                </main>
+                    {simulationModal && (
+                      <SimulationListModal
+                        isOpen={true}
+                        onClose={() => setSimulationModal(null)}
+                        title={simulationModal.title}
+                        items={getSimulatedEntities(simulationModal.prefix)}
+                        onRemove={removeSimulationById}
+                      />
+                    )}
+
+                    <DashboardSection title="Maintenance" columns={3}>
+                      <EntityCard
+                        icon={mdiDeleteOutline}
+                        title="Clear credentials"
+                        state="Reset connection"
+                        color="danger"
+                        onClick={clearCredentials}
+                      />
+                      <EntityCard
+                        icon={mdiRefresh}
+                        title="Reset Layout"
+                        state="Restore defaults"
+                        color="default"
+                        onClick={resetLayoutToDefaults}
+                      />
+                    </DashboardSection>
+                  </div>
+                  </main>
               </div>
 
-                {/* Summaries panel - Desktop only */}
-                <div className="hidden lg:block lg:pt-ha-5 lg:pb-ha-5">
-                  <SummariesPanel
-                    onToggleImmersive={toggleImmersiveMode}
-                    onToggleDarkMode={toggleMode}
-                    onToggleScreensaver={activateScreensaver}
-                  />
-                </div>
+
               </div>
             </div>
           </div>
@@ -475,11 +599,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-
-      {/* Screensaver */}
-      <ScreensaverClock visible={screensaverActive} onDismiss={dismissScreensaver} />
-
-      {/* Mobile Bottom Sheet for Info */}
+      
+      {/* Mobile Bottom Sheet for Info */} 
       <div
         className={`lg:hidden fixed inset-0 z-50 transition-opacity duration-300 ${
           infoOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
