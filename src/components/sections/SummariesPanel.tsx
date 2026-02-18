@@ -285,7 +285,11 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
   );
 }
 
-export function MobileSummaryRow() {
+interface MobileSummaryRowProps {
+  fullBleed?: boolean;
+}
+
+export function MobileSummaryRow({ fullBleed = false }: MobileSummaryRowProps) {
   const [showLeftGradient, setShowLeftGradient] = useState(false);
   const [showRightGradient, setShowRightGradient] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -303,10 +307,26 @@ export function MobileSummaryRow() {
     return () => window.removeEventListener('resize', checkScroll);
   }, []);
 
+  const summaryBackground = 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent), transparent)';
+  const containerStyle = fullBleed
+    ? {
+        background: summaryBackground,
+        width: '100vw',
+        maxWidth: '100vw',
+        marginLeft: 'calc(50% - 50vw)',
+        marginRight: 'calc(50% - 50vw)',
+        paddingLeft: 'calc(var(--ha-space-4) + env(safe-area-inset-left, 0px))',
+        paddingRight: 'calc(var(--ha-space-4) + env(safe-area-inset-right, 0px))',
+      }
+    : { background: summaryBackground };
+
   return (
     <div
-      className="sticky top-0 -mx-ha-1 px-ha-1 lg:mx-0 lg:px-0 pt-ha-4 pb-ha-3 z-[60] backdrop-blur-md w-full"
-      style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent), transparent)' }}
+      className={clsx(
+        'sticky top-0 lg:mx-0 lg:px-0 pt-ha-4 pb-ha-3 z-[60] backdrop-blur-md w-full',
+        fullBleed ? '' : '-mx-ha-1 px-ha-1'
+      )}
+      style={containerStyle}
     >
       <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full flex items-center gap-ha-2 overflow-hidden">
         {/* Scrollable Container for Summaries */}

@@ -450,7 +450,7 @@ export default function DashboardPage() {
                     data-scrollable="dashboard"
                   >
                   {/* Mobile summary row - sticky with glass effect on scroll */}
-                  <MobileSummaryRow />
+                  <MobileSummaryRow fullBleed={isMobileImmersive} />
 
                   <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
                     {/* Favorites */}
