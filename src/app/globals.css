@@ -542,3 +542,13 @@ html {
 .ease-in-out-quint {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Preloader bottom lockup tone by mode */
+[data-component="Preloader"] .preloader-brand-lockup {
+  opacity: 0.72;
+  transition: opacity 0.3s ease;
+}
+
+[data-mode="dark"] [data-component="Preloader"] .preloader-brand-lockup {
+  opacity: 0.45;
+}
