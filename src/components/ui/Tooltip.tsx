@@ -7,9 +7,10 @@ interface TooltipProps {
   content: string;
   children: ReactNode;
   delay?: number;
+  placement?: 'top' | 'bottom' | 'left' | 'right';
 }
 
-export function Tooltip({ content, children, delay = 300 }: TooltipProps) {
+export function Tooltip({ content, children, delay = 300, placement = 'top' }: TooltipProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [mounted, setMounted] = useState(false);
@@ -24,27 +25,41 @@ export function Tooltip({ content, children, delay = 300 }: TooltipProps) {
     if (!triggerRef.current) return;
 
     const rect = triggerRef.current.getBoundingClientRect();
-    const tooltipWidth = 200; // approximate width
-    const tooltipHeight = 40; // approximate height
+    const tooltipWidth = 120; // approximate width for calculation
+    const tooltipHeight = 32; // approximate height
     const spacing = 8;
+    
+    let top = 0;
+    let left = 0;
 
-    // Calculate horizontal position (centered above element)
-    let left = rect.left + rect.width / 2 - tooltipWidth / 2;
+    switch (placement) {
+      case 'right':
+        left = rect.right + spacing;
+        top = rect.top + (rect.height / 2) - (tooltipHeight / 2);
+        break;
+      case 'left':
+        left = rect.left - tooltipWidth - spacing;
+        top = rect.top + (rect.height / 2) - (tooltipHeight / 2);
+        break;
+      case 'bottom':
+        left = rect.left + (rect.width / 2) - (tooltipWidth / 2);
+        top = rect.bottom + spacing;
+        break;
+      case 'top':
+      default:
+        left = rect.left + (rect.width / 2) - (tooltipWidth / 2);
+        top = rect.top - tooltipHeight - spacing;
+        break;
+    }
 
-    // Keep tooltip within viewport horizontally
+    // Viewport boundary checks
     const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
     if (left < 8) left = 8;
-    if (left + tooltipWidth > viewportWidth - 8) {
-      left = viewportWidth - tooltipWidth - 8;
-    }
-
-    // Calculate vertical position (above element)
-    let top = rect.top - tooltipHeight - spacing;
-
-    // If not enough space above, show below
-    if (top < 8) {
-      top = rect.bottom + spacing;
-    }
+    if (left + tooltipWidth > viewportWidth - 8) left = viewportWidth - tooltipWidth - 8;
+    if (top < 8) top = 8;
+    if (top + tooltipHeight > viewportHeight - 8) top = viewportHeight - tooltipHeight - 8;
 
     setPosition({ top, left });
   };

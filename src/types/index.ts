@@ -28,6 +28,9 @@ export interface EntityCardProps {
   color?: 'primary' | 'danger' | 'success' | 'yellow' | 'default';
   size?: 'sm' | 'lg';
   onClick?: () => void;
+  onIncrement?: (e: React.MouseEvent) => void;
+  onDecrement?: (e: React.MouseEvent) => void;
+  count?: number;
 }
 
 export interface SummaryCardProps {

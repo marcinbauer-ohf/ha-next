@@ -254,7 +254,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       </div>
 
       {/* Main time display */}
-      <div className="flex items-center gap-1" style={{ fontFamily: 'var(--font-mono)' }}>
+      <div className="flex items-center gap-1 tabular-nums" style={{ fontFamily: 'system-ui' }}>
         <div className="flex items-center">
           {time.hours.split('').map((digit, i) => (
             <RollingDigit

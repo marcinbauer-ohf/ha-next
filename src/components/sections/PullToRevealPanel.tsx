@@ -162,14 +162,9 @@ export function PullToRevealPanel() {
       const scrollable = document.querySelector('[data-scrollable="dashboard"]') as HTMLElement;
 
       if (isRevealedRef.current) {
-        // When panel is open, track touches anywhere to close
-        overscrollStartY.current = e.touches[0].clientY;
-        overscrollIsTracking.current = true;
-        // Reset stale pull distance from the opening gesture (but only if not using handle)
-        if (!handleIsActive.current) {
-          pullDistanceRef.current = 0;
-          setPullDistance(0);
-        }
+        // When panel is open, we don't start any gestures from the content area
+        // to avoid conflicts with native scrolling. Gestures only on handle.
+        overscrollIsTracking.current = false;
         return;
       }
 
@@ -188,9 +183,8 @@ export function PullToRevealPanel() {
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      // Skip if handle is being used
+      // Skip if handle is being used or touch originated from handle
       if (handleIsActive.current) return;
-      // Skip if touch originated from the handle
       if (handle && handle.contains(e.target as Node)) return;
       if (!overscrollIsTracking.current || overscrollStartY.current === null || overscrollStartX.current === null) return;
 
@@ -199,34 +193,21 @@ export function PullToRevealPanel() {
       const pullDelta = currentY - overscrollStartY.current;
       const deltaX = Math.abs(currentX - overscrollStartX.current);
 
-      // Check for horizontal dominance or buffer if not already pulling
+      // Check for horizontal dominance
       if (!isPullingRef.current) {
-        // If scrolling horizontally more than vertically, stop tracking
         if (deltaX > Math.abs(pullDelta)) {
           overscrollIsTracking.current = false;
           return;
         }
-        
-        // BUFFER: Ignore small vertical movements (e.g. < 10px) to prevent accidental pulls
-        if (Math.abs(pullDelta) < 10) {
-          return;
-        }
+        if (Math.abs(pullDelta) < 10) return;
       }
 
-      if (isRevealedRef.current) {
-        // When revealed, pulling down closes
-        if (pullDelta > 0) {
-          e.preventDefault();
-          setPulling(true);
-          setPullDistance(pullDelta * 0.5);
-        }
-      } else if (overscrollStartedAtTop.current) {
+      if (!isRevealedRef.current && overscrollStartedAtTop.current) {
         // When closed and started at top, pulling down opens
         if (pullDelta > 0) {
           e.preventDefault();
           setPulling(true);
           const resistance = 0.5;
-          // Apply buffer to smoothen the start
           const effectivePull = Math.max(0, pullDelta - 10);
           const resistedPull = Math.min(effectivePull * resistance, maxPull);
           setPullDistance(resistedPull);
@@ -244,14 +225,7 @@ export function PullToRevealPanel() {
       const currentPullDistance = pullDistanceRef.current;
       const revealed = isRevealedRef.current;
 
-      if (revealed) {
-        // When revealed, close if pulled enough
-        if (currentPullDistance > threshold) {
-          setRevealed(false);
-        }
-        setPullDistance(0);
-        setPulling(false);
-      } else {
+      if (!revealed) {
         // When closed, open if pulled enough
         if (currentPullDistance >= threshold) {
           setRevealed(true);
@@ -259,6 +233,11 @@ export function PullToRevealPanel() {
         } else {
           setPullDistance(0);
         }
+        setPulling(false);
+      } else {
+        // When revealed, we don't handle closing from general overscroll anymore
+        // to prevent conflicts with content scrolling. Handle-only closure is now preferred.
+        setPullDistance(0);
         setPulling(false);
       }
 
@@ -311,6 +290,13 @@ export function PullToRevealPanel() {
     };
   }, [isRevealed]);
 
+  // Close panel when pathname changes (navigation)
+  useEffect(() => {
+    if (isRevealed) {
+      onClose();
+    }
+  }, [pathname, isRevealed, onClose]);
+
     // Separate dashboards and apps
     const dashboards = items.filter(item => !item.isApp);
     const apps = items.filter(item => item.isApp);
@@ -336,7 +322,11 @@ export function PullToRevealPanel() {
     return (
       <div
         ref={containerRef}
-        className={`lg:hidden overflow-hidden transition-[height] duration-300 ease-out ${isRevealed ? 'flex-1' : ''}`}
+        className={clsx(
+          'lg:hidden overflow-hidden',
+          !isPulling && 'transition-[height] duration-300 ease-out',
+          isRevealed && !isPulling && 'flex-1'
+        )}
         style={{ height: getHeight() }}
       >
         <div className={`h-full flex flex-col ${isRevealed ? 'pb-[calc(50px+env(safe-area-inset-bottom,0px))]' : 'justify-end'}`}>
@@ -352,7 +342,7 @@ export function PullToRevealPanel() {
                 )}
                 <div
                   ref={scrollableRef}
-                  className="flex-1 overflow-y-auto"
+                  className="flex-1 overflow-y-auto touch-pan-y overscroll-contain pb-ha-8"
                 >
                   {/* Dashboards section */}
                   <div className="p-ha-3">
@@ -362,7 +352,6 @@ export function PullToRevealPanel() {
                         <Link
                           key={dashboard.id}
                           href={dashboard.urlPath}
-                          onClick={onClose}
                           className="flex flex-col group"
                         >
                           {/* Mobile aspect ratio preview card */}
@@ -409,7 +398,6 @@ export function PullToRevealPanel() {
                           <Link
                             key={app.id}
                             href={app.urlPath}
-                            onClick={onClose}
                             className="p-ha-1 rounded-ha-xl hover:bg-surface-low transition-colors flex items-center justify-center"
                             title={app.title}
                           >

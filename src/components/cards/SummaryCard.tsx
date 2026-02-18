@@ -5,10 +5,10 @@ import { Icon } from '../ui/Icon';
 import type { SummaryCardProps } from '@/types';
 
 const colorClasses = {
-  primary: 'bg-fill-primary-quiet',
+  primary: 'bg-surface-low',
   danger: 'bg-fill-danger-normal',
-  success: 'bg-fill-success-normal',
-  yellow: 'bg-yellow-95',
+  success: 'bg-surface-low',
+  yellow: 'bg-surface-low',
   default: 'bg-surface-low',
 };
 

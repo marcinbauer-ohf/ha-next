@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { SummaryCard } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant } from '@/hooks';
@@ -171,7 +171,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
     // Mobile: stacked avatars + count
     return (
       <div className={clsx(
-        'flex items-center rounded-ha-pill whitespace-nowrap bg-fill-primary-quiet flex-shrink-0 transition-all',
+        'flex items-center rounded-ha-pill whitespace-nowrap bg-surface-low flex-shrink-0 transition-all',
         isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-ha-2.5' : 'gap-ha-2 px-ha-2 py-ha-1'
       )}>
         <div className={clsx(
@@ -186,14 +186,14 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
                 initials={person.initials}
                 size={isLg ? 'md' : isMd ? 'sm' : 'xs'}
                 className={clsx(
-                  'ring-2 ring-fill-primary-quiet flex-shrink-0 bg-surface-default',
+                  'ring-2 ring-surface-low flex-shrink-0 bg-surface-default',
                   isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-7 h-7'
                 )}
               />
             ))
           ) : (
             <div className={clsx(
-              'rounded-full bg-fill-primary-normal flex items-center justify-center flex-shrink-0',
+              'rounded-full bg-surface-mid flex items-center justify-center flex-shrink-0',
               isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-7 h-7'
             )}>
               <span className={clsx('text-ha-blue font-bold leading-none', isLg ? 'text-lg' : isMd ? 'text-base' : 'text-xs')}>?</span>
@@ -286,24 +286,62 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
 }
 
 export function MobileSummaryRow() {
+  const [showLeftGradient, setShowLeftGradient] = useState(false);
+  const [showRightGradient, setShowRightGradient] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const checkScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+    setShowLeftGradient(scrollLeft > 0);
+    setShowRightGradient(scrollLeft < scrollWidth - clientWidth - 1);
+  };
+
+  useEffect(() => {
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, []);
+
   return (
     <div
-      className="lg:hidden sticky top-0 -mx-ha-4 px-ha-4 pt-ha-4 pb-ha-3 z-30 backdrop-blur-md"
+      className="sticky top-0 -mx-ha-1 px-ha-1 lg:mx-0 lg:px-0 pt-ha-4 pb-ha-3 z-[60] backdrop-blur-md w-full"
       style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent), transparent)' }}
     >
-      <div className="overflow-x-auto scrollbar-hide">
-        <div className="flex gap-ha-2">
-          <PeopleBadge compact />
-          {summaryItems.map((item) => (
-            <SummaryCard
-              key={item.title}
-              icon={item.icon}
-              title={item.title}
-              state={item.state}
-              color={item.color}
-              compact
-            />
-          ))}
+      <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full flex items-center gap-ha-2 overflow-hidden">
+        {/* Scrollable Container for Summaries */}
+        <div className="flex-1 min-w-0 relative group">
+          {/* Left Gradient */}
+          <div 
+            className={`absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-surface-lower to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
+              showLeftGradient ? 'opacity-100' : 'opacity-0'
+            }`} 
+          />
+          
+          <div 
+            ref={scrollContainerRef}
+            onScroll={checkScroll}
+            className="overflow-x-auto scrollbar-hide flex gap-ha-2 pr-4 pl-1"
+          >
+            <PeopleBadge compact />
+            {summaryItems.map((item) => (
+              <SummaryCard
+                key={item.title}
+                icon={item.icon}
+                title={item.title}
+                state={item.state}
+                color={item.color}
+                compact
+              />
+            ))}
+          </div>
+
+          {/* Right Gradient */}
+          <div 
+            className={`absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface-lower to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
+              showRightGradient ? 'opacity-100' : 'opacity-0'
+            }`} 
+          />
         </div>
       </div>
     </div>

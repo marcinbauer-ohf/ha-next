@@ -26,6 +26,7 @@ export default function PanelPage({ params }: PanelPageProps) {
     setHeader({ title, icon: panel?.icon ?? undefined });
   }, [setHeader, title, panel?.icon]);
 
+
   return (
     <>
       {/* TopBar row - rendered by AppShell */}
@@ -38,7 +39,7 @@ export default function PanelPage({ params }: PanelPageProps) {
         isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
       }`}>
         <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl">
-          <div className="h-full overflow-y-auto px-ha-3 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:py-ha-5" data-scrollable="dashboard">
+          <div className="h-full overflow-y-auto px-ha-4 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:py-ha-5" data-scrollable="dashboard">
             {/* Skeleton list items */}
             <div className="space-y-ha-2">
               {Array.from({ length: 20 }).map((_, i) => (

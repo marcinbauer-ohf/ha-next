@@ -108,18 +108,35 @@ export function InfoSidebar({ open, onClose }: InfoSidebarProps) {
               Designed with focus on aesthetics and performance. Leveraging the latest web technologies to provide a seamless smart home experience.
             </div>
             
-            <a 
-              href="https://github.com/home-assistant" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl hover:bg-surface-low transition-colors group"
-            >
-              <Icon path={mdiGithub} size={24} className="text-text-primary group-hover:text-black dark:group-hover:text-white transition-colors" />
-              <div className="flex-1">
-                <div className="text-sm font-medium text-text-primary">Home Assistant</div>
-                <div className="text-xs text-text-tertiary">Open source home automation</div>
-              </div>
-            </a>
+            <div className="space-y-ha-2">
+              <a 
+                href="https://github.com/marcinbauer85/ha-next" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl hover:bg-surface-low transition-colors group"
+              >
+                <Icon path={mdiGithub} size={24} className="text-text-primary group-hover:text-black dark:group-hover:text-white transition-colors" />
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-text-primary">Project Source</div>
+                  <div className="text-xs text-text-tertiary">marcinbauer85/ha-next</div>
+                </div>
+              </a>
+
+              <a 
+                href="https://github.com/home-assistant" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl hover:bg-surface-low transition-colors group"
+              >
+                <div className="text-ha-blue group-hover:scale-110 transition-transform">
+                  <Icon path={mdiHomeAssistant} size={24} />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-text-primary">Home Assistant</div>
+                  <div className="text-xs text-text-tertiary">Official Organization</div>
+                </div>
+              </a>
+            </div>
           </div>
 
         </div>

@@ -145,6 +145,7 @@ export default function EnergyDashboardPage() {
     };
   }, []);
 
+
   return (
     <>
       {/* TopBar row - rendered by AppShell */}
@@ -167,7 +168,7 @@ export default function EnergyDashboardPage() {
           )}
           <div 
             ref={(el) => { scrollableRef.current = el; }}
-            className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-3 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5" 
+            className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-4 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5" 
             data-scrollable="dashboard"
           >
 

@@ -26,6 +26,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
     setHeader({ title, icon: dashboard?.icon ?? undefined });
   }, [setHeader, title, dashboard?.icon]);
 
+
   return (
     <>
       {/* TopBar row - rendered by AppShell */}
@@ -38,7 +39,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
         isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
       }`}>
         <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl">
-          <div className="h-full overflow-y-auto px-ha-3 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:py-ha-5" data-scrollable="dashboard">
+          <div className="h-full overflow-y-auto px-ha-4 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:py-ha-5" data-scrollable="dashboard">
             {/* Skeleton cards grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-ha-3">
               {Array.from({ length: 12 }).map((_, i) => (
