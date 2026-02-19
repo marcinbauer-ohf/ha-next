@@ -309,7 +309,7 @@ export default function DashboardPage() {
     left: 0,
     right: 0,
     bottom: statusBarHeight,
-    zIndex: 50,
+    zIndex: 5,
     margin: 0,
     overflow: 'hidden',
     ...(theme !== 'glass' ? { backgroundColor: 'var(--ha-color-surface-default)' } : {}),
@@ -404,7 +404,7 @@ export default function DashboardPage() {
         className={`min-h-0 overflow-hidden ${
           isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
         } ${contentPaddingClasses} ${
-          immersivePhase === 'normal' ? 'transition-[flex,height,opacity,padding] duration-300 ease-out' : ''
+          immersivePhase === 'normal' ? 'transition-[flex,height,opacity,padding] duration-300 ease-out lg:transition-[flex,height,opacity]' : ''
         }`}
         style={contentStyle}
       >

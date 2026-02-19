@@ -101,14 +101,14 @@ export function AppShell({ children }: AppShellProps) {
         }`}
       >
         {/* Sidebar - Desktop only, spans top bar and content rows */}
-        <div className={`hidden lg:block lg:row-span-2 transition-opacity duration-300 ease-out ${
+        <div className={`hidden lg:block lg:row-span-2 relative z-10 transition-opacity duration-300 ease-out ${
           immersivePhase !== 'normal' ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}>
           <Sidebar />
         </div>
 
         {/* TopBar - Desktop & Mobile persistent header */}
-        <div className={`px-edge lg:pr-edge overflow-hidden flex-shrink-0 h-16 transition-opacity duration-300 ease-out ${
+        <div className={`px-edge lg:pr-edge overflow-hidden flex-shrink-0 h-16 relative z-10 transition-opacity duration-300 ease-out ${
           immersivePhase !== 'normal' ? 'lg:opacity-0 lg:pointer-events-none' : 'opacity-100'
         }`}>
           <TopBar />
