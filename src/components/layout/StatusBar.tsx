@@ -2,8 +2,6 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { CircularProgress } from '../ui/CircularProgress';
@@ -98,10 +96,11 @@ export type ConnectionStatusType = 'connecting' | 'connected' | 'error' | null;
 
 interface StatusBarProps {
   connectionStatus?: ConnectionStatusType;
+  profileOpen?: boolean;
+  onProfileToggle?: () => void;
 }
 
-export function StatusBar({ connectionStatus }: StatusBarProps) {
-  const pathname = usePathname();
+export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: StatusBarProps) {
   const { entities, callService, haUrl } = useHomeAssistant();
   const [currentTime, setCurrentTime] = useState<string>('');
   const [timerDisplays, setTimerDisplays] = useState<Record<string, string>>({});
@@ -446,15 +445,15 @@ export function StatusBar({ connectionStatus }: StatusBarProps) {
       {/* Left side widgets */}
       <div className="flex items-center flex-1 min-w-0 mr-4 gap-ha-5">
         {/* User profile avatar - Fixed */}
-        <Link
-          href="/panel/profile"
+        <button
+          onClick={onProfileToggle}
           className={`p-ha-1 rounded-full transition-all flex-shrink-0 ${
-            pathname === '/panel/profile' ? 'ring-2 ring-ha-blue' : 'hover:ring-2 hover:ring-surface-lower'
+            profileOpen ? 'ring-2 ring-ha-blue' : 'hover:ring-2 hover:ring-surface-lower'
           }`}
           style={{ marginLeft: '8px' }}
         >
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />
-        </Link>
+        </button>
         
         {/* Voice input widget - Fixed */}
         <div ref={chatContainerRef} className="relative flex-shrink-0">

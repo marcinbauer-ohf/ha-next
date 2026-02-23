@@ -2,6 +2,9 @@
 
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 
+export const ENABLE_PULL_TO_REVEAL = false;
+
+
 interface PullToRevealContextType {
   isRevealed: boolean;
   isPulling: boolean;

@@ -14,7 +14,11 @@ interface ImmersiveModeContextType {
 const ImmersiveModeContext = createContext<ImmersiveModeContextType | null>(null);
 
 export function ImmersiveModeProvider({ children }: { children: ReactNode }) {
-  const [immersiveMode, setImmersiveMode] = useState(false);
+  const [immersiveMode, setImmersiveMode] = useState(() => {
+    // Default to true on mobile devices
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 1024;
+  });
   const [isDesktop, setIsDesktop] = useState(true);
 
   // Animation phases:

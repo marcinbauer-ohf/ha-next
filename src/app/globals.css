@@ -8,11 +8,13 @@
   /* HA Surface Colors */
   --ha-color-surface-default: #ffffff;
   --ha-color-surface-low: #f3f3f3;
+  --ha-color-surface-mid: #ebebeb;
   --ha-color-surface-lower: #e6e6e6;
 
   /* HA Text Colors */
   --ha-color-text-primary: #141414;
   --ha-color-text-secondary: #5e5e5e;
+  --ha-color-text-tertiary: #767676;
   --ha-color-text-disabled: #989898;
 
   /* HA Fill Colors */
@@ -59,11 +61,13 @@
   /* HA Surface Colors - Dark */
   --ha-color-surface-default: #1a1a1a;
   --ha-color-surface-low: #252525;
+  --ha-color-surface-mid: #2c2c2c;
   --ha-color-surface-lower: #303030;
 
   /* HA Text Colors - Dark */
   --ha-color-text-primary: #f5f5f5;
   --ha-color-text-secondary: #a0a0a0;
+  --ha-color-text-tertiary: #808080;
   --ha-color-text-disabled: #666666;
 
   /* HA Fill Colors - Dark */
@@ -87,11 +91,13 @@
   /* Surfaces - Higher opacity for overlay elements */
   --ha-color-surface-default: rgba(30, 30, 30, 0.92);
   --ha-color-surface-low: rgba(55, 55, 55, 0.88);
+  --ha-color-surface-mid: rgba(65, 65, 65, 0.86);
   --ha-color-surface-lower: rgba(75, 75, 75, 0.85);
 
   /* Text */
   --ha-color-text-primary: #ffffff;
   --ha-color-text-secondary: rgba(255, 255, 255, 0.75);
+  --ha-color-text-tertiary: rgba(255, 255, 255, 0.55);
   --ha-color-text-disabled: rgba(255, 255, 255, 0.45);
 
   /* Fills */
@@ -113,16 +119,18 @@
   /* Surfaces - White/Light Glass - Higher opacity */
   --ha-color-surface-default: rgba(255, 255, 255, 0.92);
   --ha-color-surface-low: rgba(245, 245, 245, 0.88);
+  --ha-color-surface-mid: rgba(240, 240, 240, 0.86);
   --ha-color-surface-lower: rgba(235, 235, 235, 0.85);
 
   /* Text - Dark on Light Glass */
   --ha-color-text-primary: #141414;
   --ha-color-text-secondary: rgba(0, 0, 0, 0.65);
-  --ha-color-text-disabled: rgba(0, 0, 0, 0.40);
+  --ha-color-text-tertiary: rgba(0, 0, 0, 0.50);
+  --ha-color-text-disabled: rgba(0, 0, 0, 0.4);
 
   /* Fills - Light Mode Tints */
-  --ha-color-fill-primary-normal: rgba(24, 188, 242, 0.20);
-  --ha-color-fill-primary-quiet: rgba(24, 188, 242, 0.10);
+  --ha-color-fill-primary-normal: rgba(24, 188, 242, 0.2);
+  --ha-color-fill-primary-quiet: rgba(24, 188, 242, 0.1);
   --ha-color-fill-danger-normal: rgba(255, 80, 80, 0.15);
   --ha-color-fill-success-normal: rgba(80, 255, 100, 0.15);
   --ha-color-yellow-95: rgba(255, 220, 100, 0.15);
@@ -150,14 +158,13 @@
   min-height: 100vh;
   min-height: 100dvh;
   z-index: -2;
-  background-image: url('/gradient-bg.png');
+  background-image: url("/gradient-bg.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   background-attachment: fixed;
   pointer-events: none;
 }
-
 
 /* Glass Theme - Background Image (Smart Home) */
 /* Image Background - Shared Foundation */
@@ -177,7 +184,7 @@
   min-height: 100vh;
   min-height: 100dvh;
   z-index: -2;
-  background-image: url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=3840&auto=format&fit=crop');
+  background-image: url("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=3840&auto=format&fit=crop");
   background-size: cover;
   background-position: center bottom; /* Anchor to bottom center often looks better for interiors */
   background-repeat: no-repeat;
@@ -213,8 +220,10 @@
 }
 
 /* Default Theme - Background Image/Gradient applied to main dashboard container only */
-[data-theme="default"][data-background="image"] [data-component="dashboard-surface"],
-[data-theme="default"][data-background="gradient"] [data-component="dashboard-surface"] {
+[data-theme="default"][data-background="image"]
+  [data-component="dashboard-surface"],
+[data-theme="default"][data-background="gradient"]
+  [data-component="dashboard-surface"] {
   position: relative;
   /* Ensure we create a stacking context */
   isolation: isolate;
@@ -223,12 +232,13 @@
 }
 
 /* Image Layer - Bottom (z-index -2) */
-[data-theme="default"][data-background="image"] [data-component="dashboard-surface"]::before {
+[data-theme="default"][data-background="image"]
+  [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
   inset: -20px;
   z-index: -2; /* Layout behind the scrim */
-  background-image: url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=3840&auto=format&fit=crop');
+  background-image: url("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=3840&auto=format&fit=crop");
   background-size: cover;
   background-position: center;
   filter: blur(8px);
@@ -239,12 +249,13 @@
 }
 
 /* Gradient Layer - Bottom (z-index -2) */
-[data-theme="default"][data-background="gradient"] [data-component="dashboard-surface"]::before {
+[data-theme="default"][data-background="gradient"]
+  [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -2;
-  background-image: url('/gradient-bg.png');
+  background-image: url("/gradient-bg.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -254,13 +265,16 @@
 }
 
 /* None Background - Solid Grey */
-[data-theme="default"][data-background="none"] [data-component="dashboard-surface"] {
+[data-theme="default"][data-background="none"]
+  [data-component="dashboard-surface"] {
   background-color: var(--ha-color-surface-lower) !important;
 }
 
 /* Scrim/Overlay Layer - Top (z-index -1) with 80% Opacity */
-[data-theme="default"][data-background="image"] [data-component="dashboard-surface"]::after,
-[data-theme="default"][data-background="gradient"] [data-component="dashboard-surface"]::after {
+[data-theme="default"][data-background="image"]
+  [data-component="dashboard-surface"]::after,
+[data-theme="default"][data-background="gradient"]
+  [data-component="dashboard-surface"]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -271,14 +285,18 @@
 }
 
 /* Light Mode: White Scrim */
-[data-theme="default"][data-mode="light"][data-background="image"] [data-component="dashboard-surface"]::after,
-[data-theme="default"][data-mode="light"][data-background="gradient"] [data-component="dashboard-surface"]::after {
+[data-theme="default"][data-mode="light"][data-background="image"]
+  [data-component="dashboard-surface"]::after,
+[data-theme="default"][data-mode="light"][data-background="gradient"]
+  [data-component="dashboard-surface"]::after {
   background-color: #ffffff;
 }
 
 /* Dark Mode: Dark Scrim */
-[data-theme="default"][data-mode="dark"][data-background="image"] [data-component="dashboard-surface"]::after,
-[data-theme="default"][data-mode="dark"][data-background="gradient"] [data-component="dashboard-surface"]::after {
+[data-theme="default"][data-mode="dark"][data-background="image"]
+  [data-component="dashboard-surface"]::after,
+[data-theme="default"][data-mode="dark"][data-background="gradient"]
+  [data-component="dashboard-surface"]::after {
   background-color: #1a1a1a;
 }
 
@@ -301,7 +319,7 @@
 [data-theme="glass"][data-mode="dark"] .bg-surface-default,
 [data-theme="glass"][data-mode="dark"] .bg-surface-low,
 [data-theme="glass"][data-mode="dark"] .bg-surface-lower {
-  box-shadow: 
+  box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.15),
     0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -311,7 +329,7 @@
 [data-theme="glass"][data-mode="light"] .bg-surface-default,
 [data-theme="glass"][data-mode="light"] .bg-surface-low,
 [data-theme="glass"][data-mode="light"] .bg-surface-lower {
-  box-shadow: 
+  box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.4),
     0 4px 6px -1px rgba(0, 0, 0, 0.05),
     0 2px 4px -1px rgba(0, 0, 0, 0.02);
@@ -327,10 +345,90 @@
   box-shadow: none !important;
 }
 
+/* Glass Theme - Mobile Top Bar (app bar) — mobile only */
+@media (max-width: 1023px) {
+  [data-theme="glass"] [data-component="MobileTopBar"] {
+    background-color: transparent !important;
+    backdrop-filter: blur(24px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 1px 16px -4px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  [data-theme="glass"][data-mode="dark"] [data-component="MobileTopBar"] {
+    background-color: rgba(20, 20, 20, 0.45) !important;
+    border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  [data-theme="glass"][data-mode="light"] [data-component="MobileTopBar"] {
+    background-color: rgba(255, 255, 255, 0.45) !important;
+    border-bottom-color: rgba(255, 255, 255, 0.5) !important;
+  }
+}
+
+/* Glass Theme - Desktop Top Bar: fully transparent, no background */
+@media (min-width: 1024px) {
+  [data-theme="glass"] [data-component="MobileTopBar"] {
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-bottom: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Glass Theme - Mobile Bottom Navigation */
+[data-theme="glass"] [data-component="MobileNav"] .mobile-nav-pill {
+  background: transparent !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+}
+
+[data-theme="glass"][data-mode="dark"]
+  [data-component="MobileNav"]
+  .mobile-nav-pill {
+  background-color: rgba(18, 18, 18, 0.45) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 -8px 32px -12px rgba(0, 0, 0, 0.5),
+    0 24px 48px -20px rgba(0, 0, 0, 0.6) !important;
+}
+
+[data-theme="glass"][data-mode="light"]
+  [data-component="MobileNav"]
+  .mobile-nav-pill {
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 -8px 32px -12px rgba(0, 0, 0, 0.12),
+    0 24px 48px -20px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Glass Theme - Bottom Nav tab strip (the rounded pill row) */
+[data-theme="glass"] [data-component="MobileNav"] .mobile-nav-tabs {
+  background: transparent !important;
+  backdrop-filter: blur(20px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
+}
+
+[data-theme="glass"][data-mode="dark"]
+  [data-component="MobileNav"]
+  .mobile-nav-tabs {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1) !important;
+}
+
+[data-theme="glass"][data-mode="light"]
+  [data-component="MobileNav"]
+  .mobile-nav-tabs {
+  background-color: rgba(255, 255, 255, 0.42) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55) !important;
+}
+
 /* Specific styling for the Dashboard/Content area in Glass Mode - Keep it more translucent */
 [data-theme="glass"][data-mode="dark"] [data-component="AppShell"] > div > main,
 [data-theme="glass"][data-mode="dark"] [data-component="dashboard-surface"] {
-  background-color: rgba(30, 30, 30, 0.60);
+  background-color: rgba(30, 30, 30, 0.6);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
 }
@@ -341,9 +439,12 @@
   -webkit-backdrop-filter: blur(32px);
 }
 
-[data-theme="glass"][data-mode="light"] [data-component="AppShell"] > div > main,
+[data-theme="glass"][data-mode="light"]
+  [data-component="AppShell"]
+  > div
+  > main,
 [data-theme="glass"][data-mode="light"] [data-component="dashboard-surface"] {
-  background-color: rgba(255, 255, 255, 0.40);
+  background-color: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
 }
@@ -353,7 +454,6 @@
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
 }
-
 
 /* Screensaver in Glass Mode - More glassy and blurry */
 [data-theme="glass"] [data-component="Screensaver"] {
@@ -378,7 +478,7 @@
 [data-theme="glass"] .bg-fill-primary-quiet {
   background-color: rgba(255, 255, 255, 0.9) !important;
   backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Force text colors to black inside active white cards */
@@ -407,7 +507,7 @@
 [data-theme="default"] .bg-fill-primary-quiet {
   background-color: #ffffff !important;
   color: rgba(0, 0, 0, 0.95) !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Force text colors to black inside active white cards */
@@ -429,7 +529,7 @@
 
 /* Card modifications for Glass Mode - Ensure they float nicely */
 [data-theme="glass"] .bg-surface-default {
-  box-shadow: 
+  box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.1),
     0 4px 24px -1px rgba(0, 0, 0, 0.2);
 }
@@ -438,9 +538,11 @@
   /* Colors */
   --color-surface-default: var(--ha-color-surface-default);
   --color-surface-low: var(--ha-color-surface-low);
+  --color-surface-mid: var(--ha-color-surface-mid);
   --color-surface-lower: var(--ha-color-surface-lower);
   --color-text-primary: var(--ha-color-text-primary);
   --color-text-secondary: var(--ha-color-text-secondary);
+  --color-text-tertiary: var(--ha-color-text-tertiary);
   --color-text-disabled: var(--ha-color-text-disabled);
   --color-fill-primary-normal: var(--ha-color-fill-primary-normal);
   --color-fill-primary-quiet: var(--ha-color-fill-primary-quiet);

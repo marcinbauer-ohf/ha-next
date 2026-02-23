@@ -154,7 +154,7 @@ export default function EnergyDashboardPage() {
       <PullToRevealPanel />
 
       {/* Main content row - shrinks as panel expands */}
-      <div className={`min-h-0 overflow-hidden px-edge pb-20 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
+      <div className={`min-h-0 overflow-hidden px-edge pb-0 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
         isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
       }`}>
         <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl relative">
@@ -168,7 +168,7 @@ export default function EnergyDashboardPage() {
           )}
           <div 
             ref={(el) => { scrollableRef.current = el; }}
-            className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-4 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5" 
+            className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5" 
             data-scrollable="dashboard"
           >
 
@@ -181,7 +181,9 @@ export default function EnergyDashboardPage() {
             </div>
 
             {/* Tab content */}
-            {activeTab === 'now' ? <NowContent /> : <AllContent />}
+            <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
+              {activeTab === 'now' ? <NowContent /> : <AllContent />}
+            </div>
           </div>
         </div>
       </div>

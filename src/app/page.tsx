@@ -328,8 +328,8 @@ export default function DashboardPage() {
   const contentPaddingClasses = isImmersiveFixed
     ? ''
     : isMobileImmersive
-      ? 'pb-20 lg:px-edge lg:pb-ha-0 lg:pr-edge'
-      : 'px-edge pb-20 lg:pb-ha-0 lg:pr-edge';
+      ? 'pb-0 lg:px-edge lg:pb-ha-0 lg:pr-edge'
+      : 'px-edge pb-0 lg:pb-ha-0 lg:pr-edge';
 
   // Dashboard entrance animation
   useEffect(() => {
@@ -446,7 +446,7 @@ export default function DashboardPage() {
                   )}
                   <main
                     ref={(el) => { scrollableRef.current = el; }}
-                    className={`flex-1 lg:pb-ha-5 ${isMobileImmersive ? 'px-ha-4' : 'px-ha-1'} lg:px-0 overscroll-none overflow-x-hidden overflow-y-auto touch-pan-y relative scrollbar-hide lg:scrollbar-hide transition-[padding] duration-300 ease-out`}
+                    className={`flex-1 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-ha-5 ${isMobileImmersive ? 'px-ha-4' : 'px-ha-1'} lg:px-0 overscroll-none overflow-x-hidden overflow-y-auto touch-pan-y relative scrollbar-hide lg:scrollbar-hide transition-[padding] duration-300 ease-out`}
                     data-scrollable="dashboard"
                   >
                   {/* Mobile summary row - sticky with glass effect on scroll */}

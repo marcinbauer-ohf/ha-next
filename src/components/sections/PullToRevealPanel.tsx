@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
 import { useSidebarItems } from '@/hooks';
-import { usePullToRevealContext } from '@/contexts';
+import { usePullToRevealContext, ENABLE_PULL_TO_REVEAL } from '@/contexts';
 import { clsx } from 'clsx';
 
 const appPalettes = [
@@ -28,6 +28,7 @@ const getAppPalette = (id: string) => {
 export function PullToRevealPanel() {
   const pathname = usePathname();
   const { items } = useSidebarItems();
+
   const {
     pullDistance,
     isRevealed,
@@ -333,8 +334,10 @@ export function PullToRevealPanel() {
     previousPathname.current = pathname;
   }, [pathname, onClose]);
 
-    // Separate dashboards and apps
-    const dashboards = items.filter(item => !item.isApp);
+  // Separate dashboards and apps
+  if (!ENABLE_PULL_TO_REVEAL) return null;
+
+  const dashboards = items.filter(item => !item.isApp);
     const apps = items.filter(item => item.isApp);
 
     // Height includes content + handle bar area

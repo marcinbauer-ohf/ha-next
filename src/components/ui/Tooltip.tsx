@@ -1,27 +1,24 @@
 'use client';
 
-import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useState, useRef, useEffect, useCallback, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 interface TooltipProps {
   content: string;
   children: ReactNode;
   delay?: number;
+  hideDelay?: number;
   placement?: 'top' | 'bottom' | 'left' | 'right';
 }
 
-export function Tooltip({ content, children, delay = 300, placement = 'top' }: TooltipProps) {
-  const [isVisible, setIsVisible] = useState(false);
+export function Tooltip({ content, children, delay = 300, hideDelay = 0, placement = 'top' }: TooltipProps) {
+  const [isHovered, setIsHovered] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
-  const [mounted, setMounted] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout>(undefined);
+  const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const updatePosition = () => {
+  const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
 
     const rect = triggerRef.current.getBoundingClientRect();
@@ -62,29 +59,74 @@ export function Tooltip({ content, children, delay = 300, placement = 'top' }: T
     if (top + tooltipHeight > viewportHeight - 8) top = viewportHeight - tooltipHeight - 8;
 
     setPosition({ top, left });
-  };
+  }, [placement]);
+
+  const isVisible = isHovered;
 
   const handleMouseEnter = () => {
-    timeoutRef.current = setTimeout(() => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+
+    if (showTimeoutRef.current) {
+      clearTimeout(showTimeoutRef.current);
+    }
+
+    showTimeoutRef.current = setTimeout(() => {
       updatePosition();
-      setIsVisible(true);
+      setIsHovered(true);
+      showTimeoutRef.current = null;
     }, delay);
   };
 
   const handleMouseLeave = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+    if (showTimeoutRef.current) {
+      clearTimeout(showTimeoutRef.current);
+      showTimeoutRef.current = null;
     }
-    setIsVisible(false);
+
+    if (hideDelay > 0) {
+      hideTimeoutRef.current = setTimeout(() => {
+        setIsHovered(false);
+        hideTimeoutRef.current = null;
+      }, hideDelay);
+      return;
+    }
+
+    setIsHovered(false);
   };
 
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      if (showTimeoutRef.current) {
+        clearTimeout(showTimeoutRef.current);
+        showTimeoutRef.current = null;
+      }
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      updatePosition();
+    });
+
+    const handleReposition = () => updatePosition();
+    window.addEventListener('resize', handleReposition);
+    window.addEventListener('scroll', handleReposition, true);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', handleReposition);
+      window.removeEventListener('scroll', handleReposition, true);
+    };
+  }, [isVisible, updatePosition]);
 
   return (
     <>
@@ -96,9 +138,9 @@ export function Tooltip({ content, children, delay = 300, placement = 'top' }: T
       >
         {children}
       </div>
-      {mounted && isVisible && createPortal(
+      {typeof document !== 'undefined' && isVisible && createPortal(
         <div
-          className="fixed z-[200] px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-pill shadow-lg shadow-black/20 transition-all duration-300 ease-out pointer-events-none"
+          className="fixed z-[200] px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 transition-all duration-300 ease-out pointer-events-none"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
@@ -106,7 +148,7 @@ export function Tooltip({ content, children, delay = 300, placement = 'top' }: T
             transform: isVisible ? 'scale(1)' : 'scale(0.9)',
           }}
         >
-          <span className="text-[11px] text-text-primary whitespace-nowrap font-medium">
+          <span className="text-xs text-text-primary whitespace-nowrap font-medium">
             {content}
           </span>
         </div>,

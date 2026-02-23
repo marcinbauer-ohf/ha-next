@@ -35,23 +35,25 @@ export default function PanelPage({ params }: PanelPageProps) {
       <PullToRevealPanel />
 
       {/* Main content row - shrinks as panel expands */}
-      <div className={`min-h-0 overflow-hidden px-edge pb-20 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
+      <div className={`min-h-0 overflow-hidden px-edge pb-0 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
         isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
       }`}>
         <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl">
-          <div className="h-full overflow-y-auto px-ha-4 py-ha-4 lg:pl-14 lg:pr-ha-5 lg:py-ha-5" data-scrollable="dashboard">
-            {/* Skeleton list items */}
-            <div className="space-y-ha-2">
-              {Array.from({ length: 20 }).map((_, i) => (
-                <div key={i} className="bg-surface-low rounded-ha-xl p-ha-3 flex items-center gap-ha-3">
-                  <div className="w-12 h-12 rounded-ha-lg bg-surface-lower flex-shrink-0" />
-                  <div className="flex-1 space-y-ha-2">
-                    <div className="h-3 bg-surface-lower rounded-full w-2/3" />
-                    <div className="h-2 bg-surface-lower rounded-full w-1/3" />
+          <div className="h-full overflow-y-auto px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5" data-scrollable="dashboard">
+            <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
+              {/* Skeleton list items */}
+              <div className="space-y-ha-2">
+                {Array.from({ length: 20 }).map((_, i) => (
+                  <div key={i} className="bg-surface-low rounded-ha-xl p-ha-3 flex items-center gap-ha-3">
+                    <div className="w-12 h-12 rounded-ha-lg bg-surface-lower flex-shrink-0" />
+                    <div className="flex-1 space-y-ha-2">
+                      <div className="h-3 bg-surface-lower rounded-full w-2/3" />
+                      <div className="h-2 bg-surface-lower rounded-full w-1/3" />
+                    </div>
+                    <div className="w-16 h-8 rounded-ha-lg bg-surface-lower" />
                   </div>
-                  <div className="w-16 h-8 rounded-ha-lg bg-surface-lower" />
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>

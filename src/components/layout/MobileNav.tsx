@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { HALogo } from '../ui/HALogo';
+import { MdiIcon } from '../ui/MdiIcon';
 import { CircularProgress } from '../ui/CircularProgress';
-import { useHomeAssistant } from '@/hooks';
-import { usePullToRevealContext, useSearchContext, useAssistantContext } from '@/contexts';
+import { ProfileContent } from '../profile';
+import { useHomeAssistant, useSidebarItems } from '@/hooks';
+import { usePullToRevealContext, useSearchContext } from '@/contexts';
 import {
   mdiMagnify,
   mdiUpdate,
@@ -21,22 +23,20 @@ import {
   mdiChevronRight,
   mdiMicrophone,
   mdiDevices,
-  mdiCheckCircle,
-  mdiAlertCircle,
-  mdiCloudCheck,
-  mdiCloudOff,
   mdiClose,
   mdiSkipPrevious,
   mdiSkipNext,
   mdiDoorbellVideo,
   mdiSend,
   mdiPrinter3d,
-  mdiVolumeHigh,
-  mdiStop,
   mdiLayers,
-  mdiThermometer,
-  mdiAccount,
-  mdiVideo,
+  mdiViewDashboardOutline,
+  mdiMenu,
+  mdiCog,
+  mdiCheckCircle,
+  mdiAlertCircle,
+  mdiCloudCheck,
+  mdiCloudOff,
 } from '@mdi/js';
 
 function parseTime(time: string): number {
@@ -46,24 +46,54 @@ function parseTime(time: string): number {
   return 0;
 }
 
+const appPalettes = [
+  { bg: 'bg-[var(--ha-color-fill-primary-normal)]', text: 'text-ha-blue' },
+  { bg: 'bg-[var(--ha-color-fill-danger-normal)]', text: 'text-red-600' },
+  { bg: 'bg-[var(--ha-color-fill-success-normal)]', text: 'text-green-600' },
+  { bg: 'bg-[var(--ha-color-yellow-95)]', text: 'text-yellow-600' },
+];
+
+function getAppPalette(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return appPalettes[Math.abs(hash) % appPalettes.length];
+}
+
 export type ConnectionStatusType = 'connecting' | 'connected' | 'error' | null;
+type BottomSurfaceTab = 'dashboards' | 'search' | 'dashboard' | 'chat' | 'settings';
+
+interface SearchResultItem {
+  id: string;
+  type: 'dashboard' | 'app' | 'entity';
+  name: string;
+  subtitle: string;
+  icon?: string | null;
+  href?: string;
+}
 
 interface MobileNavProps {
   disableAutoHide?: boolean;
   connectionStatus?: ConnectionStatusType;
+  onNavAutoHiddenChange?: (hidden: boolean) => void;
 }
 
-export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileNavProps) {
+export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAutoHiddenChange }: MobileNavProps) {
   const pathname = usePathname();
   const { entities, haUrl, callService } = useHomeAssistant();
-  const { isRevealed, close, open } = usePullToRevealContext();
-  const { searchOpen, toggleSearch } = useSearchContext();
+  const { items } = useSidebarItems();
+  const { isRevealed, close } = usePullToRevealContext();
+  const { searchOpen, closeSearch } = useSearchContext();
   // Assistant now handled via expandedWidgetId
 
   const [timerProgress, setTimerProgress] = useState<number>(0);
   const [hideTopRow, setHideTopRow] = useState(false);
   const [hideFromInactivity, setHideFromInactivity] = useState(false);
+  const [showBottomEdgeGradient, setShowBottomEdgeGradient] = useState(false);
   const [statusExpanded, setStatusExpanded] = useState(false);
+  const [expandedSurfaceTab, setExpandedSurfaceTab] = useState<BottomSurfaceTab>('dashboards');
+  const [expandedSearchQuery, setExpandedSearchQuery] = useState('');
   const [expandedWidgetId, setExpandedWidgetId] = useState<string | null>(null);
   // For multi-activity list picker
   const [activityListType, setActivityListType] = useState<'media' | 'timer' | 'camera' | 'printer' | null>(null);
@@ -74,7 +104,26 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
   const lastScrollY = useRef(0);
   const scrollAnchor = useRef(0);
   const scrollDirection = useRef<'up' | 'down' | null>(null);
+  const lastScrollTimestamp = useRef(0);
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
+  const bottomSheetHandleRef = useRef<HTMLButtonElement | null>(null);
+  const expandedSurfaceScrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomSheetTouchStartY = useRef<number | null>(null);
+  const bottomSheetPullDistance = useRef(0);
+  const isDashboardsActive = expandedSurfaceTab === 'dashboards';
+  const isSearchActive = expandedSurfaceTab === 'search' || searchOpen;
+  const isSettingsActive = expandedSurfaceTab === 'settings';
+  const isBottomRowHidden = (hideTopRow || hideFromInactivity) && !isRevealed && !statusExpanded;
+
+  useEffect(() => {
+    onNavAutoHiddenChange?.(isBottomRowHidden);
+  }, [isBottomRowHidden, onNavAutoHiddenChange]);
+
+  useEffect(() => {
+    return () => {
+      onNavAutoHiddenChange?.(false);
+    };
+  }, [onNavAutoHiddenChange]);
 
   // Scroll behavior
   useEffect(() => {
@@ -87,11 +136,21 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
     const scrollable = document.querySelector('[data-scrollable="dashboard"]');
     if (!scrollable) return;
 
-    const SCROLL_BUFFER = 20; // pixels of scroll before triggering hide/show
+    // Asymmetric thresholds tuned to avoid accidental toggles on slow scroll.
+    const HIDE_BUFFER = 28;
+    const SHOW_BUFFER = 96;
+    const FORCE_HIDE_DISTANCE = 120;
+    const FORCE_SHOW_DISTANCE = 170;
+    const MIN_HIDE_VELOCITY = 0.28; // px/ms
+    const MIN_SHOW_VELOCITY = 0.32; // px/ms
 
     const handleScroll = () => {
+      const now = performance.now();
       const currentScrollY = scrollable.scrollTop;
-      const currentDirection = currentScrollY > lastScrollY.current ? 'down' : 'up';
+      const deltaY = currentScrollY - lastScrollY.current;
+      const deltaTime = Math.max(now - lastScrollTimestamp.current, 1);
+      const currentDirection: 'up' | 'down' =
+        deltaY > 0 ? 'down' : deltaY < 0 ? 'up' : (scrollDirection.current ?? 'down');
       const maxScroll = scrollable.scrollHeight - scrollable.clientHeight;
 
       // Ignore iOS bounce at bottom (when scroll position is near max)
@@ -105,23 +164,42 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
 
       // Calculate distance from anchor
       const distanceFromAnchor = Math.abs(currentScrollY - scrollAnchor.current);
+      const canShow = hideTopRow || hideFromInactivity;
 
-      // Only toggle after scrolling past buffer
-      if (distanceFromAnchor > SCROLL_BUFFER) {
-        if (currentDirection === 'down' && currentScrollY > 50 && !isRevealed) {
+      if (currentDirection === 'down' && distanceFromAnchor > HIDE_BUFFER && currentScrollY > 80 && !isRevealed) {
+        const downwardVelocity = Math.abs(deltaY) / deltaTime;
+        const hideFastEnough = downwardVelocity >= MIN_HIDE_VELOCITY;
+        const hideLongEnough = distanceFromAnchor >= FORCE_HIDE_DISTANCE;
+
+        if (hideFastEnough || hideLongEnough) {
           setHideTopRow(true);
-        } else if (currentDirection === 'up' && !isNearBottom) {
-          // Only show when scrolling up AND not in iOS bottom bounce
+        }
+      } else if (currentDirection === 'up' && canShow && !isNearBottom) {
+        // Prevent accidental re-show from tiny/slow upward scrolls.
+        const upwardVelocity = Math.abs(deltaY) / deltaTime;
+        const fastEnough = upwardVelocity >= MIN_SHOW_VELOCITY;
+        const longEnough = distanceFromAnchor >= FORCE_SHOW_DISTANCE;
+
+        if (distanceFromAnchor >= SHOW_BUFFER && (fastEnough || longEnough)) {
           setHideTopRow(false);
+          if (hideFromInactivity) {
+            setHideFromInactivity(false);
+          }
         }
       }
 
       lastScrollY.current = currentScrollY;
+      lastScrollTimestamp.current = now;
     };
+
+    lastScrollY.current = scrollable.scrollTop;
+    scrollAnchor.current = scrollable.scrollTop;
+    scrollDirection.current = null;
+    lastScrollTimestamp.current = performance.now();
 
     scrollable.addEventListener('scroll', handleScroll, { passive: true });
     return () => scrollable.removeEventListener('scroll', handleScroll);
-  }, [disableAutoHide, isRevealed, hideTopRow, hideFromInactivity]);
+  }, [disableAutoHide, isRevealed, hideTopRow, hideFromInactivity, pathname]);
 
   // Inactivity detection for hiding bottom row after 10s
   useEffect(() => {
@@ -133,7 +211,6 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
     const scrollable = document.querySelector('[data-scrollable="dashboard"]');
 
     const resetInactivityTimer = () => {
-      setHideFromInactivity(false);
       if (inactivityTimer.current) {
         clearTimeout(inactivityTimer.current);
       }
@@ -167,24 +244,193 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
         scrollable.removeEventListener('scroll', resetInactivityTimer);
       }
     };
-  }, [disableAutoHide, isRevealed, hideFromInactivity, hideTopRow]);
+  }, [disableAutoHide, isRevealed, hideFromInactivity, hideTopRow, pathname]);
+
+  // Bottom-edge gradient: shown only when dashboard content continues below the fold
+  useEffect(() => {
+    let scrollable: HTMLElement | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let attachRetryRaf: number | null = null;
+    let initialCheckRaf: number | null = null;
+    const threshold = 10;
+
+    const updateBottomEdgeGradient = () => {
+      if (isRevealed || !scrollable) {
+        setShowBottomEdgeGradient(false);
+        return;
+      }
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollable;
+      const hasOverflow = scrollHeight > clientHeight + threshold;
+      const hasMoreBelow = scrollTop + clientHeight < scrollHeight - threshold;
+      setShowBottomEdgeGradient(hasOverflow && hasMoreBelow);
+    };
+
+    const handleScroll = () => updateBottomEdgeGradient();
+    const handleResize = () => updateBottomEdgeGradient();
+
+    const attach = () => {
+      const nextScrollable = document.querySelector('[data-scrollable="dashboard"]') as HTMLElement | null;
+      if (!nextScrollable) return false;
+
+      scrollable = nextScrollable;
+      scrollable.addEventListener('scroll', handleScroll, { passive: true });
+      window.addEventListener('resize', handleResize);
+
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver(() => updateBottomEdgeGradient());
+        resizeObserver.observe(scrollable);
+        const contentRoot = scrollable.firstElementChild;
+        if (contentRoot) {
+          resizeObserver.observe(contentRoot);
+        }
+      }
+
+      initialCheckRaf = requestAnimationFrame(updateBottomEdgeGradient);
+      return true;
+    };
+
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    const tryAttach = () => {
+      if (attach()) return;
+      attempts += 1;
+      if (attempts <= maxAttempts) {
+        attachRetryRaf = requestAnimationFrame(tryAttach);
+      } else {
+        setShowBottomEdgeGradient(false);
+      }
+    };
+
+    tryAttach();
+
+    return () => {
+      if (attachRetryRaf !== null) cancelAnimationFrame(attachRetryRaf);
+      if (initialCheckRaf !== null) cancelAnimationFrame(initialCheckRaf);
+      window.removeEventListener('resize', handleResize);
+      if (scrollable) scrollable.removeEventListener('scroll', handleScroll);
+      if (resizeObserver) resizeObserver.disconnect();
+    };
+  }, [pathname, isRevealed]);
+
+  const closeExpandedSurface = useCallback(() => {
+    setStatusExpanded(false);
+  }, []);
+
+  const openExpandedSurface = useCallback(
+    (tab: BottomSurfaceTab) => {
+      if (statusExpanded && expandedSurfaceTab === tab) {
+        closeExpandedSurface();
+        return;
+      }
+      if (isRevealed) close();
+      if (searchOpen) closeSearch();
+      setExpandedWidgetId(null);
+      setActivityListType(null);
+      setExpandedSurfaceTab(tab);
+      if (tab === 'search') setExpandedSearchQuery('');
+      setStatusExpanded(true);
+      requestAnimationFrame(() => {
+        if (expandedSurfaceScrollRef.current) {
+          expandedSurfaceScrollRef.current.scrollTop = 0;
+        }
+      });
+    },
+    [close, closeExpandedSurface, closeSearch, expandedSurfaceTab, isRevealed, searchOpen, statusExpanded]
+  );
+
+  // Shared drag handle behavior:
+  // collapsed -> drag up to open, expanded -> drag down to close.
+  useEffect(() => {
+    const handle = bottomSheetHandleRef.current;
+    if (!handle) return;
+
+    const threshold = statusExpanded ? 80 : 70;
+
+    const reset = () => {
+      bottomSheetTouchStartY.current = null;
+      bottomSheetPullDistance.current = 0;
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      bottomSheetTouchStartY.current = e.touches[0].clientY;
+      bottomSheetPullDistance.current = 0;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (bottomSheetTouchStartY.current === null) return;
+      const currentY = e.touches[0].clientY;
+
+      if (statusExpanded) {
+        const downwardPull = currentY - bottomSheetTouchStartY.current;
+        if (downwardPull > 0) {
+          if (e.cancelable) e.preventDefault();
+          bottomSheetPullDistance.current = downwardPull;
+        }
+      } else {
+        const upwardPull = bottomSheetTouchStartY.current - currentY;
+        if (upwardPull > 0) {
+          if (e.cancelable) e.preventDefault();
+          bottomSheetPullDistance.current = upwardPull;
+        }
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (bottomSheetTouchStartY.current === null) return;
+      if (bottomSheetPullDistance.current >= threshold) {
+        if (statusExpanded) {
+          closeExpandedSurface();
+        } else {
+          openExpandedSurface(expandedSurfaceTab);
+        }
+      }
+      reset();
+    };
+
+    const onTouchCancel = () => reset();
+
+    handle.addEventListener('touchstart', onTouchStart, { passive: true });
+    handle.addEventListener('touchmove', onTouchMove, { passive: false });
+    handle.addEventListener('touchend', onTouchEnd, { passive: true });
+    handle.addEventListener('touchcancel', onTouchCancel, { passive: true });
+
+    return () => {
+      handle.removeEventListener('touchstart', onTouchStart);
+      handle.removeEventListener('touchmove', onTouchMove);
+      handle.removeEventListener('touchend', onTouchEnd);
+      handle.removeEventListener('touchcancel', onTouchCancel);
+    };
+  }, [closeExpandedSurface, openExpandedSurface, expandedSurfaceTab, statusExpanded]);
 
 
 
-  // Count pending updates
-  const pendingUpdates = useMemo(() => {
+  // Get pending updates
+  const activeUpdates = useMemo(() => {
     return Object.entries(entities).filter(
       ([entityId, entity]) =>
         entityId.startsWith('update.') && entity.state === 'on'
-    ).length;
+    ).map(([id, entity]) => ({
+      id,
+      name: entity.attributes.friendly_name || id,
+      picture: entity.attributes.entity_picture as string | undefined,
+    }));
   }, [entities]);
 
-  // Count active notifications
-  const notificationCount = useMemo(() => {
+  // Get active notifications
+  const activeNotifications = useMemo(() => {
     return Object.entries(entities).filter(([entityId]) =>
       entityId.startsWith('persistent_notification.')
-    ).length;
+    ).map(([id, entity]) => ({
+      id,
+      title: (entity.attributes.title || entity.attributes.friendly_name || 'System Notification') as string,
+      message: entity.attributes.message as string | undefined,
+    }));
   }, [entities]);
+
+  const pendingUpdates = activeUpdates.length;
+  const notificationCount = activeNotifications.length;
 
   // Get current user's avatar from person entity
   const userAvatar = useMemo(() => {
@@ -367,29 +613,6 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
   const activeCameraCount = allActiveCameras.length;
   const activePrinterCount = allActivePrinters.length;
   
-  // Get active updates with details
-  const activeUpdates = useMemo(() => {
-    return Object.entries(entities).filter(
-      ([entityId, entity]) =>
-        entityId.startsWith('update.') && entity.state === 'on'
-    ).map(([id, entity]) => ({
-      id,
-      name: entity.attributes.friendly_name || id,
-      picture: entity.attributes.entity_picture as string | undefined,
-    }));
-  }, [entities]);
-
-  // Get active notifications with details
-  const activeNotifications = useMemo(() => {
-    return Object.entries(entities).filter(([entityId]) =>
-      entityId.startsWith('persistent_notification.')
-    ).map(([id, entity]) => ({
-      id,
-      title: (entity.attributes.title || entity.attributes.friendly_name || 'System Notification') as string,
-      message: entity.attributes.message as string | undefined,
-    }));
-  }, [entities]);
-
   // Offline devices
   const offlineDevices = useMemo(() => {
     return Object.values(entities).filter((entity) => {
@@ -404,48 +627,472 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
 
   const offlineCount = offlineDevices.length;
 
+  const dashboards = useMemo(() => items.filter(item => !item.isApp), [items]);
+  const apps = useMemo(() => items.filter(item => item.isApp), [items]);
+
+  const dashboardSearchResults = useMemo<SearchResultItem[]>(() => {
+    if (!expandedSearchQuery.trim()) return [];
+    const query = expandedSearchQuery.trim().toLowerCase();
+
+    const matchingDashboards = dashboards
+      .filter(item => item.title.toLowerCase().includes(query))
+      .map(item => ({
+        id: item.id,
+        type: 'dashboard' as const,
+        name: item.title,
+        subtitle: 'Dashboard',
+        icon: item.icon,
+        href: item.urlPath,
+      }));
+
+    const matchingApps = apps
+      .filter(item => item.title.toLowerCase().includes(query))
+      .map(item => ({
+        id: item.id,
+        type: 'app' as const,
+        name: item.title,
+        subtitle: 'Application',
+        icon: item.icon,
+        href: item.urlPath,
+      }));
+
+    const matchingEntities = Object.entries(entities)
+      .filter(([entityId, entity]) => {
+        const friendlyName = String(entity.attributes.friendly_name || entityId);
+        const state = String(entity.state || '');
+        return (
+          friendlyName.toLowerCase().includes(query) ||
+          entityId.toLowerCase().includes(query) ||
+          state.toLowerCase().includes(query)
+        );
+      })
+      .slice(0, 12)
+      .map(([entityId, entity]) => ({
+        id: entityId,
+        type: 'entity' as const,
+        name: String(entity.attributes.friendly_name || entityId),
+        subtitle: `${entityId} · ${entity.state}`,
+      }));
+
+    return [...matchingDashboards, ...matchingApps, ...matchingEntities];
+  }, [apps, dashboards, entities, expandedSearchQuery]);
+
+  const dashboardSearchSuggestions = useMemo<SearchResultItem[]>(() => {
+    return [
+      ...dashboards.slice(0, 4).map(item => ({
+        id: `dashboard-${item.id}`,
+        type: 'dashboard' as const,
+        name: item.title,
+        subtitle: 'Dashboard',
+        icon: item.icon,
+        href: item.urlPath,
+      })),
+      ...apps.slice(0, 4).map(item => ({
+        id: `app-${item.id}`,
+        type: 'app' as const,
+        name: item.title,
+        subtitle: 'Application',
+        icon: item.icon,
+        href: item.urlPath,
+      })),
+    ];
+  }, [apps, dashboards]);
+
+  const expandedSurfaceHeader = useMemo(() => {
+    if (expandedSurfaceTab === 'dashboards') {
+      return { title: 'Dashboards and Apps', icon: mdiLayers };
+    }
+    if (expandedSurfaceTab === 'search') {
+      return { title: 'Search', icon: mdiMagnify };
+    }
+    if (expandedSurfaceTab === 'chat') {
+      return { title: 'Ask your home', icon: mdiMicrophone };
+    }
+    if (expandedSurfaceTab === 'settings') {
+      return { title: 'Settings', icon: mdiCog };
+    }
+    return { title: 'Dashboard', icon: mdiViewDashboardOutline };
+  }, [expandedSurfaceTab]);
+
+  const expandedSearchItems = expandedSearchQuery.trim()
+    ? dashboardSearchResults
+    : dashboardSearchSuggestions;
+  const showSearchEmptyState = expandedSearchQuery.trim().length > 0 && expandedSearchItems.length === 0;
+
+  const renderExpandedSurfaceContent = () => {
+    if (expandedSurfaceTab === 'dashboards') {
+      return (
+        <div className="space-y-ha-4">
+          <div>
+            <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-3">Dashboards</div>
+            <div className="grid grid-cols-3 gap-ha-3">
+              {dashboards.map((dashboard) => (
+                <Link
+                  key={dashboard.id}
+                  href={dashboard.urlPath}
+                  onClick={closeExpandedSurface}
+                  className="flex flex-col group"
+                >
+                  <div className="w-full aspect-[3/4] bg-surface-lower rounded-ha-xl overflow-hidden">
+                    <div className="p-ha-2 space-y-ha-1">
+                      <div className="h-2 bg-surface-low rounded-full w-full" />
+                      <div className="h-2 bg-surface-low rounded-full w-3/4" />
+                      <div className="h-3 bg-surface-low rounded-ha-lg w-full mt-ha-2" />
+                      <div className="h-3 bg-surface-low rounded-ha-lg w-full" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-ha-1 mt-ha-1">
+                    {dashboard.icon ? (
+                      <MdiIcon
+                        icon={dashboard.icon}
+                        size={24}
+                        className="text-text-secondary flex-shrink-0"
+                      />
+                    ) : (
+                      <HALogo size={24} />
+                    )}
+                    <span className="text-[10px] text-text-secondary truncate">{dashboard.title}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-px bg-border-default" />
+
+          <div>
+            <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
+            <div className="flex flex-wrap gap-ha-1">
+              {apps.map((app) => {
+                const isActive = pathname === app.urlPath ||
+                  (app.urlPath !== '/' && pathname.startsWith(app.urlPath));
+                const palette = getAppPalette(app.id);
+
+                return (
+                  <Link
+                    key={app.id}
+                    href={app.urlPath}
+                    onClick={closeExpandedSurface}
+                    className="p-ha-1 rounded-ha-xl hover:bg-surface-low transition-colors flex items-center justify-center"
+                    title={app.title}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-ha-xl flex items-center justify-center transition-colors ${
+                        isActive ? 'bg-ha-blue' : palette.bg
+                      }`}
+                    >
+                      <MdiIcon
+                        icon={app.icon || 'mdi:application'}
+                        size={22}
+                        className={isActive ? 'text-white' : 'text-text-secondary'}
+                      />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (expandedSurfaceTab === 'search') {
+      return (
+        <div className="space-y-ha-4">
+          <div className="flex items-center gap-ha-2">
+            <div className="flex items-center gap-ha-3 px-ha-3 h-12 rounded-ha-xl border border-surface-low bg-surface-low/50 flex-1">
+              <Icon path={mdiMagnify} size={20} className="text-text-secondary flex-shrink-0" />
+              <input
+                type="text"
+                placeholder="Search dashboards, apps, entities..."
+                value={expandedSearchQuery}
+                onChange={(e) => setExpandedSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-tertiary outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              aria-label="Close search"
+              onClick={closeExpandedSurface}
+              className="w-10 h-10 rounded-full bg-surface-low flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <Icon path={mdiClose} size={20} />
+            </button>
+          </div>
+
+          {!showSearchEmptyState && (
+            <div className="space-y-ha-2">
+              <p className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium px-1">
+                {expandedSearchQuery.trim() ? 'Results' : 'Suggestions'}
+              </p>
+              {expandedSearchItems.map(result => {
+                const content = (
+                  <>
+                    <div className="w-9 h-9 rounded-ha-xl bg-surface-low flex items-center justify-center flex-shrink-0">
+                      {result.type === 'entity' ? (
+                        <Icon path={mdiDevices} size={18} className="text-text-secondary" />
+                      ) : result.icon ? (
+                        <MdiIcon icon={result.icon} size={18} className="text-ha-blue" />
+                      ) : (
+                        <HALogo size={18} />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-text-primary font-medium truncate">{result.name}</p>
+                      <p className="text-xs text-text-secondary truncate">{result.subtitle}</p>
+                    </div>
+                    {result.href && <Icon path={mdiChevronRight} size={16} className="text-text-disabled" />}
+                  </>
+                );
+
+                if (result.href) {
+                  return (
+                    <Link
+                      key={result.id}
+                      href={result.href}
+                      onClick={closeExpandedSurface}
+                      className="w-full flex items-center gap-ha-3 p-ha-2.5 rounded-ha-xl bg-surface-low/60 hover:bg-surface-low transition-colors"
+                    >
+                      {content}
+                    </Link>
+                  );
+                }
+
+                return (
+                  <div
+                    key={result.id}
+                    className="w-full flex items-center gap-ha-3 p-ha-2.5 rounded-ha-xl bg-surface-low/60"
+                  >
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {showSearchEmptyState && (
+            <div className="text-center py-10">
+              <Icon path={mdiMagnify} size={36} className="text-text-tertiary mx-auto mb-ha-2" />
+              <p className="text-sm text-text-secondary">No results for &ldquo;{expandedSearchQuery}&rdquo;</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (expandedSurfaceTab === 'chat') {
+      return (
+        <div className="flex flex-col h-full min-h-[50vh]">
+           <div className="flex flex-col gap-ha-4 justify-center items-center text-center px-ha-4 flex-1">
+              <div className="w-16 h-16 bg-ha-blue/10 rounded-full flex items-center justify-center mb-ha-2">
+                 <Icon path={mdiMicrophone} size={32} className="text-ha-blue" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-text-primary mb-1">How can I help you?</h4>
+                <p className="text-xs text-text-secondary">Try &quot;Turn off the kitchen lights&quot; or &quot;Show me the front door&quot;</p>
+              </div>
+           </div>
+
+           <div className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill p-ha-1 mt-auto flex-shrink-0">
+              <input type="text" placeholder="Type or speak..." className="flex-1 px-ha-4 text-sm text-text-primary bg-transparent outline-none focus:ring-0" />
+              <button className="w-10 h-10 rounded-full bg-ha-blue flex items-center justify-center text-white shadow-md active:scale-95 transition-transform flex-shrink-0">
+                <Icon path={mdiSend} size={18} />
+              </button>
+           </div>
+        </div>
+      );
+    }
+
+    if (expandedSurfaceTab === 'settings') {
+      return <ProfileContent />;
+    }
+
+    return (
+      <div className="space-y-ha-3 pb-8">
+        {/* Connection Section */}
+        <div className="bg-surface-low rounded-2xl p-ha-3">
+            <div className="flex items-center gap-ha-3 mb-ha-3">
+                <div className={`p-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                  <Icon path={connectionStatus === 'connected' ? mdiCheckCircle : mdiAlertCircle} size={24} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-text-primary">Home Assistant</h4>
+                  <p className="text-xs text-text-secondary font-medium">
+                      {connectionStatus === 'connecting' ? 'Connecting...' :
+                       connectionStatus === 'connected' ? 'Connected securely' :
+                       connectionStatus === 'error' ? 'Connection Error' : 'Unknown Status'}
+                  </p>
+                </div>
+            </div>
+              
+            {/* Connection Details */}
+            <div className="space-y-2 mt-2 pt-2 border-t border-surface-mid/50">
+                {/* Remote Access */}
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
+                    <Icon path={isRemoteConnected ? mdiCloudCheck : mdiCloudOff} size={16} className={isRemoteConnected ? "text-green-500" : "text-text-disabled"} />
+                    <span className="text-sm text-text-secondary">Remote Access</span>
+                  </div>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRemoteConnected ? 'bg-green-500/10 text-green-500' : 'bg-surface-mid text-text-disabled'}`}>
+                     {isRemoteConnected ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+            </div>
+        </div>
+
+        {/* Notifications Section - Always shown */}
+        <div className="bg-surface-low rounded-2xl p-ha-3">
+          <div className="flex items-center justify-between mb-ha-2 px-1">
+            <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Notifications</h4>
+            {activeNotifications.length > 0 && (
+              <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
+            )}
+          </div>
+          {activeNotifications.length > 0 ? (
+            <div className="space-y-2">
+              {activeNotifications.map(notif => (
+                <div key={notif.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
+                  <Icon path={mdiBell} size={18} className="text-yellow-500 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-text-primary leading-tight">{notif.title}</p>
+                    {notif.message && <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-snug">{notif.message}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
+              <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
+              No notifications
+            </p>
+          )}
+        </div>
+
+        {/* Active Updates Section */}
+        {(activeUpdates.length > 0) && (
+            <div className="bg-surface-low rounded-2xl p-ha-3">
+                <div className="flex items-center justify-between mb-ha-2 px-1">
+                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Updates Available</h4>
+                  <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
+                </div>
+                <div className="space-y-2">
+                    {activeUpdates.map(update => (
+                        <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-xl transition-colors cursor-pointer group">
+                            <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-110 transition-transform">
+                                {update.picture ? <img src={`${haUrl}${update.picture}`} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
+                            </div>
+                            <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
+                            <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+        
+        {/* Offline Devices Section - Always shown */}
+        <div className="bg-surface-low rounded-2xl p-ha-3">
+          <div className="flex items-center justify-between mb-ha-2 px-1">
+            <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Offline Devices</h4>
+            {offlineDevices.length > 0 && (
+              <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
+            )}
+          </div>
+          {offlineDevices.length > 0 ? (
+            <div className="space-y-1">
+              {offlineDevices.map(device => (
+                <div key={device.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-mid/50 transition-colors">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
+                  <span className="text-sm truncate font-medium">{device.name}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
+               <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
+               All devices online
+            </p>
+          )}
+        </div>
+
+        {/* Empty State / All Good */}
+        {activeUpdates.length === 0 && activeNotifications.length === 0 && offlineDevices.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-6 text-center opacity-80">
+                <p className="text-sm font-medium text-text-primary">All systems nominal</p>
+                <p className="text-xs text-text-secondary mt-1">No issues detected in your home environment.</p>
+            </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-default shadow-[0_-4px_16px_rgba(0,0,0,0.08)]" style={{ paddingBottom: `env(safe-area-inset-bottom)` }} data-component="MobileNav">
-      <div className="flex flex-col gap-ha-2 px-edge pt-ha-3 pb-ha-4">
+    <nav
+      className="lg:hidden fixed inset-x-0 bottom-0 z-50"
+      style={{ paddingBottom: `calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))` }}
+      data-component="MobileNav"
+      data-connection-status={connectionStatus ?? 'unknown'}
+      onMouseEnter={() => {
+        setHideTopRow(false);
+        setHideFromInactivity(false);
+      }}
+    >
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-[calc(9rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-surface-default/80 via-surface-default/35 to-transparent transition-opacity duration-300 ${
+          showBottomEdgeGradient ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+      <button
+        type="button"
+        aria-label="Close expanded panel"
+        onClick={closeExpandedSurface}
+        className={`fixed inset-0 bg-black/45 backdrop-blur-[1px] transition-opacity duration-300 ${
+          statusExpanded ? 'opacity-100 z-0' : 'opacity-0 pointer-events-none -z-10'
+        }`}
+      />
+      <div className="relative z-10 px-edge">
+        <div className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] max-h-[calc(100dvh-4rem)] overflow-hidden">
+          <div className="relative rounded-[23px] bg-surface-default/95 backdrop-blur-md">
+            <div className="flex flex-col px-edge pt-ha-1 pb-ha-4">
+              <div className="flex justify-center py-0 mb-0">
+                <button
+                  ref={bottomSheetHandleRef}
+                  type="button"
+                  aria-label={statusExpanded ? 'Collapse bottom panel' : 'Expand bottom panel'}
+                  onClick={() => (statusExpanded ? closeExpandedSurface() : openExpandedSurface(expandedSurfaceTab))}
+                  className="h-4 w-10 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none"
+                >
+                  <span className="w-7 h-1 rounded-full bg-text-secondary/60" />
+                </button>
+              </div>
+              <div className={`overflow-hidden flex flex-col transition-all duration-300 ease-out ${
+                statusExpanded ? 'h-[calc(100dvh-4rem-10rem)] opacity-100 mb-ha-1' : 'h-0 opacity-0 pointer-events-none mb-0'
+              }`}>
+                {expandedSurfaceTab !== 'search' && (
+                  <div className="flex-none flex items-center justify-between px-ha-1 py-ha-2 border-b border-surface-low">
+                    <h3 className="font-semibold text-text-primary">
+                      {expandedSurfaceHeader.title}
+                    </h3>
+                    <button
+                      onClick={closeExpandedSurface}
+                      className="p-1 hover:bg-surface-mid rounded-full text-text-secondary transition-colors"
+                    >
+                      <Icon path={mdiClose} size={24} />
+                    </button>
+                  </div>
+                )}
+                <div
+                  ref={expandedSurfaceScrollRef}
+                  className="flex-1 overflow-y-auto px-ha-1 pt-ha-3 pb-ha-5"
+                >
+                  {renderExpandedSurfaceContent()}
+                </div>
+              </div>
         {/* Top row: Ask your home + Media + Timer + Status */}
         <div className="flex items-center gap-ha-2">
           {/* Ask your home */}
           <div className="flex-1 min-w-0 h-10 relative">
-            <AnimatePresence>
-              {expandedWidgetId === 'chat' && (
-                <motion.div
-                  layoutId="chat-widget"
-                  className="fixed left-0 right-0 bottom-16 bg-surface-default mx-ha-4 rounded-ha-2xl shadow-2xl border border-surface-low overflow-hidden z-[60] flex flex-col p-ha-5"
-                >
-                   <div className="flex justify-between items-center mb-ha-4 pl-1">
-                      <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Ask my home</span>
-                      <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-mid rounded-full">
-                        <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                      </button>
-                   </div>
-                   
-                   <div className="flex flex-col gap-ha-4 h-full min-h-[160px] justify-center items-center text-center px-ha-4 mb-ha-6">
-                      <div className="w-16 h-16 bg-ha-blue/10 rounded-full flex items-center justify-center mb-ha-2">
-                         <Icon path={mdiMicrophone} size={32} className="text-ha-blue" />
-                      </div>
-                      <div>
-                        <h4 className="text-base font-bold text-text-primary mb-1">How can I help you?</h4>
-                        <p className="text-xs text-text-secondary">Try &quot;Turn off the kitchen lights&quot; or &quot;Show me the front door&quot;</p>
-                      </div>
-                   </div>
-
-                   <div className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill p-ha-1">
-                      <div className="flex-1 px-ha-4 text-sm text-text-disabled italic">Type or speak...</div>
-                      <button className="w-10 h-10 rounded-full bg-ha-blue flex items-center justify-center text-white shadow-md active:scale-95 transition-transform">
-                        <Icon path={mdiSend} size={18} />
-                      </button>
-                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            <motion.button
-              layoutId="chat-widget"
-              onClick={() => setExpandedWidgetId(expandedWidgetId === 'chat' ? null : 'chat')}
+            <button
+              onClick={() => openExpandedSurface('chat')}
               className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill px-ha-3 h-full w-full active:scale-95 transition-transform"
             >
               <span className="text-sm text-text-disabled truncate flex-1 text-left">
@@ -457,7 +1104,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
                 }</span>...
               </span>
               <Icon path={mdiMicrophone} size={18} className="text-text-secondary" />
-            </motion.button>
+            </button>
           </div>
 
           {/* Media + Timer + Camera + Printer widgets container */}
@@ -813,7 +1460,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
 
             return (
               <button
-                onClick={() => setStatusExpanded(true)}
+                onClick={() => openExpandedSurface('dashboard')}
                 className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-10 flex-shrink-0 ml-auto active:scale-95 transition-transform"
               >
                 {visibleIcons}
@@ -833,47 +1480,56 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
         </div>
 
         {/* Bottom row: Navigation pill */}
-        <div className={`overflow-hidden transition-all duration-300 ease-out ${
-          (hideTopRow || hideFromInactivity) && !isRevealed ? 'h-0 -mt-ha-2 opacity-0' : 'h-14 opacity-100'
+        <div className={`overflow-hidden transition-all duration-200 ease-out ${
+          isBottomRowHidden ? 'h-0 m-0 opacity-0' : 'h-14 mt-ha-3 opacity-100'
         }`}>
-          <div className="flex items-center justify-around bg-surface-low rounded-ha-2xl px-ha-4 h-14">
-            <Link
-              href="/"
-              className={`p-ha-2 rounded-full transition-colors ${
-                pathname === '/' ? 'bg-fill-primary-normal' : 'hover:bg-surface-lower'
-              }`}
-              onClick={(e) => {
-                // Only toggle panel when already on home page
-                if (pathname === '/') {
-                  e.preventDefault();
-                  if (isRevealed) {
-                    close();
-                  } else {
-                    open();
-                  }
-                } else {
-                  // Close panel if open, then navigate
-                  if (isRevealed) {
-                    close();
-                  }
-                }
-              }}
-            >
-              <HALogo size={28} />
-            </Link>
+          <div className="mobile-nav-tabs flex items-center justify-around bg-surface-low rounded-ha-2xl px-ha-4 h-14">
             <button
-              onClick={toggleSearch}
-              className={`p-ha-2 rounded-full transition-colors ${
-                searchOpen ? 'bg-fill-primary-normal text-ha-blue' : 'hover:bg-surface-lower text-text-secondary'
+              type="button"
+              onClick={() => openExpandedSurface('dashboards')}
+              className={`relative h-full px-ha-2 flex items-center justify-center text-text-secondary transition-colors ${
+                isDashboardsActive ? 'text-text-primary' : 'hover:text-text-primary'
+              }`}
+            >
+              <svg width="26" height="24" viewBox="0 0 20 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 0C18.2091 0 20 1.79086 20 4V14C20 16.2091 18.2091 18 16 18H4C1.79086 18 1.61066e-08 16.2091 0 14V4C0 1.79086 1.79086 6.44256e-08 4 0H16ZM4 11.5859C2.89546 11.5859 2.00004 12.4814 2 13.5859V14C2.00011 15.1045 2.8955 16 4 16H10V13.5859C9.99996 12.4814 9.10454 11.5859 8 11.5859H4ZM12 16H16C17.1046 16 18 15.1046 18 14V4C18 2.89543 17.1046 2 16 2H12V16ZM6.70703 2.29297C6.31652 1.9025 5.68348 1.9025 5.29297 2.29297L2.29297 5.29297C2.10552 5.48048 2.00002 5.73486 2 6V8.58594C2.0002 9.13805 2.44784 9.58594 3 9.58594H9C9.55216 9.58594 9.9998 9.13805 10 8.58594V6C9.99998 5.73486 9.89448 5.48048 9.70703 5.29297L6.70703 2.29297Z"/>
+              </svg>
+              <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
+                isDashboardsActive ? 'opacity-100' : 'opacity-0'
+              }`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => openExpandedSurface('search')}
+              className={`relative h-full px-ha-2 flex items-center justify-center transition-colors ${
+                isSearchActive ? 'text-ha-blue' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               <Icon path={mdiMagnify} size={28} />
+              <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
+                isSearchActive ? 'opacity-100' : 'opacity-0'
+              }`} />
             </button>
-            <Link href="/panel/profile" className={`p-ha-1 rounded-full transition-all ${
-              pathname === '/panel/profile' ? 'ring-2 ring-ha-blue' : 'hover:ring-2 hover:ring-surface-lower'
-            }`}>
-              <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />
-            </Link>
+            <button
+              type="button"
+              onClick={() => openExpandedSurface('settings')}
+              className={`relative h-full pl-ha-4 pr-ha-2 flex items-center justify-center transition-opacity ${
+                isSettingsActive ? 'opacity-100' : 'opacity-90 hover:opacity-100'
+              }`}
+            >
+              <div className="relative flex items-center justify-center">
+                <Icon path={mdiMenu} size={28} className="absolute -left-2 text-text-secondary z-0" />
+                <div className="relative z-10 rounded-full ring-[3px] ring-surface-low bg-surface-low">
+                  <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" />
+                </div>
+              </div>
+              <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
+                isSettingsActive ? 'opacity-100' : 'opacity-0'
+              }`} />
+            </button>
+          </div>
+        </div>
+            </div>
           </div>
         </div>
       </div>
@@ -963,157 +1619,6 @@ export function MobileNav({ disableAutoHide = false, connectionStatus }: MobileN
         );
       })()}
 
-      {/* Status Details Bottom Sheet */}
-      {statusExpanded && (
-        <div className="fixed inset-0 z-[100] flex flex-col justify-end lg:hidden">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
-            onClick={() => setStatusExpanded(false)}
-          />
-          
-          {/* Sheet */}
-          <div className="relative bg-surface-default w-full rounded-t-ha-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[85vh]">
-            {/* Header handle */}
-            <div className="flex justify-center pt-ha-3 pb-ha-1 flex-shrink-0" onClick={() => setStatusExpanded(false)}>
-              <div className="w-10 h-1.5 rounded-full bg-surface-low" />
-            </div>
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-ha-4 py-ha-3 border-b border-surface-low flex-shrink-0">
-              <h3 className="font-semibold text-text-primary flex items-center gap-2">
-                <Icon path={mdiCheckCircle} size={20} className="text-ha-blue" />
-                Home status
-              </h3>
-              <button
-                onClick={() => setStatusExpanded(false)}
-                className="p-1 hover:bg-surface-mid rounded-full text-text-secondary transition-colors"
-              >
-                <Icon path={mdiClose} size={24} />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="overflow-y-auto p-ha-4 space-y-ha-4 pb-12">
-              {/* Connection Section */}
-              <div className="bg-surface-low rounded-2xl p-ha-3">
-                <div className="flex items-center gap-ha-3 mb-ha-3">
-                  <div className={`p-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                    <Icon path={connectionStatus === 'connected' ? mdiCheckCircle : mdiAlertCircle} size={24} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-text-primary">Home Assistant</h4>
-                    <p className="text-xs text-text-secondary font-medium">
-                      {connectionStatus === 'connecting' ? 'Connecting...' :
-                       connectionStatus === 'connected' ? 'Connected securely' :
-                       connectionStatus === 'error' ? 'Connection Error' : 'Unknown Status'}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="space-y-2 mt-2 pt-2 border-t border-surface-mid/50">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2">
-                      <Icon path={isRemoteConnected ? mdiCloudCheck : mdiCloudOff} size={16} className={isRemoteConnected ? "text-green-500" : "text-text-disabled"} />
-                      <span className="text-sm text-text-secondary">Remote Access</span>
-                    </div>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRemoteConnected ? 'bg-green-500/10 text-green-500' : 'bg-surface-mid text-text-disabled'}`}>
-                       {isRemoteConnected ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notifications Section */}
-              <div className="bg-surface-low rounded-2xl p-ha-3">
-                <div className="flex items-center justify-between mb-ha-2 px-1">
-                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Notifications</h4>
-                  {activeNotifications.length > 0 && (
-                    <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
-                  )}
-                </div>
-                {activeNotifications.length > 0 ? (
-                  <div className="space-y-2">
-                    {activeNotifications.map(notif => (
-                      <div key={notif.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 rounded-xl">
-                        <Icon path={mdiBell} size={18} className="text-yellow-500 shrink-0 mt-0.5" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-text-primary leading-tight">{notif.title}</p>
-                          {notif.message && <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-snug">{notif.message}</p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
-                    <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
-                    No notifications
-                  </p>
-                )}
-              </div>
-
-              {/* Updates Section */}
-              {activeUpdates.length > 0 && (
-                <div className="bg-surface-low rounded-2xl p-ha-3">
-                  <div className="flex items-center justify-between mb-ha-2 px-1">
-                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Updates Available</h4>
-                    <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {activeUpdates.map(update => (
-                      <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 bg-surface-mid/30 rounded-xl">
-                        <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
-                          {update.picture ? <img src={`${haUrl}${update.picture}`} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
-                        </div>
-                        <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
-                        <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Offline Devices Section */}
-              <div className="bg-surface-low rounded-2xl p-ha-3">
-                <div className="flex items-center justify-between mb-ha-2 px-1">
-                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Offline Devices</h4>
-                  {offlineDevices.length > 0 && (
-                    <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
-                  )}
-                </div>
-                {offlineDevices.length > 0 ? (
-                  <div className="space-y-1">
-                    {offlineDevices.map(device => (
-                      <div key={device.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg text-text-secondary">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
-                        <span className="text-sm truncate font-medium">{device.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
-                     <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
-                     All devices online
-                  </p>
-                )}
-              </div>
-
-              {/* Empty State / All Good */}
-              {activeUpdates.length === 0 && activeNotifications.length === 0 && offlineDevices.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-10 text-center opacity-80">
-                  <p className="text-base font-semibold text-text-primary">All systems nominal</p>
-                  <p className="text-sm text-text-secondary mt-1">No issues detected in your home environment.</p>
-                </div>
-              )}
-            </div>
-            
-            {/* Footer */}
-            <div className="p-ha-4 border-t border-surface-low bg-surface-low/30 text-center flex-shrink-0">
-               <p className="text-[10px] text-text-disabled uppercase tracking-widest font-bold">Home Assistant • Connected</p>
-            </div>
-          </div>
-        </div>
-      )}
     </nav>
   );
 }

@@ -271,7 +271,7 @@ export default function RoomPage({ params }: RoomPageProps) {
       <PullToRevealPanel />
 
       {/* Main content row */}
-      <div className={`min-h-0 overflow-hidden px-edge pb-20 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
+      <div className={`min-h-0 overflow-hidden px-edge pb-0 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
         isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
       }`}>
         <div className={`h-full flex ${infoOpen ? 'gap-ha-3' : ''}`}>
@@ -312,77 +312,79 @@ export default function RoomPage({ params }: RoomPageProps) {
             </button>
             <main 
               ref={(el) => { scrollableRef.current = el; }}
-              className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-4 py-ha-4 lg:pl-14 lg:pr-14 lg:pt-ha-5 lg:pb-ha-5" 
+              className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-14 lg:pt-ha-5 lg:pb-ha-5" 
               data-scrollable="dashboard"
             >
-              {/* Lights */}
-              {lights.length > 0 && (
-                <DashboardSection title="Lights" columns={2}>
-                  {lights.map((entity) => (
-                    <EntityCard
-                      key={entity.id}
-                      icon={entity.icon}
-                      title={entity.title}
-                      state={entity.state}
-                      color={entity.color}
-                      size="sm"
-                    />
-                  ))}
-                </DashboardSection>
-              )}
-
-              {/* Climate & Sensors */}
-              {climate.length > 0 && (
-                <DashboardSection title="Climate & Sensors" columns={2}>
-                  {climate.map((entity) => (
-                    <EntityCard
-                      key={entity.id}
-                      icon={entity.icon}
-                      title={entity.title}
-                      state={entity.state}
-                      color={entity.color}
-                      size="sm"
-                    />
-                  ))}
-                </DashboardSection>
-              )}
-
-              {/* Devices */}
-              {switches.length > 0 && (
-                <DashboardSection title="Devices" columns={2}>
-                  {switches.map((entity) => (
-                    <EntityCard
-                      key={entity.id}
-                      icon={entity.icon}
-                      title={entity.title}
-                      state={entity.state}
-                      color={entity.color}
-                      size="sm"
-                    />
-                  ))}
-                </DashboardSection>
-              )}
-
-              {/* Automations */}
-              {automations.length > 0 && (
-                <section className="mb-ha-6">
-                  <h2 className="text-lg font-semibold text-text-primary mb-ha-3">Automations</h2>
-                  <div className="space-y-ha-2">
-                    {automations.map((auto) => (
-                      <div key={auto.name} className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-default">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${auto.enabled ? 'bg-green-500' : 'bg-text-disabled'}`} />
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm text-text-primary block truncate">{auto.name}</span>
-                          <span className="text-xs text-text-secondary">Last: {auto.lastTriggered}</span>
-                        </div>
-                        <span className={`text-xs px-ha-2 py-0.5 rounded-ha-pill ${auto.enabled ? 'bg-fill-success-normal text-green-600' : 'bg-surface-low text-text-secondary'}`}>
-                          {auto.enabled ? 'Active' : 'Disabled'}
-                        </span>
-                      </div>
+              <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
+                {/* Lights */}
+                {lights.length > 0 && (
+                  <DashboardSection title="Lights" columns={2}>
+                    {lights.map((entity) => (
+                      <EntityCard
+                        key={entity.id}
+                        icon={entity.icon}
+                        title={entity.title}
+                        state={entity.state}
+                        color={entity.color}
+                        size="sm"
+                      />
                     ))}
-                  </div>
-                </section>
-              )}
+                  </DashboardSection>
+                )}
+
+                {/* Climate & Sensors */}
+                {climate.length > 0 && (
+                  <DashboardSection title="Climate & Sensors" columns={2}>
+                    {climate.map((entity) => (
+                      <EntityCard
+                        key={entity.id}
+                        icon={entity.icon}
+                        title={entity.title}
+                        state={entity.state}
+                        color={entity.color}
+                        size="sm"
+                      />
+                    ))}
+                  </DashboardSection>
+                )}
+
+                {/* Devices */}
+                {switches.length > 0 && (
+                  <DashboardSection title="Devices" columns={2}>
+                    {switches.map((entity) => (
+                      <EntityCard
+                        key={entity.id}
+                        icon={entity.icon}
+                        title={entity.title}
+                        state={entity.state}
+                        color={entity.color}
+                        size="sm"
+                      />
+                    ))}
+                  </DashboardSection>
+                )}
+
+                {/* Automations */}
+                {automations.length > 0 && (
+                  <section className="mb-ha-6">
+                    <h2 className="text-lg font-semibold text-text-primary mb-ha-3">Automations</h2>
+                    <div className="space-y-ha-2">
+                      {automations.map((auto) => (
+                        <div key={auto.name} className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-default">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 ${auto.enabled ? 'bg-green-500' : 'bg-text-disabled'}`} />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm text-text-primary block truncate">{auto.name}</span>
+                            <span className="text-xs text-text-secondary">Last: {auto.lastTriggered}</span>
+                          </div>
+                          <span className={`text-xs px-ha-2 py-0.5 rounded-ha-pill ${auto.enabled ? 'bg-fill-success-normal text-green-600' : 'bg-surface-low text-text-secondary'}`}>
+                            {auto.enabled ? 'Active' : 'Disabled'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
               {/* Gradient overlay - bottom */}
             </main>
           </div>

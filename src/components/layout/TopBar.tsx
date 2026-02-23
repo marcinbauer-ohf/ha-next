@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '../ui/Icon';
 import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
-import { useHeader, usePullToRevealContext } from '@/contexts';
+import { useHeader, usePullToRevealContext, ENABLE_PULL_TO_REVEAL } from '@/contexts';
 import { useTheme } from '@/hooks';
 import {
   mdiPencil,
@@ -16,13 +16,13 @@ import {
 
 export function TopBar() {
   const { theme } = useTheme();
-  const { title, subtitle, icon, primaryAction } = useHeader();
+  const { title, subtitle, icon, primaryAction, onBack } = useHeader();
   const { isRevealed, toggle } = usePullToRevealContext();
   const router = useRouter();
 
   const titleContent = subtitle ? (
     <div className="flex flex-col leading-none gap-0.5 text-left">
-      <span className="text-xs text-text-secondary capitalize">{subtitle}</span>
+      {subtitle.trim() && <span className="text-xs text-text-secondary capitalize">{subtitle}</span>}
       <span className="text-base font-semibold text-text-primary capitalize">{title}</span>
     </div>
   ) : (
@@ -31,7 +31,7 @@ export function TopBar() {
 
   const desktopTitleContent = subtitle ? (
     <div className="flex flex-col leading-none gap-0.5 text-left">
-      <span className="text-xs text-text-secondary capitalize">{subtitle}</span>
+      {subtitle.trim() && <span className="text-xs text-text-secondary capitalize">{subtitle}</span>}
       <span className="text-xl font-semibold text-text-primary capitalize">{title}</span>
     </div>
   ) : (
@@ -47,7 +47,7 @@ export function TopBar() {
         <div className="flex items-center gap-ha-3">
           {subtitle ? (
             <button 
-              onClick={() => router.back()}
+              onClick={() => onBack ? onBack() : router.back()}
               className="p-1 -ml-1 text-text-secondary hover:text-text-primary transition-colors"
             >
               <Icon path={mdiArrowLeft} size={24} />
@@ -57,28 +57,45 @@ export function TopBar() {
           ) : (
             <HALogo size={24} />
           )}
-          <button
-            className="flex items-center gap-ha-1"
-            onClick={toggle}
-          >
-            {titleContent}
-            <div className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-low transition-colors ml-1">
-              <Icon
-                path={isRevealed ? mdiClose : mdiMenu}
-                size={24}
-                className="text-text-secondary"
-              />
+          {ENABLE_PULL_TO_REVEAL ? (
+            <button
+              className="flex items-center gap-ha-1"
+              onClick={toggle}
+            >
+              {titleContent}
+              <div className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-low transition-colors ml-1">
+                <Icon
+                  path={isRevealed ? mdiClose : mdiMenu}
+                  size={24}
+                  className="text-text-secondary"
+                />
+              </div>
+            </button>
+          ) : (
+            <div className="flex items-center gap-ha-1">
+              {titleContent}
             </div>
-          </button>
+          )}
         </div>
 
         {/* Mobile Actions */}
         <div className="flex items-center gap-ha-2">
+          {primaryAction && (
+            <button 
+              onClick={primaryAction.onClick}
+              className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors"
+            >
+              <Icon path={primaryAction.icon} size={24} />
+            </button>
+          )}
+          <button className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors">
+            <Icon path={mdiPencil} size={24} />
+          </button>
           <button 
             className={`p-ha-3 rounded-ha-xl transition-colors ${
               theme === 'glass'
-                ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md border border-white/10'
-                : 'bg-fill-primary-normal text-ha-blue'
+                ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
+                : 'bg-ha-blue text-white hover:bg-ha-blue/90'
             }`}
           >
             <Icon path={mdiPlus} size={24} />
@@ -90,7 +107,7 @@ export function TopBar() {
       <div className="hidden lg:flex items-center gap-ha-2">
         {subtitle && (
           <button 
-            onClick={() => router.back()}
+            onClick={() => onBack ? onBack() : router.back()}
             className="p-1 -ml-1 text-text-secondary hover:text-text-primary transition-colors hover:bg-surface-low rounded-full"
           >
             <Icon path={mdiArrowLeft} size={24} />
@@ -116,7 +133,7 @@ export function TopBar() {
           className={`p-ha-3 rounded-ha-xl transition-colors ${
             theme === 'glass'
               ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
-              : 'bg-fill-primary-normal text-ha-blue hover:bg-fill-primary-quiet'
+              : 'bg-ha-blue text-white hover:bg-ha-blue/90'
           }`}
         >
           <Icon path={mdiPlus} size={24} />

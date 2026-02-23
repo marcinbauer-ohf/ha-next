@@ -1,4 +1,4 @@
-export { PullToRevealProvider, usePullToRevealContext } from './PullToRevealContext';
+export { PullToRevealProvider, usePullToRevealContext, ENABLE_PULL_TO_REVEAL } from './PullToRevealContext';
 export { SidebarItemsProvider, useSidebarItemsContext } from './SidebarItemsContext';
 export type { SidebarItem } from './SidebarItemsContext';
 export { SearchProvider, useSearchContext } from './SearchContext';
