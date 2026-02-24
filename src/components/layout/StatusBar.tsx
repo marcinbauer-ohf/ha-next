@@ -7,7 +7,6 @@ import { Avatar } from '../ui/Avatar';
 import { CircularProgress } from '../ui/CircularProgress';
 import { Tooltip } from '../ui/Tooltip';
 import { useHomeAssistant } from '@/hooks';
-import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
   mdiMicrophone,
   mdiPlay,
@@ -144,6 +143,25 @@ function systemPrefers24HourClock(): boolean {
   } catch {
     return false;
   }
+}
+
+function resolveEntityPictureUrl(haUrl: string | undefined, picture: string | undefined | null): string | undefined {
+  if (!picture) return undefined;
+
+  const trimmed = picture.trim();
+  if (!trimmed) return undefined;
+
+  if (/^(?:[a-z][a-z\d+\-.]*:|\/\/)/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (!haUrl) {
+    return trimmed;
+  }
+
+  const base = haUrl.replace(/\/+$/, '');
+  const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${base}${path}`;
 }
 
 export type ConnectionStatusType = 'connecting' | 'connected' | 'error' | null;
