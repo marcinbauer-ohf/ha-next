@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { CircularProgress } from '../ui/CircularProgress';
 import { Tooltip } from '../ui/Tooltip';
 import { useHomeAssistant } from '@/hooks';
+import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
   mdiMicrophone,
   mdiPlay,
@@ -26,6 +27,7 @@ import {
   mdiClose,
   mdiChevronRight,
   mdiDoorbellVideo,
+  mdiChevronDown,
   mdiChevronUp,
   mdiVolumeHigh,
   mdiStop,
@@ -34,6 +36,8 @@ import {
   mdiAccount,
   mdiVideo,
 } from '@mdi/js';
+
+const RELEASE_NOTES_PREFIX = 'update.home_assistant_release_notes_simulated';
 
 interface Timer {
   entity_id: string;
@@ -71,6 +75,43 @@ interface Printer {
   entityPicture?: string;
 }
 
+interface ReleaseNotesWidget {
+  entity_id: string;
+  name: string;
+  version: string;
+  summary: string;
+  notes: string[];
+  updatedAt: string;
+}
+
+type ActivityWidgetKey =
+  | 'release-notes-widget'
+  | 'media-widget'
+  | 'timer-widget'
+  | 'camera-widget'
+  | 'printer-widget';
+
+const ACTIVITY_FLYOUT_WIDTHS: Record<ActivityWidgetKey, number> = {
+  'release-notes-widget': 320,
+  'media-widget': 280,
+  'timer-widget': 260,
+  'camera-widget': 340,
+  'printer-widget': 280,
+};
+
+const DEFAULT_ACTIVITY_FLYOUT_STYLE: CSSProperties = {
+  left: '50%',
+  bottom: 88,
+};
+
+const DEFAULT_ACTIVITY_WIDGET_WIDTHS: Record<ActivityWidgetKey, number> = {
+  'release-notes-widget': 176,
+  'media-widget': 176,
+  'timer-widget': 168,
+  'camera-widget': 176,
+  'printer-widget': 188,
+};
+
 function formatTimeRemaining(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -92,6 +133,19 @@ function parseTimeToSeconds(time: string): number {
   return 0;
 }
 
+function systemPrefers24HourClock(): boolean {
+  try {
+    const formatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric' });
+    const { hourCycle } = formatter.resolvedOptions();
+    if (hourCycle) {
+      return hourCycle === 'h23' || hourCycle === 'h24';
+    }
+    return !formatter.formatToParts(new Date()).some((part) => part.type === 'dayPeriod');
+  } catch {
+    return false;
+  }
+}
+
 export type ConnectionStatusType = 'connecting' | 'connected' | 'error' | null;
 
 interface StatusBarProps {
@@ -102,9 +156,10 @@ interface StatusBarProps {
 
 export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: StatusBarProps) {
   const { entities, callService, haUrl } = useHomeAssistant();
-  const [currentTime, setCurrentTime] = useState<string>('');
+  const [currentTime, setCurrentTime] = useState({ hours: '', minutes: '' });
   const [timerDisplays, setTimerDisplays] = useState<Record<string, string>>({});
   const [timerProgress, setTimerProgress] = useState<Record<string, number>>({});
+  const use24HourClock = useMemo(() => systemPrefers24HourClock(), []);
   const [isAM, setIsAM] = useState(true);
   const [colonVisible, setColonVisible] = useState(true);
   // Widget container refs
@@ -113,6 +168,16 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
 
   // Widget expansion state
   const [expandedWidgetId, setExpandedWidgetId] = useState<string | null>(null);
+  const [hoveredActivityWidget, setHoveredActivityWidget] = useState<ActivityWidgetKey | null>(null);
+  const [activityFlyoutStyles, setActivityFlyoutStyles] = useState<Record<ActivityWidgetKey, CSSProperties>>({
+    'release-notes-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
+    'media-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
+    'timer-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
+    'camera-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
+    'printer-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
+  });
+  const [activityWidgetWidths, setActivityWidgetWidths] = useState<Record<ActivityWidgetKey, number>>(DEFAULT_ACTIVITY_WIDGET_WIDTHS);
+  const [dismissedReleaseNotes, setDismissedReleaseNotes] = useState<Record<string, string>>({});
 
   // Status pop-up state
   const [statusExpanded, setStatusExpanded] = useState(false);
@@ -146,6 +211,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
         let activeRef: HTMLDivElement | null = null;
         if (expandedWidgetId === 'chat') {
           activeRef = chatContainerRef.current;
+        } else if (expandedWidgetId === 'list-release-notes') {
+          activeRef = widgetContainerRefs.current['release-notes-widget'];
         } else if (expandedWidgetId === 'list-media') {
           activeRef = widgetContainerRefs.current['media-widget'];
         } else if (expandedWidgetId === 'list-timer') {
@@ -156,13 +223,14 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           activeRef = widgetContainerRefs.current['printer-widget'];
         } else {
           // It's an entity_id — check all widget containers
-          activeRef = widgetContainerRefs.current['media-widget']
+          activeRef = widgetContainerRefs.current['release-notes-widget']
+            ?? widgetContainerRefs.current['media-widget']
             ?? widgetContainerRefs.current['timer-widget']
             ?? widgetContainerRefs.current['camera-widget']
             ?? widgetContainerRefs.current['printer-widget']
             ?? null;
           // Find the specific one that contains the click target
-          const allRefs = ['media-widget', 'timer-widget', 'camera-widget', 'printer-widget'];
+          const allRefs = ['release-notes-widget', 'media-widget', 'timer-widget', 'camera-widget', 'printer-widget'];
           const containingRef = allRefs.find(key => {
             const ref = widgetContainerRefs.current[key];
             return ref && ref.contains(event.target as Node);
@@ -173,11 +241,13 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           }
           // Click is outside all widget containers, close
           setExpandedWidgetId(null);
+          setHoveredActivityWidget(null);
           return;
         }
 
         if (activeRef && !activeRef.contains(event.target as Node)) {
           setExpandedWidgetId(null);
+          setHoveredActivityWidget(null);
         }
       }
     };
@@ -191,25 +261,69 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
     };
   }, [statusExpanded, expandedWidgetId, setExpandedWidgetId, setStatusExpanded]);
 
+  const updateActivityFlyoutPosition = useCallback((widgetKey: ActivityWidgetKey) => {
+    if (typeof window === 'undefined') return;
+
+    const anchor = widgetContainerRefs.current[widgetKey];
+    if (!anchor) return;
+
+    const width = ACTIVITY_FLYOUT_WIDTHS[widgetKey];
+    const rect = anchor.getBoundingClientRect();
+    const measuredWidth = Math.max(48, Math.round(rect.width));
+    const center = rect.left + rect.width / 2;
+    const halfWidth = width / 2;
+    const viewportPadding = 16;
+    const clampedCenter = Math.min(
+      window.innerWidth - viewportPadding - halfWidth,
+      Math.max(viewportPadding + halfWidth, center),
+    );
+    const nextStyle: CSSProperties = {
+      left: clampedCenter,
+      bottom: window.innerHeight - rect.top + 8,
+    };
+
+    setActivityFlyoutStyles((prev) => {
+      const current = prev[widgetKey];
+      if (current.left === nextStyle.left && current.bottom === nextStyle.bottom) {
+        return prev;
+      }
+      return { ...prev, [widgetKey]: nextStyle };
+    });
+
+    setActivityWidgetWidths((prev) => {
+      if (prev[widgetKey] === measuredWidth) return prev;
+      return { ...prev, [widgetKey]: measuredWidth };
+    });
+  }, []);
+
+  const openActivityWidget = useCallback((widgetId: string, widgetKey: ActivityWidgetKey) => {
+    updateActivityFlyoutPosition(widgetKey);
+    setHoveredActivityWidget(null);
+    setExpandedWidgetId(widgetId);
+  }, [updateActivityFlyoutPosition]);
+
+  const minimizeActivityWidget = useCallback(() => {
+    setHoveredActivityWidget(null);
+    setExpandedWidgetId(null);
+  }, []);
+
   // Update clock
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
       const hours = now.getHours();
+      const displayHours = use24HourClock ? hours.toString().padStart(2, '0') : (hours % 12 || 12).toString();
       setIsAM(hours < 12);
       setColonVisible((prev) => !prev);
-      setCurrentTime(
-        now.toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          hour12: true,
-        }).replace(/\s?(AM|PM)$/i, '')
-      );
+      setCurrentTime({
+        hours: displayHours,
+        minutes: now.getMinutes().toString().padStart(2, '0'),
+      });
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [use24HourClock]);
 
   // Get active timers from HA entities
   const activeTimers = useMemo(() => {
@@ -278,7 +392,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
             name: String(entity.attributes.friendly_name || 'Front Door'),
             state: entity.state,
             event: entity.attributes.event_type as string || (entityId.includes('camera') ? 'Movement detected' : 'Somebody at the door'),
-            entityPicture: entity.attributes.entity_picture as string || '/camera_doorbell.png',
+            entityPicture: entity.attributes.entity_picture as string | undefined,
           });
         }
       }
@@ -305,7 +419,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           progress: Number(entity.attributes.progress || 0),
           fileName: entity.attributes.file_name as string || 'Unknown file',
           remainingTime: entity.attributes.time_remaining as string || '00:00:00',
-          entityPicture: entity.attributes.entity_picture as string || '/printer_3d.png',
+          entityPicture: entity.attributes.entity_picture as string | undefined,
         });
       }
     });
@@ -313,11 +427,52 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
     return printers;
   }, [entities]);
 
-  // Derive visibility from active items
-  const showPlayers = activePlayers.length > 0;
-  const showTimers = activeTimers.length > 0;
-  const showCameras = activeCameras.length > 0;
-  const showPrinters = activePrinters.length > 0;
+  // Simulated release notes widget entities
+  const activeReleaseNotes = useMemo(() => {
+    const notes: ReleaseNotesWidget[] = [];
+
+    Object.entries(entities).forEach(([entityId, entity]) => {
+      if (entityId !== RELEASE_NOTES_PREFIX || entity.state !== 'on') return;
+
+      const rawNotes = entity.attributes.release_notes;
+      const parsedNotes = Array.isArray(rawNotes)
+        ? rawNotes.map((item) => String(item))
+        : typeof rawNotes === 'string'
+          ? [rawNotes]
+          : [];
+
+      notes.push({
+        entity_id: entityId,
+        name: String(entity.attributes.friendly_name || 'Home Assistant release notes'),
+        version: String(entity.attributes.latest_version || entity.attributes.release_version || 'Latest'),
+        summary: String(entity.attributes.release_summary || 'See what is new in Home Assistant.'),
+        notes: parsedNotes,
+        updatedAt: entity.last_updated,
+      });
+    });
+
+    return notes.sort((a, b) => a.entity_id.localeCompare(b.entity_id));
+  }, [entities]);
+
+  const visibleReleaseNotes = useMemo(
+    () => activeReleaseNotes.filter((note) => dismissedReleaseNotes[note.entity_id] !== note.updatedAt),
+    [activeReleaseNotes, dismissedReleaseNotes]
+  );
+
+  const activityWidgetTransition = {
+    duration: 0.16,
+    ease: [0.22, 1, 0.36, 1] as const,
+  };
+
+  const activityWindowTransition = {
+    duration: 0.16,
+    ease: [0.2, 0.9, 0.2, 1] as const,
+  };
+
+  const activityMiniTransition = {
+    duration: 0.12,
+    ease: [0.22, 1, 0.36, 1] as const,
+  };
 
   // Calculate remaining time and progress for display (updates every second)
   useEffect(() => {
@@ -433,12 +588,26 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
       const picture = entity.attributes.entity_picture as string | undefined;
       const name = entity.attributes.friendly_name as string | undefined;
       return {
-        picture: picture ? `${haUrl}${picture}` : undefined,
+        picture: resolveEntityPictureUrl(haUrl, picture),
         initials: name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U',
       };
     }
     return { picture: undefined, initials: 'U' };
   }, [entities, haUrl]);
+
+  const getEntityPictureUrl = (picture?: string, fallback?: string) => {
+    return resolveEntityPictureUrl(haUrl, picture) ?? fallback;
+  };
+
+  const dismissReleaseNote = useCallback((entityId: string, updatedAt: string) => {
+    setDismissedReleaseNotes((prev) => {
+      if (prev[entityId] === updatedAt) return prev;
+      return { ...prev, [entityId]: updatedAt };
+    });
+
+    const remaining = visibleReleaseNotes.filter((note) => note.entity_id !== entityId);
+    setExpandedWidgetId(remaining[0]?.entity_id ?? null);
+  }, [visibleReleaseNotes]);
 
   return (
     <footer className="hidden lg:flex items-center justify-between pr-edge pt-ha-2 pb-edge col-span-full z-50" data-component="StatusBar">
@@ -463,7 +632,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                 key="chat-expanded"
                 layoutId="chat-widget"
                 className="absolute left-1/2 -translate-x-1/2 bottom-0 w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                transition={activityWindowTransition}
               >
                 <div className="p-ha-4 flex flex-col gap-ha-4">
                   <div className="flex items-center justify-between">
@@ -526,127 +695,390 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
              onScroll={checkActivitiesScroll}
              className="overflow-x-auto scrollbar-hide flex items-center gap-ha-4 mask-linear-fade pr-4 pl-1"
            >
+          <AnimatePresence initial={false} mode="popLayout">
+          {/* Release notes widget(s) - always first */}
+          {visibleReleaseNotes.length > 0 && (() => {
+            const selectedReleaseNote = visibleReleaseNotes.find((note) => note.entity_id === expandedWidgetId);
+            const isListView = expandedWidgetId === 'list-release-notes';
+            const releaseNote = selectedReleaseNote || visibleReleaseNotes[0];
+            const isExpanded = Boolean(selectedReleaseNote || isListView);
+            const showPreview = hoveredActivityWidget === 'release-notes-widget' && !expandedWidgetId;
+            return (
+            <motion.div
+              key="release-notes-widget"
+              layout="position"
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -16 }}
+              transition={activityWidgetTransition}
+              ref={(el) => { widgetContainerRefs.current['release-notes-widget'] = el; }}
+              className="relative"
+              onMouseEnter={() => {
+                if (!expandedWidgetId) {
+                  updateActivityFlyoutPosition('release-notes-widget');
+                  setHoveredActivityWidget('release-notes-widget');
+                }
+              }}
+              onMouseLeave={() => {
+                setHoveredActivityWidget((current) => (current === 'release-notes-widget' ? null : current));
+              }}
+            >
+              <AnimatePresence mode="wait">
+                {selectedReleaseNote || showPreview ? (
+                  <>
+                    <motion.div
+                      key={showPreview ? 'release-notes-preview' : 'release-notes-expanded'}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className={`fixed -translate-x-1/2 w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default ${showPreview ? 'pointer-events-none' : ''}`}
+                      style={activityFlyoutStyles['release-notes-widget']}
+                      transition={activityWindowTransition}
+                    >
+                      <div className="p-ha-4 flex flex-col gap-ha-3">
+                        <div className="w-full flex justify-between items-center pl-1">
+                          <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest pl-1">What&apos;s New</span>
+                          {!showPreview && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(visibleReleaseNotes.length > 1 ? 'list-release-notes' : null); }}
+                              className="p-ha-1 hover:bg-surface-low rounded-full"
+                            >
+                              <Icon path={visibleReleaseNotes.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="w-full rounded-ha-xl bg-green-500/10 border border-green-500/20 p-ha-3">
+                          <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1">{releaseNote.version}</p>
+                          <h3 className="text-sm font-bold text-text-primary">{releaseNote.name}</h3>
+                          <p className="text-xs text-text-secondary mt-1">{releaseNote.summary}</p>
+                        </div>
+
+                        <div className="space-y-ha-2 max-h-[220px] overflow-y-auto pr-1">
+                          {(releaseNote.notes.length > 0 ? releaseNote.notes : ['No release notes available.']).map((note, index) => (
+                            <div key={`${releaseNote.entity_id}-note-${index}`} className="flex gap-ha-2 text-xs text-text-secondary">
+                              <span className="text-green-600 font-bold">{index + 1}.</span>
+                              <span>{note}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {!showPreview && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dismissReleaseNote(releaseNote.entity_id, releaseNote.updatedAt);
+                            }}
+                            className="h-10 rounded-ha-xl bg-green-600 text-white text-xs font-bold uppercase tracking-wider hover:bg-green-700 transition-colors"
+                          >
+                            Dismiss Notes
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+
+                    {selectedReleaseNote && (
+                      <motion.button
+                        key="release-notes-minimize"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={activityMiniTransition}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          minimizeActivityWidget();
+                        }}
+                        className="h-12 rounded-ha-pill bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
+                        style={{ width: activityWidgetWidths['release-notes-widget'] }}
+                      >
+                        <Icon path={mdiChevronDown} size={20} />
+                      </motion.button>
+                    )}
+
+                    {showPreview && (
+                      <div
+                        className="h-12 rounded-ha-pill bg-green-500/12 border border-green-500/20"
+                        style={{ width: activityWidgetWidths['release-notes-widget'] }}
+                      />
+                    )}
+                  </>
+                ) : isListView ? (
+                  <>
+                    <motion.div
+                      key="release-notes-list"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed -translate-x-1/2 w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
+                      style={activityFlyoutStyles['release-notes-widget']}
+                      transition={activityWindowTransition}
+                    >
+                      <div className="p-ha-4">
+                        <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                          <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest pl-1">What&apos;s New ({visibleReleaseNotes.length})</span>
+                          <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
+                            <Icon path={mdiClose} size={18} className="text-text-secondary" />
+                          </button>
+                        </div>
+                        <div className="space-y-ha-2">
+                          {visibleReleaseNotes.map((note) => (
+                            <button
+                              key={note.entity_id}
+                              onClick={() => setExpandedWidgetId(note.entity_id)}
+                              className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center shrink-0">
+                                <Icon path={mdiUpdate} size={16} className="text-green-600" />
+                              </div>
+                              <div className="flex flex-col min-w-0 flex-1">
+                                <span className="text-sm font-medium text-text-primary truncate">{note.name}</span>
+                                <span className="text-xs text-text-secondary truncate">{note.version} • {note.notes.length} note{note.notes.length === 1 ? '' : 's'}</span>
+                              </div>
+                              <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    {isExpanded && (
+                      <motion.button
+                        key="release-notes-list-minimize"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={activityMiniTransition}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          minimizeActivityWidget();
+                        }}
+                        className="h-12 rounded-ha-pill bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
+                        style={{ width: activityWidgetWidths['release-notes-widget'] }}
+                      >
+                        <Icon path={mdiChevronDown} size={20} />
+                      </motion.button>
+                    )}
+                  </>
+                ) : (
+                  <motion.div
+                    key="release-notes-collapsed"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={activityMiniTransition}
+                    onClick={() => openActivityWidget(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')}
+                    className="flex items-center gap-ha-3 bg-green-500/12 border border-green-500/25 rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-green-500/20 cursor-pointer"
+                  >
+                    <div className="relative">
+                      <div className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
+                        <Icon path={mdiUpdate} size={16} className="text-green-600" />
+                      </div>
+                      {visibleReleaseNotes.length > 1 && (
+                        <div className="absolute -top-1 -right-1 bg-green-600 text-white text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-default shadow-sm z-10">
+                          {visibleReleaseNotes.length}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col min-w-0 max-w-[180px]">
+                      <span className="text-sm font-bold text-green-600 truncate">What&apos;s New</span>
+                      <span className="text-xs text-text-secondary truncate">{releaseNote.version}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+            );
+          })()}
+
           {/* Media player widget(s) - show when playing */}
         {activePlayers.length > 0 && (() => {
           const selectedPlayer = activePlayers.find(p => p.entity_id === expandedWidgetId);
           const isListView = expandedWidgetId === 'list-media';
           const player = selectedPlayer || activePlayers[0];
+          const showPreview = hoveredActivityWidget === 'media-widget' && !expandedWidgetId;
+          const isExpanded = Boolean(selectedPlayer || isListView);
           return (
-          <div
+          <motion.div
             key="media-widget"
+            layout="position"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['media-widget'] = el; }}
-            className={`relative transition-all duration-300 ${showPlayers ? 'opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
+            className="relative"
+            onMouseEnter={() => {
+              if (!expandedWidgetId) {
+                updateActivityFlyoutPosition('media-widget');
+                setHoveredActivityWidget('media-widget');
+              }
+            }}
+            onMouseLeave={() => {
+              setHoveredActivityWidget((current) => (current === 'media-widget' ? null : current));
+            }}
           >
             <AnimatePresence mode="wait">
-              {selectedPlayer ? (
-                <motion.div
-                  key="media-expanded"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 16 }}
-                  className="fixed left-1/2 -translate-x-1/2 bottom-edge w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                >
-                  <div className="p-ha-4 flex flex-col items-center">
-                    <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                       <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Now Playing</span>
-                       <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activePlayers.length > 1 ? 'list-media' : null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={activePlayers.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
-                       </button>
-                    </div>
+              {selectedPlayer || showPreview ? (
+                <>
+                  <motion.div
+                    key={showPreview ? 'media-preview' : 'media-expanded'}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className={`fixed -translate-x-1/2 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default ${showPreview ? 'pointer-events-none' : ''}`}
+                    style={activityFlyoutStyles['media-widget']}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Now Playing</span>
+                        {!showPreview && (
+                          <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activePlayers.length > 1 ? 'list-media' : null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
+                            <Icon path={activePlayers.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
+                          </button>
+                        )}
+                      </div>
 
-                    <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-lg border border-surface-low">
-                      {player.entityPicture ? (
-                        <img src={`${haUrl}${player.entityPicture}`} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-surface-mid flex items-center justify-center">
-                          <Icon path={mdiPlay} size={48} className="text-ha-blue opacity-20" />
+                      <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-lg border border-surface-low">
+                        {player.entityPicture ? (
+                          <img src={getEntityPictureUrl(player.entityPicture)} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-surface-mid flex items-center justify-center">
+                            <Icon path={mdiPlay} size={48} className="text-ha-blue opacity-20" />
+                          </div>
+                        )}
+                      </div>
+                      <h3 className="text-base font-bold text-text-primary text-center truncate w-full">{player.mediaTitle || player.name}</h3>
+                      <p className="text-sm text-text-secondary mb-ha-5 text-center truncate w-full">{player.mediaArtist || 'Media Player'}</p>
+
+                      <div className="w-full h-1 bg-surface-mid rounded-full mb-ha-5 overflow-hidden">
+                        <div className="bg-ha-blue h-full w-1/3 rounded-full" />
+                      </div>
+
+                      <div className="flex items-center justify-center gap-ha-6 mb-ha-5">
+                        <button onClick={() => callService({ domain: 'media_player', service: 'media_previous_track', target: { entity_id: player.entity_id } })}>
+                          <Icon path={mdiSkipPrevious} size={28} className="text-text-primary hover:text-ha-blue" />
+                        </button>
+                        <button
+                          onClick={() => callService({ domain: 'media_player', service: player.state === 'playing' ? 'media_pause' : 'media_play', target: { entity_id: player.entity_id } })}
+                          className="w-14 h-14 rounded-full bg-ha-blue text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-transform"
+                        >
+                          <Icon path={player.state === 'playing' ? mdiPause : mdiPlay} size={32} />
+                        </button>
+                        <button onClick={() => callService({ domain: 'media_player', service: 'media_next_track', target: { entity_id: player.entity_id } })}>
+                          <Icon path={mdiSkipNext} size={28} className="text-text-primary hover:text-ha-blue" />
+                        </button>
+                      </div>
+
+                      <div className="w-full flex items-center gap-ha-3 text-text-secondary">
+                        <Icon path={mdiVolumeHigh} size={18} />
+                        <div className="flex-1 h-1.5 bg-surface-mid rounded-full overflow-hidden">
+                          <div className="bg-text-secondary h-full w-2/3 rounded-full" />
                         </div>
-                      )}
-                    </div>
-                    <h3 className="text-base font-bold text-text-primary text-center truncate w-full">{player.mediaTitle || player.name}</h3>
-                    <p className="text-sm text-text-secondary mb-ha-5 text-center truncate w-full">{player.mediaArtist || 'Media Player'}</p>
-
-                    <div className="w-full h-1 bg-surface-mid rounded-full mb-ha-5 overflow-hidden">
-                      <div className="bg-ha-blue h-full w-1/3 rounded-full" />
-                    </div>
-
-                    <div className="flex items-center justify-center gap-ha-6 mb-ha-5">
-                      <button onClick={() => callService({ domain: 'media_player', service: 'media_previous_track', target: { entity_id: player.entity_id } })}>
-                        <Icon path={mdiSkipPrevious} size={28} className="text-text-primary hover:text-ha-blue" />
-                      </button>
-                      <button
-                        onClick={() => callService({ domain: 'media_player', service: player.state === 'playing' ? 'media_pause' : 'media_play', target: { entity_id: player.entity_id } })}
-                        className="w-14 h-14 rounded-full bg-ha-blue text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-transform"
-                      >
-                        <Icon path={player.state === 'playing' ? mdiPause : mdiPlay} size={32} />
-                      </button>
-                      <button onClick={() => callService({ domain: 'media_player', service: 'media_next_track', target: { entity_id: player.entity_id } })}>
-                        <Icon path={mdiSkipNext} size={28} className="text-text-primary hover:text-ha-blue" />
-                      </button>
-                    </div>
-
-                    <div className="w-full flex items-center gap-ha-3 text-text-secondary">
-                      <Icon path={mdiVolumeHigh} size={18} />
-                      <div className="flex-1 h-1.5 bg-surface-mid rounded-full overflow-hidden">
-                        <div className="bg-text-secondary h-full w-2/3 rounded-full" />
                       </div>
                     </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
+
+                  {selectedPlayer && (
+                    <motion.button
+                      key="media-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['media-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+
+                  {showPreview && (
+                    <div
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid"
+                      style={{ width: activityWidgetWidths['media-widget'] }}
+                    />
+                  )}
+                </>
               ) : isListView ? (
-                <motion.div
-                  key="media-list"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 16 }}
-                  className="fixed left-1/2 -translate-x-1/2 bottom-edge w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                >
-                  <div className="p-ha-4">
-                    <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                      <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Media Players ({activePlayers.length})</span>
-                      <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                        <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                      </button>
-                    </div>
-                    <div className="space-y-ha-2">
-                      {activePlayers.map(p => (
-                        <button
-                          key={p.entity_id}
-                          onClick={() => setExpandedWidgetId(p.entity_id)}
-                          className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
-                        >
-                          <div className="w-8 h-8 rounded-full bg-fill-primary-normal flex items-center justify-center shrink-0">
-                            {p.entityPicture ? (
-                              <img src={`${haUrl}${p.entityPicture}`} alt="" className="w-full h-full rounded-full object-cover" />
-                            ) : (
-                              <Icon path={mdiPlay} size={16} className="text-ha-blue" />
-                            )}
-                          </div>
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-sm font-medium text-text-primary truncate">{p.mediaTitle || p.name}</span>
-                            <span className="text-xs text-text-secondary truncate">{p.mediaArtist || p.state}</span>
-                          </div>
-                          <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                <>
+                  <motion.div
+                    key="media-list"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed -translate-x-1/2 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
+                    style={activityFlyoutStyles['media-widget']}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4">
+                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Media Players ({activePlayers.length})</span>
+                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
+                          <Icon path={mdiClose} size={18} className="text-text-secondary" />
                         </button>
-                      ))}
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activePlayers.map(p => (
+                          <button
+                            key={p.entity_id}
+                            onClick={() => setExpandedWidgetId(p.entity_id)}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-fill-primary-normal flex items-center justify-center shrink-0">
+                              {p.entityPicture ? (
+                                <img src={getEntityPictureUrl(p.entityPicture)} alt="" className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                <Icon path={mdiPlay} size={16} className="text-ha-blue" />
+                              )}
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{p.mediaTitle || p.name}</span>
+                              <span className="text-xs text-text-secondary truncate">{p.mediaArtist || p.state}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
+
+                  {isExpanded && (
+                    <motion.button
+                      key="media-list-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['media-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
               ) : (
                 <motion.div
                   key="media-collapsed"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  onClick={() => setExpandedWidgetId(activePlayers.length > 1 ? 'list-media' : player.entity_id)}
+                  transition={activityMiniTransition}
+                  onClick={() => openActivityWidget(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')}
                   className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer"
                 >
                   <div className="relative">
                     {player.entityPicture ? (
                       <img
-                        src={`${haUrl}${player.entityPicture}`}
+                        src={getEntityPictureUrl(player.entityPicture)}
                         alt=""
                         className="w-8 h-8 rounded-full object-cover border border-surface-low"
                       />
@@ -677,7 +1109,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </motion.div>
           );
         })()}
 
@@ -686,115 +1118,187 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           const selectedTimer = activeTimers.find(t => t.entity_id === expandedWidgetId);
           const isListView = expandedWidgetId === 'list-timer';
           const timer = selectedTimer || activeTimers[0];
+          const showPreview = hoveredActivityWidget === 'timer-widget' && !expandedWidgetId;
+          const isExpanded = Boolean(selectedTimer || isListView);
           return (
-          <div
+          <motion.div
             key="timer-widget"
+            layout="position"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['timer-widget'] = el; }}
-            className={`relative transition-all duration-300 ${showTimers ? 'opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
+            className="relative"
+            onMouseEnter={() => {
+              if (!expandedWidgetId) {
+                updateActivityFlyoutPosition('timer-widget');
+                setHoveredActivityWidget('timer-widget');
+              }
+            }}
+            onMouseLeave={() => {
+              setHoveredActivityWidget((current) => (current === 'timer-widget' ? null : current));
+            }}
           >
             <AnimatePresence mode="wait">
-              {selectedTimer ? (
-                <motion.div
-                  key="timer-expanded"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 16 }}
-                  className="fixed left-1/2 -translate-x-1/2 bottom-edge w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                >
-                  <div className="p-ha-5 flex flex-col items-center">
-                    <div className="w-full flex justify-between items-center mb-ha-4 pl-1">
-                       <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timer</span>
-                       <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activeTimers.length > 1 ? 'list-timer' : null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={activeTimers.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
-                       </button>
-                    </div>
+              {selectedTimer || showPreview ? (
+                <>
+                  <motion.div
+                    key={showPreview ? 'timer-preview' : 'timer-expanded'}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className={`fixed -translate-x-1/2 w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default ${showPreview ? 'pointer-events-none' : ''}`}
+                    style={activityFlyoutStyles['timer-widget']}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-5 flex flex-col items-center">
+                      <div className="w-full flex justify-between items-center mb-ha-4 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timer</span>
+                        {!showPreview && (
+                          <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activeTimers.length > 1 ? 'list-timer' : null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
+                            <Icon path={activeTimers.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
+                          </button>
+                        )}
+                      </div>
 
-                    <div className="relative mb-ha-5">
-                      <CircularProgress
-                        progress={timerProgress[timer.entity_id] ?? timer.progress}
-                        size={150}
-                        strokeWidth={7}
-                        className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
-                        trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
-                      />
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-3xl font-bold font-mono text-text-primary tracking-tighter">
-                          {timerDisplays[timer.entity_id] || timer.remaining}
-                        </span>
-                        <span className="text-[10px] font-bold text-text-disabled uppercase tracking-widest mt-1">
-                          {timer.state}
-                        </span>
+                      <div className="relative mb-ha-5">
+                        <CircularProgress
+                          progress={timerProgress[timer.entity_id] ?? timer.progress}
+                          size={150}
+                          strokeWidth={7}
+                          className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
+                          trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
+                        />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-3xl font-bold font-mono text-text-primary tracking-tighter">
+                            {timerDisplays[timer.entity_id] || timer.remaining}
+                          </span>
+                          <span className="text-[10px] font-bold text-text-disabled uppercase tracking-widest mt-1">
+                            {timer.state}
+                          </span>
+                        </div>
+                      </div>
+
+                      <h3 className="text-base font-bold text-text-primary mb-ha-5 text-center truncate w-full px-4">{timer.name}</h3>
+
+                      <div className="flex items-center gap-ha-3 w-full">
+                        <button
+                          onClick={() => callService({ domain: 'timer', service: 'cancel', target: { entity_id: timer.entity_id } })}
+                          className="flex-1 h-11 rounded-ha-xl bg-surface-low text-text-secondary font-bold text-xs uppercase tracking-wider hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => callService({ domain: 'timer', service: timer.state === 'active' ? 'pause' : 'start', target: { entity_id: timer.entity_id } })}
+                          className={`flex-1 h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white transition-all shadow-md active:scale-95 ${timer.state === 'active' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-ha-blue hover:bg-ha-blue-dark'}`}
+                        >
+                          {timer.state === 'active' ? 'Pause' : 'Resume'}
+                        </button>
                       </div>
                     </div>
-                    
-                    <h3 className="text-base font-bold text-text-primary mb-ha-5 text-center truncate w-full px-4">{timer.name}</h3>
+                  </motion.div>
 
-                    <div className="flex items-center gap-ha-3 w-full">
-                      <button 
-                        onClick={() => callService({ domain: 'timer', service: 'cancel', target: { entity_id: timer.entity_id } })}
-                        className="flex-1 h-11 rounded-ha-xl bg-surface-low text-text-secondary font-bold text-xs uppercase tracking-wider hover:bg-red-500/10 hover:text-red-500 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button 
-                        onClick={() => callService({ domain: 'timer', service: timer.state === 'active' ? 'pause' : 'start', target: { entity_id: timer.entity_id } })}
-                        className={`flex-1 h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white transition-all shadow-md active:scale-95 ${timer.state === 'active' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-ha-blue hover:bg-ha-blue-dark'}`}
-                      >
-                        {timer.state === 'active' ? 'Pause' : 'Resume'}
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
+                  {selectedTimer && (
+                    <motion.button
+                      key="timer-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
+                      style={{ width: activityWidgetWidths['timer-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+
+                  {showPreview && (
+                    <div
+                      className={`h-12 rounded-ha-pill border ${
+                        timer.state === 'active'
+                          ? 'bg-fill-primary-normal border-fill-primary-quiet'
+                          : 'bg-yellow-95 border-yellow-200'
+                      }`}
+                      style={{ width: activityWidgetWidths['timer-widget'] }}
+                    />
+                  )}
+                </>
               ) : isListView ? (
-                <motion.div
-                  key="timer-list"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 16 }}
-                  className="fixed left-1/2 -translate-x-1/2 bottom-edge w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                >
-                  <div className="p-ha-4">
-                    <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                      <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timers ({activeTimers.length})</span>
-                      <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                        <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                      </button>
-                    </div>
-                    <div className="space-y-ha-2">
-                      {activeTimers.map(t => (
-                        <button
-                          key={t.entity_id}
-                          onClick={() => setExpandedWidgetId(t.entity_id)}
-                          className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
-                        >
-                          <CircularProgress
-                            progress={timerProgress[t.entity_id] ?? t.progress}
-                            size={32}
-                            strokeWidth={2.5}
-                            className={t.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
-                            trackClassName={t.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
-                          >
-                            <Icon path={t.state === 'active' ? mdiTimerOutline : mdiPause} size={14} className={t.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'} />
-                          </CircularProgress>
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-sm font-medium text-text-primary truncate">{t.name}</span>
-                            <span className="text-xs text-text-secondary truncate">{timerDisplays[t.entity_id] || t.remaining}</span>
-                          </div>
-                          <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                <>
+                  <motion.div
+                    key="timer-list"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed -translate-x-1/2 w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
+                    style={activityFlyoutStyles['timer-widget']}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4">
+                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timers ({activeTimers.length})</span>
+                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
+                          <Icon path={mdiClose} size={18} className="text-text-secondary" />
                         </button>
-                      ))}
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activeTimers.map(t => (
+                          <button
+                            key={t.entity_id}
+                            onClick={() => setExpandedWidgetId(t.entity_id)}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={timerProgress[t.entity_id] ?? t.progress}
+                              size={32}
+                              strokeWidth={2.5}
+                              className={t.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
+                              trackClassName={t.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
+                            >
+                              <Icon path={t.state === 'active' ? mdiTimerOutline : mdiPause} size={14} className={t.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'} />
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{t.name}</span>
+                              <span className="text-xs text-text-secondary truncate">{timerDisplays[t.entity_id] || t.remaining}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
+
+                  {isExpanded && (
+                    <motion.button
+                      key="timer-list-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
+                      style={{ width: activityWidgetWidths['timer-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
               ) : (
                 <motion.div
                   key="timer-collapsed"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  onClick={() => setExpandedWidgetId(activeTimers.length > 1 ? 'list-timer' : timer.entity_id)}
+                  transition={activityMiniTransition}
+                  onClick={() => openActivityWidget(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')}
                   className={`flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:opacity-90 ${
                     timer.state === 'active' ? 'bg-fill-primary-normal' : 'bg-yellow-95'
                   }`}
@@ -828,7 +1332,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </motion.div>
           );
         })()}
 
@@ -837,107 +1341,175 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           const selectedCamera = activeCameras.find(c => c.entity_id === expandedWidgetId);
           const isListView = expandedWidgetId === 'list-camera';
           const camera = selectedCamera || activeCameras[0];
+          const showPreview = hoveredActivityWidget === 'camera-widget' && !expandedWidgetId;
+          const isExpanded = Boolean(selectedCamera || isListView);
           return (
-          <div
+          <motion.div
             key="camera-widget"
+            layout="position"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['camera-widget'] = el; }}
-            className={`relative transition-all duration-300 ${showCameras ? 'opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
+            className="relative"
+            onMouseEnter={() => {
+              if (!expandedWidgetId) {
+                updateActivityFlyoutPosition('camera-widget');
+                setHoveredActivityWidget('camera-widget');
+              }
+            }}
+            onMouseLeave={() => {
+              setHoveredActivityWidget((current) => (current === 'camera-widget' ? null : current));
+            }}
           >
             <AnimatePresence mode="wait">
-              {selectedCamera ? (
-                <motion.div
-                  key="camera-expanded"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 16 }}
-                  className="fixed left-1/2 -translate-x-1/2 bottom-edge w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                >
-                  <div className="bg-surface-low p-ha-3 flex items-center justify-between border-b border-surface-low">
-                    <div className="flex items-center gap-2 pl-2">
-                       <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                       <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest pl-1">Live Feed</span>
-                    </div>
-                    <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activeCameras.length > 1 ? 'list-camera' : null); }} className="p-ha-1 hover:bg-surface-mid rounded-full transition-colors">
-                       <Icon path={activeCameras.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
-                    </button>
-                  </div>
-                  <div className="w-full aspect-video bg-black relative">
-                    <img src={camera.entityPicture} alt="" className="w-full h-full object-cover" />
-                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-mono border border-white/10">
-                      LIVE • 2026-02-12 23:38:00
-                    </div>
-                  </div>
-                  <div className="p-ha-4">
-                    <div className="flex items-center gap-ha-3 mb-ha-4">
-                      <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
-                        <Icon path={mdiAccount} size={20} />
+              {selectedCamera || showPreview ? (
+                <>
+                  <motion.div
+                    key={showPreview ? 'camera-preview' : 'camera-expanded'}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className={`fixed -translate-x-1/2 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default ${showPreview ? 'pointer-events-none' : ''}`}
+                    style={activityFlyoutStyles['camera-widget']}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="bg-surface-low p-ha-3 flex items-center justify-between border-b border-surface-low">
+                      <div className="flex items-center gap-2 pl-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest pl-1">Live Feed</span>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-text-primary">{camera.name}</h4>
-                        <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{camera.event}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-ha-3">
-                      <button className="h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all">
-                        <Icon path={mdiMicrophone} size={16} />
-                        Talk
-                      </button>
-                      <button className="h-11 rounded-ha-xl bg-surface-low text-text-primary text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-mid border border-surface-low active:scale-95 transition-all">
-                        <Icon path={mdiVideo} size={16} />
-                        Recordings
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              ) : isListView ? (
-                <motion.div
-                  key="camera-list"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 16 }}
-                  className="fixed left-1/2 -translate-x-1/2 bottom-edge w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                >
-                  <div className="p-ha-4">
-                    <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                      <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest pl-1">Cameras ({activeCameras.length})</span>
-                      <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                        <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                      </button>
-                    </div>
-                    <div className="space-y-ha-2">
-                      {activeCameras.map(c => (
-                        <button
-                          key={c.entity_id}
-                          onClick={() => setExpandedWidgetId(c.entity_id)}
-                          className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
-                        >
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
-                            <img src={c.entityPicture} alt="" className="w-full h-full object-cover" />
-                          </div>
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-sm font-medium text-text-primary truncate">{c.name}</span>
-                            <span className="text-xs text-red-500 truncate">{c.event}</span>
-                          </div>
-                          <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                      {!showPreview && (
+                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activeCameras.length > 1 ? 'list-camera' : null); }} className="p-ha-1 hover:bg-surface-mid rounded-full transition-colors">
+                          <Icon path={activeCameras.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
                         </button>
-                      ))}
+                      )}
                     </div>
-                  </div>
-                </motion.div>
+                    <div className="w-full aspect-video bg-black relative">
+                      <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
+                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-mono border border-white/10">
+                        LIVE • 2026-02-12 23:38:00
+                      </div>
+                    </div>
+                    <div className="p-ha-4">
+                      <div className="flex items-center gap-ha-3 mb-ha-4">
+                        <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
+                          <Icon path={mdiAccount} size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-text-primary">{camera.name}</h4>
+                          <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{camera.event}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-ha-3">
+                        <button className="h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all">
+                          <Icon path={mdiMicrophone} size={16} />
+                          Talk
+                        </button>
+                        <button className="h-11 rounded-ha-xl bg-surface-low text-text-primary text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-mid border border-surface-low active:scale-95 transition-all">
+                          <Icon path={mdiVideo} size={16} />
+                          Recordings
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {selectedCamera && (
+                    <motion.button
+                      key="camera-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      style={{ width: activityWidgetWidths['camera-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+
+                  {showPreview && (
+                    <div
+                      className="h-12 rounded-ha-pill bg-red-500/10 border border-red-500/20"
+                      style={{ width: activityWidgetWidths['camera-widget'] }}
+                    />
+                  )}
+                </>
+              ) : isListView ? (
+                <>
+                  <motion.div
+                    key="camera-list"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed -translate-x-1/2 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
+                    style={activityFlyoutStyles['camera-widget']}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4">
+                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest pl-1">Cameras ({activeCameras.length})</span>
+                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
+                          <Icon path={mdiClose} size={18} className="text-text-secondary" />
+                        </button>
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activeCameras.map(c => (
+                          <button
+                            key={c.entity_id}
+                            onClick={() => setExpandedWidgetId(c.entity_id)}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
+                              <img src={getEntityPictureUrl(c.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{c.name}</span>
+                              <span className="text-xs text-red-500 truncate">{c.event}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {isExpanded && (
+                    <motion.button
+                      key="camera-list-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      style={{ width: activityWidgetWidths['camera-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
               ) : (
                 <motion.div
                   key="camera-collapsed"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  onClick={() => setExpandedWidgetId(activeCameras.length > 1 ? 'list-camera' : camera.entity_id)}
+                  transition={activityMiniTransition}
+                  onClick={() => openActivityWidget(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')}
                   className="flex items-center gap-ha-3 bg-red-500/10 border border-red-500/20 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:bg-red-500/20"
                 >
                   <div className="relative w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
                     <img 
-                      src={camera.entityPicture} 
+                      src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} 
                       alt="" 
                       className="w-full h-full object-cover animate-pulse"
                     />
@@ -958,7 +1530,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </motion.div>
           );
         })()}
 
@@ -967,127 +1539,195 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           const selectedPrinter = activePrinters.find(p => p.entity_id === expandedWidgetId);
           const isListView = expandedWidgetId === 'list-printer';
           const printer = selectedPrinter || activePrinters[0];
+          const showPreview = hoveredActivityWidget === 'printer-widget' && !expandedWidgetId;
+          const isExpanded = Boolean(selectedPrinter || isListView);
           return (
-          <div
+          <motion.div
             key="printer-widget"
+            layout="position"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['printer-widget'] = el; }}
-            className={`relative transition-all duration-300 ${showPrinters ? 'opacity-100' : 'translate-y-full opacity-0 pointer-events-none'}`}
+            className="relative"
+            onMouseEnter={() => {
+              if (!expandedWidgetId) {
+                updateActivityFlyoutPosition('printer-widget');
+                setHoveredActivityWidget('printer-widget');
+              }
+            }}
+            onMouseLeave={() => {
+              setHoveredActivityWidget((current) => (current === 'printer-widget' ? null : current));
+            }}
           >
             <AnimatePresence mode="wait">
-              {selectedPrinter ? (
-                <motion.div
-                  key="printer-expanded"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 16 }}
-                  className="fixed left-1/2 -translate-x-1/2 bottom-edge w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                >
-                  <div className="p-ha-4 flex flex-col items-center">
-                    <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                       <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printer</span>
-                       <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activePrinters.length > 1 ? 'list-printer' : null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={activePrinters.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
-                       </button>
-                    </div>
+              {selectedPrinter || showPreview ? (
+                <>
+                  <motion.div
+                    key={showPreview ? 'printer-preview' : 'printer-expanded'}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className={`fixed -translate-x-1/2 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default ${showPreview ? 'pointer-events-none' : ''}`}
+                    style={activityFlyoutStyles['printer-widget']}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printer</span>
+                        {!showPreview && (
+                          <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activePrinters.length > 1 ? 'list-printer' : null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
+                            <Icon path={activePrinters.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
+                          </button>
+                        )}
+                      </div>
 
-                    <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
-                      <img src={printer.entityPicture} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
-                         <Icon path={mdiLayers} size={14} className="text-ha-blue" />
-                         <span className="text-[10px] font-bold text-white font-mono">Layer 142/208</span>
+                      <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
+                        <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
+                          <Icon path={mdiLayers} size={14} className="text-ha-blue" />
+                          <span className="text-[10px] font-bold text-white font-mono">Layer 142/208</span>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="w-full mb-ha-4 px-2">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-bold text-text-primary truncate">{printer.fileName}</h3>
-                        <span className="text-xs font-mono text-ha-blue font-bold">{printer.progress}%</span>
+                      <div className="w-full mb-ha-4 px-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-bold text-text-primary truncate">{printer.fileName}</h3>
+                          <span className="text-xs font-mono text-ha-blue font-bold">{printer.progress}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${printer.progress}%` }}
+                            className="bg-ha-blue h-full rounded-full"
+                          />
+                        </div>
                       </div>
-                      <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
-                         <motion.div 
-                           initial={{ width: 0 }}
-                           animate={{ width: `${printer.progress}%` }}
-                           className="bg-ha-blue h-full rounded-full" 
-                         />
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
-                      <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
-                         <Icon path={mdiThermometer} size={18} className="text-red-500" />
-                         <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
-                         <span className="text-sm font-bold text-text-primary font-mono">215°C</span>
+                      <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
+                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
+                          <Icon path={mdiThermometer} size={18} className="text-red-500" />
+                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
+                          <span className="text-sm font-bold text-text-primary font-mono">215°C</span>
+                        </div>
+                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
+                          <Icon path={mdiThermometer} size={18} className="text-ha-blue" />
+                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
+                          <span className="text-sm font-bold text-text-primary font-mono">60°C</span>
+                        </div>
                       </div>
-                      <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
-                         <Icon path={mdiThermometer} size={18} className="text-ha-blue" />
-                         <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
-                         <span className="text-sm font-bold text-text-primary font-mono">60°C</span>
-                      </div>
-                    </div>
 
-                    <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
-                      <div className="flex flex-col pl-1">
-                        <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
-                        <span className="text-sm font-mono font-bold text-text-primary">{printer.remainingTime}</span>
-                      </div>
-                      <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
-                        <Icon path={mdiStop} size={18} />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              ) : isListView ? (
-                <motion.div
-                  key="printer-list"
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 16 }}
-                  className="fixed left-1/2 -translate-x-1/2 bottom-edge w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                >
-                  <div className="p-ha-4">
-                    <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                      <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printers ({activePrinters.length})</span>
-                      <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                        <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                      </button>
-                    </div>
-                    <div className="space-y-ha-2">
-                      {activePrinters.map(p => (
-                        <button
-                          key={p.entity_id}
-                          onClick={() => setExpandedWidgetId(p.entity_id)}
-                          className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
-                        >
-                          <CircularProgress
-                            progress={p.progress / 100}
-                            size={32}
-                            strokeWidth={2.5}
-                            className="text-ha-blue shrink-0"
-                            trackClassName="text-fill-primary-quiet"
-                          >
-                            <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
-                              <img src={p.entityPicture} alt="" className="w-full h-full object-cover" />
-                            </div>
-                          </CircularProgress>
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="text-sm font-medium text-text-primary truncate">{p.fileName}</span>
-                            <span className="text-xs text-text-secondary truncate font-mono">{p.progress}% • {p.remainingTime}</span>
-                          </div>
-                          <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                      <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
+                        <div className="flex flex-col pl-1">
+                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
+                          <span className="text-sm font-mono font-bold text-text-primary">{printer.remainingTime}</span>
+                        </div>
+                        <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
+                          <Icon path={mdiStop} size={18} />
                         </button>
-                      ))}
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
+
+                  {selectedPrinter && (
+                    <motion.button
+                      key="printer-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['printer-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+
+                  {showPreview && (
+                    <div
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid"
+                      style={{ width: activityWidgetWidths['printer-widget'] }}
+                    />
+                  )}
+                </>
+              ) : isListView ? (
+                <>
+                  <motion.div
+                    key="printer-list"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed -translate-x-1/2 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
+                    style={activityFlyoutStyles['printer-widget']}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4">
+                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printers ({activePrinters.length})</span>
+                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
+                          <Icon path={mdiClose} size={18} className="text-text-secondary" />
+                        </button>
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activePrinters.map(p => (
+                          <button
+                            key={p.entity_id}
+                            onClick={() => setExpandedWidgetId(p.entity_id)}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={p.progress / 100}
+                              size={32}
+                              strokeWidth={2.5}
+                              className="text-ha-blue shrink-0"
+                              trackClassName="text-fill-primary-quiet"
+                            >
+                              <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
+                                <img src={getEntityPictureUrl(p.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{p.fileName}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{p.progress}% • {p.remainingTime}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {isExpanded && (
+                    <motion.button
+                      key="printer-list-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['printer-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
               ) : (
                 <motion.div
                   key="printer-collapsed"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  onClick={() => setExpandedWidgetId(activePrinters.length > 1 ? 'list-printer' : printer.entity_id)}
+                  transition={activityMiniTransition}
+                  onClick={() => openActivityWidget(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')}
                   className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:bg-surface-mid"
                 >
                   <div className="relative">
@@ -1104,7 +1744,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     trackClassName="text-fill-primary-quiet"
                   >
                     <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
-                      <img src={printer.entityPicture} alt="" className="w-full h-full object-cover" />
+                      <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
                     </div>
                   </CircularProgress>
                   </div>
@@ -1126,9 +1766,10 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </motion.div>
           );
         })()}
+          </AnimatePresence>
            </div>
            {/* Right Gradient */}
            <div 
@@ -1234,7 +1875,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                             {activeUpdates.map(update => (
                                 <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-xl transition-colors cursor-pointer group">
                                     <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-110 transition-transform">
-                                        {update.picture ? <img src={`${haUrl}${update.picture}`} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
+                                        {update.picture ? <img src={getEntityPictureUrl(update.picture)} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
                                     </div>
                                     <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
                                     <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
@@ -1351,15 +1992,17 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           {/* Time with stacked AM/PM */}
           <div className="flex items-center gap-ha-1">
             <span className="text-base font-semibold text-text-primary tabular-nums" style={{ fontFamily: 'system-ui' }}>
-              {currentTime.split(':')[0]}
+              {currentTime.hours}
               <span className={colonVisible ? 'opacity-100' : 'opacity-0'}>:</span>
-              {currentTime.split(':')[1]}
+              {currentTime.minutes}
             </span>
             <div className="flex items-center gap-ha-1">
-              <div className="flex flex-col text-[9px] font-medium leading-tight">
-                <span className={isAM ? 'text-text-primary' : 'text-text-disabled'}>AM</span>
-                <span className={!isAM ? 'text-text-primary' : 'text-text-disabled'}>PM</span>
-              </div>
+              {!use24HourClock && (
+                <div className="flex flex-col text-[9px] font-medium leading-tight">
+                  <span className={isAM ? 'text-text-primary' : 'text-text-disabled'}>AM</span>
+                  <span className={!isAM ? 'text-text-primary' : 'text-text-disabled'}>PM</span>
+                </div>
+              )}
               {/* Connection status dot - next to AM/PM */}
               {connectionStatus && (
                   <div
