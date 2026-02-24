@@ -22,9 +22,7 @@ interface MdiIconProps {
 
 export function MdiIcon({ icon, size = 24, className }: MdiIconProps) {
   const [path, setPath] = useState<string | null>(null);
-
-  // Normalize icon name (remove "mdi:" prefix if present)
-  const iconName = icon.replace(/^mdi:/, '');
+  const iconName = icon.replace(/^mdi:/, '').trim();
 
   useEffect(() => {
     // Check bundled icons first
@@ -42,13 +40,10 @@ export function MdiIcon({ icon, size = 24, className }: MdiIconProps) {
     // Try to dynamically import from @mdi/js
     const loadIcon = async () => {
       try {
-        // Convert kebab-case to PascalCase for the import
         const pascalName = 'mdi' + iconName
           .split('-')
           .map(part => part.charAt(0).toUpperCase() + part.slice(1))
           .join('');
-
-        // Dynamic import
         const mdiModule = await import('@mdi/js');
         const iconPath = (mdiModule as unknown as Record<string, string>)[pascalName];
 
@@ -56,7 +51,6 @@ export function MdiIcon({ icon, size = 24, className }: MdiIconProps) {
           iconCache[iconName] = iconPath;
           setPath(iconPath);
         } else {
-          // Fallback to help icon
           setPath(mdiHelp);
         }
       } catch {

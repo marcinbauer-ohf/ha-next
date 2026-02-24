@@ -237,7 +237,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: (href: string) => void } 
                       'w-12 h-12 flex-shrink-0 rounded-ha-xl transition-colors flex items-center justify-center',
                       isActive
                          ? (item.isApp ? 'bg-ha-blue' : 'bg-fill-primary-normal')
-                         : (item.isApp && palette ? palette.bg : 'hover:bg-surface-low')
+                         : (item.isApp && palette ? palette.bg : 'hover:bg-surface-low'),
+                      item.isApp && 'ha-app-icon-shell',
+                      item.isApp && isActive && 'ha-app-icon-shell-active'
                     )}
                   >
                     {isHome ? (
@@ -249,7 +251,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: (href: string) => void } 
                         className={clsx(
                           isActive
                             ? item.isApp ? 'text-white' : 'text-ha-blue'
-                            : item.isApp && palette ? palette.text : 'text-text-secondary'
+                            : item.isApp && palette ? palette.text : 'text-text-secondary',
+                          item.isApp && 'ha-app-icon-glyph'
                         )}
                       />
                     )}

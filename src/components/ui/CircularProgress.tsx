@@ -20,8 +20,8 @@ export function CircularProgress({
   const offset = circumference - progress * circumference;
 
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="rotate-[-90deg]">
+    <div className="relative inline-flex shrink-0 items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="block rotate-[-90deg]">
         {/* Track */}
         <circle
           cx={size / 2}
@@ -46,7 +46,7 @@ export function CircularProgress({
       </svg>
       {/* Center content */}
       {children && (
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center leading-none">
           {children}
         </div>
       )}

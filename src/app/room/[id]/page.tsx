@@ -400,14 +400,6 @@ export default function RoomPage({ params }: RoomPageProps) {
         </div>
       </div>
 
-      {/* Mobile floating back arrow - near bottom bar */}
-      <Link
-        href="/"
-        className="lg:hidden fixed bottom-40 left-3 z-40 w-10 h-10 rounded-full bg-surface-default/80 backdrop-blur-sm shadow-lg flex items-center justify-center text-text-tertiary active:scale-90 transition-transform"
-      >
-        <Icon path={mdiArrowLeft} size={20} />
-      </Link>
-
       {/* Mobile Bottom Sheet */}
       <div
         className={`lg:hidden fixed inset-0 z-[60] transition-opacity duration-300 ${

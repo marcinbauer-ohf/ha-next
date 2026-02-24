@@ -443,12 +443,14 @@ export function PullToRevealPanel() {
                             {/* App-style icon with rounded background */}
                             <div className={clsx(
                               'w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors',
-                              isActive ? 'bg-ha-blue' : palette.bg
+                              isActive ? 'bg-ha-blue' : palette.bg,
+                              'ha-app-icon-shell',
+                              isActive && 'ha-app-icon-shell-active'
                             )}>
                               <MdiIcon
                                 icon={app.icon || 'mdi:application'}
                                 size={26}
-                                className={isActive ? 'text-white' : palette.text}
+                                className={clsx(isActive ? 'text-white' : palette.text, 'ha-app-icon-glyph')}
                               />
                             </div>
                             <span
@@ -474,7 +476,7 @@ export function PullToRevealPanel() {
                     ref={revealedHandleRef}
                     className="h-6 w-12 -my-2 flex items-center justify-center touch-none"
                   >
-                    <div className="w-8 h-1 rounded-full bg-text-secondary/60" />
+                    <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
                   </div>
                 </div>
             </div>
@@ -484,7 +486,7 @@ export function PullToRevealPanel() {
               ref={collapsedHandleRef}
               className="flex justify-center py-1 cursor-grab active:cursor-grabbing select-none flex-shrink-0"
             >
-              <div className="w-8 h-1 rounded-full bg-text-secondary/60" />
+              <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
             </div>
           )}
         </div>

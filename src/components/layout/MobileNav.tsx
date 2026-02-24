@@ -14,6 +14,7 @@ import { useHomeAssistant, useSidebarItems } from '@/hooks';
 import { usePullToRevealContext, useSearchContext } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
+  mdiArrowLeft,
   mdiMagnify,
   mdiUpdate,
   mdiBell,
@@ -88,6 +89,18 @@ interface MobileNavProps {
   onNavAutoHiddenChange?: (progress: number) => void;
 }
 
+function getDashboardScrollableForPath(pathname: string): HTMLElement | null {
+  if (typeof document === 'undefined') return null;
+
+  const routeContainers = Array.from(document.querySelectorAll<HTMLElement>('[data-route-pathname]'));
+  const activeRouteContainer = routeContainers.find(
+    (container) => container.dataset.routePathname === pathname
+  );
+
+  if (!activeRouteContainer) return null;
+  return activeRouteContainer.querySelector<HTMLElement>('[data-scrollable="dashboard"]');
+}
+
 export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAutoHiddenChange }: MobileNavProps) {
   const pathname = usePathname();
   const { entities, haUrl, callService } = useHomeAssistant();
@@ -105,6 +118,8 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   const [showActivityListTopGradient, setShowActivityListTopGradient] = useState(false);
   const [showActivityListBottomGradient, setShowActivityListBottomGradient] = useState(false);
   const [statusExpanded, setStatusExpanded] = useState(false);
+  const [isBottomSheetDragging, setIsBottomSheetDragging] = useState(false);
+  const [bottomSheetDragProgress, setBottomSheetDragProgress] = useState(0);
   const [expandedSurfaceTab, setExpandedSurfaceTab] = useState<BottomSurfaceTab>('dashboards');
   const [expandedSearchQuery, setExpandedSearchQuery] = useState('');
   const [expandedWidgetId, setExpandedWidgetId] = useState<string | null>(null);
@@ -131,10 +146,18 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   const activityListScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomSheetTouchStartY = useRef<number | null>(null);
   const bottomSheetPullDistance = useRef(0);
+  const bottomSheetDragProgressRef = useRef(0);
   const isDashboardsActive = expandedSurfaceTab === 'dashboards';
   const isSearchActive = expandedSurfaceTab === 'search' || searchOpen;
   const isSettingsActive = expandedSurfaceTab === 'settings';
-  const effectiveHideProgress = disableAutoHide || isRevealed || statusExpanded
+  const showHomeBackButton =
+    pathname.startsWith('/room/') ||
+    pathname.startsWith('/dashboard/') ||
+    pathname.startsWith('/panel/');
+  const isBottomSurfaceEngaged = statusExpanded || isBottomSheetDragging;
+  const sheetOpenProgress = isBottomSheetDragging ? bottomSheetDragProgress : (statusExpanded ? 1 : 0);
+  const isSheetVisible = sheetOpenProgress > 0.001;
+  const effectiveHideProgress = disableAutoHide || isRevealed || isBottomSurfaceEngaged
     ? 0
     : hideFromInactivity
       ? 1
@@ -150,6 +173,12 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     const clamped = Math.max(0, Math.min(1, nextProgress));
     scrollHideProgressRef.current = clamped;
     setScrollHideProgress((prev) => (Math.abs(prev - clamped) < 0.001 ? prev : clamped));
+  }, []);
+
+  const setBottomSheetDragProgressClamped = useCallback((nextProgress: number) => {
+    const clamped = Math.max(0, Math.min(1, nextProgress));
+    bottomSheetDragProgressRef.current = clamped;
+    setBottomSheetDragProgress((prev) => (Math.abs(prev - clamped) < 0.001 ? prev : clamped));
   }, []);
 
   useEffect(() => {
@@ -182,7 +211,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       clearWheelEndTimer();
     };
 
-    if (disableAutoHide || isRevealed || statusExpanded) {
+    if (disableAutoHide || isRevealed || isBottomSurfaceEngaged) {
       resetInteractionState();
       queueMicrotask(() => {
         setClampedHideProgress(0);
@@ -315,7 +344,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     };
 
     const attach = () => {
-      const nextScrollable = document.querySelector('[data-scrollable="dashboard"]') as HTMLElement | null;
+      const nextScrollable = getDashboardScrollableForPath(pathname);
       if (!nextScrollable) return false;
       scrollable = nextScrollable;
       resetInteractionState();
@@ -358,18 +387,19 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       document.removeEventListener('pointercancel', handlePointerUpOrCancel);
       resetInteractionState();
     };
-  }, [disableAutoHide, isRevealed, pathname, setClampedHideProgress, statusExpanded]);
+  }, [disableAutoHide, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
 
   // Inactivity detection for hiding bottom row after 10s
   useEffect(() => {
-    if (disableAutoHide || isRevealed || statusExpanded) {
+    if (disableAutoHide || isRevealed || isBottomSurfaceEngaged) {
       queueMicrotask(() => {
         setHideFromInactivity(false);
       });
       return;
     }
 
-    const scrollable = document.querySelector('[data-scrollable="dashboard"]') as HTMLElement | null;
+    let scrollable: HTMLElement | null = null;
+    let attachRetryRaf: number | null = null;
 
     const resetInactivityTimer = () => {
       if (inactivityTimer.current) {
@@ -379,7 +409,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       setHideFromInactivity((hidden) => (hidden ? false : hidden));
 
       inactivityTimer.current = setTimeout(() => {
-        if (!isRevealed && !statusExpanded) {
+        if (!isRevealed && !isBottomSurfaceEngaged) {
           setHideFromInactivity(true);
           setClampedHideProgress(1);
         }
@@ -395,14 +425,33 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       document.addEventListener(event, resetInactivityTimer, { passive: true });
     });
 
-    // Also listen to scroll on the dashboard element
-    if (scrollable) {
+    // Attach scroll listener once the active route's scrollable area is mounted.
+    const attachScrollable = () => {
+      const nextScrollable = getDashboardScrollableForPath(pathname);
+      if (!nextScrollable) return false;
+      scrollable = nextScrollable;
       scrollable.addEventListener('scroll', resetInactivityTimer, { passive: true });
-    }
+      return true;
+    };
+
+    let attempts = 0;
+    const maxAttempts = 45;
+    const tryAttach = () => {
+      if (attachScrollable()) return;
+      attempts += 1;
+      if (attempts <= maxAttempts) {
+        attachRetryRaf = requestAnimationFrame(tryAttach);
+      }
+    };
+
+    tryAttach();
 
     return () => {
       if (inactivityTimer.current) {
         clearTimeout(inactivityTimer.current);
+      }
+      if (attachRetryRaf !== null) {
+        cancelAnimationFrame(attachRetryRaf);
       }
       events.forEach(event => {
         document.removeEventListener(event, resetInactivityTimer);
@@ -411,7 +460,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         scrollable.removeEventListener('scroll', resetInactivityTimer);
       }
     };
-  }, [disableAutoHide, isRevealed, pathname, setClampedHideProgress, statusExpanded]);
+  }, [disableAutoHide, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
 
   // Bottom-edge gradient: shown only when dashboard content continues below the fold
   useEffect(() => {
@@ -437,7 +486,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     const handleResize = () => updateBottomEdgeGradient();
 
     const attach = () => {
-      const nextScrollable = document.querySelector('[data-scrollable="dashboard"]') as HTMLElement | null;
+      const nextScrollable = getDashboardScrollableForPath(pathname);
       if (!nextScrollable) return false;
 
       scrollable = nextScrollable;
@@ -582,6 +631,11 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   }, [activityListType]);
 
   const closeExpandedSurface = useCallback(() => {
+    setIsBottomSheetDragging(false);
+    setBottomSheetDragProgress(0);
+    bottomSheetDragProgressRef.current = 0;
+    bottomSheetTouchStartY.current = null;
+    bottomSheetPullDistance.current = 0;
     setStatusExpanded(false);
     setExpandedWidgetId(null);
     setExpandedWidgetType(null);
@@ -594,6 +648,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         closeExpandedSurface();
         return;
       }
+      setIsBottomSheetDragging(false);
+      setBottomSheetDragProgress(0);
+      bottomSheetDragProgressRef.current = 0;
       if (isRevealed) close();
       if (searchOpen) closeSearch();
       setActivityListType(null);
@@ -615,6 +672,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
   const openWidgetSurface = useCallback(
     (type: WidgetSurfaceType, entityId: string) => {
+      setIsBottomSheetDragging(false);
+      setBottomSheetDragProgress(0);
+      bottomSheetDragProgressRef.current = 0;
       if (isRevealed) close();
       if (searchOpen) closeSearch();
       setActivityListType(null);
@@ -669,7 +729,10 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     const handle = bottomSheetHandleRef.current;
     if (!handle) return;
 
-    const threshold = statusExpanded ? 80 : 70;
+    const getDragRangePx = () => {
+      if (typeof window === 'undefined') return 280;
+      return Math.max(180, Math.min(380, window.innerHeight * 0.35));
+    };
 
     const reset = () => {
       bottomSheetTouchStartY.current = null;
@@ -677,42 +740,64 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     };
 
     const onTouchStart = (e: TouchEvent) => {
-      bottomSheetTouchStartY.current = e.touches[0].clientY;
+      const touch = e.touches[0];
+      if (!touch) return;
+      bottomSheetTouchStartY.current = touch.clientY;
       bottomSheetPullDistance.current = 0;
+      setIsBottomSheetDragging(true);
+      setBottomSheetDragProgressClamped(statusExpanded ? 1 : 0);
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (bottomSheetTouchStartY.current === null) return;
-      const currentY = e.touches[0].clientY;
+      const touch = e.touches[0];
+      if (!touch) return;
+      const currentY = touch.clientY;
+      const deltaY = currentY - bottomSheetTouchStartY.current;
+      const dragRange = getDragRangePx();
 
       if (statusExpanded) {
-        const downwardPull = currentY - bottomSheetTouchStartY.current;
+        const downwardPull = Math.max(0, deltaY);
+        bottomSheetPullDistance.current = downwardPull;
+        setBottomSheetDragProgressClamped(1 - downwardPull / dragRange);
         if (downwardPull > 0) {
           if (e.cancelable) e.preventDefault();
-          bottomSheetPullDistance.current = downwardPull;
         }
       } else {
-        const upwardPull = bottomSheetTouchStartY.current - currentY;
+        const upwardPull = Math.max(0, -deltaY);
+        bottomSheetPullDistance.current = upwardPull;
+        setBottomSheetDragProgressClamped(upwardPull / dragRange);
         if (upwardPull > 0) {
           if (e.cancelable) e.preventDefault();
-          bottomSheetPullDistance.current = upwardPull;
         }
       }
     };
 
     const onTouchEnd = () => {
       if (bottomSheetTouchStartY.current === null) return;
-      if (bottomSheetPullDistance.current >= threshold) {
-        if (statusExpanded) {
-          closeExpandedSurface();
-        } else {
+      const nextOpen = statusExpanded
+        ? bottomSheetDragProgressRef.current > 0.5
+        : bottomSheetDragProgressRef.current >= 0.35;
+
+      if (nextOpen) {
+        if (!statusExpanded) {
           openExpandedSurface(expandedSurfaceTab);
         }
+      } else {
+        closeExpandedSurface();
       }
       reset();
+      requestAnimationFrame(() => {
+        setIsBottomSheetDragging(false);
+        setBottomSheetDragProgressClamped(0);
+      });
     };
 
-    const onTouchCancel = () => reset();
+    const onTouchCancel = () => {
+      reset();
+      setIsBottomSheetDragging(false);
+      setBottomSheetDragProgressClamped(0);
+    };
 
     handle.addEventListener('touchstart', onTouchStart, { passive: true });
     handle.addEventListener('touchmove', onTouchMove, { passive: false });
@@ -725,7 +810,13 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       handle.removeEventListener('touchend', onTouchEnd);
       handle.removeEventListener('touchcancel', onTouchCancel);
     };
-  }, [closeExpandedSurface, openExpandedSurface, expandedSurfaceTab, statusExpanded]);
+  }, [
+    closeExpandedSurface,
+    expandedSurfaceTab,
+    openExpandedSurface,
+    setBottomSheetDragProgressClamped,
+    statusExpanded,
+  ]);
 
 
 
@@ -1145,14 +1236,14 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                     title={app.title}
                   >
                     <div
-                      className={`w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors ${
+                      className={`w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors ha-app-icon-shell ${
                         isActive ? 'bg-ha-blue' : palette.bg
-                      }`}
+                      } ${isActive ? 'ha-app-icon-shell-active' : ''}`}
                     >
                       <MdiIcon
                         icon={app.icon || 'mdi:application'}
                         size={26}
-                        className={isActive ? 'text-white' : palette.text}
+                        className={`${isActive ? 'text-white' : palette.text} ha-app-icon-glyph`}
                       />
                     </div>
                     <span
@@ -1585,17 +1676,20 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       }}
     >
       <div
-        className={`pointer-events-none absolute inset-x-0 bottom-0 h-[calc(9rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-surface-default/80 via-surface-default/35 to-transparent transition-opacity duration-300 ${
-          showBottomEdgeGradient ? 'opacity-100' : 'opacity-0'
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-[calc(9rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-black/45 via-black/18 to-transparent transition-opacity duration-300 ${
+          showBottomEdgeGradient ? 'opacity-80' : 'opacity-55'
         }`}
       />
       <button
         type="button"
         aria-label="Close expanded panel"
         onClick={closeExpandedSurface}
-        className={`fixed inset-0 bg-black/45 backdrop-blur-[1px] transition-opacity duration-300 ${
-          statusExpanded ? 'opacity-100 z-0' : 'opacity-0 pointer-events-none -z-10'
+        className={`fixed inset-0 bg-black/45 backdrop-blur-[1px] ${
+          isSheetVisible ? 'z-0' : '-z-10'
+        } ${
+          statusExpanded && !isBottomSheetDragging ? '' : 'pointer-events-none'
         }`}
+        style={{ opacity: isSheetVisible ? 1 : 0 }}
       />
       <div className="relative z-10 px-edge">
         <div className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] max-h-[calc(100dvh-4rem)] overflow-hidden">
@@ -1605,16 +1699,24 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                 <button
                   ref={bottomSheetHandleRef}
                   type="button"
-                  aria-label={statusExpanded ? 'Collapse bottom panel' : 'Expand bottom panel'}
+                  aria-label={sheetOpenProgress > 0.5 ? 'Collapse bottom panel' : 'Expand bottom panel'}
                   onClick={() => (statusExpanded ? closeExpandedSurface() : openExpandedSurface(expandedSurfaceTab))}
                   className="h-4 w-10 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none"
                 >
-                  <span className="w-7 h-1 rounded-full bg-text-secondary/60" />
+                  <span className="w-7 h-1 rounded-full bg-text-secondary/30" />
                 </button>
               </div>
-              <div className={`overflow-hidden flex flex-col transition-all duration-300 ease-out ${
-                statusExpanded ? 'h-[calc(100dvh-4rem-10rem)] opacity-100 mb-ha-1' : 'h-0 opacity-0 pointer-events-none mb-0'
-              }`}>
+              <div
+                className={`overflow-hidden flex flex-col ${
+                  isBottomSheetDragging ? 'transition-none' : 'transition-[height,opacity,margin] duration-300 ease-out'
+                } ${
+                  isSheetVisible ? 'mb-ha-1' : 'mb-0 pointer-events-none'
+                }`}
+                style={{
+                  height: `calc((100dvh - 4rem - 10rem) * ${sheetOpenProgress})`,
+                  opacity: Math.max(0, Math.min(1, sheetOpenProgress * 1.05)),
+                }}
+              >
                 {expandedSurfaceTab !== 'search' && (
                   <div className="flex-none flex items-center justify-between px-ha-1 py-ha-2 border-b border-surface-low">
                     <h3 className="font-semibold text-text-primary">
@@ -1649,6 +1751,15 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
               </div>
         {/* Top row: Ask your home + Media + Timer + Status */}
         <div className="flex items-center gap-ha-2">
+          {showHomeBackButton && (
+            <Link
+              href="/"
+              aria-label="Back to Home"
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-ha-blue/15 text-ha-blue ring-1 ring-ha-blue/30 shadow-[0_8px_16px_-12px_rgba(3,169,244,0.9)] active:scale-95 transition-transform"
+            >
+              <Icon path={mdiArrowLeft} size={20} />
+            </Link>
+          )}
           {/* Ask your home */}
           <div className="flex-1 min-w-0 h-10 relative">
             <button
@@ -2095,14 +2206,14 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
           <div className="fixed inset-0 z-[100] flex flex-col justify-end lg:hidden">
             {/* Backdrop */}
             <div
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
               onClick={() => setActivityListType(null)}
             />
             {/* Sheet */}
             <div className="relative bg-surface-default w-full rounded-t-ha-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[70vh]">
               {/* Handle */}
               <div className="flex justify-center pt-ha-3 pb-ha-1 flex-shrink-0" onClick={() => setActivityListType(null)}>
-                <div className="w-10 h-1.5 rounded-full bg-surface-low" />
+                <div className="w-10 h-1.5 rounded-full bg-surface-low/60" />
               </div>
               {/* Header */}
               <div className="flex items-center justify-between px-ha-4 py-ha-3 border-b border-surface-low flex-shrink-0">

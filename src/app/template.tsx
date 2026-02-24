@@ -17,6 +17,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.25, ease: 'easeOut' }}
         className="h-full w-full flex flex-col"
+        data-route-pathname={pathname}
         style={immersiveMode ? { transform: 'none', filter: 'none' } : undefined}
       >
         {children}

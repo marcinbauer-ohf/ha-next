@@ -17,7 +17,7 @@ export function SimulationListModal({ isOpen, onClose, title, items, onRemove }:
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div 
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" 
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
         onClick={onClose}
       />
       <div className="relative bg-surface-default rounded-ha-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-200">

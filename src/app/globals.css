@@ -57,6 +57,11 @@
   --ha-radius-pill: 9999px;
 }
 
+/* Default Theme Typography */
+[data-theme="default"] {
+  --ha-font-family-base: var(--font-inter), "Inter", system-ui, sans-serif;
+}
+
 /* Dark Mode (Default Theme) */
 [data-mode="dark"] {
   /* HA Surface Colors - Dark */
@@ -651,7 +656,7 @@
   background-color: var(--ha-color-surface-default) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border: 1px solid var(--ha-color-text-secondary) !important;
+  border: none !important;
   box-shadow: none !important;
 }
 
@@ -793,8 +798,22 @@
   background: var(--ha-color-surface-default) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border: 1px solid var(--ha-color-text-secondary) !important;
+  border: none !important;
   box-shadow: none !important;
+}
+
+/* E-Ink app icons: force monochrome, high-contrast glyphs */
+[data-theme="eink"] .ha-app-icon-shell {
+  background-color: var(--ha-color-fill-primary-normal) !important;
+  opacity: 0.82;
+}
+
+[data-theme="eink"] .ha-app-icon-shell.ha-app-icon-shell-active {
+  opacity: 1;
+}
+
+[data-theme="eink"] .ha-app-icon-glyph {
+  color: var(--ha-color-surface-default) !important;
 }
 
 [data-theme="eink"] [data-component="dashboard-surface"] {
@@ -837,6 +856,10 @@
   color: #ffffff !important;
 }
 
+[data-theme="eink"][data-mode="light"] :is(.bg-fill-primary-normal, .bg-fill-danger-normal, .bg-fill-success-normal, .bg-yellow-95, .bg-fill-primary-quiet) :is(.ha-icon, .text-ha-blue, .text-red-600, .text-green-600, .text-yellow-600) {
+  color: #ffffff !important;
+}
+
 [data-theme="eink"][data-mode="dark"] .bg-fill-primary-normal,
 [data-theme="eink"][data-mode="dark"] .bg-fill-danger-normal,
 [data-theme="eink"][data-mode="dark"] .bg-fill-success-normal,
@@ -855,6 +878,10 @@
 [data-theme="eink"][data-mode="dark"] .bg-fill-success-normal .text-text-secondary,
 [data-theme="eink"][data-mode="dark"] .bg-yellow-95 .text-text-secondary,
 [data-theme="eink"][data-mode="dark"] .bg-fill-primary-quiet .text-text-secondary {
+  color: #000000 !important;
+}
+
+[data-theme="eink"][data-mode="dark"] :is(.bg-fill-primary-normal, .bg-fill-danger-normal, .bg-fill-success-normal, .bg-yellow-95, .bg-fill-primary-quiet) :is(.ha-icon, .text-ha-blue, .text-red-600, .text-green-600, .text-yellow-600) {
   color: #000000 !important;
 }
 

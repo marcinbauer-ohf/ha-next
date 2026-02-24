@@ -27,6 +27,8 @@ import {
   mdiChevronRight,
   mdiDoorbellVideo,
   mdiOpenInNew,
+  mdiPin,
+  mdiPinOff,
   mdiChevronDown,
   mdiChevronUp,
   mdiVolumeHigh,
@@ -112,6 +114,14 @@ const DEFAULT_ACTIVITY_WIDGET_WIDTHS: Record<ActivityWidgetKey, number> = {
   'printer-widget': 188,
 };
 
+const PINNED_ACTIVITY_FOOTER_SLOT_STYLE: CSSProperties = {
+  position: 'fixed',
+  width: 0,
+  height: 0,
+  left: 0,
+  top: 0,
+};
+
 function formatTimeRemaining(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -187,7 +197,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
 
   // Widget expansion state
   const [expandedWidgetId, setExpandedWidgetId] = useState<string | null>(null);
-  const [activityWidgetView, setActivityWidgetView] = useState<'dock' | 'dialog'>('dock');
+  const [activityWidgetView, setActivityWidgetView] = useState<'dock' | 'dialog' | 'pinned'>('dock');
+  const [activityDialogOffset, setActivityDialogOffset] = useState({ x: 0, y: 0 });
   const [hoveredActivityWidget, setHoveredActivityWidget] = useState<ActivityWidgetKey | null>(null);
   const [activityFlyoutStyles, setActivityFlyoutStyles] = useState<Record<ActivityWidgetKey, CSSProperties>>({
     'release-notes-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
@@ -208,6 +219,10 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
   const [showRightGradient, setShowRightGradient] = useState(false);
   const activitiesScrollRef = useRef<HTMLDivElement>(null);
   const activityDialogRef = useRef<HTMLDivElement | null>(null);
+  const activityPreviewHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activityDialogDragStateRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+  const activityDialogDragMoveRef = useRef<((event: MouseEvent) => void) | null>(null);
+  const activityDialogDragUpRef = useRef<(() => void) | null>(null);
 
   const isActivityWidgetId = (widgetId: string | null) => {
     if (!widgetId || widgetId === 'chat') return false;
@@ -235,6 +250,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
   };
 
   const isActivityDialogOpen = activityWidgetView === 'dialog' && isActivityWidgetId(expandedWidgetId);
+  const isPinnedActivityWidget = activityWidgetView === 'pinned' && isActivityWidgetId(expandedWidgetId);
+  const isFloatingActivityWidget = (activityWidgetView === 'dialog' || activityWidgetView === 'pinned') && isActivityWidgetId(expandedWidgetId);
 
   const checkActivitiesScroll = () => {
     if (!activitiesScrollRef.current) return;
@@ -256,12 +273,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
         setStatusExpanded(false);
       }
       if (expandedWidgetId) {
-        if (activityWidgetView === 'dialog' && isActivityWidgetId(expandedWidgetId)) {
-          if (activityDialogRef.current && !activityDialogRef.current.contains(event.target as Node)) {
-            setExpandedWidgetId(null);
-            setHoveredActivityWidget(null);
-            setActivityWidgetView('dock');
-          }
+        if ((activityWidgetView === 'dialog' || activityWidgetView === 'pinned') && isActivityWidgetId(expandedWidgetId)) {
+          // Floating modes should close only through controls inside the widget.
           return;
         }
 
@@ -355,22 +368,158 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
     });
   }, []);
 
-  const openActivityWidget = useCallback((widgetId: string, widgetKey: ActivityWidgetKey, view: 'dock' | 'dialog' = 'dock') => {
+  const clearActivityPreviewHideTimeout = useCallback(() => {
+    if (activityPreviewHideTimeoutRef.current) {
+      clearTimeout(activityPreviewHideTimeoutRef.current);
+      activityPreviewHideTimeoutRef.current = null;
+    }
+  }, []);
+
+  const showActivityPreview = useCallback((widgetKey: ActivityWidgetKey) => {
+    if (expandedWidgetId) return;
+    clearActivityPreviewHideTimeout();
     updateActivityFlyoutPosition(widgetKey);
+    setHoveredActivityWidget(widgetKey);
+  }, [clearActivityPreviewHideTimeout, expandedWidgetId, updateActivityFlyoutPosition]);
+
+  const scheduleHideActivityPreview = useCallback((widgetKey: ActivityWidgetKey) => {
+    clearActivityPreviewHideTimeout();
+    activityPreviewHideTimeoutRef.current = setTimeout(() => {
+      setHoveredActivityWidget((current) => (current === widgetKey ? null : current));
+      activityPreviewHideTimeoutRef.current = null;
+    }, 140);
+  }, [clearActivityPreviewHideTimeout]);
+
+  useEffect(() => () => {
+    clearActivityPreviewHideTimeout();
+  }, [clearActivityPreviewHideTimeout]);
+
+  const stopActivityDialogDrag = useCallback(() => {
+    if (activityDialogDragMoveRef.current) {
+      window.removeEventListener('mousemove', activityDialogDragMoveRef.current);
+      activityDialogDragMoveRef.current = null;
+    }
+    if (activityDialogDragUpRef.current) {
+      window.removeEventListener('mouseup', activityDialogDragUpRef.current);
+      activityDialogDragUpRef.current = null;
+    }
+    activityDialogDragStateRef.current = null;
+    document.body.style.userSelect = '';
+  }, []);
+
+  const handleActivityDialogHeaderMouseDown = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    if (activityWidgetView === 'dock') return;
+
+    const target = event.target as HTMLElement;
+    if (target.closest('button, a, input, textarea, select, label, [data-no-drag="true"]')) {
+      return;
+    }
+
+    event.preventDefault();
+    const origin = activityDialogOffset;
+    activityDialogDragStateRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: origin.x,
+      originY: origin.y,
+    };
+
+    const onMove = (moveEvent: MouseEvent) => {
+      if (!activityDialogDragStateRef.current) return;
+      const deltaX = moveEvent.clientX - activityDialogDragStateRef.current.startX;
+      const deltaY = moveEvent.clientY - activityDialogDragStateRef.current.startY;
+      setActivityDialogOffset({
+        x: activityDialogDragStateRef.current.originX + deltaX,
+        y: activityDialogDragStateRef.current.originY + deltaY,
+      });
+    };
+
+    const onUp = () => {
+      stopActivityDialogDrag();
+    };
+
+    activityDialogDragMoveRef.current = onMove;
+    activityDialogDragUpRef.current = onUp;
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [activityDialogOffset, activityWidgetView, stopActivityDialogDrag]);
+
+  useEffect(() => () => {
+    stopActivityDialogDrag();
+  }, [stopActivityDialogDrag]);
+
+  const activityDialogStyle = useMemo<CSSProperties>(() => ({
+    left: '50%',
+    top: '50%',
+    transform: `translate(calc(-50% + ${activityDialogOffset.x}px), calc(-50% + ${activityDialogOffset.y}px))`,
+  }), [activityDialogOffset.x, activityDialogOffset.y]);
+
+  useEffect(() => {
+    if (!isFloatingActivityWidget) {
+      stopActivityDialogDrag();
+    }
+  }, [isFloatingActivityWidget, stopActivityDialogDrag]);
+
+  const openActivityWidget = useCallback((widgetId: string, widgetKey: ActivityWidgetKey, view: 'dock' | 'dialog' | 'pinned' = 'dock') => {
+    clearActivityPreviewHideTimeout();
+    updateActivityFlyoutPosition(widgetKey);
+    setActivityDialogOffset({ x: 0, y: 0 });
     setHoveredActivityWidget(null);
     setActivityWidgetView(view);
     setExpandedWidgetId(widgetId);
-  }, [updateActivityFlyoutPosition]);
+  }, [clearActivityPreviewHideTimeout, updateActivityFlyoutPosition]);
 
   const openActivityWidgetDialog = useCallback((widgetId: string, widgetKey: ActivityWidgetKey) => {
     openActivityWidget(widgetId, widgetKey, 'dialog');
   }, [openActivityWidget]);
 
+  const togglePinActivityWidget = useCallback(() => {
+    if (!isActivityWidgetId(expandedWidgetId)) return;
+
+    if (activityWidgetView === 'pinned') {
+      stopActivityDialogDrag();
+      setActivityWidgetView('dock');
+      return;
+    }
+
+    setActivityWidgetView('pinned');
+  }, [activityWidgetView, expandedWidgetId, stopActivityDialogDrag]);
+
+  const renderActivityWindowActions = useCallback(
+    (onClose: (event: React.MouseEvent<HTMLButtonElement>) => void, closeIconPath: string) => (
+      <div className="flex items-center gap-1" data-no-drag="true">
+        <button
+          type="button"
+          aria-label={isPinnedActivityWidget ? 'Unpin widget' : 'Pin widget'}
+          onClick={(event) => {
+            event.stopPropagation();
+            togglePinActivityWidget();
+          }}
+          className="p-ha-1 hover:bg-surface-low rounded-full"
+        >
+          <Icon path={isPinnedActivityWidget ? mdiPinOff : mdiPin} size={17} className="text-text-secondary" />
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-ha-1 hover:bg-surface-low rounded-full"
+        >
+          <Icon path={closeIconPath} size={18} className="text-text-secondary" />
+        </button>
+      </div>
+    ),
+    [isPinnedActivityWidget, togglePinActivityWidget]
+  );
+
   const minimizeActivityWidget = useCallback(() => {
+    clearActivityPreviewHideTimeout();
+    stopActivityDialogDrag();
+    setActivityDialogOffset({ x: 0, y: 0 });
     setHoveredActivityWidget(null);
     setActivityWidgetView('dock');
     setExpandedWidgetId(null);
-  }, []);
+  }, [clearActivityPreviewHideTimeout, stopActivityDialogDrag]);
 
   // Update clock
   useEffect(() => {
@@ -523,6 +672,61 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
     () => activeReleaseNotes.filter((note) => dismissedReleaseNotes[note.entity_id] !== note.updatedAt),
     [activeReleaseNotes, dismissedReleaseNotes]
   );
+
+  const isExpandedActivityValid = useMemo(() => {
+    if (!expandedWidgetId || !isActivityWidgetId(expandedWidgetId)) return true;
+
+    if (expandedWidgetId === 'list-release-notes') return visibleReleaseNotes.length > 0;
+    if (expandedWidgetId === 'list-media') return activePlayers.length > 0;
+    if (expandedWidgetId === 'list-timer') return activeTimers.length > 0;
+    if (expandedWidgetId === 'list-camera') return activeCameras.length > 0;
+    if (expandedWidgetId === 'list-printer') return activePrinters.length > 0;
+
+    if (expandedWidgetId.startsWith(RELEASE_NOTES_PREFIX)) {
+      return visibleReleaseNotes.some((note) => note.entity_id === expandedWidgetId);
+    }
+    if (expandedWidgetId.startsWith('media_player.')) {
+      return activePlayers.some((player) => player.entity_id === expandedWidgetId);
+    }
+    if (expandedWidgetId.startsWith('timer.')) {
+      return activeTimers.some((timer) => timer.entity_id === expandedWidgetId);
+    }
+    if (expandedWidgetId.startsWith('camera.') || expandedWidgetId.startsWith('binary_sensor.camera_simulated')) {
+      return activeCameras.some((camera) => camera.entity_id === expandedWidgetId);
+    }
+    if (
+      expandedWidgetId.startsWith('sensor.printer_')
+      || expandedWidgetId === 'sensor.printer_simulated'
+      || expandedWidgetId.includes('printer')
+    ) {
+      return activePrinters.some((printer) => printer.entity_id === expandedWidgetId);
+    }
+
+    return true;
+  }, [
+    expandedWidgetId,
+    activeCameras,
+    activePlayers,
+    activePrinters,
+    activeTimers,
+    visibleReleaseNotes,
+  ]);
+
+  useEffect(() => {
+    if (!expandedWidgetId || !isActivityWidgetId(expandedWidgetId) || isExpandedActivityValid) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      minimizeActivityWidget();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [
+    expandedWidgetId,
+    isExpandedActivityValid,
+    minimizeActivityWidget,
+  ]);
 
   const activityWidgetTransition = {
     duration: 0.16,
@@ -677,29 +881,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
   return (
     <>
     {isActivityDialogOpen && (
-      <div className="fixed inset-0 z-[70]">
-        <button
-          type="button"
-          aria-label="Close activity dialog"
-          className="absolute inset-0 bg-black/35 backdrop-blur-[1px]"
-          onClick={() => {
-            setExpandedWidgetId(null);
-            setHoveredActivityWidget(null);
-            setActivityWidgetView('dock');
-          }}
-        />
-        <button
-          type="button"
-          aria-label="Close activity dialog"
-          className="absolute top-5 right-5 w-10 h-10 rounded-full bg-surface-default/90 border border-surface-mid text-text-secondary hover:text-text-primary hover:bg-surface-default transition-colors flex items-center justify-center"
-          onClick={() => {
-            setExpandedWidgetId(null);
-            setHoveredActivityWidget(null);
-            setActivityWidgetView('dock');
-          }}
-        >
-          <Icon path={mdiClose} size={18} />
-        </button>
+      <div className="fixed inset-0 z-40 pointer-events-none">
+        <div className="absolute inset-0 bg-black/30" />
       </div>
     )}
     <footer className="hidden lg:flex items-center justify-between pr-edge pt-ha-2 pb-edge col-span-full z-50" data-component="StatusBar">
@@ -794,26 +977,21 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
             const isListView = expandedWidgetId === 'list-release-notes';
             const releaseNote = selectedReleaseNote || visibleReleaseNotes[0];
             const isExpanded = Boolean(selectedReleaseNote || isListView);
+            const isPinnedInFooter = isPinnedActivityWidget && isExpanded;
             const showPreview = hoveredActivityWidget === 'release-notes-widget' && !expandedWidgetId;
             return (
             <motion.div
               key="release-notes-widget"
-              layout="position"
+              layout={isPinnedInFooter ? false : 'position'}
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -16 }}
               transition={activityWidgetTransition}
               ref={(el) => { widgetContainerRefs.current['release-notes-widget'] = el; }}
               className="relative"
-              onMouseEnter={() => {
-                if (!expandedWidgetId) {
-                  updateActivityFlyoutPosition('release-notes-widget');
-                  setHoveredActivityWidget('release-notes-widget');
-                }
-              }}
-            onMouseLeave={() => {
-              setHoveredActivityWidget((current) => (current === 'release-notes-widget' ? null : current));
-            }}
+              style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+              onMouseEnter={() => showActivityPreview('release-notes-widget')}
+              onMouseLeave={() => scheduleHideActivityPreview('release-notes-widget')}
           >
             <AnimatePresence>
               {showPreview && (
@@ -822,7 +1000,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed -translate-x-1/2 z-50 w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default pointer-events-none"
+                  onMouseEnter={() => showActivityPreview('release-notes-widget')}
+                  onMouseLeave={() => scheduleHideActivityPreview('release-notes-widget')}
+                  className="fixed -translate-x-1/2 z-50 w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
                   style={activityFlyoutStyles['release-notes-widget']}
                   transition={activityWindowTransition}
                 >
@@ -858,19 +1038,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                      style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['release-notes-widget']}
+                      className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                      style={activityWidgetView === 'dock' ? activityFlyoutStyles['release-notes-widget'] : activityDialogStyle}
                       transition={activityWindowTransition}
                     >
                       <div className="p-ha-4 flex flex-col gap-ha-3">
-                        <div className="w-full flex justify-between items-center pl-1">
+                        <div
+                          onMouseDown={handleActivityDialogHeaderMouseDown}
+                          className={`w-full flex justify-between items-center pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                        >
                           <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest pl-1">What&apos;s New</span>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(visibleReleaseNotes.length > 1 ? 'list-release-notes' : null); }}
-                            className="p-ha-1 hover:bg-surface-low rounded-full"
-                          >
-                            <Icon path={visibleReleaseNotes.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
-                          </button>
+                          {renderActivityWindowActions(
+                            (e) => { e.stopPropagation(); setExpandedWidgetId(visibleReleaseNotes.length > 1 ? 'list-release-notes' : null); },
+                            visibleReleaseNotes.length > 1 ? mdiChevronUp : mdiClose
+                          )}
                         </div>
 
                         <div className="w-full rounded-ha-xl bg-green-500/10 border border-green-500/20 p-ha-3">
@@ -900,7 +1081,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                       </div>
                     </motion.div>
 
-                    {selectedReleaseNote && (
+                    {selectedReleaseNote && activityWidgetView !== 'pinned' && (
                       <motion.button
                         key="release-notes-minimize"
                         initial={{ opacity: 0, scale: 0.9 }}
@@ -927,16 +1108,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                      style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['release-notes-widget']}
+                      className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                      style={activityWidgetView === 'dock' ? activityFlyoutStyles['release-notes-widget'] : activityDialogStyle}
                       transition={activityWindowTransition}
                     >
                       <div className="p-ha-4">
-                        <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                        <div
+                          onMouseDown={handleActivityDialogHeaderMouseDown}
+                          className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                        >
                           <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest pl-1">What&apos;s New ({visibleReleaseNotes.length})</span>
-                          <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                            <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                          </button>
+                          {renderActivityWindowActions(
+                            (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
+                            mdiClose
+                          )}
                         </div>
                         <div className="space-y-ha-2">
                           {visibleReleaseNotes.map((note) => (
@@ -959,7 +1144,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                       </div>
                     </motion.div>
 
-                    {isExpanded && (
+                    {isExpanded && activityWidgetView !== 'pinned' && (
                       <motion.button
                         key="release-notes-list-minimize"
                         initial={{ opacity: 0, scale: 0.9 }}
@@ -984,34 +1169,34 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={activityMiniTransition}
-                    onClick={() => openActivityWidget(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')}
-                    className="relative group flex items-center gap-ha-3 bg-green-500/12 border border-green-500/25 rounded-ha-pill px-ha-3 pr-ha-9 h-12 transition-all hover:bg-green-500/20 cursor-pointer"
+                    onClick={() => (
+                      showPreview
+                        ? openActivityWidgetDialog(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')
+                        : openActivityWidget(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')
+                    )}
+                    className="relative flex items-center gap-ha-3 bg-green-500/12 border border-green-500/25 rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-green-500/20 cursor-pointer"
                   >
-                    <div className="relative">
-                      <div className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
-                        <Icon path={mdiUpdate} size={16} className="text-green-600" />
-                      </div>
-                      {visibleReleaseNotes.length > 1 && (
-                        <div className="absolute -top-1 -right-1 bg-green-600 text-white text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-default shadow-sm z-10">
-                          {visibleReleaseNotes.length}
+                    <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
+                      <div className="relative">
+                        <div className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
+                          <Icon path={mdiUpdate} size={16} className="text-green-600" />
                         </div>
-                      )}
+                        {visibleReleaseNotes.length > 1 && (
+                          <div className="absolute -top-1 -right-1 bg-green-600 text-white text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-default shadow-sm z-10">
+                            {visibleReleaseNotes.length}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col min-w-0 max-w-[180px]">
+                        <span className="text-sm font-bold text-green-600 truncate">What&apos;s New</span>
+                        <span className="text-xs text-text-secondary truncate">{releaseNote.version}</span>
+                      </div>
                     </div>
-                    <div className="flex flex-col min-w-0 max-w-[180px]">
-                      <span className="text-sm font-bold text-green-600 truncate">What&apos;s New</span>
-                      <span className="text-xs text-text-secondary truncate">{releaseNote.version}</span>
-                    </div>
-                    <button
-                      type="button"
-                      aria-label="Open release notes in dialog"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openActivityWidgetDialog(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget');
-                      }}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface-default/85 border border-surface-mid text-green-600 flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-surface-default transition-all"
-                    >
-                      <Icon path={mdiOpenInNew} size={15} />
-                    </button>
+                    {showPreview && (
+                      <div className="absolute inset-0 flex items-center justify-center text-green-600 pointer-events-none">
+                        <Icon path={mdiOpenInNew} size={18} />
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1026,25 +1211,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           const player = selectedPlayer || activePlayers[0];
           const showPreview = hoveredActivityWidget === 'media-widget' && !expandedWidgetId;
           const isExpanded = Boolean(selectedPlayer || isListView);
+          const isPinnedInFooter = isPinnedActivityWidget && isExpanded;
           return (
           <motion.div
             key="media-widget"
-            layout="position"
+            layout={isPinnedInFooter ? false : 'position'}
             initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -16 }}
             transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['media-widget'] = el; }}
             className="relative"
-            onMouseEnter={() => {
-              if (!expandedWidgetId) {
-                updateActivityFlyoutPosition('media-widget');
-                setHoveredActivityWidget('media-widget');
-              }
-            }}
-            onMouseLeave={() => {
-              setHoveredActivityWidget((current) => (current === 'media-widget' ? null : current));
-            }}
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+            onMouseEnter={() => showActivityPreview('media-widget')}
+            onMouseLeave={() => scheduleHideActivityPreview('media-widget')}
           >
             <AnimatePresence>
               {showPreview && (
@@ -1053,7 +1233,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed -translate-x-1/2 z-50 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default pointer-events-none"
+                  onMouseEnter={() => showActivityPreview('media-widget')}
+                  onMouseLeave={() => scheduleHideActivityPreview('media-widget')}
+                  className="fixed -translate-x-1/2 z-50 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
                   style={activityFlyoutStyles['media-widget']}
                   transition={activityWindowTransition}
                 >
@@ -1112,16 +1294,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['media-widget']}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['media-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4 flex flex-col items-center">
-                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
                         <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Now Playing</span>
-                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activePlayers.length > 1 ? 'list-media' : null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={activePlayers.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
-                        </button>
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(activePlayers.length > 1 ? 'list-media' : null); },
+                          activePlayers.length > 1 ? mdiChevronUp : mdiClose
+                        )}
                       </div>
 
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-lg border border-surface-low">
@@ -1164,7 +1350,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     </div>
                   </motion.div>
 
-                  {selectedPlayer && (
+                  {selectedPlayer && activityWidgetView !== 'pinned' && (
                     <motion.button
                       key="media-minimize"
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -1190,16 +1376,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['media-widget']}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['media-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
-                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
                         <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Media Players ({activePlayers.length})</span>
-                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                        </button>
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
+                          mdiClose
+                        )}
                       </div>
                       <div className="space-y-ha-2">
                         {activePlayers.map(p => (
@@ -1226,7 +1416,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     </div>
                   </motion.div>
 
-                  {isExpanded && (
+                  {isExpanded && activityWidgetView !== 'pinned' && (
                     <motion.button
                       key="media-list-minimize"
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -1251,51 +1441,51 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={activityMiniTransition}
-                  onClick={() => openActivityWidget(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')}
-                  className="relative group flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 pr-ha-9 h-12 transition-all hover:bg-surface-mid cursor-pointer"
+                  onClick={() => (
+                    showPreview
+                      ? openActivityWidgetDialog(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')
+                      : openActivityWidget(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')
+                  )}
+                  className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer"
                 >
-                  <div className="relative">
-                    {player.entityPicture ? (
-                      <img
-                        src={getEntityPictureUrl(player.entityPicture)}
-                        alt=""
-                        className="w-8 h-8 rounded-full object-cover border border-surface-low"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-fill-primary-normal flex items-center justify-center">
-                        <Icon path={mdiPlay} size={16} className="text-ha-blue" />
-                      </div>
-                    )}
-                    {player.state === 'playing' && (
-                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-ha-blue rounded-full border-2 border-surface-low flex items-center justify-center">
-                        <span className="w-1 h-1 bg-white rounded-full animate-pulse" />
+                  <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className="relative">
+                      {player.entityPicture ? (
+                        <img
+                          src={getEntityPictureUrl(player.entityPicture)}
+                          alt=""
+                          className="w-8 h-8 rounded-full object-cover border border-surface-low"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-fill-primary-normal flex items-center justify-center">
+                          <Icon path={mdiPlay} size={16} className="text-ha-blue" />
+                        </div>
+                      )}
+                      {player.state === 'playing' && (
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-ha-blue rounded-full border-2 border-surface-low flex items-center justify-center">
+                          <span className="w-1 h-1 bg-white rounded-full animate-pulse" />
+                        </span>
+                      )}
+                      {activePlayers.length > 1 && (
+                        <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                          {activePlayers.length}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col min-w-0 max-w-[140px]">
+                      <span className="text-sm font-medium text-text-primary truncate">
+                        {player.mediaTitle || player.name}
                       </span>
-                    )}
-                    {activePlayers.length > 1 && (
-                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
-                        {activePlayers.length}
-                      </div>
-                    )}
+                      <span className={`text-xs truncate ${player.state === 'paused' ? 'text-yellow-600' : 'text-text-secondary'}`}>
+                        {player.mediaArtist || (player.state === 'playing' ? 'Playing' : 'Paused')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-col min-w-0 max-w-[140px]">
-                    <span className="text-sm font-medium text-text-primary truncate">
-                      {player.mediaTitle || player.name}
-                    </span>
-                    <span className={`text-xs truncate ${player.state === 'paused' ? 'text-yellow-600' : 'text-text-secondary'}`}>
-                      {player.mediaArtist || (player.state === 'playing' ? 'Playing' : 'Paused')}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Open media widget in dialog"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openActivityWidgetDialog(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget');
-                    }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface-default/85 border border-surface-mid text-text-secondary flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:text-text-primary hover:bg-surface-default transition-all"
-                  >
-                    <Icon path={mdiOpenInNew} size={15} />
-                  </button>
+                  {showPreview && (
+                    <div className="absolute inset-0 flex items-center justify-center text-text-primary pointer-events-none">
+                      <Icon path={mdiOpenInNew} size={18} />
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1310,25 +1500,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           const timer = selectedTimer || activeTimers[0];
           const showPreview = hoveredActivityWidget === 'timer-widget' && !expandedWidgetId;
           const isExpanded = Boolean(selectedTimer || isListView);
+          const isPinnedInFooter = isPinnedActivityWidget && isExpanded;
           return (
           <motion.div
             key="timer-widget"
-            layout="position"
+            layout={isPinnedInFooter ? false : 'position'}
             initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -16 }}
             transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['timer-widget'] = el; }}
             className="relative"
-            onMouseEnter={() => {
-              if (!expandedWidgetId) {
-                updateActivityFlyoutPosition('timer-widget');
-                setHoveredActivityWidget('timer-widget');
-              }
-            }}
-            onMouseLeave={() => {
-              setHoveredActivityWidget((current) => (current === 'timer-widget' ? null : current));
-            }}
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+            onMouseEnter={() => showActivityPreview('timer-widget')}
+            onMouseLeave={() => scheduleHideActivityPreview('timer-widget')}
           >
             <AnimatePresence>
               {showPreview && (
@@ -1337,7 +1522,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed -translate-x-1/2 z-50 w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default pointer-events-none"
+                  onMouseEnter={() => showActivityPreview('timer-widget')}
+                  onMouseLeave={() => scheduleHideActivityPreview('timer-widget')}
+                  className="fixed -translate-x-1/2 z-50 w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
                   style={activityFlyoutStyles['timer-widget']}
                   transition={activityWindowTransition}
                 >
@@ -1393,16 +1580,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['timer-widget']}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['timer-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-5 flex flex-col items-center">
-                      <div className="w-full flex justify-between items-center mb-ha-4 pl-1">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-between items-center mb-ha-4 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
                         <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timer</span>
-                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activeTimers.length > 1 ? 'list-timer' : null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={activeTimers.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
-                        </button>
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(activeTimers.length > 1 ? 'list-timer' : null); },
+                          activeTimers.length > 1 ? mdiChevronUp : mdiClose
+                        )}
                       </div>
 
                       <div className="relative mb-ha-5">
@@ -1442,7 +1633,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     </div>
                   </motion.div>
 
-                  {selectedTimer && (
+                  {selectedTimer && activityWidgetView !== 'pinned' && (
                     <motion.button
                       key="timer-minimize"
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -1468,16 +1659,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['timer-widget']}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['timer-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
-                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
                         <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timers ({activeTimers.length})</span>
-                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                        </button>
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
+                          mdiClose
+                        )}
                       </div>
                       <div className="space-y-ha-2">
                         {activeTimers.map(t => (
@@ -1506,7 +1701,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     </div>
                   </motion.div>
 
-                  {isExpanded && (
+                  {isExpanded && activityWidgetView !== 'pinned' && (
                     <motion.button
                       key="timer-list-minimize"
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -1531,48 +1726,48 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={activityMiniTransition}
-                  onClick={() => openActivityWidget(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')}
-                  className={`relative group flex items-center gap-ha-3 rounded-ha-pill px-ha-3 pr-ha-9 h-12 transition-all cursor-pointer hover:opacity-90 ${
+                  onClick={() => (
+                    showPreview
+                      ? openActivityWidgetDialog(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
+                      : openActivityWidget(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
+                  )}
+                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:opacity-90 ${
                     timer.state === 'active' ? 'bg-fill-primary-normal' : 'bg-yellow-95'
                   }`}
                 >
-                  <div className="relative">
-                  {activeTimers.length > 1 && (
-                    <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
-                      {activeTimers.length}
+                  <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className="relative">
+                    {activeTimers.length > 1 && (
+                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                        {activeTimers.length}
+                      </div>
+                    )}
+                    <CircularProgress
+                      progress={timerProgress[timer.entity_id] ?? timer.progress}
+                      size={32}
+                      strokeWidth={2.5}
+                      className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
+                      trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
+                    >
+                      <Icon
+                        path={timer.state === 'active' ? mdiTimerOutline : mdiPause}
+                        size={14}
+                        className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
+                      />
+                    </CircularProgress>
+                    </div>
+                    <div className="flex flex-col min-w-0 max-w-[140px]">
+                      <span className="text-sm font-medium text-text-primary truncate">
+                        {timerDisplays[timer.entity_id] || timer.remaining}
+                      </span>
+                      <span className="text-xs text-text-secondary truncate">{timer.name}</span>
+                    </div>
+                  </div>
+                  {showPreview && (
+                    <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-700'}`}>
+                      <Icon path={mdiOpenInNew} size={18} />
                     </div>
                   )}
-                  <CircularProgress
-                    progress={timerProgress[timer.entity_id] ?? timer.progress}
-                    size={32}
-                    strokeWidth={2.5}
-                    className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
-                    trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
-                  >
-                    <Icon
-                      path={timer.state === 'active' ? mdiTimerOutline : mdiPause}
-                      size={14}
-                      className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
-                    />
-                  </CircularProgress>
-                  </div>
-                  <div className="flex flex-col min-w-0 max-w-[140px]">
-                    <span className="text-sm font-medium text-text-primary truncate">
-                      {timerDisplays[timer.entity_id] || timer.remaining}
-                    </span>
-                    <span className="text-xs text-text-secondary truncate">{timer.name}</span>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Open timer widget in dialog"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openActivityWidgetDialog(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget');
-                    }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface-default/85 border border-surface-mid text-text-secondary flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:text-text-primary hover:bg-surface-default transition-all"
-                  >
-                    <Icon path={mdiOpenInNew} size={15} />
-                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1587,25 +1782,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           const camera = selectedCamera || activeCameras[0];
           const showPreview = hoveredActivityWidget === 'camera-widget' && !expandedWidgetId;
           const isExpanded = Boolean(selectedCamera || isListView);
+          const isPinnedInFooter = isPinnedActivityWidget && isExpanded;
           return (
           <motion.div
             key="camera-widget"
-            layout="position"
+            layout={isPinnedInFooter ? false : 'position'}
             initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -16 }}
             transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['camera-widget'] = el; }}
             className="relative"
-            onMouseEnter={() => {
-              if (!expandedWidgetId) {
-                updateActivityFlyoutPosition('camera-widget');
-                setHoveredActivityWidget('camera-widget');
-              }
-            }}
-            onMouseLeave={() => {
-              setHoveredActivityWidget((current) => (current === 'camera-widget' ? null : current));
-            }}
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+            onMouseEnter={() => showActivityPreview('camera-widget')}
+            onMouseLeave={() => scheduleHideActivityPreview('camera-widget')}
           >
             <AnimatePresence>
               {showPreview && (
@@ -1614,7 +1804,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed -translate-x-1/2 z-50 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default pointer-events-none"
+                  onMouseEnter={() => showActivityPreview('camera-widget')}
+                  onMouseLeave={() => scheduleHideActivityPreview('camera-widget')}
+                  className="fixed -translate-x-1/2 z-50 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
                   style={activityFlyoutStyles['camera-widget']}
                   transition={activityWindowTransition}
                 >
@@ -1663,18 +1855,22 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['camera-widget']}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['camera-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
                   >
-                    <div className="bg-surface-low p-ha-3 flex items-center justify-between border-b border-surface-low">
+                    <div
+                      onMouseDown={handleActivityDialogHeaderMouseDown}
+                      className={`bg-surface-low p-ha-3 flex items-center justify-between border-b border-surface-low ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                    >
                       <div className="flex items-center gap-2 pl-2">
                         <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                         <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest pl-1">Live Feed</span>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activeCameras.length > 1 ? 'list-camera' : null); }} className="p-ha-1 hover:bg-surface-mid rounded-full transition-colors">
-                        <Icon path={activeCameras.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
-                      </button>
+                      {renderActivityWindowActions(
+                        (e) => { e.stopPropagation(); setExpandedWidgetId(activeCameras.length > 1 ? 'list-camera' : null); },
+                        activeCameras.length > 1 ? mdiChevronUp : mdiClose
+                      )}
                     </div>
                     <div className="w-full aspect-video bg-black relative">
                       <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
@@ -1705,7 +1901,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     </div>
                   </motion.div>
 
-                  {selectedCamera && (
+                  {selectedCamera && activityWidgetView !== 'pinned' && (
                     <motion.button
                       key="camera-minimize"
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -1731,16 +1927,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['camera-widget']}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['camera-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
-                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
                         <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest pl-1">Cameras ({activeCameras.length})</span>
-                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                        </button>
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
+                          mdiClose
+                        )}
                       </div>
                       <div className="space-y-ha-2">
                         {activeCameras.map(c => (
@@ -1763,7 +1963,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     </div>
                   </motion.div>
 
-                  {isExpanded && (
+                  {isExpanded && activityWidgetView !== 'pinned' && (
                     <motion.button
                       key="camera-list-minimize"
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -1788,40 +1988,40 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={activityMiniTransition}
-                  onClick={() => openActivityWidget(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')}
-                  className="relative group flex items-center gap-ha-3 bg-red-500/10 border border-red-500/20 rounded-ha-pill px-ha-3 pr-ha-9 h-12 transition-all cursor-pointer hover:bg-red-500/20"
+                  onClick={() => (
+                    showPreview
+                      ? openActivityWidgetDialog(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
+                      : openActivityWidget(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
+                  )}
+                  className="relative flex items-center gap-ha-3 bg-red-500/10 border border-red-500/20 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:bg-red-500/20"
                 >
-                  <div className="relative w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
-                    <img 
-                      src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} 
-                      alt="" 
-                      className="w-full h-full object-cover animate-pulse"
-                    />
-                    <div className="absolute inset-0 bg-red-500/10" />
-                    {activeCameras.length > 1 && (
-                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
-                        {activeCameras.length}
-                      </div>
-                    )}
+                  <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className="relative w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
+                      <img
+                        src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')}
+                        alt=""
+                        className="w-full h-full object-cover animate-pulse"
+                      />
+                      <div className="absolute inset-0 bg-red-500/10" />
+                      {activeCameras.length > 1 && (
+                        <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                          {activeCameras.length}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col min-w-0 max-w-[140px]">
+                      <span className="text-sm font-bold text-red-500 truncate flex items-center gap-1">
+                        <Icon path={mdiDoorbellVideo} size={14} />
+                        {camera.name}
+                      </span>
+                      <span className="text-xs text-text-secondary truncate">{camera.event}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-col min-w-0 max-w-[140px]">
-                    <span className="text-sm font-bold text-red-500 truncate flex items-center gap-1">
-                      <Icon path={mdiDoorbellVideo} size={14} />
-                      {camera.name}
-                    </span>
-                    <span className="text-xs text-text-secondary truncate">{camera.event}</span>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Open camera widget in dialog"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openActivityWidgetDialog(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget');
-                    }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface-default/85 border border-surface-mid text-red-500 flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-surface-default transition-all"
-                  >
-                    <Icon path={mdiOpenInNew} size={15} />
-                  </button>
+                  {showPreview && (
+                    <div className="absolute inset-0 flex items-center justify-center text-red-500 pointer-events-none">
+                      <Icon path={mdiOpenInNew} size={18} />
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1836,25 +2036,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
           const printer = selectedPrinter || activePrinters[0];
           const showPreview = hoveredActivityWidget === 'printer-widget' && !expandedWidgetId;
           const isExpanded = Boolean(selectedPrinter || isListView);
+          const isPinnedInFooter = isPinnedActivityWidget && isExpanded;
           return (
           <motion.div
             key="printer-widget"
-            layout="position"
+            layout={isPinnedInFooter ? false : 'position'}
             initial={{ opacity: 0, x: 16 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -16 }}
             transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['printer-widget'] = el; }}
             className="relative"
-            onMouseEnter={() => {
-              if (!expandedWidgetId) {
-                updateActivityFlyoutPosition('printer-widget');
-                setHoveredActivityWidget('printer-widget');
-              }
-            }}
-            onMouseLeave={() => {
-              setHoveredActivityWidget((current) => (current === 'printer-widget' ? null : current));
-            }}
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+            onMouseEnter={() => showActivityPreview('printer-widget')}
+            onMouseLeave={() => scheduleHideActivityPreview('printer-widget')}
           >
             <AnimatePresence>
               {showPreview && (
@@ -1863,7 +2058,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed -translate-x-1/2 z-50 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default pointer-events-none"
+                  onMouseEnter={() => showActivityPreview('printer-widget')}
+                  onMouseLeave={() => scheduleHideActivityPreview('printer-widget')}
+                  className="fixed -translate-x-1/2 z-50 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
                   style={activityFlyoutStyles['printer-widget']}
                   transition={activityWindowTransition}
                 >
@@ -1929,16 +2126,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['printer-widget']}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['printer-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4 flex flex-col items-center">
-                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
                         <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printer</span>
-                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(activePrinters.length > 1 ? 'list-printer' : null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={activePrinters.length > 1 ? mdiChevronUp : mdiClose} size={18} className="text-text-secondary" />
-                        </button>
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(activePrinters.length > 1 ? 'list-printer' : null); },
+                          activePrinters.length > 1 ? mdiChevronUp : mdiClose
+                        )}
                       </div>
 
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
@@ -1988,7 +2189,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     </div>
                   </motion.div>
 
-                  {selectedPrinter && (
+                  {selectedPrinter && activityWidgetView !== 'pinned' && (
                     <motion.button
                       key="printer-minimize"
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -2014,16 +2215,20 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className={`fixed ${activityWidgetView === 'dialog' ? 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[80]' : '-translate-x-1/2 z-50'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dialog' ? undefined : activityFlyoutStyles['printer-widget']}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['printer-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
-                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
                         <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printers ({activePrinters.length})</span>
-                        <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                          <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                        </button>
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
+                          mdiClose
+                        )}
                       </div>
                       <div className="space-y-ha-2">
                         {activePrinters.map(p => (
@@ -2054,7 +2259,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                     </div>
                   </motion.div>
 
-                  {isExpanded && (
+                  {isExpanded && activityWidgetView !== 'pinned' && (
                     <motion.button
                       key="printer-list-minimize"
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -2079,53 +2284,53 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={activityMiniTransition}
-                  onClick={() => openActivityWidget(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')}
-                  className="relative group flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 pr-ha-9 h-12 transition-all cursor-pointer hover:bg-surface-mid"
+                  onClick={() => (
+                    showPreview
+                      ? openActivityWidgetDialog(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')
+                      : openActivityWidget(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')
+                  )}
+                  className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:bg-surface-mid"
                 >
-                  <div className="relative">
-                  {activePrinters.length > 1 && (
-                    <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
-                      {activePrinters.length}
+                  <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className="relative">
+                    {activePrinters.length > 1 && (
+                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                        {activePrinters.length}
+                      </div>
+                    )}
+                    <CircularProgress
+                      progress={printer.progress / 100}
+                      size={32}
+                      strokeWidth={2.5}
+                      className="text-ha-blue shrink-0"
+                      trackClassName="text-fill-primary-quiet"
+                    >
+                      <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
+                        <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    </CircularProgress>
+                    </div>
+                    <div className="flex flex-col min-w-0 max-w-[140px]">
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-medium text-text-primary truncate font-mono">
+                          {printer.progress}%
+                        </span>
+                        <span className="text-[9px] text-text-disabled uppercase font-bold tracking-tighter">
+                          Printing
+                        </span>
+                      </div>
+                      <span className="text-xs text-text-secondary truncate">{printer.fileName}</span>
+                    </div>
+                    <div className="hidden xl:flex flex-col items-end ml-1 pl-2 border-l border-surface-mid">
+                      <span className="text-[9px] text-text-disabled font-bold leading-none mb-0.5 uppercase">Left</span>
+                      <span className="text-xs font-mono text-text-secondary">{printer.remainingTime}</span>
+                    </div>
+                  </div>
+                  {showPreview && (
+                    <div className="absolute inset-0 flex items-center justify-center text-ha-blue pointer-events-none">
+                      <Icon path={mdiOpenInNew} size={18} />
                     </div>
                   )}
-                  <CircularProgress
-                    progress={printer.progress / 100}
-                    size={32}
-                    strokeWidth={2.5}
-                    className="text-ha-blue shrink-0"
-                    trackClassName="text-fill-primary-quiet"
-                  >
-                    <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
-                      <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
-                    </div>
-                  </CircularProgress>
-                  </div>
-                  <div className="flex flex-col min-w-0 max-w-[140px]">
-                    <div className="flex items-center gap-1">
-                      <span className="text-sm font-medium text-text-primary truncate font-mono">
-                        {printer.progress}%
-                      </span>
-                      <span className="text-[9px] text-text-disabled uppercase font-bold tracking-tighter">
-                        Printing
-                      </span>
-                    </div>
-                    <span className="text-xs text-text-secondary truncate">{printer.fileName}</span>
-                  </div>
-                  <div className="hidden xl:flex flex-col items-end ml-1 pl-2 border-l border-surface-mid">
-                    <span className="text-[9px] text-text-disabled font-bold leading-none mb-0.5 uppercase">Left</span>
-                    <span className="text-xs font-mono text-text-secondary">{printer.remainingTime}</span>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Open printer widget in dialog"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openActivityWidgetDialog(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget');
-                    }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-surface-default/85 border border-surface-mid text-text-secondary flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:text-text-primary hover:bg-surface-default transition-all"
-                  >
-                    <Icon path={mdiOpenInNew} size={15} />
-                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
