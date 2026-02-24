@@ -4,6 +4,7 @@
   /* HA Edge Padding - outer edges of the application */
   --ha-edge-padding: 12px;
   --ha-edge-padding-mobile: 12px;
+  --ha-font-family-base: var(--font-inter);
 
   /* HA Surface Colors */
   --ha-color-surface-default: #ffffff;
@@ -142,6 +143,278 @@
   --ha-color-green-600: #208a4e;
 }
 
+/* Cyberpunk Theme - Dark Mode */
+[data-theme="cyberpunk"][data-mode="dark"] {
+  --ha-color-surface-default: #0f1223;
+  --ha-color-surface-low: #141832;
+  --ha-color-surface-mid: #191e3f;
+  --ha-color-surface-lower: #1f2550;
+
+  --ha-color-text-primary: #f7f8ff;
+  --ha-color-text-secondary: #a8afd8;
+  --ha-color-text-tertiary: #7e86b8;
+  --ha-color-text-disabled: #626998;
+
+  --ha-color-fill-primary-normal: #183164;
+  --ha-color-fill-primary-quiet: #13284f;
+  --ha-color-fill-danger-normal: #5a1c4f;
+  --ha-color-fill-success-normal: #153c3b;
+  --ha-color-yellow-95: #3b331a;
+
+  --ha-color-blue: #00d9ff;
+  --ha-color-blue-dark: #00b8de;
+  --ha-color-yellow-500: #ffd84d;
+  --ha-color-yellow-600: #ffbf3c;
+  --ha-color-green-500: #27d7a4;
+  --ha-color-green-600: #1fb68a;
+
+  --ha-font-family-base: var(--font-cyberpunk), "Quantico", "Arial Narrow", sans-serif;
+  --ha-radius-md: 4px;
+  --ha-radius-lg: 8px;
+  --ha-radius-xl: 10px;
+  --ha-radius-2xl: 14px;
+  --ha-radius-3xl: 18px;
+  --ha-radius-pill: 14px;
+}
+
+/* Cyberpunk Theme - Light Mode */
+[data-theme="cyberpunk"][data-mode="light"] {
+  --ha-color-surface-default: #f2f4ff;
+  --ha-color-surface-low: #e6ebff;
+  --ha-color-surface-mid: #dbe2ff;
+  --ha-color-surface-lower: #d0d9fb;
+
+  --ha-color-text-primary: #15172d;
+  --ha-color-text-secondary: #3d4271;
+  --ha-color-text-tertiary: #545b8f;
+  --ha-color-text-disabled: #6f76ad;
+
+  --ha-color-fill-primary-normal: #d5e9ff;
+  --ha-color-fill-primary-quiet: #e8f3ff;
+  --ha-color-fill-danger-normal: #ffd7ef;
+  --ha-color-fill-success-normal: #cff6ea;
+  --ha-color-yellow-95: #fff2c8;
+
+  --ha-color-blue: #0067d9;
+  --ha-color-blue-dark: #0050a8;
+  --ha-color-yellow-500: #c18200;
+  --ha-color-yellow-600: #996600;
+  --ha-color-green-500: #148d70;
+  --ha-color-green-600: #0f6c56;
+
+  --ha-font-family-base: var(--font-cyberpunk), "Quantico", "Arial Narrow", sans-serif;
+  --ha-radius-md: 4px;
+  --ha-radius-lg: 8px;
+  --ha-radius-xl: 10px;
+  --ha-radius-2xl: 14px;
+  --ha-radius-3xl: 18px;
+  --ha-radius-pill: 14px;
+}
+
+/* Material Design Theme - Dark Mode */
+[data-theme="material"][data-mode="dark"] {
+  --ha-color-surface-default: #111318;
+  --ha-color-surface-low: #1a1c21;
+  --ha-color-surface-mid: #1e2127;
+  --ha-color-surface-lower: #242830;
+
+  --ha-color-text-primary: #e4e2e9;
+  --ha-color-text-secondary: #c5c6d0;
+  --ha-color-text-tertiary: #a8acb8;
+  --ha-color-text-disabled: #838894;
+
+  --ha-color-fill-primary-normal: #2d3b63;
+  --ha-color-fill-primary-quiet: #273354;
+  --ha-color-fill-danger-normal: #5f2a30;
+  --ha-color-fill-success-normal: #1f4232;
+  --ha-color-yellow-95: #4c3d1f;
+
+  --ha-color-blue: #9ecaff;
+  --ha-color-blue-dark: #7cb2f8;
+  --ha-color-yellow-500: #f1c65f;
+  --ha-color-yellow-600: #e7b84d;
+  --ha-color-green-500: #77d69d;
+  --ha-color-green-600: #62be87;
+
+  --ha-font-family-base: var(--font-material);
+  --ha-radius-md: 6px;
+  --ha-radius-lg: 10px;
+  --ha-radius-xl: 14px;
+  --ha-radius-2xl: 18px;
+  --ha-radius-3xl: 24px;
+  --ha-radius-pill: 9999px;
+}
+
+/* Material Design Theme - Light Mode */
+[data-theme="material"][data-mode="light"] {
+  --ha-color-surface-default: #faf9fd;
+  --ha-color-surface-low: #f1f2f8;
+  --ha-color-surface-mid: #ebeef5;
+  --ha-color-surface-lower: #e4e8f0;
+
+  --ha-color-text-primary: #1b1c20;
+  --ha-color-text-secondary: #454954;
+  --ha-color-text-tertiary: #616674;
+  --ha-color-text-disabled: #80889a;
+
+  --ha-color-fill-primary-normal: #dce6ff;
+  --ha-color-fill-primary-quiet: #ecf1ff;
+  --ha-color-fill-danger-normal: #ffdfe2;
+  --ha-color-fill-success-normal: #d5f0df;
+  --ha-color-yellow-95: #fff1cf;
+
+  --ha-color-blue: #275ea6;
+  --ha-color-blue-dark: #1f4f8c;
+  --ha-color-yellow-500: #a67500;
+  --ha-color-yellow-600: #875f00;
+  --ha-color-green-500: #2f8d53;
+  --ha-color-green-600: #256f42;
+
+  --ha-font-family-base: var(--font-material);
+  --ha-radius-md: 6px;
+  --ha-radius-lg: 10px;
+  --ha-radius-xl: 14px;
+  --ha-radius-2xl: 18px;
+  --ha-radius-3xl: 24px;
+  --ha-radius-pill: 9999px;
+}
+
+/* E-Ink Theme - Light Mode */
+[data-theme="eink"][data-mode="light"] {
+  --ha-color-surface-default: #ffffff;
+  --ha-color-surface-low: #f7f7f7;
+  --ha-color-surface-mid: #ededed;
+  --ha-color-surface-lower: #e2e2e2;
+
+  --ha-color-text-primary: #000000;
+  --ha-color-text-secondary: #222222;
+  --ha-color-text-tertiary: #444444;
+  --ha-color-text-disabled: #6b6b6b;
+
+  --ha-color-fill-primary-normal: #000000;
+  --ha-color-fill-primary-quiet: #e8e8e8;
+  --ha-color-fill-danger-normal: #000000;
+  --ha-color-fill-success-normal: #000000;
+  --ha-color-yellow-95: #d9d9d9;
+
+  --ha-color-blue: #000000;
+  --ha-color-blue-dark: #000000;
+  --ha-color-yellow-500: #2a2a2a;
+  --ha-color-yellow-600: #141414;
+  --ha-color-green-500: #1f1f1f;
+  --ha-color-green-600: #0f0f0f;
+
+  --ha-font-family-base: var(--font-material);
+  --ha-radius-md: 2px;
+  --ha-radius-lg: 3px;
+  --ha-radius-xl: 4px;
+  --ha-radius-2xl: 6px;
+  --ha-radius-3xl: 8px;
+  --ha-radius-pill: 8px;
+}
+
+/* E-Ink Theme - Dark Mode */
+[data-theme="eink"][data-mode="dark"] {
+  --ha-color-surface-default: #000000;
+  --ha-color-surface-low: #101010;
+  --ha-color-surface-mid: #1a1a1a;
+  --ha-color-surface-lower: #242424;
+
+  --ha-color-text-primary: #ffffff;
+  --ha-color-text-secondary: #e5e5e5;
+  --ha-color-text-tertiary: #cccccc;
+  --ha-color-text-disabled: #aaaaaa;
+
+  --ha-color-fill-primary-normal: #ffffff;
+  --ha-color-fill-primary-quiet: #1f1f1f;
+  --ha-color-fill-danger-normal: #ffffff;
+  --ha-color-fill-success-normal: #ffffff;
+  --ha-color-yellow-95: #2d2d2d;
+
+  --ha-color-blue: #ffffff;
+  --ha-color-blue-dark: #ffffff;
+  --ha-color-yellow-500: #e8e8e8;
+  --ha-color-yellow-600: #ffffff;
+  --ha-color-green-500: #efefef;
+  --ha-color-green-600: #ffffff;
+
+  --ha-font-family-base: var(--font-material);
+  --ha-radius-md: 2px;
+  --ha-radius-lg: 3px;
+  --ha-radius-xl: 4px;
+  --ha-radius-2xl: 6px;
+  --ha-radius-3xl: 8px;
+  --ha-radius-pill: 8px;
+}
+
+/* Fallout Theme - Dark Mode */
+[data-theme="fallout"][data-mode="dark"] {
+  --ha-color-surface-default: #171a14;
+  --ha-color-surface-low: #1f241c;
+  --ha-color-surface-mid: #262d22;
+  --ha-color-surface-lower: #2d3528;
+
+  --ha-color-text-primary: #d6e4bf;
+  --ha-color-text-secondary: #aebe9f;
+  --ha-color-text-tertiary: #8e9d83;
+  --ha-color-text-disabled: #6d7965;
+
+  --ha-color-fill-primary-normal: #2d3d2a;
+  --ha-color-fill-primary-quiet: #263423;
+  --ha-color-fill-danger-normal: #58392f;
+  --ha-color-fill-success-normal: #36542e;
+  --ha-color-yellow-95: #4c4528;
+
+  --ha-color-blue: #a1da6d;
+  --ha-color-blue-dark: #89c356;
+  --ha-color-yellow-500: #d3ba63;
+  --ha-color-yellow-600: #b29a4d;
+  --ha-color-green-500: #a2e36f;
+  --ha-color-green-600: #8dcc5b;
+
+  --ha-font-family-base: var(--font-fallout);
+  --ha-radius-md: 2px;
+  --ha-radius-lg: 4px;
+  --ha-radius-xl: 6px;
+  --ha-radius-2xl: 8px;
+  --ha-radius-3xl: 10px;
+  --ha-radius-pill: 6px;
+}
+
+/* Fallout Theme - Light Mode */
+[data-theme="fallout"][data-mode="light"] {
+  --ha-color-surface-default: #f0ebd4;
+  --ha-color-surface-low: #e7e0c6;
+  --ha-color-surface-mid: #ded6b7;
+  --ha-color-surface-lower: #d5cda9;
+
+  --ha-color-text-primary: #2f3328;
+  --ha-color-text-secondary: #535a47;
+  --ha-color-text-tertiary: #6b725f;
+  --ha-color-text-disabled: #858c79;
+
+  --ha-color-fill-primary-normal: #d5e3b7;
+  --ha-color-fill-primary-quiet: #e4edd1;
+  --ha-color-fill-danger-normal: #e8d0c7;
+  --ha-color-fill-success-normal: #cedeb4;
+  --ha-color-yellow-95: #efe3b3;
+
+  --ha-color-blue: #627a3a;
+  --ha-color-blue-dark: #4f6330;
+  --ha-color-yellow-500: #8c742f;
+  --ha-color-yellow-600: #6d5a24;
+  --ha-color-green-500: #6f8f40;
+  --ha-color-green-600: #587233;
+
+  --ha-font-family-base: var(--font-fallout);
+  --ha-radius-md: 2px;
+  --ha-radius-lg: 4px;
+  --ha-radius-xl: 6px;
+  --ha-radius-2xl: 8px;
+  --ha-radius-3xl: 10px;
+  --ha-radius-pill: 6px;
+}
+
 /* Glass Theme Body Background - Gradient (Shared Image) */
 [data-theme="glass"][data-background="gradient"] body {
   background-color: transparent;
@@ -219,10 +492,24 @@
   pointer-events: none;
 }
 
-/* Default Theme - Background Image/Gradient applied to main dashboard container only */
-[data-theme="default"][data-background="image"]
+/* E-Ink Theme - disable decorative backgrounds for maximum readability */
+[data-theme="eink"] [data-component="dashboard-surface"] {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--ha-color-surface-default) !important;
+}
+
+[data-theme="eink"][data-background="image"] [data-component="dashboard-surface"]::before,
+[data-theme="eink"][data-background="gradient"] [data-component="dashboard-surface"]::before,
+[data-theme="eink"][data-background="image"] [data-component="dashboard-surface"]::after,
+[data-theme="eink"][data-background="gradient"] [data-component="dashboard-surface"]::after {
+  content: none !important;
+}
+
+/* Non-Glass Themes - Background Image/Gradient applied to main dashboard container only */
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"],
-[data-theme="default"][data-background="gradient"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"] {
   position: relative;
   /* Ensure we create a stacking context */
@@ -232,7 +519,7 @@
 }
 
 /* Image Layer - Bottom (z-index -2) */
-[data-theme="default"][data-background="image"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
@@ -249,7 +536,7 @@
 }
 
 /* Gradient Layer - Bottom (z-index -2) */
-[data-theme="default"][data-background="gradient"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
@@ -265,15 +552,15 @@
 }
 
 /* None Background - Solid Grey */
-[data-theme="default"][data-background="none"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="none"]
   [data-component="dashboard-surface"] {
   background-color: var(--ha-color-surface-lower) !important;
 }
 
 /* Scrim/Overlay Layer - Top (z-index -1) with 80% Opacity */
-[data-theme="default"][data-background="image"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"]::after,
-[data-theme="default"][data-background="gradient"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   content: "";
   position: absolute;
@@ -285,17 +572,17 @@
 }
 
 /* Light Mode: White Scrim */
-[data-theme="default"][data-mode="light"][data-background="image"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="light"][data-background="image"]
   [data-component="dashboard-surface"]::after,
-[data-theme="default"][data-mode="light"][data-background="gradient"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="light"][data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   background-color: #ffffff;
 }
 
 /* Dark Mode: Dark Scrim */
-[data-theme="default"][data-mode="dark"][data-background="image"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="dark"][data-background="image"]
   [data-component="dashboard-surface"]::after,
-[data-theme="default"][data-mode="dark"][data-background="gradient"]
+:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="dark"][data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   background-color: #1a1a1a;
 }
@@ -342,6 +629,29 @@
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border: none !important;
+  box-shadow: none !important;
+}
+
+/* E-Ink containers: no translucency, no blur, high-contrast edges */
+[data-theme="eink"] [data-component="AppShell"] {
+  background-color: var(--ha-color-surface-low) !important;
+}
+
+[data-theme="eink"] .bg-surface-default,
+[data-theme="eink"] .bg-surface-low,
+[data-theme="eink"] .bg-surface-lower {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  border: 1px solid var(--ha-color-text-secondary) !important;
+}
+
+[data-theme="eink"] [data-component="Sidebar"],
+[data-theme="eink"] [data-component="StatusBar"] {
+  background-color: var(--ha-color-surface-default) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid var(--ha-color-text-secondary) !important;
   box-shadow: none !important;
 }
 
@@ -467,6 +777,87 @@
   background-color: rgba(255, 255, 255, 0.5) !important;
 }
 
+/* E-Ink chrome: flat, sharp, and legible */
+@media (max-width: 1023px) {
+  [data-theme="eink"] [data-component="MobileTopBar"] {
+    background-color: var(--ha-color-surface-default) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-bottom: 1px solid var(--ha-color-text-secondary) !important;
+    box-shadow: none !important;
+  }
+}
+
+[data-theme="eink"] [data-component="MobileNav"] .mobile-nav-pill,
+[data-theme="eink"] [data-component="MobileNav"] .mobile-nav-tabs {
+  background: var(--ha-color-surface-default) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid var(--ha-color-text-secondary) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="eink"] [data-component="dashboard-surface"] {
+  background-color: var(--ha-color-surface-default) !important;
+}
+
+[data-theme="eink"] [data-component="Screensaver"] {
+  background-color: var(--ha-color-surface-default) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+[data-theme="eink"] .bg-fill-primary-normal,
+[data-theme="eink"] .bg-fill-danger-normal,
+[data-theme="eink"] .bg-fill-success-normal,
+[data-theme="eink"] .bg-yellow-95,
+[data-theme="eink"] .bg-fill-primary-quiet {
+  box-shadow: none !important;
+  border: 2px solid currentColor !important;
+}
+
+[data-theme="eink"][data-mode="light"] .bg-fill-primary-normal,
+[data-theme="eink"][data-mode="light"] .bg-fill-danger-normal,
+[data-theme="eink"][data-mode="light"] .bg-fill-success-normal,
+[data-theme="eink"][data-mode="light"] .bg-yellow-95,
+[data-theme="eink"][data-mode="light"] .bg-fill-primary-quiet {
+  background-color: #000000 !important;
+}
+
+[data-theme="eink"][data-mode="light"] .bg-fill-primary-normal .text-text-primary,
+[data-theme="eink"][data-mode="light"] .bg-fill-danger-normal .text-text-primary,
+[data-theme="eink"][data-mode="light"] .bg-fill-success-normal .text-text-primary,
+[data-theme="eink"][data-mode="light"] .bg-yellow-95 .text-text-primary,
+[data-theme="eink"][data-mode="light"] .bg-fill-primary-quiet .text-text-primary,
+[data-theme="eink"][data-mode="light"] .bg-fill-primary-normal .text-text-secondary,
+[data-theme="eink"][data-mode="light"] .bg-fill-danger-normal .text-text-secondary,
+[data-theme="eink"][data-mode="light"] .bg-fill-success-normal .text-text-secondary,
+[data-theme="eink"][data-mode="light"] .bg-yellow-95 .text-text-secondary,
+[data-theme="eink"][data-mode="light"] .bg-fill-primary-quiet .text-text-secondary {
+  color: #ffffff !important;
+}
+
+[data-theme="eink"][data-mode="dark"] .bg-fill-primary-normal,
+[data-theme="eink"][data-mode="dark"] .bg-fill-danger-normal,
+[data-theme="eink"][data-mode="dark"] .bg-fill-success-normal,
+[data-theme="eink"][data-mode="dark"] .bg-yellow-95,
+[data-theme="eink"][data-mode="dark"] .bg-fill-primary-quiet {
+  background-color: #ffffff !important;
+}
+
+[data-theme="eink"][data-mode="dark"] .bg-fill-primary-normal .text-text-primary,
+[data-theme="eink"][data-mode="dark"] .bg-fill-danger-normal .text-text-primary,
+[data-theme="eink"][data-mode="dark"] .bg-fill-success-normal .text-text-primary,
+[data-theme="eink"][data-mode="dark"] .bg-yellow-95 .text-text-primary,
+[data-theme="eink"][data-mode="dark"] .bg-fill-primary-quiet .text-text-primary,
+[data-theme="eink"][data-mode="dark"] .bg-fill-primary-normal .text-text-secondary,
+[data-theme="eink"][data-mode="dark"] .bg-fill-danger-normal .text-text-secondary,
+[data-theme="eink"][data-mode="dark"] .bg-fill-success-normal .text-text-secondary,
+[data-theme="eink"][data-mode="dark"] .bg-yellow-95 .text-text-secondary,
+[data-theme="eink"][data-mode="dark"] .bg-fill-primary-quiet .text-text-secondary {
+  color: #000000 !important;
+}
+
 /* Active Card Styles for Glass Theme - White background, Black text -> 
    This works well for Dark Glass. For Light Glass, also keep it white/black pop? 
    Or maybe dark/white pop? Let's stick to the high contrast Pop for now.
@@ -573,7 +964,7 @@
   --radius-ha-pill: var(--ha-radius-pill);
 
   /* Font */
-  --font-sans: var(--font-inter);
+  --font-sans: var(--ha-font-family-base);
   --font-mono:
     ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Monaco,
     Consolas, monospace;
@@ -598,11 +989,102 @@
 body {
   background: var(--ha-color-surface-low);
   color: var(--ha-color-text-primary);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--ha-font-family-base), system-ui, sans-serif;
   overscroll-behavior: none;
   transition:
     background-color 0.3s ease,
     color 0.3s ease;
+}
+
+/* Enforce clearly distinct typography by theme */
+html[data-theme="cyberpunk"] body,
+html[data-theme="cyberpunk"] button,
+html[data-theme="cyberpunk"] input,
+html[data-theme="cyberpunk"] textarea,
+html[data-theme="cyberpunk"] select,
+html[data-theme="cyberpunk"] label {
+  font-family: var(--font-cyberpunk), "Quantico", "Arial Narrow", var(--ha-font-family-base), system-ui, sans-serif !important;
+  letter-spacing: 0.015em;
+}
+
+html[data-theme="cyberpunk"] :not(code):not(pre):not(kbd):not(samp) {
+  font-family: var(--font-cyberpunk), "Quantico", "Arial Narrow", system-ui, sans-serif;
+}
+
+html[data-theme="material"] body,
+html[data-theme="material"] button,
+html[data-theme="material"] input,
+html[data-theme="material"] textarea,
+html[data-theme="material"] select,
+html[data-theme="material"] label {
+  font-family: var(--font-material), var(--ha-font-family-base), system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+html[data-theme="eink"] body,
+html[data-theme="eink"] button,
+html[data-theme="eink"] input,
+html[data-theme="eink"] textarea,
+html[data-theme="eink"] select,
+html[data-theme="eink"] label {
+  font-family: var(--font-material), var(--ha-font-family-base), system-ui, sans-serif;
+  letter-spacing: 0;
+}
+
+html[data-theme="fallout"] body,
+html[data-theme="fallout"] button,
+html[data-theme="fallout"] input,
+html[data-theme="fallout"] textarea,
+html[data-theme="fallout"] select,
+html[data-theme="fallout"] label {
+  font-family: var(--font-fallout), var(--ha-font-family-base), system-ui, sans-serif;
+  letter-spacing: 0.03em;
+}
+
+/* Icon set styling by theme */
+.ha-icon {
+  transition:
+    filter 0.3s ease,
+    color 0.3s ease;
+}
+
+.ha-icon-path {
+  vector-effect: non-scaling-stroke;
+}
+
+[data-theme="material"] .ha-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+[data-theme="cyberpunk"] .ha-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: bevel;
+  filter: drop-shadow(0 0 4px rgba(0, 217, 255, 0.45));
+}
+
+[data-theme="eink"] .ha-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  filter: none;
+}
+
+[data-theme="fallout"] .ha-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  opacity: 0.92;
 }
 
 /* Theme transition for all elements */

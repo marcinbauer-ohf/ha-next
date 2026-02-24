@@ -12,9 +12,9 @@ export function Icon({ path, size = 24, className }: IconProps) {
       viewBox="0 0 24 24"
       width={size}
       height={size}
-      className={clsx('fill-current flex-shrink-0', className)}
+      className={clsx('ha-icon fill-current flex-shrink-0', className)}
     >
-      <path d={path} />
+      <path d={path} className="ha-icon-path" />
     </svg>
   );
 }

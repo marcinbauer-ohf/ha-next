@@ -427,7 +427,7 @@ export function PullToRevealPanel() {
                   {/* Applications section */}
                   <div className="p-ha-3">
                     <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
-                    <div className="flex flex-wrap gap-ha-1">
+                    <div className="grid grid-cols-5 gap-x-ha-2 gap-y-ha-1.5">
                       {apps.map((app) => {
                         const isActive = pathname === app.urlPath ||
                           (app.urlPath !== '/' && pathname.startsWith(app.urlPath));
@@ -437,20 +437,28 @@ export function PullToRevealPanel() {
                           <Link
                             key={app.id}
                             href={app.urlPath}
-                            className="p-ha-1 rounded-ha-xl hover:bg-surface-low transition-colors flex items-center justify-center"
+                            className="w-full rounded-ha-xl hover:bg-surface-low transition-colors flex flex-col items-center gap-1 p-ha-1.5 min-w-0"
                             title={app.title}
                           >
                             {/* App-style icon with rounded background */}
                             <div className={clsx(
-                              'w-10 h-10 rounded-ha-xl flex items-center justify-center transition-colors',
+                              'w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors',
                               isActive ? 'bg-ha-blue' : palette.bg
                             )}>
                               <MdiIcon
                                 icon={app.icon || 'mdi:application'}
-                                size={22}
-                                className={isActive ? 'text-white' : 'text-text-secondary'}
+                                size={26}
+                                className={isActive ? 'text-white' : palette.text}
                               />
                             </div>
+                            <span
+                              className={clsx(
+                                'w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-[11px] leading-tight font-medium',
+                                isActive ? 'text-text-primary' : 'text-text-secondary'
+                              )}
+                            >
+                              {app.title}
+                            </span>
                           </Link>
                         );
                       })}

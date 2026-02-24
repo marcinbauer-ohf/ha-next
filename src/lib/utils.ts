@@ -44,3 +44,23 @@ export function getTemperatureDisplay(temp: number | undefined, unit = '°C'): s
   if (temp === undefined) return '';
   return `${Math.round(temp)}${unit}`;
 }
+
+export function resolveEntityPictureUrl(haUrl: string | undefined, picture: string | undefined | null): string | undefined {
+  if (!picture) return undefined;
+
+  const trimmed = picture.trim();
+  if (!trimmed) return undefined;
+
+  // Already absolute/protocol-relative (https:, http:, data:, blob:, //...)
+  if (/^(?:[a-z][a-z\d+\-.]*:|\/\/)/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (!haUrl) {
+    return trimmed;
+  }
+
+  const base = haUrl.replace(/\/+$/, '');
+  const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${base}${path}`;
+}

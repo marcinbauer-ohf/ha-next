@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useTransition, ReactNode } from 'react';
+import { useState, useEffect, useRef, useTransition, ReactNode, CSSProperties } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar } from '@/components/layout';
 import { Icon } from '@/components/ui/Icon';
@@ -22,7 +22,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const { connecting, connected, error, configured, hydrated, saveCredentials } = useHomeAssistant();
+  const { connecting, connected, error, configured, hydrated, saveCredentials, enableDemoMode } = useHomeAssistant();
   const { immersiveMode, immersivePhase, toggleImmersiveMode } = useImmersiveMode();
   const { toggleSearch } = useSearchContext();
   const { setHeader } = useHeader();
@@ -34,7 +34,7 @@ export function AppShell({ children }: AppShellProps) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(null);
   const [showPreloader, setShowPreloader] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [mobileNavAutoHidden, setMobileNavAutoHidden] = useState(false);
+  const [mobileNavHideProgress, setMobileNavHideProgress] = useState(0);
   const [profileNavigationPending, startProfileNavigation] = useTransition();
   const wasConnecting = useRef(false);
 
@@ -81,6 +81,14 @@ export function AppShell({ children }: AppShellProps) {
 
   // Track connection state changes and manage status toast visibility
   useEffect(() => {
+    // Suppress transient connecting/connected toasts during boot/preloader.
+    // We still track "wasConnecting" so post-boot reconnects behave as before.
+    if (showPreloader && !error) {
+      setConnectionStatus(null);
+      wasConnecting.current = connecting;
+      return;
+    }
+
     if (connecting) {
       setConnectionStatus('connecting');
       wasConnecting.current = true;
@@ -100,7 +108,7 @@ export function AppShell({ children }: AppShellProps) {
       setConnectionStatus(null);
       wasConnecting.current = false;
     }
-  }, [connecting, connected, error]);
+  }, [connecting, connected, error, showPreloader]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -152,11 +160,26 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   if (!configured) {
-    return <SetupScreen onSave={saveCredentials} error={error} connecting={connecting} />;
+    return <SetupScreen onSave={saveCredentials} onUseDemo={enableDemoMode} error={error} connecting={connecting} />;
   }
 
   const hideDesktopChrome = immersivePhase !== 'normal' && !profileOpen;
-  const hideMobileTopBar = mobileNavAutoHidden;
+  const mobileTopBarHideProgress = Math.max(0, Math.min(1, mobileNavHideProgress));
+  const mobileTopBarPointerEventsClass = mobileTopBarHideProgress >= 0.995
+    ? 'pointer-events-none'
+    : 'pointer-events-auto';
+  const mobileHiddenPaddingProgress = immersiveMode ? 0 : mobileTopBarHideProgress;
+  const desktopTopBarStateClass = hideDesktopChrome
+    ? 'lg:opacity-0 lg:pointer-events-none'
+    : 'lg:opacity-100 lg:pointer-events-auto';
+  const mobileTopBarStyle = {
+    '--mobile-topbar-opacity': `${1 - mobileTopBarHideProgress}`,
+    '--mobile-topbar-translate': `${-4 * mobileTopBarHideProgress}px`,
+    '--mobile-topbar-margin': `${-64 * mobileTopBarHideProgress}px`,
+  } as CSSProperties;
+  const layoutStyle = {
+    '--mobile-ui-hidden-padding': `${mobileHiddenPaddingProgress}`,
+  } as CSSProperties;
 
   return (
     <div className="min-h-screen bg-surface-default" data-component="AppShell">
@@ -172,6 +195,7 @@ export function AppShell({ children }: AppShellProps) {
         className={`h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge transition-opacity duration-700 ${
           showPreloader ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
+        style={layoutStyle}
       >
         {/* Sidebar - Desktop only, spans top bar and content rows */}
         <div className={`hidden lg:block lg:row-span-2 relative z-10 transition-opacity duration-300 ease-out ${
@@ -196,17 +220,10 @@ export function AppShell({ children }: AppShellProps) {
         {/* TopBar - Desktop & Mobile persistent header */}
         <div
           data-component="MobileTopBar"
-          className={`lg:bg-transparent px-edge lg:pr-edge overflow-hidden flex-shrink-0 relative z-10 origin-top transition-[max-height,opacity] duration-200 lg:duration-300 ease-out ${
-            hideMobileTopBar
-              ? 'max-h-0 opacity-0 pointer-events-none lg:max-h-16 lg:opacity-100 lg:pointer-events-auto'
-              : 'max-h-16 opacity-100'
-          } ${
-            hideDesktopChrome ? 'lg:opacity-0 lg:pointer-events-none' : 'lg:opacity-100 lg:pointer-events-auto'
-          }`}
+          className={`h-16 lg:bg-transparent px-edge lg:pr-edge overflow-hidden flex-shrink-0 relative z-10 opacity-[var(--mobile-topbar-opacity)] translate-y-[var(--mobile-topbar-translate)] mb-[var(--mobile-topbar-margin)] transition-[opacity,transform,margin-bottom] duration-120 ease-out lg:translate-y-0 lg:mb-0 lg:duration-300 ${mobileTopBarPointerEventsClass} ${desktopTopBarStateClass}`}
+          style={mobileTopBarStyle}
         >
-          <div className="h-16">
-            <TopBar />
-          </div>
+          <TopBar />
         </div>
 
         {/* Content area — profile replaces dashboard when open */}
@@ -278,7 +295,7 @@ export function AppShell({ children }: AppShellProps) {
       {!showPreloader && (
         <MobileNav
           connectionStatus={connectionStatus}
-          onNavAutoHiddenChange={setMobileNavAutoHidden}
+          onNavAutoHiddenChange={setMobileNavHideProgress}
         />
       )}
 

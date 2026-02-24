@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 
-export type Theme = 'default' | 'glass';
+export const THEMES = ['default', 'glass', 'cyberpunk', 'material', 'eink', 'fallout'] as const;
+export type Theme = (typeof THEMES)[number];
 export type ColorMode = 'light' | 'dark' | 'system';
 export type Background = 'gradient' | 'image' | 'solid' | 'none';
 
@@ -20,11 +21,15 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+function isTheme(value: string | null): value is Theme {
+  return value !== null && THEMES.includes(value as Theme);
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window === 'undefined') return 'default';
-    const stored = localStorage.getItem('ha-theme-pref') as Theme | null;
-    return stored || 'default';
+    const stored = localStorage.getItem('ha-theme-pref');
+    return isTheme(stored) ? stored : 'default';
   });
 
   const [mode, setModeState] = useState<ColorMode>(() => {
@@ -38,6 +43,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem('ha-bg-pref') as Background | null;
     return stored || 'gradient';
   });
+
+  function triggerTransition() {
+    document.documentElement.setAttribute('data-theme-transition', 'true');
+    setTimeout(() => {
+      document.documentElement.removeAttribute('data-theme-transition');
+    }, 300);
+  }
 
   // Sync state to DOM attributes
   useEffect(() => {
@@ -64,13 +76,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [theme, mode, background]);
 
-  const triggerTransition = () => {
-    document.documentElement.setAttribute('data-theme-transition', 'true');
-    setTimeout(() => {
-      document.documentElement.removeAttribute('data-theme-transition');
-    }, 300);
-  };
-
   const setTheme = useCallback((newTheme: Theme) => {
     triggerTransition();
     setThemeState(newTheme);
@@ -90,7 +95,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setTheme(theme === 'default' ? 'glass' : 'default');
+    const currentIndex = THEMES.indexOf(theme);
+    const nextIndex = (currentIndex + 1) % THEMES.length;
+    setTheme(THEMES[nextIndex]);
   }, [theme, setTheme]);
 
   const toggleMode = useCallback(() => {

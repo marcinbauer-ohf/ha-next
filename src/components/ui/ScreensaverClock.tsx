@@ -15,9 +15,23 @@ interface ScreensaverClockProps {
   onDismiss: () => void;
 }
 
+function systemPrefers24HourClock(): boolean {
+  try {
+    const formatter = new Intl.DateTimeFormat(undefined, { hour: 'numeric' });
+    const { hourCycle } = formatter.resolvedOptions();
+    if (hourCycle) {
+      return hourCycle === 'h23' || hourCycle === 'h24';
+    }
+    return !formatter.formatToParts(new Date()).some((part) => part.type === 'dayPeriod');
+  } catch {
+    return false;
+  }
+}
+
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
   const { entities, haUrl } = useHomeAssistant();
   const [time, setTime] = useState({ hours: '', minutes: '', seconds: '', period: '', isAM: true });
+  const use24HourClock = useMemo(() => systemPrefers24HourClock(), []);
   const [date, setDate] = useState('');
   const [colonVisible, setColonVisible] = useState(true);
   // Initialize based on visible prop to avoid flash on initial load
@@ -193,10 +207,10 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       const now = new Date();
       const hours = now.getHours();
       const isAM = hours < 12;
-      const displayHours = hours % 12 || 12;
+      const displayHours = use24HourClock ? hours.toString().padStart(2, '0') : (hours % 12 || 12).toString();
 
       setTime({
-        hours: displayHours.toString(),
+        hours: displayHours,
         minutes: now.getMinutes().toString().padStart(2, '0'),
         seconds: now.getSeconds().toString().padStart(2, '0'),
         period: isAM ? 'AM' : 'PM',
@@ -217,7 +231,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [use24HourClock]);
 
   if (!shouldRender) return null;
 
@@ -254,48 +268,52 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       </div>
 
       {/* Main time display */}
-      <div className="flex items-center gap-1 tabular-nums" style={{ fontFamily: 'system-ui' }}>
-        <div className="flex items-center">
-          {time.hours.split('').map((digit, i) => (
-            <RollingDigit
-              key={i}
-              digit={digit}
-              className="text-[6rem] lg:text-[8rem] font-light text-text-primary leading-none tracking-tight"
-            />
-          ))}
-        </div>
-        <span
-          className={`text-[6rem] lg:text-[8rem] font-light text-text-primary leading-none transition-opacity duration-100 ${
-            colonVisible ? 'opacity-100' : 'opacity-20'
-          }`}
-        >
-          :
-        </span>
-        <div className="flex items-center">
-          {time.minutes.split('').map((digit, i) => (
-            <RollingDigit
-              key={i}
-              digit={digit}
-              className="text-[6rem] lg:text-[8rem] font-light text-text-primary leading-none tracking-tight"
-            />
-          ))}
-        </div>
-        <div className="flex flex-col ml-3 -mt-2">
+      <div className="relative tabular-nums" style={{ fontFamily: 'system-ui' }}>
+        <div className="flex items-center gap-1">
+          <div className="flex items-center">
+            {time.hours.split('').map((digit, i) => (
+              <RollingDigit
+                key={i}
+                digit={digit}
+                className="text-[6rem] lg:text-[8rem] font-semibold text-text-primary leading-none tracking-tight"
+              />
+            ))}
+          </div>
           <span
-            className={`text-xl lg:text-2xl font-medium leading-tight ${
-              time.isAM ? 'text-text-primary' : 'text-text-disabled'
+            className={`text-[6rem] lg:text-[8rem] font-semibold text-text-primary leading-none transition-opacity duration-100 ${
+              colonVisible ? 'opacity-100' : 'opacity-20'
             }`}
           >
-            AM
+            :
           </span>
-          <span
-            className={`text-xl lg:text-2xl font-medium leading-tight ${
-              !time.isAM ? 'text-text-primary' : 'text-text-disabled'
-            }`}
-          >
-            PM
-          </span>
+          <div className="flex items-center">
+            {time.minutes.split('').map((digit, i) => (
+              <RollingDigit
+                key={i}
+                digit={digit}
+                className="text-[6rem] lg:text-[8rem] font-semibold text-text-primary leading-none tracking-tight"
+              />
+            ))}
+          </div>
         </div>
+        {!use24HourClock && (
+          <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 -mt-2 flex flex-col">
+            <span
+              className={`text-xl lg:text-2xl font-medium leading-tight ${
+                time.isAM ? 'text-text-primary' : 'text-text-disabled'
+              }`}
+            >
+              AM
+            </span>
+            <span
+              className={`text-xl lg:text-2xl font-medium leading-tight ${
+                !time.isAM ? 'text-text-primary' : 'text-text-disabled'
+              }`}
+            >
+              PM
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Date display */}

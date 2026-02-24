@@ -19,9 +19,11 @@ import {
 } from '@/lib/homeassistant';
 import type { CallServiceParams } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
+import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 
 const LS_URL_KEY = 'ha_url';
 const LS_TOKEN_KEY = 'ha_token';
+const LS_DEMO_MODE_KEY = 'ha_demo_mode';
 
 interface HomeAssistantContextValue {
   connected: boolean;
@@ -35,6 +37,7 @@ interface HomeAssistantContextValue {
   callService: (params: CallServiceParams) => Promise<void>;
   reconnect: () => Promise<void>;
   saveCredentials: (url: string, token: string) => Promise<void>;
+  enableDemoMode: () => void;
   clearCredentials: () => void;
   setMockEntity: (entityId: string, entity: HassEntity | null) => void;
 }
@@ -48,6 +51,7 @@ interface HomeAssistantProviderProps {
 export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) {
   const [haUrl, setHaUrl] = useState('');
   const [haToken, setHaToken] = useState('');
+  const [demoMode, setDemoMode] = useState(false);
   const [configured, setConfigured] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -61,9 +65,13 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   useEffect(() => {
     const storedUrl = localStorage.getItem(LS_URL_KEY) || '';
     const storedToken = localStorage.getItem(LS_TOKEN_KEY) || '';
+    const storedDemoMode = localStorage.getItem(LS_DEMO_MODE_KEY) === '1';
+
     setHaUrl(storedUrl);
     setHaToken(storedToken);
-    setConfigured(!!storedUrl && !!storedToken);
+    setDemoMode(storedDemoMode);
+    setConfigured(storedDemoMode || (!!storedUrl && !!storedToken));
+    setMockEntities(storedDemoMode ? createDemoEntities() : {});
     setHydrated(true);
   }, []);
 
@@ -93,20 +101,44 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     await doConnect(trimmedUrl, token);
     localStorage.setItem(LS_URL_KEY, trimmedUrl);
     localStorage.setItem(LS_TOKEN_KEY, token);
+    localStorage.removeItem(LS_DEMO_MODE_KEY);
     setHaUrl(trimmedUrl);
     setHaToken(token);
+    setDemoMode(false);
+    setMockEntities({});
     setConfigured(true);
   }, [doConnect]);
+
+  const enableDemoMode = useCallback(() => {
+    disconnect();
+    localStorage.removeItem(LS_URL_KEY);
+    localStorage.removeItem(LS_TOKEN_KEY);
+    localStorage.setItem(LS_DEMO_MODE_KEY, '1');
+    setHaUrl('');
+    setHaToken('');
+    setDemoMode(true);
+    setConfigured(true);
+    setConnected(false);
+    setConnecting(false);
+    setError(null);
+    setEntities({});
+    setMockEntities(createDemoEntities());
+    hasAutoConnected.current = false;
+  }, []);
 
   const clearCredentials = useCallback(() => {
     localStorage.removeItem(LS_URL_KEY);
     localStorage.removeItem(LS_TOKEN_KEY);
+    localStorage.removeItem(LS_DEMO_MODE_KEY);
     disconnect();
     setHaUrl('');
     setHaToken('');
+    setDemoMode(false);
     setConfigured(false);
     setConnected(false);
     setEntities({});
+    setMockEntities({});
+    setError(null);
     hasAutoConnected.current = false;
   }, []);
 
@@ -158,7 +190,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
       doConnect(haUrl, haToken).catch(() => {});
     }
     return () => { disconnect(); };
-  }, [configured, haUrl, haToken, doConnect]);
+  }, [configured, haUrl, haToken, doConnect, demoMode]);
 
   return (
     <HomeAssistantContext.Provider
@@ -174,6 +206,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
         callService,
         reconnect,
         saveCredentials,
+        enableDemoMode,
         clearCredentials,
         setMockEntity,
       }}

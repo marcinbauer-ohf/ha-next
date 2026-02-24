@@ -154,7 +154,7 @@ export default function EnergyDashboardPage() {
       <PullToRevealPanel />
 
       {/* Main content row - shrinks as panel expands */}
-      <div className={`min-h-0 overflow-hidden px-edge pb-0 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
+      <div className={`min-h-0 overflow-hidden px-edge mt-[calc(var(--ha-space-1)*(1-var(--mobile-ui-hidden-padding,0)))] pt-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] pb-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] lg:mt-0 lg:pt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
         isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
       }`}>
         <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl relative">

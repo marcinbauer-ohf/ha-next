@@ -2,15 +2,16 @@
 
 import { useState } from 'react';
 import { Icon } from './Icon';
-import { mdiHomeAssistant, mdiLinkVariant, mdiKey, mdiArrowRight } from '@mdi/js';
+import { mdiHomeAssistant, mdiLinkVariant, mdiKey, mdiArrowRight, mdiFlaskOutline } from '@mdi/js';
 
 interface SetupScreenProps {
   onSave: (url: string, token: string) => Promise<void>;
+  onUseDemo: () => void;
   error?: string | null;
   connecting?: boolean;
 }
 
-export function SetupScreen({ onSave, error, connecting }: SetupScreenProps) {
+export function SetupScreen({ onSave, onUseDemo, error, connecting }: SetupScreenProps) {
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
   const [securityAnswer, setSecurityAnswer] = useState('');
@@ -121,6 +122,20 @@ export function SetupScreen({ onSave, error, connecting }: SetupScreenProps) {
             {connecting ? 'Connecting...' : 'Connect'}
             {!connecting && <Icon path={mdiArrowRight} size={18} />}
           </button>
+
+          <button
+            type="button"
+            onClick={onUseDemo}
+            disabled={connecting || !isSecurityCorrect}
+            className="w-full flex items-center justify-center gap-ha-2 py-3 px-4 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary font-medium hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Icon path={mdiFlaskOutline} size={18} />
+            Use demo data
+          </button>
+
+          <p className="text-xs text-text-secondary text-center">
+            Demo mode still requires the restricted-access answer above.
+          </p>
         </form>
       </div>
     </div>

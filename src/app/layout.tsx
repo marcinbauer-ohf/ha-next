@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Quantico, Nunito, VT323 } from 'next/font/google';
 import './globals.css';
 import { HomeAssistantProvider } from '@/hooks/useHomeAssistant';
 import { ThemeProvider } from '@/hooks/useTheme';
@@ -10,6 +10,24 @@ import { AppShell } from '@/components/layout';
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
+});
+
+const quantico = Quantico({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  variable: '--font-cyberpunk',
+});
+
+const nunito = Nunito({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-material',
+});
+
+const vt323 = VT323({
+  subsets: ['latin'],
+  weight: '400',
+  variable: '--font-fallout',
 });
 
 export const metadata: Metadata = {
@@ -35,7 +53,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased`} suppressHydrationWarning>
+      <body className={`${inter.variable} ${quantico.variable} ${nunito.variable} ${vt323.variable} antialiased`} suppressHydrationWarning>
         <ThemeProvider>
           <HomeAssistantProvider>
             <ImmersiveModeProvider>

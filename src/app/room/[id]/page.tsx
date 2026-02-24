@@ -271,7 +271,7 @@ export default function RoomPage({ params }: RoomPageProps) {
       <PullToRevealPanel />
 
       {/* Main content row */}
-      <div className={`min-h-0 overflow-hidden px-edge pb-0 mt-1 lg:mt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
+      <div className={`min-h-0 overflow-hidden px-edge mt-[calc(var(--ha-space-1)*(1-var(--mobile-ui-hidden-padding,0)))] pt-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] pb-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] lg:mt-0 lg:pt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
         isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
       }`}>
         <div className={`h-full flex ${infoOpen ? 'gap-ha-3' : ''}`}>
@@ -410,7 +410,7 @@ export default function RoomPage({ params }: RoomPageProps) {
 
       {/* Mobile Bottom Sheet */}
       <div
-        className={`lg:hidden fixed inset-0 z-50 transition-opacity duration-300 ${
+        className={`lg:hidden fixed inset-0 z-[60] transition-opacity duration-300 ${
           infoOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >

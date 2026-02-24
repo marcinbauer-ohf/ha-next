@@ -12,6 +12,7 @@ import { CircularProgress } from '../ui/CircularProgress';
 import { ProfileContent } from '../profile';
 import { useHomeAssistant, useSidebarItems } from '@/hooks';
 import { usePullToRevealContext, useSearchContext } from '@/contexts';
+import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
   mdiMagnify,
   mdiUpdate,
@@ -39,6 +40,8 @@ import {
   mdiCloudOff,
 } from '@mdi/js';
 
+const RELEASE_NOTES_PREFIX = 'update.home_assistant_release_notes_simulated';
+
 function parseTime(time: string): number {
   const parts = time.split(':').map(Number);
   if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
@@ -53,6 +56,11 @@ const appPalettes = [
   { bg: 'bg-[var(--ha-color-yellow-95)]', text: 'text-yellow-600' },
 ];
 
+const activityWidgetTransition = {
+  duration: 0.24,
+  ease: [0.22, 1, 0.36, 1] as const,
+};
+
 function getAppPalette(id: string) {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
@@ -62,7 +70,8 @@ function getAppPalette(id: string) {
 }
 
 export type ConnectionStatusType = 'connecting' | 'connected' | 'error' | null;
-type BottomSurfaceTab = 'dashboards' | 'search' | 'dashboard' | 'chat' | 'settings';
+type BottomSurfaceTab = 'dashboards' | 'search' | 'dashboard' | 'chat' | 'settings' | 'widget';
+type WidgetSurfaceType = 'release' | 'media' | 'timer' | 'camera' | 'printer';
 
 interface SearchResultItem {
   id: string;
@@ -76,7 +85,7 @@ interface SearchResultItem {
 interface MobileNavProps {
   disableAutoHide?: boolean;
   connectionStatus?: ConnectionStatusType;
-  onNavAutoHiddenChange?: (hidden: boolean) => void;
+  onNavAutoHiddenChange?: (progress: number) => void;
 }
 
 export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAutoHiddenChange }: MobileNavProps) {
@@ -88,134 +97,292 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   // Assistant now handled via expandedWidgetId
 
   const [timerProgress, setTimerProgress] = useState<number>(0);
-  const [hideTopRow, setHideTopRow] = useState(false);
+  const [scrollHideProgress, setScrollHideProgress] = useState(0);
   const [hideFromInactivity, setHideFromInactivity] = useState(false);
   const [showBottomEdgeGradient, setShowBottomEdgeGradient] = useState(false);
+  const [showExpandedSurfaceTopGradient, setShowExpandedSurfaceTopGradient] = useState(false);
+  const [showExpandedSurfaceBottomGradient, setShowExpandedSurfaceBottomGradient] = useState(false);
+  const [showActivityListTopGradient, setShowActivityListTopGradient] = useState(false);
+  const [showActivityListBottomGradient, setShowActivityListBottomGradient] = useState(false);
   const [statusExpanded, setStatusExpanded] = useState(false);
   const [expandedSurfaceTab, setExpandedSurfaceTab] = useState<BottomSurfaceTab>('dashboards');
   const [expandedSearchQuery, setExpandedSearchQuery] = useState('');
   const [expandedWidgetId, setExpandedWidgetId] = useState<string | null>(null);
+  const [expandedWidgetType, setExpandedWidgetType] = useState<WidgetSurfaceType | null>(null);
   // For multi-activity list picker
-  const [activityListType, setActivityListType] = useState<'media' | 'timer' | 'camera' | 'printer' | null>(null);
+  const [activityListType, setActivityListType] = useState<'release' | 'media' | 'timer' | 'camera' | 'printer' | null>(null);
+  const [dismissedReleaseNotes, setDismissedReleaseNotes] = useState<Record<string, string>>({});
+  const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(null);
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [selectedTimerId, setSelectedTimerId] = useState<string | null>(null);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
-  const lastScrollY = useRef(0);
-  const scrollAnchor = useRef(0);
-  const scrollDirection = useRef<'up' | 'down' | null>(null);
-  const lastScrollTimestamp = useRef(0);
+  const scrollHideProgressRef = useRef(0);
+  const isTouchDraggingRef = useRef(false);
+  const isPointerDraggingRef = useRef(false);
+  const isWheelScrollingRef = useRef(false);
+  const dragStartedInScrollableRef = useRef(false);
+  const lastTouchClientYRef = useRef<number | null>(null);
+  const lastPointerClientYRef = useRef<number | null>(null);
+  const wheelEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
   const bottomSheetHandleRef = useRef<HTMLButtonElement | null>(null);
   const expandedSurfaceScrollRef = useRef<HTMLDivElement | null>(null);
+  const activityListScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomSheetTouchStartY = useRef<number | null>(null);
   const bottomSheetPullDistance = useRef(0);
   const isDashboardsActive = expandedSurfaceTab === 'dashboards';
   const isSearchActive = expandedSurfaceTab === 'search' || searchOpen;
   const isSettingsActive = expandedSurfaceTab === 'settings';
-  const isBottomRowHidden = (hideTopRow || hideFromInactivity) && !isRevealed && !statusExpanded;
+  const effectiveHideProgress = disableAutoHide || isRevealed || statusExpanded
+    ? 0
+    : hideFromInactivity
+      ? 1
+      : scrollHideProgress;
+  const bottomRowVisibleRatio = 1 - effectiveHideProgress;
+  const isBottomRowHidden = bottomRowVisibleRatio <= 0.02;
+  const getEntityPictureUrl = useCallback(
+    (picture?: string, fallback?: string) => resolveEntityPictureUrl(haUrl, picture) ?? fallback,
+    [haUrl]
+  );
+
+  const setClampedHideProgress = useCallback((nextProgress: number) => {
+    const clamped = Math.max(0, Math.min(1, nextProgress));
+    scrollHideProgressRef.current = clamped;
+    setScrollHideProgress((prev) => (Math.abs(prev - clamped) < 0.001 ? prev : clamped));
+  }, []);
 
   useEffect(() => {
-    onNavAutoHiddenChange?.(isBottomRowHidden);
-  }, [isBottomRowHidden, onNavAutoHiddenChange]);
+    onNavAutoHiddenChange?.(effectiveHideProgress);
+  }, [effectiveHideProgress, onNavAutoHiddenChange]);
 
   useEffect(() => {
     return () => {
-      onNavAutoHiddenChange?.(false);
+      onNavAutoHiddenChange?.(0);
     };
   }, [onNavAutoHiddenChange]);
 
   // Scroll behavior
   useEffect(() => {
-    if (disableAutoHide || isRevealed) {
-      if (hideTopRow !== false) setHideTopRow(false);
-      if (hideFromInactivity !== false) setHideFromInactivity(false);
+    let scrollable: HTMLElement | null = null;
+    let attachRetryRaf: number | null = null;
+    const clearWheelEndTimer = () => {
+      if (wheelEndTimerRef.current) {
+        clearTimeout(wheelEndTimerRef.current);
+        wheelEndTimerRef.current = null;
+      }
+    };
+    const resetInteractionState = () => {
+      isTouchDraggingRef.current = false;
+      isPointerDraggingRef.current = false;
+      isWheelScrollingRef.current = false;
+      dragStartedInScrollableRef.current = false;
+      lastTouchClientYRef.current = null;
+      lastPointerClientYRef.current = null;
+      clearWheelEndTimer();
+    };
+
+    if (disableAutoHide || isRevealed || statusExpanded) {
+      resetInteractionState();
+      queueMicrotask(() => {
+        setClampedHideProgress(0);
+        setHideFromInactivity(false);
+      });
       return;
     }
 
-    const scrollable = document.querySelector('[data-scrollable="dashboard"]');
-    if (!scrollable) return;
+    const HIDE_PROGRESS_DISTANCE_PX = 20;
+    const SHOW_PROGRESS_DISTANCE_PX = 12;
+    const WHEEL_DELTA_CLAMP = 8;
+    const WHEEL_SNAP_DELAY_MS = 140;
 
-    // Asymmetric thresholds tuned to avoid accidental toggles on slow scroll.
-    const HIDE_BUFFER = 28;
-    const SHOW_BUFFER = 96;
-    const FORCE_HIDE_DISTANCE = 120;
-    const FORCE_SHOW_DISTANCE = 170;
-    const MIN_HIDE_VELOCITY = 0.28; // px/ms
-    const MIN_SHOW_VELOCITY = 0.32; // px/ms
-
-    const handleScroll = () => {
-      const now = performance.now();
-      const currentScrollY = scrollable.scrollTop;
-      const deltaY = currentScrollY - lastScrollY.current;
-      const deltaTime = Math.max(now - lastScrollTimestamp.current, 1);
-      const currentDirection: 'up' | 'down' =
-        deltaY > 0 ? 'down' : deltaY < 0 ? 'up' : (scrollDirection.current ?? 'down');
-      const maxScroll = scrollable.scrollHeight - scrollable.clientHeight;
-
-      // Ignore iOS bounce at bottom (when scroll position is near max)
-      const isNearBottom = currentScrollY >= maxScroll - 20;
-
-      // Detect direction change - reset anchor
-      if (currentDirection !== scrollDirection.current) {
-        scrollDirection.current = currentDirection;
-        scrollAnchor.current = currentScrollY;
-      }
-
-      // Calculate distance from anchor
-      const distanceFromAnchor = Math.abs(currentScrollY - scrollAnchor.current);
-      const canShow = hideTopRow || hideFromInactivity;
-
-      if (currentDirection === 'down' && distanceFromAnchor > HIDE_BUFFER && currentScrollY > 80 && !isRevealed) {
-        const downwardVelocity = Math.abs(deltaY) / deltaTime;
-        const hideFastEnough = downwardVelocity >= MIN_HIDE_VELOCITY;
-        const hideLongEnough = distanceFromAnchor >= FORCE_HIDE_DISTANCE;
-
-        if (hideFastEnough || hideLongEnough) {
-          setHideTopRow(true);
-        }
-      } else if (currentDirection === 'up' && canShow && !isNearBottom) {
-        // Prevent accidental re-show from tiny/slow upward scrolls.
-        const upwardVelocity = Math.abs(deltaY) / deltaTime;
-        const fastEnough = upwardVelocity >= MIN_SHOW_VELOCITY;
-        const longEnough = distanceFromAnchor >= FORCE_SHOW_DISTANCE;
-
-        if (distanceFromAnchor >= SHOW_BUFFER && (fastEnough || longEnough)) {
-          setHideTopRow(false);
-          if (hideFromInactivity) {
-            setHideFromInactivity(false);
-          }
-        }
-      }
-
-      lastScrollY.current = currentScrollY;
-      lastScrollTimestamp.current = now;
+    const clearInactivityHide = () => {
+      setHideFromInactivity((hidden) => (hidden ? false : hidden));
     };
 
-    lastScrollY.current = scrollable.scrollTop;
-    scrollAnchor.current = scrollable.scrollTop;
-    scrollDirection.current = null;
-    lastScrollTimestamp.current = performance.now();
+    const snapByMidpoint = () => {
+      const visibleRatio = 1 - scrollHideProgressRef.current;
+      setClampedHideProgress(visibleRatio > 0.5 ? 0 : 1);
+    };
 
-    scrollable.addEventListener('scroll', handleScroll, { passive: true });
-    return () => scrollable.removeEventListener('scroll', handleScroll);
-  }, [disableAutoHide, isRevealed, hideTopRow, hideFromInactivity, pathname]);
+    const beginDragGesture = (source: 'touch' | 'pointer' | 'wheel', startY?: number) => {
+      dragStartedInScrollableRef.current = true;
+      if (source === 'touch') {
+        isTouchDraggingRef.current = true;
+        lastTouchClientYRef.current = startY ?? null;
+      } else if (source === 'pointer') {
+        isPointerDraggingRef.current = true;
+        lastPointerClientYRef.current = startY ?? null;
+      } else {
+        isWheelScrollingRef.current = true;
+      }
+      clearInactivityHide();
+    };
+
+    const endDragGesture = (source: 'touch' | 'pointer' | 'wheel', shouldSnap: boolean) => {
+      if (source === 'touch') {
+        isTouchDraggingRef.current = false;
+        lastTouchClientYRef.current = null;
+      } else if (source === 'pointer') {
+        isPointerDraggingRef.current = false;
+        lastPointerClientYRef.current = null;
+      } else {
+        isWheelScrollingRef.current = false;
+        clearWheelEndTimer();
+      }
+      if (shouldSnap && dragStartedInScrollableRef.current && !isTouchDraggingRef.current && !isPointerDraggingRef.current) {
+        snapByMidpoint();
+      }
+      if (!isTouchDraggingRef.current && !isPointerDraggingRef.current && !isWheelScrollingRef.current) {
+        dragStartedInScrollableRef.current = false;
+      }
+    };
+
+    const applyInputDelta = (deltaY: number, source: 'touch' | 'pointer' | 'wheel') => {
+      if (!dragStartedInScrollableRef.current) return;
+      if (Math.abs(deltaY) < 0.1) return;
+
+      clearInactivityHide();
+
+      const normalizedDelta =
+        source === 'wheel'
+          ? Math.max(-WHEEL_DELTA_CLAMP, Math.min(WHEEL_DELTA_CLAMP, deltaY))
+          : deltaY;
+      const progressDelta =
+        normalizedDelta < 0
+          ? normalizedDelta / SHOW_PROGRESS_DISTANCE_PX
+          : normalizedDelta / HIDE_PROGRESS_DISTANCE_PX;
+      setClampedHideProgress(scrollHideProgressRef.current + progressDelta);
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      beginDragGesture('touch', touch?.clientY);
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (!isTouchDraggingRef.current || !dragStartedInScrollableRef.current) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      if (lastTouchClientYRef.current === null) {
+        lastTouchClientYRef.current = touch.clientY;
+        return;
+      }
+      const deltaY = lastTouchClientYRef.current - touch.clientY;
+      lastTouchClientYRef.current = touch.clientY;
+      applyInputDelta(deltaY, 'touch');
+    };
+
+    const handleTouchEndOrCancel = () => {
+      const shouldSnap = isTouchDraggingRef.current;
+      endDragGesture('touch', shouldSnap);
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType === 'touch') return;
+      beginDragGesture('pointer', event.clientY);
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isPointerDraggingRef.current || !dragStartedInScrollableRef.current) return;
+      if (lastPointerClientYRef.current === null) {
+        lastPointerClientYRef.current = event.clientY;
+        return;
+      }
+      const deltaY = lastPointerClientYRef.current - event.clientY;
+      lastPointerClientYRef.current = event.clientY;
+      applyInputDelta(deltaY, 'pointer');
+    };
+
+    const handlePointerUpOrCancel = () => {
+      const shouldSnap = isPointerDraggingRef.current;
+      endDragGesture('pointer', shouldSnap);
+    };
+
+    const scheduleWheelSnap = () => {
+      clearWheelEndTimer();
+      wheelEndTimerRef.current = setTimeout(() => {
+        wheelEndTimerRef.current = null;
+        if (!isWheelScrollingRef.current) return;
+        endDragGesture('wheel', true);
+      }, WHEEL_SNAP_DELAY_MS);
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (!isWheelScrollingRef.current) beginDragGesture('wheel');
+      applyInputDelta(event.deltaY, 'wheel');
+      scheduleWheelSnap();
+    };
+
+    const attach = () => {
+      const nextScrollable = document.querySelector('[data-scrollable="dashboard"]') as HTMLElement | null;
+      if (!nextScrollable) return false;
+      scrollable = nextScrollable;
+      resetInteractionState();
+      scrollable.addEventListener('touchstart', handleTouchStart, { passive: true });
+      scrollable.addEventListener('pointerdown', handlePointerDown, { passive: true });
+      scrollable.addEventListener('wheel', handleWheel, { passive: true });
+      document.addEventListener('touchmove', handleTouchMove, { passive: true });
+      document.addEventListener('touchend', handleTouchEndOrCancel, { passive: true });
+      document.addEventListener('touchcancel', handleTouchEndOrCancel, { passive: true });
+      document.addEventListener('pointermove', handlePointerMove, { passive: true });
+      document.addEventListener('pointerup', handlePointerUpOrCancel, { passive: true });
+      document.addEventListener('pointercancel', handlePointerUpOrCancel, { passive: true });
+      return true;
+    };
+
+    let attempts = 0;
+    const maxAttempts = 45;
+    const tryAttach = () => {
+      if (attach()) return;
+      attempts += 1;
+      if (attempts <= maxAttempts) {
+        attachRetryRaf = requestAnimationFrame(tryAttach);
+      }
+    };
+
+    tryAttach();
+
+    return () => {
+      if (attachRetryRaf !== null) cancelAnimationFrame(attachRetryRaf);
+      if (scrollable) {
+        scrollable.removeEventListener('touchstart', handleTouchStart);
+        scrollable.removeEventListener('pointerdown', handlePointerDown);
+        scrollable.removeEventListener('wheel', handleWheel);
+      }
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEndOrCancel);
+      document.removeEventListener('touchcancel', handleTouchEndOrCancel);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUpOrCancel);
+      document.removeEventListener('pointercancel', handlePointerUpOrCancel);
+      resetInteractionState();
+    };
+  }, [disableAutoHide, isRevealed, pathname, setClampedHideProgress, statusExpanded]);
 
   // Inactivity detection for hiding bottom row after 10s
   useEffect(() => {
-    if (disableAutoHide || isRevealed) {
-      if (hideFromInactivity !== false) setHideFromInactivity(false);
+    if (disableAutoHide || isRevealed || statusExpanded) {
+      queueMicrotask(() => {
+        setHideFromInactivity(false);
+      });
       return;
     }
 
-    const scrollable = document.querySelector('[data-scrollable="dashboard"]');
+    const scrollable = document.querySelector('[data-scrollable="dashboard"]') as HTMLElement | null;
 
     const resetInactivityTimer = () => {
       if (inactivityTimer.current) {
         clearTimeout(inactivityTimer.current);
       }
+
+      setHideFromInactivity((hidden) => (hidden ? false : hidden));
+
       inactivityTimer.current = setTimeout(() => {
-        if (!isRevealed) setHideFromInactivity(true);
+        if (!isRevealed && !statusExpanded) {
+          setHideFromInactivity(true);
+          setClampedHideProgress(1);
+        }
       }, 10000); // 10 seconds
     };
 
@@ -244,7 +411,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         scrollable.removeEventListener('scroll', resetInactivityTimer);
       }
     };
-  }, [disableAutoHide, isRevealed, hideFromInactivity, hideTopRow, pathname]);
+  }, [disableAutoHide, isRevealed, pathname, setClampedHideProgress, statusExpanded]);
 
   // Bottom-edge gradient: shown only when dashboard content continues below the fold
   useEffect(() => {
@@ -314,8 +481,111 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     };
   }, [pathname, isRevealed]);
 
+  // Expanded bottom-nav content gradients: show fades when content overflows.
+  useEffect(() => {
+    if (!statusExpanded) {
+      queueMicrotask(() => {
+        setShowExpandedSurfaceTopGradient(false);
+        setShowExpandedSurfaceBottomGradient(false);
+      });
+      return;
+    }
+
+    const scrollElement = expandedSurfaceScrollRef.current;
+    if (!scrollElement) return;
+
+    let resizeObserver: ResizeObserver | null = null;
+    let initialCheckRaf: number | null = null;
+    const threshold = 10;
+
+    const updateGradients = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const hasOverflow = scrollHeight > clientHeight + threshold;
+
+      setShowExpandedSurfaceTopGradient(scrollTop > threshold);
+      setShowExpandedSurfaceBottomGradient(
+        hasOverflow && scrollTop + clientHeight < scrollHeight - threshold
+      );
+    };
+
+    scrollElement.addEventListener('scroll', updateGradients, { passive: true });
+    window.addEventListener('resize', updateGradients);
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => updateGradients());
+      resizeObserver.observe(scrollElement);
+
+      const contentRoot = scrollElement.firstElementChild;
+      if (contentRoot) {
+        resizeObserver.observe(contentRoot);
+      }
+    }
+
+    initialCheckRaf = requestAnimationFrame(updateGradients);
+
+    return () => {
+      if (initialCheckRaf !== null) cancelAnimationFrame(initialCheckRaf);
+      scrollElement.removeEventListener('scroll', updateGradients);
+      window.removeEventListener('resize', updateGradients);
+      if (resizeObserver) resizeObserver.disconnect();
+    };
+  }, [statusExpanded, expandedSurfaceTab]);
+
+  // Activity list sheet gradients for overflowed lists.
+  useEffect(() => {
+    if (!activityListType) {
+      queueMicrotask(() => {
+        setShowActivityListTopGradient(false);
+        setShowActivityListBottomGradient(false);
+      });
+      return;
+    }
+
+    const scrollElement = activityListScrollRef.current;
+    if (!scrollElement) return;
+
+    let resizeObserver: ResizeObserver | null = null;
+    let initialCheckRaf: number | null = null;
+    const threshold = 10;
+
+    const updateGradients = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const hasOverflow = scrollHeight > clientHeight + threshold;
+
+      setShowActivityListTopGradient(scrollTop > threshold);
+      setShowActivityListBottomGradient(
+        hasOverflow && scrollTop + clientHeight < scrollHeight - threshold
+      );
+    };
+
+    scrollElement.addEventListener('scroll', updateGradients, { passive: true });
+    window.addEventListener('resize', updateGradients);
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => updateGradients());
+      resizeObserver.observe(scrollElement);
+
+      const contentRoot = scrollElement.firstElementChild;
+      if (contentRoot) {
+        resizeObserver.observe(contentRoot);
+      }
+    }
+
+    initialCheckRaf = requestAnimationFrame(updateGradients);
+
+    return () => {
+      if (initialCheckRaf !== null) cancelAnimationFrame(initialCheckRaf);
+      scrollElement.removeEventListener('scroll', updateGradients);
+      window.removeEventListener('resize', updateGradients);
+      if (resizeObserver) resizeObserver.disconnect();
+    };
+  }, [activityListType]);
+
   const closeExpandedSurface = useCallback(() => {
     setStatusExpanded(false);
+    setExpandedWidgetId(null);
+    setExpandedWidgetType(null);
+    setExpandedSurfaceTab((tab) => (tab === 'widget' ? 'dashboards' : tab));
   }, []);
 
   const openExpandedSurface = useCallback(
@@ -326,8 +596,11 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       }
       if (isRevealed) close();
       if (searchOpen) closeSearch();
-      setExpandedWidgetId(null);
       setActivityListType(null);
+      if (tab !== 'widget') {
+        setExpandedWidgetId(null);
+        setExpandedWidgetType(null);
+      }
       setExpandedSurfaceTab(tab);
       if (tab === 'search') setExpandedSearchQuery('');
       setStatusExpanded(true);
@@ -338,6 +611,56 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       });
     },
     [close, closeExpandedSurface, closeSearch, expandedSurfaceTab, isRevealed, searchOpen, statusExpanded]
+  );
+
+  const openWidgetSurface = useCallback(
+    (type: WidgetSurfaceType, entityId: string) => {
+      if (isRevealed) close();
+      if (searchOpen) closeSearch();
+      setActivityListType(null);
+      setExpandedWidgetType(type);
+      setExpandedWidgetId(entityId);
+
+      if (type === 'release') setSelectedReleaseId(entityId);
+      else if (type === 'media') setSelectedMediaId(entityId);
+      else if (type === 'timer') setSelectedTimerId(entityId);
+      else if (type === 'camera') setSelectedCameraId(entityId);
+      else setSelectedPrinterId(entityId);
+
+      setExpandedSurfaceTab('widget');
+      setStatusExpanded(true);
+      requestAnimationFrame(() => {
+        if (expandedSurfaceScrollRef.current) {
+          expandedSurfaceScrollRef.current.scrollTop = 0;
+        }
+      });
+    },
+    [close, closeSearch, isRevealed, searchOpen]
+  );
+
+  const toggleWidgetSurface = useCallback(
+    (type: WidgetSurfaceType, entityId: string) => {
+      const isAlreadyOpen =
+        statusExpanded &&
+        expandedSurfaceTab === 'widget' &&
+        expandedWidgetType === type &&
+        expandedWidgetId === entityId;
+
+      if (isAlreadyOpen) {
+        closeExpandedSurface();
+        return;
+      }
+
+      openWidgetSurface(type, entityId);
+    },
+    [
+      closeExpandedSurface,
+      expandedSurfaceTab,
+      expandedWidgetId,
+      expandedWidgetType,
+      openWidgetSurface,
+      statusExpanded,
+    ]
   );
 
   // Shared drag handle behavior:
@@ -442,7 +765,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       const picture = entity.attributes.entity_picture as string | undefined;
       const name = entity.attributes.friendly_name as string | undefined;
       return {
-        picture: picture ? `${haUrl}${picture}` : undefined,
+        picture: resolveEntityPictureUrl(haUrl, picture),
         initials: name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U',
       };
     }
@@ -462,6 +785,41 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     // Default to false (not exposed) if we can't determine
     return false;
   }, [entities]);
+
+  // Get simulated release notes widgets
+  const allActiveReleaseNotes = useMemo(() => {
+    return Object.entries(entities)
+      .filter(([entityId, entity]) => entityId === RELEASE_NOTES_PREFIX && entity.state === 'on')
+      .map(([entityId, entity]) => {
+        const rawNotes = entity.attributes.release_notes;
+        const notes = Array.isArray(rawNotes)
+          ? rawNotes.map((item) => String(item))
+          : typeof rawNotes === 'string'
+            ? [rawNotes]
+            : [];
+        return {
+          entityId,
+          name: String(entity.attributes.friendly_name || 'Home Assistant release notes'),
+          version: String(entity.attributes.latest_version || entity.attributes.release_version || 'Latest'),
+          summary: String(entity.attributes.release_summary || 'See what is new in Home Assistant.'),
+          notes,
+          updatedAt: entity.last_updated,
+        };
+      })
+      .sort((a, b) => a.entityId.localeCompare(b.entityId));
+  }, [entities]);
+
+  const visibleReleaseNotes = useMemo(
+    () => allActiveReleaseNotes.filter((note) => dismissedReleaseNotes[note.entityId] !== note.updatedAt),
+    [allActiveReleaseNotes, dismissedReleaseNotes]
+  );
+
+  // Get active release note (selected or first)
+  const activeRelease = useMemo(() => {
+    if (visibleReleaseNotes.length === 0) return null;
+    const found = selectedReleaseId ? visibleReleaseNotes.find((note) => note.entityId === selectedReleaseId) : null;
+    return found || visibleReleaseNotes[0];
+  }, [selectedReleaseId, visibleReleaseNotes]);
 
   // Get all active media players
   const allActiveMedia = useMemo(() => {
@@ -527,7 +885,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         entityId,
         name: String(entity.attributes.friendly_name || 'Front Door'),
         event: (entity.attributes.event_type as string) || 'Movement detected',
-        entityPicture: (entity.attributes.entity_picture as string) || '/camera_doorbell.png',
+        entityPicture: entity.attributes.entity_picture as string | undefined,
       }));
   }, [entities]);
 
@@ -553,7 +911,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         progress: Number(entity.attributes.progress || 0),
         fileName: (entity.attributes.file_name || entity.attributes.friendly_name || 'Printing') as string,
         remainingTime: (entity.attributes.time_remaining || '00:00:00') as string,
-        entityPicture: (entity.attributes.entity_picture as string) || '/printer_3d.png',
+        entityPicture: entity.attributes.entity_picture as string | undefined,
       }));
   }, [entities]);
 
@@ -565,6 +923,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   }, [allActivePrinters, selectedPrinterId]);
 
   // Derive visibility
+  const showReleaseWidget = !!activeRelease;
   const showMediaWidget = !!activeMedia;
   const showTimerWidget = !!activeTimer;
   const showCameraWidget = !!activeCamera;
@@ -609,6 +968,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   }, [activeTimer, activeTimer?.finishesAt, activeTimer?.state, activeTimer?.durationSec, activeTimer?.remaining]);
 
   // Active counts derived from all-active arrays
+  const activeReleaseCount = visibleReleaseNotes.length;
   const activeTimerCount = allActiveTimers.length;
   const activeCameraCount = allActiveCameras.length;
   const activePrinterCount = allActivePrinters.length;
@@ -705,6 +1065,14 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     if (expandedSurfaceTab === 'search') {
       return { title: 'Search', icon: mdiMagnify };
     }
+    if (expandedSurfaceTab === 'widget') {
+      if (expandedWidgetType === 'release') return { title: "What's New", icon: mdiUpdate };
+      if (expandedWidgetType === 'media') return { title: 'Now Playing', icon: mdiPlay };
+      if (expandedWidgetType === 'timer') return { title: 'Timer', icon: mdiTimerOutline };
+      if (expandedWidgetType === 'camera') return { title: 'Camera Alert', icon: mdiDoorbellVideo };
+      if (expandedWidgetType === 'printer') return { title: '3D Printer', icon: mdiPrinter3d };
+      return { title: 'Activity', icon: mdiViewDashboardOutline };
+    }
     if (expandedSurfaceTab === 'chat') {
       return { title: 'Ask your home', icon: mdiMicrophone };
     }
@@ -712,7 +1080,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       return { title: 'Settings', icon: mdiCog };
     }
     return { title: 'Dashboard', icon: mdiViewDashboardOutline };
-  }, [expandedSurfaceTab]);
+  }, [expandedSurfaceTab, expandedWidgetType]);
 
   const expandedSearchItems = expandedSearchQuery.trim()
     ? dashboardSearchResults
@@ -762,7 +1130,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
           <div>
             <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
-            <div className="flex flex-wrap gap-ha-1">
+            <div className="grid grid-cols-5 gap-x-ha-2 gap-y-ha-1.5">
               {apps.map((app) => {
                 const isActive = pathname === app.urlPath ||
                   (app.urlPath !== '/' && pathname.startsWith(app.urlPath));
@@ -773,20 +1141,27 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                     key={app.id}
                     href={app.urlPath}
                     onClick={closeExpandedSurface}
-                    className="p-ha-1 rounded-ha-xl hover:bg-surface-low transition-colors flex items-center justify-center"
+                    className="w-full rounded-ha-xl hover:bg-surface-low transition-colors flex flex-col items-center gap-1 p-ha-1.5 min-w-0"
                     title={app.title}
                   >
                     <div
-                      className={`w-10 h-10 rounded-ha-xl flex items-center justify-center transition-colors ${
+                      className={`w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors ${
                         isActive ? 'bg-ha-blue' : palette.bg
                       }`}
                     >
                       <MdiIcon
                         icon={app.icon || 'mdi:application'}
-                        size={22}
-                        className={isActive ? 'text-white' : 'text-text-secondary'}
+                        size={26}
+                        className={isActive ? 'text-white' : palette.text}
                       />
                     </div>
+                    <span
+                      className={`w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-[11px] leading-tight font-medium ${
+                        isActive ? 'text-text-primary' : 'text-text-secondary'
+                      }`}
+                    >
+                      {app.title}
+                    </span>
                   </Link>
                 );
               })}
@@ -798,9 +1173,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
     if (expandedSurfaceTab === 'search') {
       return (
-        <div className="space-y-ha-4">
-          <div className="flex items-center gap-ha-2">
-            <div className="flex items-center gap-ha-3 px-ha-3 h-12 rounded-ha-xl border border-surface-low bg-surface-low/50 flex-1">
+        <div className="space-y-ha-5 pb-ha-2">
+          <div className="flex items-center gap-ha-3">
+            <div className="flex items-center gap-ha-3 px-ha-4 h-12 rounded-ha-2xl border border-surface-low/80 bg-surface-low flex-1">
               <Icon path={mdiMagnify} size={20} className="text-text-secondary flex-shrink-0" />
               <input
                 type="text"
@@ -814,7 +1189,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
               type="button"
               aria-label="Close search"
               onClick={closeExpandedSurface}
-              className="w-10 h-10 rounded-full bg-surface-low flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
+              className="w-11 h-11 rounded-ha-xl border border-surface-low/80 bg-surface-low flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-mid/40 transition-colors"
             >
               <Icon path={mdiClose} size={20} />
             </button>
@@ -822,60 +1197,233 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
           {!showSearchEmptyState && (
             <div className="space-y-ha-2">
-              <p className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium px-1">
+              <p className="text-[12px] font-bold text-text-tertiary uppercase tracking-wider px-ha-2">
                 {expandedSearchQuery.trim() ? 'Results' : 'Suggestions'}
               </p>
-              {expandedSearchItems.map(result => {
-                const content = (
-                  <>
-                    <div className="w-9 h-9 rounded-ha-xl bg-surface-low flex items-center justify-center flex-shrink-0">
-                      {result.type === 'entity' ? (
-                        <Icon path={mdiDevices} size={18} className="text-text-secondary" />
-                      ) : result.icon ? (
-                        <MdiIcon icon={result.icon} size={18} className="text-ha-blue" />
-                      ) : (
-                        <HALogo size={18} />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-text-primary font-medium truncate">{result.name}</p>
-                      <p className="text-xs text-text-secondary truncate">{result.subtitle}</p>
-                    </div>
-                    {result.href && <Icon path={mdiChevronRight} size={16} className="text-text-disabled" />}
-                  </>
-                );
+              <div className="bg-surface-low rounded-ha-2xl border border-surface-low/80 overflow-hidden">
+                {expandedSearchItems.map(result => {
+                  const content = (
+                    <>
+                      <div className={`w-10 h-10 rounded-ha-xl flex items-center justify-center flex-shrink-0 bg-surface-mid text-text-secondary transition-colors ${result.href ? 'group-hover:bg-surface-lower group-hover:text-text-primary' : ''}`}>
+                        {result.type === 'entity' ? (
+                          <Icon path={mdiDevices} size={20} />
+                        ) : result.icon ? (
+                          <MdiIcon icon={result.icon} size={20} className="text-ha-blue" />
+                        ) : (
+                          <HALogo size={18} />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[15px] font-medium text-text-primary leading-tight truncate">{result.name}</p>
+                        <p className="text-sm text-text-secondary truncate mt-0.5">{result.subtitle}</p>
+                      </div>
+                      {result.href && <Icon path={mdiChevronRight} size={22} className="text-text-disabled" />}
+                    </>
+                  );
 
-                if (result.href) {
+                  if (result.href) {
+                    return (
+                      <Link
+                        key={result.id}
+                        href={result.href}
+                        onClick={closeExpandedSurface}
+                        className="w-full flex items-center gap-ha-4 px-ha-4 py-ha-4 text-left transition-colors group min-h-[64px] border-b border-surface-low/40 last:border-0 hover:bg-surface-mid/50 active:bg-surface-mid"
+                      >
+                        {content}
+                      </Link>
+                    );
+                  }
+
                   return (
-                    <Link
+                    <div
                       key={result.id}
-                      href={result.href}
-                      onClick={closeExpandedSurface}
-                      className="w-full flex items-center gap-ha-3 p-ha-2.5 rounded-ha-xl bg-surface-low/60 hover:bg-surface-low transition-colors"
+                      className="w-full flex items-center gap-ha-4 px-ha-4 py-ha-4 min-h-[64px] border-b border-surface-low/40 last:border-0"
                     >
                       {content}
-                    </Link>
+                    </div>
                   );
-                }
-
-                return (
-                  <div
-                    key={result.id}
-                    className="w-full flex items-center gap-ha-3 p-ha-2.5 rounded-ha-xl bg-surface-low/60"
-                  >
-                    {content}
-                  </div>
-                );
-              })}
+                })}
+              </div>
             </div>
           )}
 
           {showSearchEmptyState && (
-            <div className="text-center py-10">
+            <div className="bg-surface-low rounded-ha-2xl border border-surface-low/80 text-center py-10 px-ha-4">
               <Icon path={mdiMagnify} size={36} className="text-text-tertiary mx-auto mb-ha-2" />
               <p className="text-sm text-text-secondary">No results for &ldquo;{expandedSearchQuery}&rdquo;</p>
             </div>
           )}
+        </div>
+      );
+    }
+
+    if (expandedSurfaceTab === 'widget') {
+      if (expandedWidgetType === 'release' && activeRelease) {
+        return (
+          <div className="space-y-ha-4 pb-ha-2">
+            <div className="bg-surface-low rounded-ha-xl border border-green-500/20 p-ha-4">
+              <div className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-ha-3">What&apos;s New</div>
+              <div className="rounded-ha-xl bg-green-500/10 border border-green-500/20 p-ha-3 mb-ha-4">
+                <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1">{activeRelease.version}</p>
+                <h4 className="text-sm font-bold text-text-primary mb-1">{activeRelease.name}</h4>
+                <p className="text-xs text-text-secondary">{activeRelease.summary}</p>
+              </div>
+              <div className="space-y-ha-2 mb-ha-4">
+                {(activeRelease.notes.length > 0 ? activeRelease.notes : ['No release notes available.']).map((note, index) => (
+                  <div key={`${activeRelease.entityId}-note-${index}`} className="flex gap-ha-2 text-xs text-text-secondary">
+                    <span className="text-green-600 font-bold">{index + 1}.</span>
+                    <span>{note}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => {
+                  const remaining = visibleReleaseNotes.filter((note) => note.entityId !== activeRelease.entityId);
+                  setDismissedReleaseNotes((prev) => {
+                    if (prev[activeRelease.entityId] === activeRelease.updatedAt) return prev;
+                    return { ...prev, [activeRelease.entityId]: activeRelease.updatedAt };
+                  });
+
+                  if (remaining.length > 0) {
+                    setSelectedReleaseId(remaining[0].entityId);
+                    setExpandedWidgetId(remaining[0].entityId);
+                    return;
+                  }
+
+                  setSelectedReleaseId(null);
+                  closeExpandedSurface();
+                }}
+                className="w-full h-11 rounded-ha-xl bg-green-600 text-white text-xs font-bold uppercase tracking-wider active:scale-95 transition-transform"
+              >
+                Dismiss Notes
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (expandedWidgetType === 'camera' && activeCamera) {
+        return (
+          <div className="space-y-ha-4 pb-ha-2">
+            <div className="bg-surface-low rounded-ha-xl border border-surface-mid overflow-hidden">
+              <div className="bg-surface-mid/60 p-ha-3 flex items-center gap-2 border-b border-surface-low">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest">Live Feed</span>
+              </div>
+              <div className="w-full aspect-video bg-black relative">
+                <img src={getEntityPictureUrl(activeCamera.entityPicture, '/camera_doorbell.png')} alt={activeCamera.name} className="w-full h-full object-cover" />
+              </div>
+              <div className="p-ha-4">
+                <h4 className="text-sm font-bold text-text-primary mb-1">{activeCamera.name}</h4>
+                <p className="text-xs text-red-500 font-bold uppercase tracking-tight mb-4">{activeCamera.event}</p>
+                <button className="w-full h-12 rounded-ha-xl bg-ha-blue text-white text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2">
+                  <Icon path={mdiMicrophone} size={18} />
+                  Talk to Doors
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (expandedWidgetType === 'printer' && activePrinter) {
+        return (
+          <div className="space-y-ha-4 pb-ha-2">
+            <div className="bg-surface-low rounded-ha-xl border border-surface-mid p-ha-4">
+              <div className="text-[10px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3">3D Printing</div>
+              <div className="w-full aspect-square rounded-ha-xl overflow-hidden mb-ha-4 border border-surface-mid">
+                <img src={getEntityPictureUrl(activePrinter.entityPicture, '/printer_3d.png')} alt={activePrinter.name} className="w-full h-full object-cover" />
+              </div>
+              <div className="mb-ha-4">
+                <div className="flex justify-between mb-1">
+                  <span className="text-xs font-bold text-text-primary truncate">{activePrinter.fileName}</span>
+                  <span className="text-xs font-mono font-bold text-ha-blue">{activePrinter.progress}%</span>
+                </div>
+                <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-mid/60">
+                  <div className="bg-ha-blue h-full transition-all duration-500" style={{ width: `${activePrinter.progress}%` }} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-ha-3 bg-surface-mid/60 rounded-ha-xl">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-text-disabled uppercase">Time Left</span>
+                  <span className="text-sm font-mono font-bold text-text-primary">{activePrinter.remainingTime}</span>
+                </div>
+                <button className="h-10 px-4 bg-red-500/10 text-red-500 rounded-ha-lg font-bold text-xs uppercase transition-colors hover:bg-red-500 hover:text-white">
+                  Stop
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (expandedWidgetType === 'media' && activeMedia) {
+        return (
+          <div className="space-y-ha-4 pb-ha-2">
+            <div className="bg-surface-low rounded-ha-xl border border-surface-mid p-ha-4">
+              <div className="text-[10px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3">Now Playing</div>
+              <div className="w-full aspect-square rounded-ha-xl overflow-hidden mb-ha-5 border border-surface-mid">
+                <img
+                  src={getEntityPictureUrl(activeMedia.entityPicture)}
+                  alt={activeMedia.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="w-full flex items-center justify-center gap-ha-6 mb-ha-2">
+                <Icon path={mdiSkipPrevious} size={28} className="text-text-primary" />
+                <button
+                  className="w-14 h-14 rounded-full bg-ha-blue text-white flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                  onClick={() =>
+                    callService({
+                      domain: 'media_player',
+                      service: activeMedia.state === 'playing' ? 'media_pause' : 'media_play',
+                      target: { entity_id: activeMedia.entityId },
+                    })
+                  }
+                >
+                  <Icon path={activeMedia.state === 'playing' ? mdiPause : mdiPlay} size={32} />
+                </button>
+                <Icon path={mdiSkipNext} size={28} className="text-text-primary" />
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (expandedWidgetType === 'timer' && activeTimer) {
+        return (
+          <div className="space-y-ha-4 pb-ha-2">
+            <div className="bg-surface-low rounded-ha-xl border border-surface-mid p-ha-4 flex flex-col items-center">
+              <div className="text-[10px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3 self-start">Timer</div>
+              <div className="relative mb-ha-5">
+                <CircularProgress
+                  progress={timerProgress}
+                  size={140}
+                  strokeWidth={6}
+                  className={activeTimer.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
+                  trackClassName={activeTimer.isPaused ? 'text-yellow-200' : 'text-fill-primary-quiet'}
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold font-mono text-text-primary tracking-tighter">
+                    {activeTimer.remaining}
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-ha-3 w-full">
+                <button className="h-11 rounded-ha-xl bg-surface-mid text-text-secondary font-bold text-xs uppercase tracking-wider">Cancel</button>
+                <button className={`h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white ${activeTimer.isPaused ? 'bg-ha-blue' : 'bg-yellow-500'}`}>
+                  {activeTimer.isPaused ? 'Resume' : 'Pause'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="text-center py-10">
+          <Icon path={mdiViewDashboardOutline} size={36} className="text-text-tertiary mx-auto mb-ha-2" />
+          <p className="text-sm text-text-secondary">No active widget selected.</p>
         </div>
       );
     }
@@ -979,7 +1527,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                     {activeUpdates.map(update => (
                         <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-xl transition-colors cursor-pointer group">
                             <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-110 transition-transform">
-                                {update.picture ? <img src={`${haUrl}${update.picture}`} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
+                                {update.picture ? <img src={getEntityPictureUrl(update.picture)} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
                             </div>
                             <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
                             <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
@@ -1032,7 +1580,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       data-component="MobileNav"
       data-connection-status={connectionStatus ?? 'unknown'}
       onMouseEnter={() => {
-        setHideTopRow(false);
+        setClampedHideProgress(0);
         setHideFromInactivity(false);
       }}
     >
@@ -1080,11 +1628,23 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                     </button>
                   </div>
                 )}
-                <div
-                  ref={expandedSurfaceScrollRef}
-                  className="flex-1 overflow-y-auto px-ha-1 pt-ha-3 pb-ha-5"
-                >
-                  {renderExpandedSurfaceContent()}
+                <div className="relative flex-1 min-h-0">
+                  <div
+                    className={`pointer-events-none absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-20 transition-opacity duration-200 ${
+                      showExpandedSurfaceTopGradient ? 'opacity-100' : 'opacity-0'
+                    }`}
+                  />
+                  <div
+                    className={`pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-surface-default via-surface-default/60 to-transparent z-20 transition-opacity duration-200 ${
+                      showExpandedSurfaceBottomGradient ? 'opacity-100' : 'opacity-0'
+                    }`}
+                  />
+                  <div
+                    ref={expandedSurfaceScrollRef}
+                    className="relative h-full overflow-y-auto px-ha-1 pt-ha-3 pb-ha-5"
+                  >
+                    {renderExpandedSurfaceContent()}
+                  </div>
                 </div>
               </div>
         {/* Top row: Ask your home + Media + Timer + Status */}
@@ -1107,55 +1667,86 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
             </button>
           </div>
 
-          {/* Media + Timer + Camera + Printer widgets container */}
-          {(showMediaWidget || showTimerWidget || showCameraWidget || showPrinterWidget) && (
+          {/* Release + Media + Timer + Camera + Printer widgets container */}
+          {(showReleaseWidget || showMediaWidget || showTimerWidget || showCameraWidget || showPrinterWidget) && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              <AnimatePresence initial={false} mode="popLayout">
+              {/* Release notes - always first */}
+              {showReleaseWidget && (
+                <motion.div
+                  key="release-widget"
+                  layout="position"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={activityWidgetTransition}
+                  className="relative"
+                >
+                  <motion.button
+                    layoutId={activeRelease?.entityId}
+                    onClick={() => {
+                      if (activeReleaseCount > 1) {
+                        setActivityListType('release');
+                      } else if (activeRelease?.entityId) {
+                        toggleWidgetSurface('release', activeRelease.entityId);
+                      }
+                    }}
+                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-green-500/12 border ${
+                      statusExpanded &&
+                      expandedSurfaceTab === 'widget' &&
+                      expandedWidgetType === 'release' &&
+                      expandedWidgetId === activeRelease?.entityId
+                        ? 'border-green-600 ring-2 ring-green-600/25'
+                        : 'border-green-500/25'
+                    }`}
+                  >
+                    <Icon path={mdiUpdate} size={16} className="text-green-600" />
+                    {activeReleaseCount > 1 && (
+                      <span className="absolute -top-1 -right-1 bg-green-600 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
+                        {activeReleaseCount}
+                      </span>
+                    )}
+                    {activeReleaseCount <= 1 && (
+                      <span className="absolute -bottom-1 -right-1 bg-surface-default rounded-full p-0.5 shadow-sm z-10 border border-surface-low">
+                        <Icon path={mdiUpdate} size={10} className="text-green-600" />
+                      </span>
+                    )}
+                  </motion.button>
+                </motion.div>
+              )}
+
               {/* Camera - show when alert */}
               {showCameraWidget && (
-                <div className="relative">
-                  <AnimatePresence>
-                    {expandedWidgetId === activeCamera?.entityId && (
-                      <motion.div
-                        layoutId={activeCamera.entityId}
-                        className="fixed left-0 right-0 bottom-16 bg-surface-default mx-ha-4 rounded-ha-2xl shadow-2xl border border-surface-low overflow-hidden z-[60] flex flex-col"
-                      >
-                         <div className="bg-surface-low p-ha-3 flex items-center justify-between border-b border-surface-low">
-                            <div className="flex items-center gap-2 pl-1">
-                              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                              <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest pl-1">Live Feed</span>
-                            </div>
-                            <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-mid rounded-full">
-                              <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                            </button>
-                         </div>
-                         <div className="w-full aspect-video bg-black relative">
-                            <img src={activeCamera.entityPicture} alt="" className="w-full h-full object-cover" />
-                         </div>
-                         <div className="p-ha-4">
-                            <h4 className="text-sm font-bold text-text-primary mb-1">{activeCamera.name}</h4>
-                            <p className="text-xs text-red-500 font-bold uppercase tracking-tight mb-4">{activeCamera.event}</p>
-                            <button className="w-full h-12 rounded-ha-xl bg-ha-blue text-white text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2">
-                               <Icon path={mdiMicrophone} size={18} />
-                               Talk to Doors
-                            </button>
-                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                <motion.div
+                  key="camera-widget"
+                  layout="position"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={activityWidgetTransition}
+                  className="relative"
+                >
                   <motion.button 
                     layoutId={activeCamera?.entityId}
                     onClick={() => {
                       if (activeCameraCount > 1) {
                         setActivityListType('camera');
                       } else {
-                        setExpandedWidgetId(expandedWidgetId === activeCamera?.entityId ? null : activeCamera?.entityId || null);
+                        if (activeCamera?.entityId) toggleWidgetSurface('camera', activeCamera.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-red-500/10 border ${expandedWidgetId === activeCamera?.entityId ? 'border-red-500 ring-2 ring-red-500/20' : 'border-red-500/20'}`}
+                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-red-500/10 border ${
+                      statusExpanded &&
+                      expandedSurfaceTab === 'widget' &&
+                      expandedWidgetType === 'camera' &&
+                      expandedWidgetId === activeCamera?.entityId
+                        ? 'border-red-500 ring-2 ring-red-500/20'
+                        : 'border-red-500/20'
+                    }`}
                   >
                     <div className="absolute inset-0 rounded-full overflow-hidden">
                       <img
-                        src={activeCamera?.entityPicture}
+                        src={getEntityPictureUrl(activeCamera?.entityPicture, '/camera_doorbell.png')}
                         alt=""
                         className="w-full h-full object-cover animate-pulse"
                       />
@@ -1173,58 +1764,37 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                       </span>
                     )}
                   </motion.button>
-                </div>
+                </motion.div>
               )}
 
               {/* Printer - show when active */}
               {showPrinterWidget && (
-                <div className="relative">
-                  <AnimatePresence>
-                     {expandedWidgetId === activePrinter?.entityId && (
-                        <motion.div
-                          layoutId={activePrinter.entityId}
-                          className="fixed left-0 right-0 bottom-16 bg-surface-default mx-ha-4 rounded-ha-2xl shadow-2xl border border-surface-low overflow-hidden z-[60] flex flex-col p-ha-4"
-                        >
-                           <div className="flex justify-between items-center mb-ha-4 pl-1">
-                              <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printing</span>
-                              <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-mid rounded-full">
-                                <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                              </button>
-                           </div>
-                           <div className="w-full aspect-square rounded-ha-xl overflow-hidden mb-ha-4 border border-surface-low">
-                              <img src={activePrinter.entityPicture} alt="" className="w-full h-full object-cover" />
-                           </div>
-                           <div className="mb-ha-4">
-                              <div className="flex justify-between mb-1">
-                                 <span className="text-xs font-bold text-text-primary truncate">{activePrinter.fileName}</span>
-                                 <span className="text-xs font-mono font-bold text-ha-blue">{activePrinter.progress}%</span>
-                              </div>
-                              <div className="w-full h-2 bg-surface-low rounded-full overflow-hidden border border-surface-low/30">
-                                 <div className="bg-ha-blue h-full transition-all duration-500" style={{ width: `${activePrinter.progress}%` }} />
-                              </div>
-                           </div>
-                           <div className="flex items-center justify-between p-ha-3 bg-surface-low rounded-ha-xl">
-                              <div className="flex flex-col pl-1">
-                                 <span className="text-[9px] font-bold text-text-disabled uppercase">Time Left</span>
-                                 <span className="text-sm font-mono font-bold text-text-primary">{activePrinter.remainingTime}</span>
-                              </div>
-                              <button className="h-10 px-4 bg-red-500/10 text-red-500 rounded-ha-lg font-bold text-xs uppercase transition-colors hover:bg-red-500 hover:text-white">
-                                 Stop
-                              </button>
-                           </div>
-                        </motion.div>
-                     )}
-                  </AnimatePresence>
+                <motion.div
+                  key="printer-widget"
+                  layout="position"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={activityWidgetTransition}
+                  className="relative"
+                >
                   <motion.button 
                     layoutId={activePrinter?.entityId}
                     onClick={() => {
                       if (activePrinterCount > 1) {
                         setActivityListType('printer');
                       } else {
-                        setExpandedWidgetId(expandedWidgetId === activePrinter?.entityId ? null : activePrinter?.entityId || null);
+                        if (activePrinter?.entityId) toggleWidgetSurface('printer', activePrinter.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-fill-primary-normal ${expandedWidgetId === activePrinter?.entityId ? 'ring-2 ring-ha-blue' : ''}`}
+                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-fill-primary-normal ${
+                      statusExpanded &&
+                      expandedSurfaceTab === 'widget' &&
+                      expandedWidgetType === 'printer' &&
+                      expandedWidgetId === activePrinter?.entityId
+                        ? 'ring-2 ring-ha-blue'
+                        : ''
+                    }`}
                   >
                     <CircularProgress
                       progress={(activePrinter?.progress || 0) / 100}
@@ -1234,7 +1804,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                       trackClassName="text-fill-primary-quiet"
                     >
                       <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
-                        <img src={activePrinter?.entityPicture} alt="" className="w-full h-full object-cover" />
+                        <img src={getEntityPictureUrl(activePrinter?.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
                       </div>
                     </CircularProgress>
                     {/* Count badge - always on top */}
@@ -1248,54 +1818,41 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                       <Icon path={mdiPrinter3d} size={10} className="text-ha-blue" />
                     </span>
                   </motion.button>
-                </div>
+                </motion.div>
               )}
 
               {/* Media player - only show when playing/paused */}
               {showMediaWidget && (
-                <div className="relative">
-                  <AnimatePresence>
-                    {expandedWidgetId === activeMedia?.entityId && (
-                      <motion.div
-                        layoutId={activeMedia.entityId}
-                        className="fixed left-0 right-0 bottom-16 bg-surface-default mx-ha-4 rounded-ha-2xl shadow-2xl border border-surface-low overflow-hidden z-[60] flex flex-col p-ha-5 items-center"
-                      >
-                         <div className="w-full flex justify-between items-center mb-ha-4 pl-1">
-                            <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Now Playing</span>
-                            <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-mid rounded-full">
-                               <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                            </button>
-                         </div>
-                         <div className="w-full aspect-square rounded-ha-xl overflow-hidden mb-ha-5 shadow-lg border border-surface-low">
-                            <img src={activeMedia.entityPicture ? `${haUrl}${activeMedia.entityPicture}` : undefined} alt="" className="w-full h-full object-cover" />
-                         </div>
-                         <div className="w-full flex items-center justify-center gap-ha-6 mb-ha-2">
-                           <Icon path={mdiSkipPrevious} size={28} className="text-text-primary" />
-                           <button 
-                             className="w-14 h-14 rounded-full bg-ha-blue text-white flex items-center justify-center shadow-lg active:scale-90 transition-transform"
-                             onClick={() => callService({ domain: 'media_player', service: activeMedia.state === 'playing' ? 'media_pause' : 'media_play', target: { entity_id: activeMedia.entityId } })}
-                           >
-                              <Icon path={activeMedia.state === 'playing' ? mdiPause : mdiPlay} size={32} />
-                           </button>
-                           <Icon path={mdiSkipNext} size={28} className="text-text-primary" />
-                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                <motion.div
+                  key="media-widget"
+                  layout="position"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={activityWidgetTransition}
+                  className="relative"
+                >
                   <motion.button 
                     layoutId={activeMedia?.entityId}
                     onClick={() => {
                       if (activeMediaCount > 1) {
                         setActivityListType('media');
                       } else {
-                        setExpandedWidgetId(expandedWidgetId === activeMedia?.entityId ? null : activeMedia?.entityId || null);
+                        if (activeMedia?.entityId) toggleWidgetSurface('media', activeMedia.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 bg-ha-blue transition-all ${expandedWidgetId === activeMedia?.entityId ? 'ring-2 ring-ha-blue ring-offset-2' : ''}`}
+                    className={`relative flex items-center justify-center rounded-full w-10 h-10 bg-ha-blue transition-all ${
+                      statusExpanded &&
+                      expandedSurfaceTab === 'widget' &&
+                      expandedWidgetType === 'media' &&
+                      expandedWidgetId === activeMedia?.entityId
+                        ? 'ring-2 ring-ha-blue ring-offset-2'
+                        : ''
+                    }`}
                   >
                     <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
                       {activeMedia?.entityPicture ? (
-                        <img src={`${haUrl}${activeMedia.entityPicture}`} alt="" className="w-full h-full object-cover" />
+                        <img src={getEntityPictureUrl(activeMedia.entityPicture)} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <Icon path={mdiPlay} size={18} className="text-white" />
                       )}
@@ -1315,59 +1872,39 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                       />
                     </span>
                   </motion.button>
-                </div>
+                </motion.div>
               )}
 
               {/* Timer - only show when active */}
               {showTimerWidget && (
-                <div className="relative">
-                  <AnimatePresence>
-                    {expandedWidgetId === activeTimer?.entityId && (
-                      <motion.div
-                        layoutId={activeTimer.entityId}
-                        className="fixed left-0 right-0 bottom-16 bg-surface-default mx-ha-4 rounded-ha-2xl shadow-2xl border border-surface-low overflow-hidden z-[60] flex flex-col p-ha-5 items-center"
-                      >
-                         <div className="w-full flex justify-between items-center mb-ha-4 pl-1">
-                            <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timer</span>
-                            <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-mid rounded-full">
-                               <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                            </button>
-                         </div>
-                         <div className="relative mb-ha-5">
-                            <CircularProgress
-                              progress={timerProgress}
-                              size={140}
-                              strokeWidth={6}
-                              className={activeTimer.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
-                              trackClassName={activeTimer.isPaused ? 'text-yellow-200' : 'text-fill-primary-quiet'}
-                            />
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                               <span className="text-2xl font-bold font-mono text-text-primary tracking-tighter">
-                                 {activeTimer.remaining}
-                               </span>
-                            </div>
-                         </div>
-                         <div className="grid grid-cols-2 gap-ha-3 w-full">
-                            <button className="h-11 rounded-ha-xl bg-surface-low text-text-secondary font-bold text-xs uppercase tracking-wider">Cancel</button>
-                            <button className={`h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white ${activeTimer.isPaused ? 'bg-ha-blue' : 'bg-yellow-500'}`}>
-                               {activeTimer.isPaused ? 'Resume' : 'Pause'}
-                            </button>
-                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                <motion.div
+                  key="timer-widget"
+                  layout="position"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={activityWidgetTransition}
+                  className="relative"
+                >
                   <motion.button 
                     layoutId={activeTimer?.entityId}
                     onClick={() => {
                       if (activeTimerCount > 1) {
                         setActivityListType('timer');
                       } else {
-                        setExpandedWidgetId(expandedWidgetId === activeTimer?.entityId ? null : activeTimer?.entityId || null);
+                        if (activeTimer?.entityId) toggleWidgetSurface('timer', activeTimer.entityId);
                       }
                     }}
                     className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all ${
                     activeTimer?.isPaused ? 'bg-yellow-95' : 'bg-fill-primary-normal'
-                  } ${expandedWidgetId === activeTimer?.entityId ? 'ring-2 ring-ha-blue' : ''}`}>
+                  } ${
+                    statusExpanded &&
+                    expandedSurfaceTab === 'widget' &&
+                    expandedWidgetType === 'timer' &&
+                    expandedWidgetId === activeTimer?.entityId
+                      ? 'ring-2 ring-ha-blue'
+                      : ''
+                  }`}>
                     <CircularProgress
                       progress={timerProgress}
                       size={32}
@@ -1396,8 +1933,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                       />
                     </span>
                   </motion.button>
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
             </div>
           )}
 
@@ -1453,7 +1991,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
               </div>,
             ];
 
-            const activeWidgetsCount = (showMediaWidget ? 1 : 0) + (showTimerWidget ? 1 : 0) + (showCameraWidget ? 1 : 0) + (showPrinterWidget ? 1 : 0);
+            const activeWidgetsCount = (showReleaseWidget ? 1 : 0) + (showMediaWidget ? 1 : 0) + (showTimerWidget ? 1 : 0) + (showCameraWidget ? 1 : 0) + (showPrinterWidget ? 1 : 0);
             const maxIcons = activeWidgetsCount >= 2 ? 1 : activeWidgetsCount === 1 ? 2 : 4;
             const visibleIcons = statusIcons.slice(0, maxIcons);
             const hasMore = statusIcons.length > maxIcons;
@@ -1480,9 +2018,16 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         </div>
 
         {/* Bottom row: Navigation pill */}
-        <div className={`overflow-hidden transition-all duration-200 ease-out ${
-          isBottomRowHidden ? 'h-0 m-0 opacity-0' : 'h-14 mt-ha-3 opacity-100'
-        }`}>
+        <div
+          className="overflow-hidden transition-[max-height,margin-top,opacity,transform] duration-120 ease-out"
+          style={{
+            maxHeight: `${56 * bottomRowVisibleRatio}px`,
+            marginTop: `${12 * bottomRowVisibleRatio}px`,
+            opacity: bottomRowVisibleRatio,
+            transform: `translateY(${8 * effectiveHideProgress}px)`,
+            pointerEvents: isBottomRowHidden ? 'none' : 'auto',
+          }}
+        >
           <div className="mobile-nav-tabs flex items-center justify-around bg-surface-low rounded-ha-2xl px-ha-4 h-14">
             <button
               type="button"
@@ -1518,7 +2063,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
               }`}
             >
               <div className="relative flex items-center justify-center">
-                <Icon path={mdiMenu} size={28} className="absolute -left-2 text-text-secondary z-0" />
+                <Icon path={mdiMenu} size={28} className="absolute -left-3 text-text-secondary z-0" />
                 <div className="relative z-10 rounded-full ring-[3px] ring-surface-low bg-surface-low">
                   <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" />
                 </div>
@@ -1536,11 +2081,13 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
       {/* Activity List Bottom Sheet - for selecting from multiple active items */}
       {activityListType && (() => {
-        const items = activityListType === 'media' ? allActiveMedia
+        const items = activityListType === 'release' ? visibleReleaseNotes
+          : activityListType === 'media' ? allActiveMedia
           : activityListType === 'timer' ? allActiveTimers
           : activityListType === 'camera' ? allActiveCameras
           : allActivePrinters;
-        const title = activityListType === 'media' ? 'Active Media Players'
+        const title = activityListType === 'release' ? "What's New"
+          : activityListType === 'media' ? 'Active Media Players'
           : activityListType === 'timer' ? 'Active Timers'
           : activityListType === 'camera' ? 'Active Cameras'
           : 'Active Printers';
@@ -1568,51 +2115,69 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                 </button>
               </div>
               {/* List */}
-              <div className="overflow-y-auto p-ha-4 space-y-ha-2 pb-8">
-                {items.map((item) => {
-                  const isSelected = activityListType === 'media' ? selectedMediaId === item.entityId
-                    : activityListType === 'timer' ? selectedTimerId === item.entityId
-                    : activityListType === 'camera' ? selectedCameraId === item.entityId
-                    : selectedPrinterId === item.entityId;
-                  return (
-                    <button
-                      key={item.entityId}
-                      onClick={() => {
-                        if (activityListType === 'media') setSelectedMediaId(item.entityId);
-                        else if (activityListType === 'timer') setSelectedTimerId(item.entityId);
-                        else if (activityListType === 'camera') setSelectedCameraId(item.entityId);
-                        else setSelectedPrinterId(item.entityId);
-                        setActivityListType(null);
-                        setExpandedWidgetId(item.entityId);
-                      }}
-                      className={`w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl border transition-all text-left ${
-                        isSelected
-                          ? 'bg-fill-primary-normal border-ha-blue/30'
-                          : 'bg-surface-low border-surface-lower hover:bg-surface-mid'
-                      }`}
-                    >
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        activityListType === 'camera' ? 'bg-red-500/10' : 'bg-fill-primary-normal'
-                      }`}>
-                        <Icon
-                          path={activityListType === 'media' ? mdiPlay : activityListType === 'timer' ? mdiTimerOutline : activityListType === 'camera' ? mdiDoorbellVideo : mdiPrinter3d}
-                          size={18}
-                          className={activityListType === 'camera' ? 'text-red-500' : 'text-ha-blue'}
-                        />
-                      </div>
-                      <div className="flex flex-col min-w-0 flex-1">
-                        <span className="text-sm font-semibold text-text-primary truncate">{item.name}</span>
-                        <span className="text-xs text-text-secondary truncate">
-                          {activityListType === 'timer' ? (item as typeof allActiveTimers[0]).remaining
-                            : activityListType === 'printer' ? `${(item as typeof allActivePrinters[0]).progress}% complete`
-                            : activityListType === 'camera' ? (item as typeof allActiveCameras[0]).event
-                            : (item as typeof allActiveMedia[0]).state}
-                        </span>
-                      </div>
-                      <Icon path={mdiChevronRight} size={18} className="text-text-disabled flex-shrink-0" />
-                    </button>
-                  );
-                })}
+              <div className="relative flex-1 min-h-0">
+                <div
+                  className={`pointer-events-none absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-20 transition-opacity duration-200 ${
+                    showActivityListTopGradient ? 'opacity-100' : 'opacity-0'
+                  }`}
+                />
+                <div
+                  className={`pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-surface-default via-surface-default/60 to-transparent z-20 transition-opacity duration-200 ${
+                    showActivityListBottomGradient ? 'opacity-100' : 'opacity-0'
+                  }`}
+                />
+                <div
+                  ref={activityListScrollRef}
+                  className="relative h-full overflow-y-auto p-ha-4 space-y-ha-2 pb-8"
+                >
+                  {items.map((item) => {
+                    const isSelected = activityListType === 'release' ? selectedReleaseId === item.entityId
+                      : activityListType === 'media' ? selectedMediaId === item.entityId
+                      : activityListType === 'timer' ? selectedTimerId === item.entityId
+                      : activityListType === 'camera' ? selectedCameraId === item.entityId
+                      : selectedPrinterId === item.entityId;
+                    return (
+                      <button
+                        key={item.entityId}
+                        onClick={() => {
+                          openWidgetSurface(activityListType, item.entityId);
+                        }}
+                        className={`w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl border transition-all text-left ${
+                          isSelected
+                            ? activityListType === 'release'
+                              ? 'bg-green-500/10 border-green-500/30'
+                              : 'bg-fill-primary-normal border-ha-blue/30'
+                            : 'bg-surface-low border-surface-lower hover:bg-surface-mid'
+                        }`}
+                      >
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          activityListType === 'camera'
+                            ? 'bg-red-500/10'
+                            : activityListType === 'release'
+                              ? 'bg-green-500/10'
+                              : 'bg-fill-primary-normal'
+                        }`}>
+                          <Icon
+                            path={activityListType === 'release' ? mdiUpdate : activityListType === 'media' ? mdiPlay : activityListType === 'timer' ? mdiTimerOutline : activityListType === 'camera' ? mdiDoorbellVideo : mdiPrinter3d}
+                            size={18}
+                            className={activityListType === 'camera' ? 'text-red-500' : activityListType === 'release' ? 'text-green-600' : 'text-ha-blue'}
+                          />
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-sm font-semibold text-text-primary truncate">{item.name}</span>
+                          <span className="text-xs text-text-secondary truncate">
+                            {activityListType === 'release' ? (item as typeof visibleReleaseNotes[0]).version
+                              : activityListType === 'timer' ? (item as typeof allActiveTimers[0]).remaining
+                              : activityListType === 'printer' ? `${(item as typeof allActivePrinters[0]).progress}% complete`
+                              : activityListType === 'camera' ? (item as typeof allActiveCameras[0]).event
+                              : (item as typeof allActiveMedia[0]).state}
+                          </span>
+                        </div>
+                        <Icon path={mdiChevronRight} size={18} className="text-text-disabled flex-shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>

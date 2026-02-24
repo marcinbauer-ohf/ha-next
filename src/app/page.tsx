@@ -35,6 +35,7 @@ import {
   mdiCctv,
   mdiPrinter3d,
   mdiRefresh,
+  mdiUpdate,
 } from '@mdi/js';
 
 // Mock data for static rendering - will be replaced with real HA data
@@ -55,6 +56,25 @@ const rooms = [
   { id: 'bathroom', icon: mdiShower, name: 'Bathroom', temperature: 24, humidity: 65, activeEntities: 0 },
   { id: 'hallway', icon: mdiDoorOpen, name: 'Hallway', temperature: 20, humidity: 44, activeEntities: 0 },
 ];
+
+type SimulationType = 'release' | 'media' | 'timer' | 'camera' | 'printer';
+
+const simulationPrefixes: Record<SimulationType, string> = {
+  release: 'update.home_assistant_release_notes_simulated',
+  media: 'media_player.simulated',
+  timer: 'timer.simulated',
+  camera: 'binary_sensor.camera_simulated',
+  printer: 'sensor.printer_simulated',
+};
+
+const themeLabels = {
+  default: 'Default',
+  glass: 'Glass',
+  cyberpunk: 'Cyberpunk',
+  material: 'Material Design',
+  eink: 'E-Ink',
+  fallout: 'Fallout',
+} as const;
 
 function HomeInfoPanel({ onClose }: { onClose: () => void }) {
   return (
@@ -111,16 +131,21 @@ function HomeInfoPanel({ onClose }: { onClose: () => void }) {
 export default function DashboardPage() {
   const { theme, toggleTheme, mode, toggleMode, background, toggleBackground, setTheme, setMode, setBackground } = useTheme();
   const { clearCredentials, setMockEntity, entities } = useHomeAssistant();
+  const { immersiveMode, setImmersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
 
   const resetLayoutToDefaults = () => {
     setTheme('default');
     setMode('system');
-    setBackground('gradient');
+    setBackground('none');
+    setImmersiveMode(false);
   };
-  const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
   const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
 
   const [simulationModal, setSimulationModal] = useState<{ type: string; title: string; prefix: string } | null>(null);
+
+  const getSimulationPrefix = useCallback((type: SimulationType) => {
+    return simulationPrefixes[type];
+  }, []);
 
   const getSimulatedEntities = useCallback((prefix: string) => {
     return Object.entries(entities)
@@ -132,13 +157,32 @@ export default function DashboardPage() {
       })).sort((a, b) => a.id.localeCompare(b.id)); // Stable sort
   }, [entities]);
 
-  const createMockEntity = (type: string, id: string): HassEntity => {
+  const createMockEntity = (type: SimulationType, id: string): HassEntity => {
       const now = new Date().toISOString();
       const nextHalfHour = new Date(Date.now() + 1800000).toISOString();
       const suffix = id.split('_').pop();
       const nameSuffix = suffix && !isNaN(Number(suffix)) ? ` ${suffix}` : '';
+      const releaseNumber = suffix && !isNaN(Number(suffix)) ? Number(suffix) : 1;
       
       switch(type) {
+          case 'release':
+              return {
+                  entity_id: id,
+                  state: 'on',
+                  attributes: {
+                      friendly_name: `Home Assistant 2026.2.${releaseNumber}`,
+                      latest_version: `2026.2.${releaseNumber}`,
+                      release_summary: 'Dashboard polish, clearer state labels, and faster mobile navigation.',
+                      release_notes: [
+                        'New mobile bottom-sheet behavior keeps active widgets easy to reach.',
+                        'Task bar activities now support richer simulated states and previews.',
+                        'Visual refinements improve card readability on light and dark themes.',
+                        'Performance updates reduce animation jank while switching widgets.',
+                      ],
+                  },
+                  last_changed: now,
+                  last_updated: now,
+              } as HassEntity;
           case 'media':
               return {
                   entity_id: id,
@@ -195,14 +239,19 @@ export default function DashboardPage() {
       }
   };
 
-  const addSimulation = useCallback((type: 'media' | 'timer' | 'camera' | 'printer') => {
-      let prefix = '';
-      if (type === 'media') prefix = 'media_player.simulated';
-      if (type === 'timer') prefix = 'timer.simulated';
-      if (type === 'camera') prefix = 'binary_sensor.camera_simulated';
-      if (type === 'printer') prefix = 'sensor.printer_simulated';
+  const addSimulation = useCallback((type: SimulationType) => {
+      const prefix = getSimulationPrefix(type);
       
       const existing = getSimulatedEntities(prefix);
+
+      if (type === 'release') {
+          // "What's New" is a single widget: keep only the base entity.
+          existing
+            .filter((entity) => entity.id !== prefix)
+            .forEach((entity) => setMockEntity(entity.id, null));
+          setMockEntity(prefix, createMockEntity(type, prefix));
+          return;
+      }
       
       // If none exist, create the base one
       if (existing.length === 0) {
@@ -218,14 +267,10 @@ export default function DashboardPage() {
       
       const newId = `${prefix}_${counter}`;
       setMockEntity(newId, createMockEntity(type, newId));
-  }, [getSimulatedEntities, setMockEntity]);
+  }, [getSimulatedEntities, getSimulationPrefix, setMockEntity]);
 
-  const removeLastSimulation = useCallback((type: 'media' | 'timer' | 'camera' | 'printer') => {
-      let prefix = '';
-      if (type === 'media') prefix = 'media_player.simulated';
-      if (type === 'timer') prefix = 'timer.simulated';
-      if (type === 'camera') prefix = 'binary_sensor.camera_simulated';
-      if (type === 'printer') prefix = 'sensor.printer_simulated';
+  const removeLastSimulation = useCallback((type: SimulationType) => {
+      const prefix = getSimulationPrefix(type);
 
       const existing = getSimulatedEntities(prefix);
       if (existing.length === 0) return;
@@ -236,14 +281,10 @@ export default function DashboardPage() {
       
       // If we removed the last one while modal was open, we might need to close it?
       // Modal handles live updates via props usually, but here we pass static title/prefix.
-  }, [getSimulatedEntities, setMockEntity]);
+  }, [getSimulatedEntities, getSimulationPrefix, setMockEntity]);
 
-  const handleSimulationClick = useCallback((type: 'media' | 'timer' | 'camera' | 'printer', title: string) => {
-      let prefix = '';
-      if (type === 'media') prefix = 'media_player.simulated';
-      if (type === 'timer') prefix = 'timer.simulated';
-      if (type === 'camera') prefix = 'binary_sensor.camera_simulated';
-      if (type === 'printer') prefix = 'sensor.printer_simulated';
+  const handleSimulationClick = useCallback((type: SimulationType, title: string) => {
+      const prefix = getSimulationPrefix(type);
       
       const existing = getSimulatedEntities(prefix);
       
@@ -254,7 +295,7 @@ export default function DashboardPage() {
       } else {
           setSimulationModal({ type, title, prefix }); // Show list
       }
-  }, [getSimulatedEntities, addSimulation, setMockEntity]);
+  }, [getSimulatedEntities, addSimulation, getSimulationPrefix, setMockEntity]);
 
   const removeSimulationById = useCallback((id: string) => {
       setMockEntity(id, null);
@@ -329,7 +370,7 @@ export default function DashboardPage() {
     ? ''
     : isMobileImmersive
       ? 'pb-0 lg:px-edge lg:pb-ha-0 lg:pr-edge'
-      : 'px-edge pb-0 lg:pb-ha-0 lg:pr-edge';
+      : 'px-edge pt-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] pb-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] lg:pt-0 lg:pb-ha-0 lg:pr-edge';
 
   // Dashboard entrance animation
   useEffect(() => {
@@ -501,8 +542,8 @@ export default function DashboardPage() {
                       <EntityCard
                         icon={mdiPalette}
                         title="Theme Appearance"
-                        state={theme === 'glass' ? 'Glass' : 'Default'}
-                        color={theme === 'glass' ? 'primary' : 'default'}
+                        state={themeLabels[theme]}
+                        color={theme === 'default' ? 'default' : 'primary'}
                         onClick={toggleTheme}
                       />
                       <EntityCard
@@ -515,6 +556,15 @@ export default function DashboardPage() {
                     </DashboardSection>
 
                     <DashboardSection title="Task bar activities" columns={3}>
+                      <EntityCard
+                        icon={mdiUpdate}
+                        title="What&apos;s New"
+                        state={getSimulatedEntities(simulationPrefixes.release).length > 0
+                          ? 'Unread release notes'
+                          : 'No unread release notes'}
+                        color="success"
+                        onClick={() => handleSimulationClick('release', "What's New in Home Assistant")}
+                      />
                       <EntityCard
                         icon={mdiPlay}
                         title="Simulate Media"
@@ -612,7 +662,7 @@ export default function DashboardPage() {
       
       {/* Mobile Bottom Sheet for Info */} 
       <div
-        className={`lg:hidden fixed inset-0 z-50 transition-opacity duration-300 ${
+        className={`lg:hidden fixed inset-0 z-[60] transition-opacity duration-300 ${
           infoOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
