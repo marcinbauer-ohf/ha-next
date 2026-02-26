@@ -32,6 +32,7 @@ interface HomeAssistantContextValue {
   entities: HassEntities;
   haUrl: string;
   configured: boolean;
+  demoMode: boolean;
   hydrated: boolean;
   toggleEntity: (entityId: string) => Promise<void>;
   callService: (params: CallServiceParams) => Promise<void>;
@@ -201,6 +202,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
         entities: mergedEntities,
         haUrl,
         configured,
+        demoMode,
         hydrated,
         toggleEntity,
         callService,

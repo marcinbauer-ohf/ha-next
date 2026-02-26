@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { EntityCard, RoomCard } from '@/components/cards';
 import { DashboardSection, MobileSummaryRow, PullToRevealPanel } from '@/components/sections';
 import { useTheme, useImmersiveMode, useHomeAssistant } from '@/hooks';
@@ -70,6 +71,7 @@ const simulationPrefixes: Record<SimulationType, string> = {
 const themeLabels = {
   default: 'Default',
   glass: 'Glass',
+  teenage: 'Teenage Engineering',
   cyberpunk: 'Cyberpunk',
   material: 'Material Design',
   eink: 'E-Ink',
@@ -553,6 +555,13 @@ export default function DashboardPage() {
                         color={background !== 'none' ? 'primary' : 'default'}
                         onClick={toggleBackground}
                       />
+                      <EntityCard
+                        icon={mdiClockOutline}
+                        title="Screensaver"
+                        state={screensaverActive ? 'On' : 'Off'}
+                        color={screensaverActive ? 'primary' : 'default'}
+                        onClick={screensaverActive ? dismissScreensaver : activateScreensaver}
+                      />
                     </DashboardSection>
 
                     <DashboardSection title="Task bar activities" columns={3}>
@@ -605,13 +614,6 @@ export default function DashboardPage() {
                         onIncrement={() => addSimulation('printer')}
                         onDecrement={() => removeLastSimulation('printer')}
                       />
-                      <EntityCard
-                        icon={mdiClockOutline}
-                        title="Screensaver"
-                        state={screensaverActive ? 'On' : 'Off'}
-                        color={screensaverActive ? 'primary' : 'default'}
-                        onClick={screensaverActive ? dismissScreensaver : activateScreensaver}
-                      />
                     </DashboardSection>
 
                     {simulationModal && (
@@ -660,27 +662,30 @@ export default function DashboardPage() {
         </div>
       </div>
       
-      {/* Mobile Bottom Sheet for Info */} 
-      <div
-        className={`lg:hidden fixed inset-0 z-[60] transition-opacity duration-300 ${
-          infoOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-      >
+      {/* Mobile Bottom Sheet for Info */}
+      {typeof document !== 'undefined' && createPortal(
         <div
-          className="absolute inset-0 bg-black/40"
-          onClick={() => setInfoOpen(false)}
-        />
-        <div className={`absolute bottom-0 left-0 right-0 bg-surface-lower rounded-t-ha-3xl transition-transform duration-300 ease-out ${
-          infoOpen ? 'translate-y-0' : 'translate-y-full'
-        }`} style={{ maxHeight: '80dvh' }}>
-          <div className="flex justify-center py-ha-2">
-            <div className="w-8 h-1 rounded-full bg-text-secondary/40" />
+          className={`lg:hidden fixed inset-0 z-[120] transition-opacity duration-300 ${
+            infoOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setInfoOpen(false)}
+          />
+          <div className={`absolute bottom-0 left-0 right-0 bg-surface-lower rounded-t-ha-3xl transition-transform duration-300 ease-out ${
+            infoOpen ? 'translate-y-0' : 'translate-y-full'
+          }`} style={{ maxHeight: '80dvh' }}>
+            <div className="flex justify-center py-ha-2">
+              <div className="w-8 h-1 rounded-full bg-text-secondary/40" />
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(80dvh - 20px)' }}>
+              <HomeInfoPanel onClose={() => setInfoOpen(false)} />
+            </div>
           </div>
-          <div className="overflow-y-auto" style={{ maxHeight: 'calc(80dvh - 20px)' }}>
-            <HomeInfoPanel onClose={() => setInfoOpen(false)} />
-          </div>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }

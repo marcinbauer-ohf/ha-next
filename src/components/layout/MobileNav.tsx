@@ -101,6 +101,22 @@ function getDashboardScrollableForPath(pathname: string): HTMLElement | null {
   return activeRouteContainer.querySelector<HTMLElement>('[data-scrollable="dashboard"]');
 }
 
+function normalizePath(path: string): string {
+  if (path === '/') return '/';
+  return path.endsWith('/') ? path.replace(/\/+$/, '') : path;
+}
+
+function isNavItemActive(currentPath: string, itemPath: string): boolean {
+  const normalizedCurrentPath = normalizePath(currentPath);
+  const normalizedItemPath = normalizePath(itemPath);
+
+  if (normalizedItemPath === '/') return normalizedCurrentPath === '/';
+  return (
+    normalizedCurrentPath === normalizedItemPath ||
+    normalizedCurrentPath.startsWith(`${normalizedItemPath}/`)
+  );
+}
+
 export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAutoHiddenChange }: MobileNavProps) {
   const pathname = usePathname();
   const { entities, haUrl, callService } = useHomeAssistant();
@@ -150,10 +166,10 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   const isDashboardsActive = expandedSurfaceTab === 'dashboards';
   const isSearchActive = expandedSurfaceTab === 'search' || searchOpen;
   const isSettingsActive = expandedSurfaceTab === 'settings';
-  const showHomeBackButton =
-    pathname.startsWith('/room/') ||
-    pathname.startsWith('/dashboard/') ||
-    pathname.startsWith('/panel/');
+  const pathSegments = pathname.split('/').filter(Boolean);
+  const isDashboardSubView = pathSegments[0] === 'dashboard' && pathSegments.length > 1;
+  const isRoomSubView = pathSegments[0] === 'room' && pathSegments.length > 1;
+  const showHomeBackButton = isDashboardSubView || isRoomSubView;
   const isBottomSurfaceEngaged = statusExpanded || isBottomSheetDragging;
   const sheetOpenProgress = isBottomSheetDragging ? bottomSheetDragProgress : (statusExpanded ? 1 : 0);
   const isSheetVisible = sheetOpenProgress > 0.001;
@@ -639,7 +655,11 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     setStatusExpanded(false);
     setExpandedWidgetId(null);
     setExpandedWidgetType(null);
-    setExpandedSurfaceTab((tab) => (tab === 'widget' ? 'dashboards' : tab));
+    setExpandedSurfaceTab((tab) => {
+      if (tab === 'widget') return 'dashboards';
+      if (tab === 'search' || tab === 'settings') return 'dashboard';
+      return tab;
+    });
   }, []);
 
   const openExpandedSurface = useCallback(
@@ -1185,35 +1205,47 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
           <div>
             <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-3">Dashboards</div>
             <div className="grid grid-cols-3 gap-ha-3">
-              {dashboards.map((dashboard) => (
-                <Link
-                  key={dashboard.id}
-                  href={dashboard.urlPath}
-                  onClick={closeExpandedSurface}
-                  className="flex flex-col group"
-                >
-                  <div className="w-full aspect-[3/4] bg-surface-lower rounded-ha-xl overflow-hidden">
-                    <div className="p-ha-2 space-y-ha-1">
-                      <div className="h-2 bg-surface-low rounded-full w-full" />
-                      <div className="h-2 bg-surface-low rounded-full w-3/4" />
-                      <div className="h-3 bg-surface-low rounded-ha-lg w-full mt-ha-2" />
-                      <div className="h-3 bg-surface-low rounded-ha-lg w-full" />
+              {dashboards.map((dashboard) => {
+                const isActive = isNavItemActive(pathname, dashboard.urlPath);
+
+                return (
+                  <Link
+                    key={dashboard.id}
+                    href={dashboard.urlPath}
+                    onClick={closeExpandedSurface}
+                    className={`-m-1 rounded-ha-xl p-1 flex flex-col group transition-colors ${
+                      isActive ? 'bg-surface-low/80' : 'hover:bg-surface-low/40'
+                    }`}
+                  >
+                    <div className={`w-full aspect-[3/4] rounded-ha-xl overflow-hidden transition-all ${
+                      isActive
+                        ? 'bg-fill-primary-normal ring-2 ring-ha-blue/35'
+                        : 'bg-surface-lower'
+                    }`}>
+                      <div className="p-ha-2 space-y-ha-1">
+                        <div className={`h-2 rounded-full w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+                        <div className={`h-2 rounded-full w-3/4 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+                        <div className={`h-3 rounded-ha-lg w-full mt-ha-2 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+                        <div className={`h-3 rounded-ha-lg w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-ha-1 mt-ha-1">
-                    {dashboard.icon ? (
-                      <MdiIcon
-                        icon={dashboard.icon}
-                        size={24}
-                        className="text-text-secondary flex-shrink-0"
-                      />
-                    ) : (
-                      <HALogo size={24} />
-                    )}
-                    <span className="text-[10px] text-text-secondary truncate">{dashboard.title}</span>
-                  </div>
-                </Link>
-              ))}
+                    <div className="flex items-center gap-ha-1 mt-ha-1">
+                      {dashboard.icon ? (
+                        <MdiIcon
+                          icon={dashboard.icon}
+                          size={24}
+                          className={`flex-shrink-0 ${isActive ? 'text-ha-blue' : 'text-text-secondary'}`}
+                        />
+                      ) : (
+                        <HALogo size={24} />
+                      )}
+                      <span className={`text-[10px] truncate ${isActive ? 'text-text-primary' : 'text-text-secondary'}`}>
+                        {dashboard.title}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
 
@@ -1223,8 +1255,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
             <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
             <div className="grid grid-cols-5 gap-x-ha-2 gap-y-ha-1.5">
               {apps.map((app) => {
-                const isActive = pathname === app.urlPath ||
-                  (app.urlPath !== '/' && pathname.startsWith(app.urlPath));
+                const isActive = isNavItemActive(pathname, app.urlPath);
                 const palette = getAppPalette(app.id);
 
                 return (
@@ -1232,13 +1263,15 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                     key={app.id}
                     href={app.urlPath}
                     onClick={closeExpandedSurface}
-                    className="w-full rounded-ha-xl hover:bg-surface-low transition-colors flex flex-col items-center gap-1 p-ha-1.5 min-w-0"
+                    className={`w-full rounded-ha-xl transition-colors flex flex-col items-center gap-1 p-ha-1.5 min-w-0 ${
+                      isActive ? 'bg-surface-low/80' : 'hover:bg-surface-low'
+                    }`}
                     title={app.title}
                   >
                     <div
                       className={`w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors ha-app-icon-shell ${
                         isActive ? 'bg-ha-blue' : palette.bg
-                      } ${isActive ? 'ha-app-icon-shell-active' : ''}`}
+                      } ${isActive ? 'ha-app-icon-shell-active ring-2 ring-ha-blue/35 ring-offset-1 ring-offset-surface-default' : ''}`}
                     >
                       <MdiIcon
                         icon={app.icon || 'mdi:application'}

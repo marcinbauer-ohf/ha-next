@@ -420,6 +420,263 @@
   --ha-radius-pill: 6px;
 }
 
+/* Teenage Engineering Theme - Light Mode */
+[data-theme="teenage"][data-mode="light"] {
+  --ha-color-surface-default: #f4f1eb;
+  --ha-color-surface-low: #ece8e2;
+  --ha-color-surface-mid: #e3dfd8;
+  --ha-color-surface-lower: #d7d3cd;
+
+  --ha-color-text-primary: #1f1d1a;
+  --ha-color-text-secondary: #5f5a53;
+  --ha-color-text-tertiary: #7d7770;
+  --ha-color-text-disabled: #9f988f;
+
+  --ha-color-fill-primary-normal: #d6e2f2;
+  --ha-color-fill-primary-quiet: #e6edf7;
+  --ha-color-fill-danger-normal: #f1d9d2;
+  --ha-color-fill-success-normal: #d6e4d0;
+  --ha-color-yellow-95: #eee0b2;
+
+  --ha-color-blue: #425f89;
+  --ha-color-blue-dark: #2f4b73;
+  --ha-color-yellow-500: #bc8524;
+  --ha-color-yellow-600: #97681d;
+  --ha-color-green-500: #4b7f4e;
+  --ha-color-green-600: #39653b;
+  --ha-teenage-shell-bg: #ece8e1;
+  --ha-teenage-chassis-base: #ece8e1;
+  --ha-teenage-chassis-edge: #ece8e1;
+  --ha-teenage-chrome-bg: #ece8e1;
+  --ha-teenage-chrome-border: rgba(66, 62, 57, 0.17);
+
+  --ha-font-family-base: var(--font-cyberpunk), "Quantico", "Avenir Next", "DIN Alternate", sans-serif;
+  --ha-radius-md: 8px;
+  --ha-radius-lg: 11px;
+  --ha-radius-xl: 14px;
+  --ha-radius-2xl: 18px;
+  --ha-radius-3xl: 22px;
+  --ha-radius-pill: 9999px;
+}
+
+/* Teenage Engineering Theme - Dark Mode */
+[data-theme="teenage"][data-mode="dark"] {
+  --ha-color-surface-default: #202328;
+  --ha-color-surface-low: #292d33;
+  --ha-color-surface-mid: #31363d;
+  --ha-color-surface-lower: #3a4048;
+
+  --ha-color-text-primary: #f4f0e7;
+  --ha-color-text-secondary: #c9c2b7;
+  --ha-color-text-tertiary: #a59e93;
+  --ha-color-text-disabled: #7f786d;
+
+  --ha-color-fill-primary-normal: #2c4466;
+  --ha-color-fill-primary-quiet: #243851;
+  --ha-color-fill-danger-normal: #5c3731;
+  --ha-color-fill-success-normal: #304b34;
+  --ha-color-yellow-95: #4d3f26;
+
+  --ha-color-blue: #79a4dd;
+  --ha-color-blue-dark: #5c84bd;
+  --ha-color-yellow-500: #f0b74b;
+  --ha-color-yellow-600: #c8953b;
+  --ha-color-green-500: #7ab07f;
+  --ha-color-green-600: #618f66;
+  --ha-teenage-shell-bg: #2a2f35;
+  --ha-teenage-chassis-base: #2a2f35;
+  --ha-teenage-chassis-edge: #2a2f35;
+  --ha-teenage-chrome-bg: #2a2f35;
+  --ha-teenage-chrome-border: rgba(255, 255, 255, 0.14);
+
+  --ha-font-family-base: var(--font-cyberpunk), "Quantico", "Avenir Next", "DIN Alternate", sans-serif;
+  --ha-radius-md: 8px;
+  --ha-radius-lg: 11px;
+  --ha-radius-xl: 14px;
+  --ha-radius-2xl: 18px;
+  --ha-radius-3xl: 22px;
+  --ha-radius-pill: 9999px;
+}
+
+/* Teenage Engineering Theme - Hardware styling */
+[data-theme="teenage"] body {
+  background-color: var(--ha-teenage-shell-bg);
+  background-image: none;
+}
+
+[data-theme="teenage"][data-mode="dark"] body {
+  background-color: var(--ha-teenage-shell-bg);
+  background-image: none;
+}
+
+[data-theme="teenage"] [data-component="AppShell"] {
+  background: linear-gradient(
+    160deg,
+    var(--ha-teenage-chassis-base),
+    var(--ha-teenage-chassis-edge)
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="teenage"][data-mode="dark"] [data-component="AppShell"] {
+  background: linear-gradient(
+    160deg,
+    var(--ha-teenage-chassis-base),
+    var(--ha-teenage-chassis-edge)
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.62);
+}
+
+[data-theme="teenage"] [data-component="dashboard-surface"] {
+  border: 1px solid rgba(58, 58, 58, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(20, 20, 20, 0.06),
+    0 20px 32px -28px rgba(0, 0, 0, 0.62);
+}
+
+[data-theme="teenage"][data-mode="dark"] [data-component="dashboard-surface"] {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 18px 26px -24px rgba(0, 0, 0, 0.78);
+}
+
+[data-theme="teenage"]
+  :is(
+    [data-component="dashboard-surface"],
+    [data-component="Sidebar"],
+    [data-component="StatusBar"],
+    [data-component="MobileNav"],
+    [data-component="TopBar"]
+  )
+  :is(
+    .bg-surface-default,
+    .bg-surface-low,
+    .bg-surface-mid,
+    .bg-surface-lower,
+    .bg-fill-primary-normal,
+    .bg-fill-primary-quiet,
+    .bg-fill-danger-normal,
+    .bg-fill-success-normal,
+    .bg-yellow-95
+  ) {
+  border: 1px solid rgba(66, 62, 57, 0.18) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    inset 0 -1px 0 rgba(20, 20, 20, 0.08),
+    0 8px 14px -12px rgba(0, 0, 0, 0.55);
+}
+
+[data-theme="teenage"][data-mode="dark"]
+  :is(
+    [data-component="dashboard-surface"],
+    [data-component="Sidebar"],
+    [data-component="StatusBar"],
+    [data-component="MobileNav"],
+    [data-component="TopBar"]
+  )
+  :is(
+    .bg-surface-default,
+    .bg-surface-low,
+    .bg-surface-mid,
+    .bg-surface-lower,
+    .bg-fill-primary-normal,
+    .bg-fill-primary-quiet,
+    .bg-fill-danger-normal,
+    .bg-fill-success-normal,
+    .bg-yellow-95
+  ) {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 8px 14px -12px rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="teenage"] .ha-app-icon-shell {
+  border: 1px solid rgba(49, 46, 42, 0.2) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    inset 0 -1px 0 rgba(16, 16, 16, 0.08),
+    0 6px 12px -10px rgba(0, 0, 0, 0.56);
+}
+
+[data-theme="teenage"] .ha-app-icon-shell.ha-app-icon-shell-active {
+  background-color: #17181b !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+[data-theme="teenage"] .ha-app-icon-shell.ha-app-icon-shell-active .ha-app-icon-glyph {
+  color: #f4f0e7 !important;
+}
+
+[data-theme="teenage"]
+  :is(
+    [data-component="MobileTopBar"],
+    [data-component="Sidebar"],
+    [data-component="StatusBar"]
+  ) {
+  background-color: var(--ha-teenage-chrome-bg) !important;
+  border-color: var(--ha-teenage-chrome-border) !important;
+  box-shadow: none !important;
+}
+
+[data-theme="teenage"][data-mode="dark"]
+  :is(
+    [data-component="MobileTopBar"],
+    [data-component="Sidebar"],
+    [data-component="StatusBar"]
+  ) {
+  background-color: var(--ha-teenage-chrome-bg) !important;
+  border-color: var(--ha-teenage-chrome-border) !important;
+}
+
+[data-theme="teenage"] [data-component="MobileTopBar"] {
+  border-bottom: 1px solid var(--ha-teenage-chrome-border) !important;
+}
+
+[data-theme="teenage"] [data-component="Sidebar"] {
+  border-right: 1px solid var(--ha-teenage-chrome-border) !important;
+}
+
+[data-theme="teenage"] [data-component="StatusBar"] {
+  border-top: 1px solid var(--ha-teenage-chrome-border) !important;
+}
+
+[data-theme="teenage"] [data-component="MobileNav"] .mobile-nav-pill {
+  background: linear-gradient(160deg, #1f2125, #101114) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 -10px 24px -18px rgba(0, 0, 0, 0.8),
+    0 22px 36px -24px rgba(0, 0, 0, 0.86) !important;
+}
+
+[data-theme="teenage"] [data-component="MobileNav"] .mobile-nav-pill > div {
+  background-color: color-mix(in srgb, var(--ha-color-surface-default) 92%, #101114 8%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+[data-theme="teenage"] [data-component="MobileNav"] .mobile-nav-tabs {
+  background-color: color-mix(in srgb, var(--ha-color-surface-low) 92%, #ffffff 8%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 0 0 1px rgba(31, 29, 26, 0.16) !important;
+}
+
+[data-theme="teenage"][data-mode="dark"] [data-component="MobileNav"] .mobile-nav-tabs {
+  background-color: color-mix(in srgb, var(--ha-color-surface-low) 90%, #080808 10%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14) !important;
+}
+
 /* Glass Theme Body Background - Gradient (Shared Image) */
 [data-theme="glass"][data-background="gradient"] body {
   background-color: transparent;
@@ -512,9 +769,9 @@
 }
 
 /* Non-Glass Themes - Background Image/Gradient applied to main dashboard container only */
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"],
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"] {
   position: relative;
   /* Ensure we create a stacking context */
@@ -524,7 +781,7 @@
 }
 
 /* Image Layer - Bottom (z-index -2) */
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
@@ -541,7 +798,7 @@
 }
 
 /* Gradient Layer - Bottom (z-index -2) */
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
@@ -557,15 +814,15 @@
 }
 
 /* None Background - Solid Grey */
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="none"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="none"]
   [data-component="dashboard-surface"] {
   background-color: var(--ha-color-surface-lower) !important;
 }
 
 /* Scrim/Overlay Layer - Top (z-index -1) with 80% Opacity */
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"]::after,
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   content: "";
   position: absolute;
@@ -577,17 +834,17 @@
 }
 
 /* Light Mode: White Scrim */
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="light"][data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="light"][data-background="image"]
   [data-component="dashboard-surface"]::after,
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="light"][data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="light"][data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   background-color: #ffffff;
 }
 
 /* Dark Mode: Dark Scrim */
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="dark"][data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="dark"][data-background="image"]
   [data-component="dashboard-surface"]::after,
-:is([data-theme="default"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="dark"][data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="dark"][data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   background-color: #1a1a1a;
 }
@@ -653,7 +910,7 @@
 
 [data-theme="eink"] [data-component="Sidebar"],
 [data-theme="eink"] [data-component="StatusBar"] {
-  background-color: var(--ha-color-surface-default) !important;
+  background-color: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border: none !important;
@@ -795,7 +1052,7 @@
 
 [data-theme="eink"] [data-component="MobileNav"] .mobile-nav-pill,
 [data-theme="eink"] [data-component="MobileNav"] .mobile-nav-tabs {
-  background: var(--ha-color-surface-default) !important;
+  background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border: none !important;
@@ -1038,6 +1295,21 @@ html[data-theme="cyberpunk"] :not(code):not(pre):not(kbd):not(samp) {
   font-family: var(--font-cyberpunk), "Quantico", "Arial Narrow", system-ui, sans-serif;
 }
 
+html[data-theme="teenage"] body,
+html[data-theme="teenage"] button,
+html[data-theme="teenage"] input,
+html[data-theme="teenage"] textarea,
+html[data-theme="teenage"] select,
+html[data-theme="teenage"] label {
+  font-family: var(--font-cyberpunk), "Quantico", "Avenir Next", "DIN Alternate", var(--ha-font-family-base), sans-serif !important;
+  letter-spacing: 0.012em;
+  font-feature-settings: "tnum" 1;
+}
+
+html[data-theme="teenage"] :is(h1, h2, h3, .font-semibold, .font-bold) {
+  letter-spacing: 0.02em;
+}
+
 html[data-theme="material"] body,
 html[data-theme="material"] button,
 html[data-theme="material"] input,
@@ -1077,41 +1349,6 @@ html[data-theme="fallout"] label {
 
 .ha-icon-path {
   vector-effect: non-scaling-stroke;
-}
-
-[data-theme="material"] .ha-icon {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.75;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-[data-theme="cyberpunk"] .ha-icon {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-  stroke-linejoin: bevel;
-  filter: drop-shadow(0 0 4px rgba(0, 217, 255, 0.45));
-}
-
-[data-theme="eink"] .ha-icon {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  filter: none;
-}
-
-[data-theme="fallout"] .ha-icon {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  opacity: 0.92;
 }
 
 /* Theme transition for all elements */

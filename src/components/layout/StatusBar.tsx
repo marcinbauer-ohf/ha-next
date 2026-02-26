@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef, useCallback, type CSSProperties } from 'react';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { CircularProgress } from '../ui/CircularProgress';
 import { Tooltip } from '../ui/Tooltip';
-import { useHomeAssistant } from '@/hooks';
+import { useHomeAssistant, useSidebarItems } from '@/hooks';
 import {
   mdiMicrophone,
   mdiPlay,
@@ -122,6 +123,40 @@ const PINNED_ACTIVITY_FOOTER_SLOT_STYLE: CSSProperties = {
   top: 0,
 };
 
+function titleCaseSegment(value: string): string {
+  const normalized = decodeURIComponent(value).replace(/[-_]+/g, ' ').trim();
+  if (!normalized) return 'Home';
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getChatSuggestions(contextKey: string, pathname: string): string[] {
+  if (pathname.startsWith('/dashboard/energy') || contextKey.includes('energy')) {
+    return ['consumption today', 'highest power usage', 'solar production now', 'grid import vs export'];
+  }
+
+  if (contextKey.includes('climate') || contextKey.includes('temperature') || contextKey.includes('hvac')) {
+    return ['temperature right now', 'warmest room', 'humidity by room', 'set living room to 22°'];
+  }
+
+  if (contextKey.includes('security')) {
+    return ['any doors unlocked', 'last motion event', 'arm security mode', 'recent security alerts'];
+  }
+
+  if (contextKey.includes('camera')) {
+    return ['latest camera events', 'any motion now', 'who rang the doorbell', 'open front door camera'];
+  }
+
+  if (contextKey.includes('music') || contextKey.includes('media')) {
+    return ['what is playing now', 'skip to next track', 'set volume to 40%', 'play kitchen playlist'];
+  }
+
+  if (contextKey.includes('room') || pathname.startsWith('/room/')) {
+    return ['lights currently on', 'temperature in this room', 'any device left on', 'turn everything off'];
+  }
+
+  return ['lights still on', 'any doors unlocked', 'pending notifications', 'start good night routine'];
+}
+
 function formatTimeRemaining(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -184,13 +219,17 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: StatusBarProps) {
+  const pathname = usePathname();
   const { entities, callService, haUrl } = useHomeAssistant();
+  const { items: sidebarItems } = useSidebarItems();
   const [currentTime, setCurrentTime] = useState({ hours: '', minutes: '' });
   const [timerDisplays, setTimerDisplays] = useState<Record<string, string>>({});
   const [timerProgress, setTimerProgress] = useState<Record<string, number>>({});
   const use24HourClock = useMemo(() => systemPrefers24HourClock(), []);
   const [isAM, setIsAM] = useState(true);
   const [colonVisible, setColonVisible] = useState(true);
+  const [chatDraft, setChatDraft] = useState('');
+  const [chatLastSubmittedQuery, setChatLastSubmittedQuery] = useState<{ contextKey: string; query: string } | null>(null);
   // Widget container refs
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -252,6 +291,37 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
   const isActivityDialogOpen = activityWidgetView === 'dialog' && isActivityWidgetId(expandedWidgetId);
   const isPinnedActivityWidget = activityWidgetView === 'pinned' && isActivityWidgetId(expandedWidgetId);
   const isFloatingActivityWidget = (activityWidgetView === 'dialog' || activityWidgetView === 'pinned') && isActivityWidgetId(expandedWidgetId);
+  const chatContextLabel = useMemo(() => {
+    const matchedSidebarItem = sidebarItems.find((item) => item.urlPath === pathname);
+    if (matchedSidebarItem?.title) return matchedSidebarItem.title;
+
+    if (pathname === '/') return 'Home';
+    if (pathname.startsWith('/dashboard/')) {
+      return titleCaseSegment(pathname.split('/')[2] ?? 'Dashboard');
+    }
+    if (pathname.startsWith('/panel/')) {
+      return titleCaseSegment(pathname.split('/')[2] ?? 'App');
+    }
+    if (pathname.startsWith('/room/')) {
+      return titleCaseSegment(pathname.split('/')[2] ?? 'Room');
+    }
+
+    return 'Home';
+  }, [pathname, sidebarItems]);
+  const chatContextKey = useMemo(() => {
+    const matchedSidebarItem = sidebarItems.find((item) => item.urlPath === pathname);
+    if (matchedSidebarItem?.id) return matchedSidebarItem.id.toLowerCase();
+
+    if (pathname === '/') return 'home';
+    if (pathname.startsWith('/dashboard/') || pathname.startsWith('/panel/') || pathname.startsWith('/room/')) {
+      const slug = pathname.split('/')[2] ?? '';
+      return decodeURIComponent(slug).toLowerCase();
+    }
+
+    return chatContextLabel.toLowerCase();
+  }, [chatContextLabel, pathname, sidebarItems]);
+  const chatContextForPrompt = useMemo(() => chatContextLabel.toLowerCase(), [chatContextLabel]);
+  const chatSuggestions = useMemo(() => getChatSuggestions(chatContextKey, pathname), [chatContextKey, pathname]);
 
   const checkActivitiesScroll = () => {
     if (!activitiesScrollRef.current) return;
@@ -332,6 +402,18 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [statusExpanded, expandedWidgetId, setExpandedWidgetId, setStatusExpanded, activityWidgetView]);
+
+  const submitChatQuery = useCallback((query: string) => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+
+    setChatLastSubmittedQuery({ contextKey: chatContextKey, query: trimmedQuery });
+    setChatDraft('');
+  }, [chatContextKey]);
+
+  const submitSuggestedChatQuery = useCallback((suggestion: string) => {
+    submitChatQuery(suggestion);
+  }, [submitChatQuery]);
 
   const updateActivityFlyoutPosition = useCallback((widgetKey: ActivityWidgetKey) => {
     if (typeof window === 'undefined') return;
@@ -901,17 +983,19 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
         
         {/* Voice input widget - Fixed */}
         <div ref={chatContainerRef} className="relative flex-shrink-0">
-          <AnimatePresence mode="wait">
-            {expandedWidgetId === 'chat' ? (
+          <AnimatePresence>
+            {expandedWidgetId === 'chat' && (
               <motion.div
                 key="chat-expanded"
-                layoutId="chat-widget"
-                className="absolute left-1/2 -translate-x-1/2 bottom-0 w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
+                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                className="absolute left-0 bottom-full mb-ha-2 w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
                 transition={activityWindowTransition}
               >
                 <div className="p-ha-4 flex flex-col gap-ha-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Ask my home</span>
+                    <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Ask {chatContextForPrompt}</span>
                     <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
                       <Icon path={mdiClose} size={18} className="text-text-secondary" />
                     </button>
@@ -922,38 +1006,82 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                        <Icon path={mdiMicrophone} size={32} className="text-ha-blue" />
                     </div>
                     <div>
-                      <h4 className="text-base font-bold text-text-primary mb-1">How can I help you?</h4>
-                      <p className="text-xs text-text-secondary">Try &quot;Turn off the kitchen lights&quot; or &quot;Show me the front door&quot;</p>
+                      <h4 className="text-base font-bold text-text-primary mb-1">Ask {chatContextForPrompt} about...</h4>
+                      <p className="text-xs text-text-secondary">Try &quot;{chatSuggestions[0]}&quot; or &quot;{chatSuggestions[1]}&quot;</p>
+                    </div>
+                    {chatLastSubmittedQuery?.contextKey === chatContextKey && (
+                      <div className="w-full rounded-ha-xl bg-ha-blue/10 border border-ha-blue/20 px-ha-3 py-ha-2 text-left">
+                        <p className="text-[10px] font-bold text-ha-blue uppercase tracking-widest">Last question</p>
+                        <p className="text-xs text-text-primary mt-1 truncate">{chatLastSubmittedQuery.query}</p>
+                      </div>
+                    )}
+
+                    <div className="w-full flex flex-wrap gap-ha-2 justify-center">
+                      {chatSuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            submitSuggestedChatQuery(suggestion);
+                          }}
+                          className="px-ha-3 py-ha-1.5 rounded-ha-pill bg-surface-low hover:bg-surface-mid border border-surface-mid text-xs text-text-primary transition-colors"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill p-ha-1">
-                    <div className="flex-1 px-ha-3 text-sm text-text-secondary font-medium italic">Type or speak...</div>
-                    <button className="w-9 h-9 rounded-full bg-ha-blue flex items-center justify-center text-white shadow-md active:scale-90 transition-transform">
+                    <input
+                      type="text"
+                      value={chatDraft}
+                      onChange={(event) => setChatDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter') return;
+                        event.preventDefault();
+                        submitChatQuery(chatDraft);
+                      }}
+                      placeholder={`Ask ${chatContextForPrompt}...`}
+                      className="flex-1 px-ha-3 text-sm text-text-primary bg-transparent outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => submitChatQuery(chatDraft)}
+                      disabled={!chatDraft.trim()}
+                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
+                        chatDraft.trim()
+                          ? 'bg-ha-blue text-white shadow-md active:scale-90'
+                          : 'bg-surface-mid text-text-disabled'
+                      }`}
+                    >
                       <Icon path={mdiSend} size={18} />
                     </button>
                   </div>
                 </div>
               </motion.div>
-            ) : (
-              <motion.button
-                key="chat-collapsed"
-                layoutId="chat-widget"
-                onClick={() => setExpandedWidgetId('chat')}
-                className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 pr-ha-1 h-12 transition-all hover:bg-surface-mid min-w-[200px] group border border-transparent"
-              >
-                <div className="w-8 h-8 rounded-full bg-ha-blue flex items-center justify-center shadow-ha-sm group-hover:scale-110 transition-transform">
-                  <Icon path={mdiMicrophone} size={18} className="text-white" />
-                </div>
-                <span className="flex-1 text-sm font-medium text-text-primary text-left">
-                  Ask your home...
-                </span>
-                <div className="p-ha-1 rounded-full group-hover:bg-surface-lower transition-colors">
-                  <Icon path={mdiChevronRight} size={20} className="text-text-secondary" />
-                </div>
-              </motion.button>
             )}
           </AnimatePresence>
+          <motion.button
+            key="chat-collapsed"
+            onClick={() => {
+              setExpandedWidgetId((current) => (current === 'chat' ? null : 'chat'));
+            }}
+            className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 pr-ha-1 h-12 transition-all hover:bg-surface-mid min-w-[200px] group border ${
+              expandedWidgetId === 'chat' ? 'border-ha-blue/40' : 'border-transparent'
+            }`}
+          >
+            <div className="w-8 h-8 rounded-full bg-ha-blue flex items-center justify-center shadow-ha-sm group-hover:scale-110 transition-transform">
+              <Icon path={mdiMicrophone} size={18} className="text-white" />
+            </div>
+            <span className="flex-1 text-sm font-medium text-text-primary text-left">
+              Ask your home...
+            </span>
+            <div className="p-ha-1 rounded-full group-hover:bg-surface-lower transition-colors">
+              <Icon path={expandedWidgetId === 'chat' ? mdiChevronDown : mdiChevronRight} size={20} className="text-text-secondary" />
+            </div>
+          </motion.button>
         </div>
         
         {/* Scrollable Container for Activities */}

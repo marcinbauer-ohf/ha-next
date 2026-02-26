@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { EntityCard } from '@/components/cards';
 import { DashboardSection, PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext, useHeader } from '@/contexts';
@@ -401,29 +402,32 @@ export default function RoomPage({ params }: RoomPageProps) {
       </div>
 
       {/* Mobile Bottom Sheet */}
-      <div
-        className={`lg:hidden fixed inset-0 z-[60] transition-opacity duration-300 ${
-          infoOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-      >
-        {/* Backdrop */}
+      {typeof document !== 'undefined' && createPortal(
         <div
-          className="absolute inset-0 bg-black/40"
-          onClick={() => setInfoOpen(false)}
-        />
-        {/* Sheet */}
-        <div className={`absolute bottom-0 left-0 right-0 bg-surface-lower rounded-t-ha-3xl transition-transform duration-300 ease-out ${
-          infoOpen ? 'translate-y-0' : 'translate-y-full'
-        }`} style={{ maxHeight: '80dvh' }}>
-          {/* Drag indicator */}
-          <div className="flex justify-center py-ha-2">
-            <div className="w-8 h-1 rounded-full bg-text-secondary/40" />
+          className={`lg:hidden fixed inset-0 z-[120] transition-opacity duration-300 ${
+            infoOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setInfoOpen(false)}
+          />
+          {/* Sheet */}
+          <div className={`absolute bottom-0 left-0 right-0 bg-surface-lower rounded-t-ha-3xl transition-transform duration-300 ease-out ${
+            infoOpen ? 'translate-y-0' : 'translate-y-full'
+          }`} style={{ maxHeight: '80dvh' }}>
+            {/* Drag indicator */}
+            <div className="flex justify-center py-ha-2">
+              <div className="w-8 h-1 rounded-full bg-text-secondary/40" />
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(80dvh - 20px)' }}>
+              <InfoPanel onClose={() => setInfoOpen(false)} />
+            </div>
           </div>
-          <div className="overflow-y-auto" style={{ maxHeight: 'calc(80dvh - 20px)' }}>
-            <InfoPanel onClose={() => setInfoOpen(false)} />
-          </div>
-        </div>
-      </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }

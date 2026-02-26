@@ -41,7 +41,7 @@ export function TopBar() {
   );
 
   return (
-    <header className="flex items-center justify-between h-full py-ha-2 px-ha-0 lg:pl-7" data-component="TopBar">
+    <header className="flex items-center justify-between h-full py-ha-2 px-ha-0 lg:pl-4" data-component="TopBar">
       {/* Mobile: Logo/Icon + Title with dropdown - Centered vertically on mobile */}
       <div className="flex items-center justify-between w-full lg:hidden h-full">
         <div className="flex items-center gap-ha-3">
@@ -91,15 +91,17 @@ export function TopBar() {
           <button className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors">
             <Icon path={mdiPencil} size={24} />
           </button>
-          <button 
-            className={`p-ha-3 rounded-ha-xl transition-colors ${
-              theme === 'glass'
+        <button 
+          className={`p-ha-3 rounded-ha-xl transition-colors ${
+            theme === 'glass'
                 ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
+              : theme === 'teenage'
+                ? 'bg-[#d48e42] text-[#161616] hover:bg-[#c07d36] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_12px_-8px_rgba(0,0,0,0.6)] border border-[#b0712e]'
                 : 'bg-ha-blue text-white hover:bg-ha-blue/90'
-            }`}
-          >
-            <Icon path={mdiPlus} size={24} />
-          </button>
+          }`}
+        >
+          <Icon path={mdiPlus} size={24} />
+        </button>
         </div>
       </div>
 
@@ -133,6 +135,8 @@ export function TopBar() {
           className={`p-ha-3 rounded-ha-xl transition-colors ${
             theme === 'glass'
               ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
+              : theme === 'teenage'
+                ? 'bg-[#d48e42] text-[#161616] hover:bg-[#c07d36] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_12px_-8px_rgba(0,0,0,0.6)] border border-[#b0712e]'
               : 'bg-ha-blue text-white hover:bg-ha-blue/90'
           }`}
         >
