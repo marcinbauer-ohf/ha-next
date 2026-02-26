@@ -135,6 +135,12 @@ export default function DashboardPage() {
   const { clearCredentials, setMockEntity, entities } = useHomeAssistant();
   const { immersiveMode, setImmersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
 
+  const handleClearCredentials = useCallback(() => {
+    const confirmed = window.confirm('Clear saved Home Assistant credentials and disconnect?');
+    if (!confirmed) return;
+    clearCredentials();
+  }, [clearCredentials]);
+
   const resetLayoutToDefaults = () => {
     setTheme('default');
     setMode('system');
@@ -632,7 +638,7 @@ export default function DashboardPage() {
                         title="Clear credentials"
                         state="Reset connection"
                         color="danger"
-                        onClick={clearCredentials}
+                        onClick={handleClearCredentials}
                       />
                       <EntityCard
                         icon={mdiRefresh}
