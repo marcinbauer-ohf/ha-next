@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useTransition, ReactNode, CSSProperties } from 'react';
+import { useState, useEffect, useRef, useTransition, ReactNode, CSSProperties, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar } from '@/components/layout';
 import { Icon } from '@/components/ui/Icon';
@@ -37,6 +37,15 @@ export function AppShell({ children }: AppShellProps) {
   const [mobileNavHideProgress, setMobileNavHideProgress] = useState(0);
   const [profileNavigationPending, startProfileNavigation] = useTransition();
   const wasConnecting = useRef(false);
+
+  const handleMobileNavAutoHiddenChange = useCallback((progress: number) => {
+    const clamped = Math.max(0, Math.min(1, progress));
+    setMobileNavHideProgress((prev) => {
+      if (clamped >= 0.98) return 1;
+      if (clamped <= 0.02) return 0;
+      return prev;
+    });
+  }, []);
 
   // When navigating from profile via sidebar, keep profile visible as a "curtain"
   // until the route transition has finished to avoid flashing stale content.
@@ -182,7 +191,7 @@ export function AppShell({ children }: AppShellProps) {
   } as CSSProperties;
 
   return (
-    <div className="min-h-screen bg-surface-default" data-component="AppShell">
+    <div className="min-h-[100svh] lg:min-h-screen bg-surface-default" data-component="AppShell">
       {/* Preloader overlay — shown after login, fades out to reveal dashboard */}
       <AnimatePresence>
         {showPreloader && (
@@ -192,7 +201,7 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Main app shell — fades in as preloader exits */}
       <div
-        className={`h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge transition-opacity duration-700 ${
+        className={`h-[100svh] lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge transition-opacity duration-700 ${
           showPreloader ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={layoutStyle}
@@ -295,7 +304,7 @@ export function AppShell({ children }: AppShellProps) {
       {!showPreloader && (
         <MobileNav
           connectionStatus={connectionStatus}
-          onNavAutoHiddenChange={setMobileNavHideProgress}
+          onNavAutoHiddenChange={handleMobileNavAutoHiddenChange}
         />
       )}
 

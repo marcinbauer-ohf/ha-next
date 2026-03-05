@@ -1725,7 +1725,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         style={{ opacity: isSheetVisible ? 1 : 0 }}
       />
       <div className="relative z-10 px-edge">
-        <div className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] max-h-[calc(100dvh-4rem)] overflow-hidden">
+        <div className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] max-h-[calc(100svh-4rem)] overflow-hidden">
           <div className="relative rounded-[23px] bg-surface-default/95 backdrop-blur-md">
             <div className="flex flex-col px-edge pt-ha-1 pb-ha-4">
               <div className="flex justify-center py-0 mb-0">
@@ -1746,7 +1746,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                   isSheetVisible ? 'mb-ha-1' : 'mb-0 pointer-events-none'
                 }`}
                 style={{
-                  height: `calc((100dvh - 4rem - 10rem) * ${sheetOpenProgress})`,
+                  height: `calc((100svh - 4rem - 10rem) * ${sheetOpenProgress})`,
                   opacity: Math.max(0, Math.min(1, sheetOpenProgress * 1.05)),
                 }}
               >
