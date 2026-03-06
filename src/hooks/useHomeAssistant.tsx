@@ -7,6 +7,8 @@ import {
   useRef,
   useState,
   useCallback,
+  useMemo,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import { HassEntities as HAEntities } from 'home-assistant-js-websocket';
@@ -24,12 +26,14 @@ import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 const LS_URL_KEY = 'ha_url';
 const LS_TOKEN_KEY = 'ha_token';
 const LS_DEMO_MODE_KEY = 'ha_demo_mode';
+const EMPTY_ENTITIES: HassEntities = {};
+
+type EntityStoreListener = () => void;
 
 interface HomeAssistantContextValue {
   connected: boolean;
   connecting: boolean;
   error: string | null;
-  entities: HassEntities;
   haUrl: string;
   configured: boolean;
   demoMode: boolean;
@@ -45,8 +49,78 @@ interface HomeAssistantContextValue {
 
 const HomeAssistantContext = createContext<HomeAssistantContextValue | null>(null);
 
+let liveEntitiesStore: HassEntities = EMPTY_ENTITIES;
+let mockEntitiesStore: HassEntities = EMPTY_ENTITIES;
+let mergedEntitiesStore: HassEntities = EMPTY_ENTITIES;
+const entityStoreListeners = new Set<EntityStoreListener>();
+
 interface HomeAssistantProviderProps {
   children: ReactNode;
+}
+
+function hasEntities(entities: HassEntities): boolean {
+  return Object.keys(entities).length > 0;
+}
+
+function subscribeToEntityStore(listener: EntityStoreListener): () => void {
+  entityStoreListeners.add(listener);
+  return () => {
+    entityStoreListeners.delete(listener);
+  };
+}
+
+function notifyEntityStoreListeners(): void {
+  entityStoreListeners.forEach((listener) => listener());
+}
+
+function recomputeMergedEntities(): void {
+  mergedEntitiesStore = hasEntities(mockEntitiesStore)
+    ? { ...liveEntitiesStore, ...mockEntitiesStore }
+    : liveEntitiesStore;
+}
+
+function setLiveEntities(nextEntities: HassEntities): void {
+  liveEntitiesStore = nextEntities;
+  recomputeMergedEntities();
+  notifyEntityStoreListeners();
+}
+
+function setMockEntities(nextEntities: HassEntities): void {
+  mockEntitiesStore = nextEntities;
+  recomputeMergedEntities();
+  notifyEntityStoreListeners();
+}
+
+function resetEntityStore(): void {
+  if (!hasEntities(liveEntitiesStore) && !hasEntities(mockEntitiesStore)) return;
+  liveEntitiesStore = EMPTY_ENTITIES;
+  mockEntitiesStore = EMPTY_ENTITIES;
+  mergedEntitiesStore = EMPTY_ENTITIES;
+  notifyEntityStoreListeners();
+}
+
+function updateMockEntityInStore(entityId: string, entity: HassEntity | null): void {
+  if (entity === null) {
+    if (!(entityId in mockEntitiesStore)) return;
+
+    const nextMockEntities = { ...mockEntitiesStore };
+    delete nextMockEntities[entityId];
+    setMockEntities(nextMockEntities);
+    return;
+  }
+
+  setMockEntities({
+    ...mockEntitiesStore,
+    [entityId]: entity,
+  });
+}
+
+function getEntityStoreSnapshot(): HassEntities {
+  return mergedEntitiesStore;
+}
+
+function getEmptyEntityStoreSnapshot(): HassEntities {
+  return EMPTY_ENTITIES;
 }
 
 export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) {
@@ -58,8 +132,6 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [entities, setEntities] = useState<HassEntities>({});
-  const [mockEntities, setMockEntities] = useState<HassEntities>({});
   const hasAutoConnected = useRef(false);
 
   // Load credentials from localStorage on mount
@@ -72,7 +144,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     setHaToken(storedToken);
     setDemoMode(storedDemoMode);
     setConfigured(storedDemoMode || (!!storedUrl && !!storedToken));
-    setMockEntities(storedDemoMode ? createDemoEntities() : {});
+    setLiveEntities(EMPTY_ENTITIES);
+    setMockEntities(storedDemoMode ? createDemoEntities() : EMPTY_ENTITIES);
     setHydrated(true);
   }, []);
 
@@ -85,11 +158,12 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
       setConnected(true);
 
       subscribeToEntities((newEntities: HAEntities) => {
-        setEntities(newEntities as unknown as HassEntities);
+        setLiveEntities(newEntities as unknown as HassEntities);
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed');
       setConnected(false);
+      setLiveEntities(EMPTY_ENTITIES);
       throw err;
     } finally {
       setConnecting(false);
@@ -106,7 +180,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     setHaUrl(trimmedUrl);
     setHaToken(token);
     setDemoMode(false);
-    setMockEntities({});
+    setMockEntities(EMPTY_ENTITIES);
     setConfigured(true);
   }, [doConnect]);
 
@@ -122,7 +196,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     setConnected(false);
     setConnecting(false);
     setError(null);
-    setEntities({});
+    setLiveEntities(EMPTY_ENTITIES);
     setMockEntities(createDemoEntities());
     hasAutoConnected.current = false;
   }, []);
@@ -137,15 +211,15 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     setDemoMode(false);
     setConfigured(false);
     setConnected(false);
-    setEntities({});
-    setMockEntities({});
     setError(null);
+    resetEntityStore();
     hasAutoConnected.current = false;
   }, []);
 
   const reconnect = useCallback(async () => {
     disconnect();
     setConnected(false);
+    setLiveEntities(EMPTY_ENTITIES);
     if (haUrl && haToken) {
       await doConnect(haUrl, haToken);
     }
@@ -168,21 +242,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   }, []);
 
   const setMockEntity = useCallback((entityId: string, entity: HassEntity | null) => {
-    setMockEntities(prev => {
-      const next = { ...prev };
-      if (entity === null) {
-        delete next[entityId];
-      } else {
-        next[entityId] = entity;
-      }
-      return next;
-    });
+    updateMockEntityInStore(entityId, entity);
   }, []);
-
-  // Sync real and mock entities
-  const mergedEntities = (Object.keys(mockEntities).length > 0) 
-    ? { ...entities, ...mockEntities } 
-    : entities;
 
   // Auto-connect once on page load if credentials exist in localStorage
   useEffect(() => {
@@ -190,28 +251,47 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
       hasAutoConnected.current = true;
       doConnect(haUrl, haToken).catch(() => {});
     }
-    return () => { disconnect(); };
+    return () => {
+      disconnect();
+      resetEntityStore();
+    };
   }, [configured, haUrl, haToken, doConnect, demoMode]);
+
+  const contextValue = useMemo<HomeAssistantContextValue>(() => ({
+    connected,
+    connecting,
+    error,
+    haUrl,
+    configured,
+    demoMode,
+    hydrated,
+    toggleEntity,
+    callService,
+    reconnect,
+    saveCredentials,
+    enableDemoMode,
+    clearCredentials,
+    setMockEntity,
+  }), [
+    connected,
+    connecting,
+    error,
+    haUrl,
+    configured,
+    demoMode,
+    hydrated,
+    toggleEntity,
+    callService,
+    reconnect,
+    saveCredentials,
+    enableDemoMode,
+    clearCredentials,
+    setMockEntity,
+  ]);
 
   return (
     <HomeAssistantContext.Provider
-      value={{
-        connected,
-        connecting,
-        error,
-        entities: mergedEntities,
-        haUrl,
-        configured,
-        demoMode,
-        hydrated,
-        toggleEntity,
-        callService,
-        reconnect,
-        saveCredentials,
-        enableDemoMode,
-        clearCredentials,
-        setMockEntity,
-      }}
+      value={contextValue}
     >
       {children}
     </HomeAssistantContext.Provider>
@@ -226,12 +306,120 @@ export function useHomeAssistant(): HomeAssistantContextValue {
   return context;
 }
 
+export function useHomeAssistantEntities(): HassEntities {
+  return useSyncExternalStore(
+    subscribeToEntityStore,
+    getEntityStoreSnapshot,
+    getEmptyEntityStoreSnapshot
+  );
+}
+
+export function useHomeAssistantSelector<T>(
+  selector: (entities: HassEntities) => T,
+  isEqual: (previous: T, next: T) => boolean = Object.is
+): T {
+  const selectionCacheRef = useRef<{
+    selector: (entities: HassEntities) => T;
+    snapshot: HassEntities;
+    selection: T;
+  } | null>(null);
+  const serverSelectionCacheRef = useRef<{
+    selector: (entities: HassEntities) => T;
+    selection: T;
+  } | null>(null);
+
+  const getSelectionSnapshot = useCallback(() => {
+    const snapshot = getEntityStoreSnapshot();
+    const cachedSelection = selectionCacheRef.current;
+
+    if (
+      cachedSelection &&
+      cachedSelection.selector === selector &&
+      Object.is(cachedSelection.snapshot, snapshot)
+    ) {
+      return cachedSelection.selection;
+    }
+
+    const nextSelection = selector(snapshot);
+
+    if (
+      cachedSelection &&
+      cachedSelection.selector === selector &&
+      isEqual(cachedSelection.selection, nextSelection)
+    ) {
+      selectionCacheRef.current = {
+        selector,
+        snapshot,
+        selection: cachedSelection.selection,
+      };
+      return cachedSelection.selection;
+    }
+
+    selectionCacheRef.current = {
+      selector,
+      snapshot,
+      selection: nextSelection,
+    };
+    return nextSelection;
+  }, [isEqual, selector]);
+
+  const getServerSelectionSnapshot = useCallback(() => {
+    const cachedSelection = serverSelectionCacheRef.current;
+
+    if (cachedSelection && cachedSelection.selector === selector) {
+      return cachedSelection.selection;
+    }
+
+    const nextSelection = selector(EMPTY_ENTITIES);
+    serverSelectionCacheRef.current = {
+      selector,
+      selection: nextSelection,
+    };
+    return nextSelection;
+  }, [selector]);
+
+  return useSyncExternalStore(
+    subscribeToEntityStore,
+    getSelectionSnapshot,
+    getServerSelectionSnapshot
+  );
+}
+
 export function useEntity(entityId: string): HassEntity | undefined {
-  const { entities } = useHomeAssistant();
-  return entities[entityId];
+  return useHomeAssistantSelector(
+    (entities) => entities[entityId],
+    (previous, next) =>
+      previous === next ||
+      (
+        !!previous &&
+        !!next &&
+        previous.entity_id === next.entity_id &&
+        previous.state === next.state &&
+        previous.last_updated === next.last_updated
+      )
+  );
 }
 
 export function useEntities(entityIds: string[]): (HassEntity | undefined)[] {
-  const { entities } = useHomeAssistant();
-  return entityIds.map((id) => entities[id]);
+  return useHomeAssistantSelector(
+    (entities) => entityIds.map((id) => entities[id]),
+    (previous, next) => {
+      if (previous.length !== next.length) return false;
+      for (let index = 0; index < previous.length; index += 1) {
+        const previousEntity = previous[index];
+        const nextEntity = next[index];
+
+        if (previousEntity === nextEntity) continue;
+        if (!previousEntity || !nextEntity) return false;
+        if (
+          previousEntity.entity_id !== nextEntity.entity_id ||
+          previousEntity.state !== nextEntity.state ||
+          previousEntity.last_updated !== nextEntity.last_updated
+        ) {
+          return false;
+        }
+      }
+      return true;
+    }
+  );
 }

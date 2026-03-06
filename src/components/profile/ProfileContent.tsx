@@ -3,7 +3,8 @@
 import React from 'react';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
-import { useHomeAssistant } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
+import { arePrimaryPeopleEqual, selectPrimaryPerson } from '@/lib/homeassistant/selectors';
 import {
   mdiChevronRight,
   mdiPalette,
@@ -76,24 +77,19 @@ function Section({ title, children }: { title?: string; children: React.ReactNod
 }
 
 export function ProfileContent() {
-  const { entities, haUrl } = useHomeAssistant();
+  const { haUrl } = useHomeAssistant();
+  const primaryPerson = useHomeAssistantSelector(selectPrimaryPerson, arePrimaryPeopleEqual);
 
   const user = React.useMemo(() => {
-    const personEntry = Object.entries(entities).find(
-      ([entityId]) => entityId.startsWith('person.')
-    );
-    if (personEntry) {
-      const [, entity] = personEntry;
-      const picture = entity.attributes.entity_picture as string | undefined;
-      const name = entity.attributes.friendly_name as string | undefined;
+    if (primaryPerson) {
       return {
-        name: name || 'User',
-        picture: picture ? `${haUrl}${picture}` : undefined,
-        initials: name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U',
+        name: primaryPerson.name || 'User',
+        picture: primaryPerson.picture ? `${haUrl}${primaryPerson.picture}` : undefined,
+        initials: primaryPerson.initials,
       };
     }
     return { name: 'Home Assistant User', picture: undefined, initials: 'U' };
-  }, [entities, haUrl]);
+  }, [primaryPerson, haUrl]);
 
   return (
     <div className="space-y-ha-7 lg:space-y-ha-8 pb-ha-8 max-w-2xl lg:max-w-none mx-auto">

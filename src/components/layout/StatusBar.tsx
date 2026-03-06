@@ -7,7 +7,8 @@ import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { CircularProgress } from '../ui/CircularProgress';
 import { Tooltip } from '../ui/Tooltip';
-import { useHomeAssistant, useSidebarItems } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems } from '@/hooks';
+import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import {
   mdiMicrophone,
   mdiPlay,
@@ -48,6 +49,8 @@ interface Timer {
   state: string;
   remaining: string;
   duration: string;
+  durationSec: number;
+  finishesAt?: string;
   progress: number;
 }
 
@@ -220,7 +223,8 @@ interface StatusBarProps {
 
 export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: StatusBarProps) {
   const pathname = usePathname();
-  const { entities, callService, haUrl } = useHomeAssistant();
+  const { callService, haUrl } = useHomeAssistant();
+  const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const { items: sidebarItems } = useSidebarItems();
   const [currentTime, setCurrentTime] = useState({ hours: '', minutes: '' });
   const [timerDisplays, setTimerDisplays] = useState<Record<string, string>>({});
@@ -621,134 +625,61 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
     return () => clearInterval(interval);
   }, [use24HourClock]);
 
-  // Get active timers from HA entities
-  const activeTimers = useMemo(() => {
-    const timers: Timer[] = [];
-
-    Object.entries(entities).forEach(([entityId, entity]) => {
-      if (entityId.startsWith('timer.') && (entity.state === 'active' || entity.state === 'paused')) {
-        const remaining = String(entity.attributes.remaining || '0:00:00');
-        const duration = String(entity.attributes.duration || '0:00:00');
-        const remainingSec = parseTimeToSeconds(remaining);
-        const durationSec = parseTimeToSeconds(duration);
-        const progress = durationSec > 0 ? remainingSec / durationSec : 0;
-
-        timers.push({
-          entity_id: entityId,
-          name: String(entity.attributes.friendly_name || entityId.replace('timer.', '')),
-          state: entity.state,
-          remaining,
-          duration,
-          progress,
-        });
-      }
-    });
-
-    return timers;
-  }, [entities]);
+  const activeTimers = useMemo<Timer[]>(() => activityData.activeTimers.map((timer) => {
+    const remainingSec = parseTimeToSeconds(timer.remaining);
+    return {
+      entity_id: timer.entityId,
+      name: timer.name,
+      state: timer.state,
+      remaining: timer.remaining,
+      duration: timer.duration,
+      durationSec: timer.durationSec,
+      finishesAt: timer.finishesAt,
+      progress: timer.durationSec > 0 ? remainingSec / timer.durationSec : 0,
+    };
+  }), [activityData.activeTimers]);
 
   // No longer needed to manually set visibility in effects
 
-  // Get active media players from HA entities
-  const activePlayers = useMemo(() => {
-    const players: MediaPlayer[] = [];
-
-    Object.entries(entities).forEach(([entityId, entity]) => {
-      if (entityId.startsWith('media_player.') && (entity.state === 'playing' || entity.state === 'paused')) {
-        players.push({
-          entity_id: entityId,
-          name: String(entity.attributes.friendly_name || entityId.replace('media_player.', '')),
-          state: entity.state,
-          mediaTitle: entity.attributes.media_title as string | undefined,
-          mediaArtist: entity.attributes.media_artist as string | undefined,
-          entityPicture: entity.attributes.entity_picture as string | undefined,
-        });
-      }
-    });
-
-    return players;
-  }, [entities]);
+  const activePlayers = useMemo<MediaPlayer[]>(() => activityData.activePlayers.map((player) => ({
+    entity_id: player.entityId,
+    name: player.name,
+    state: player.state,
+    mediaTitle: player.mediaTitle,
+    mediaArtist: player.mediaArtist,
+    entityPicture: player.entityPicture,
+  })), [activityData.activePlayers]);
 
   // No longer needed to manually set visibility in effects
 
-  // Get active cameras from HA entities
-  const activeCameras = useMemo(() => {
-    const cameras: Camera[] = [];
-
-    Object.entries(entities).forEach(([entityId, entity]) => {
-      // We look for our simulated camera or any camera with an active event
-      if (entityId.startsWith('camera.') || entityId.startsWith('binary_sensor.camera_simulated')) {
-        const isActive = entityId.startsWith('binary_sensor.camera_simulated')
-          ? entity.state === 'on'
-          : entity.state === 'motion' || entity.state === 'person';
-
-        if (isActive) {
-          cameras.push({
-            entity_id: entityId,
-            name: String(entity.attributes.friendly_name || 'Front Door'),
-            state: entity.state,
-            event: entity.attributes.event_type as string || (entityId.includes('camera') ? 'Movement detected' : 'Somebody at the door'),
-            entityPicture: entity.attributes.entity_picture as string | undefined,
-          });
-        }
-      }
-    });
-
-    return cameras;
-  }, [entities]);
+  const activeCameras = useMemo<Camera[]>(() => activityData.activeCameras.map((camera) => ({
+    entity_id: camera.entityId,
+    name: camera.name,
+    state: camera.state,
+    event: camera.event,
+    entityPicture: camera.entityPicture,
+  })), [activityData.activeCameras]);
 
   // No longer needed to manually set visibility in effects
 
-  // Get active printers from HA entities
-  const activePrinters = useMemo(() => {
-    const printers: Printer[] = [];
+  const activePrinters = useMemo<Printer[]>(() => activityData.activePrinters.map((printer) => ({
+    entity_id: printer.entityId,
+    name: printer.name,
+    state: printer.state,
+    progress: printer.progress,
+    fileName: printer.fileName || 'Unknown file',
+    remainingTime: printer.remainingTime || '00:00:00',
+    entityPicture: printer.entityPicture,
+  })), [activityData.activePrinters]);
 
-    Object.entries(entities).forEach(([entityId, entity]) => {
-      // Only show printers that are actively printing
-      const isPrinting = entity.state.toLowerCase() === 'printing';
-
-      if (isPrinting && (entityId.startsWith('sensor.printer_') || entityId === 'sensor.printer_simulated' || entityId.includes('printer'))) {
-        printers.push({
-          entity_id: entityId,
-          name: String(entity.attributes.friendly_name || '3D Printer'),
-          state: entity.state,
-          progress: Number(entity.attributes.progress || 0),
-          fileName: entity.attributes.file_name as string || 'Unknown file',
-          remainingTime: entity.attributes.time_remaining as string || '00:00:00',
-          entityPicture: entity.attributes.entity_picture as string | undefined,
-        });
-      }
-    });
-
-    return printers;
-  }, [entities]);
-
-  // Simulated release notes widget entities
-  const activeReleaseNotes = useMemo(() => {
-    const notes: ReleaseNotesWidget[] = [];
-
-    Object.entries(entities).forEach(([entityId, entity]) => {
-      if (entityId !== RELEASE_NOTES_PREFIX || entity.state !== 'on') return;
-
-      const rawNotes = entity.attributes.release_notes;
-      const parsedNotes = Array.isArray(rawNotes)
-        ? rawNotes.map((item) => String(item))
-        : typeof rawNotes === 'string'
-          ? [rawNotes]
-          : [];
-
-      notes.push({
-        entity_id: entityId,
-        name: String(entity.attributes.friendly_name || 'Home Assistant release notes'),
-        version: String(entity.attributes.latest_version || entity.attributes.release_version || 'Latest'),
-        summary: String(entity.attributes.release_summary || 'See what is new in Home Assistant.'),
-        notes: parsedNotes,
-        updatedAt: entity.last_updated,
-      });
-    });
-
-    return notes.sort((a, b) => a.entity_id.localeCompare(b.entity_id));
-  }, [entities]);
+  const activeReleaseNotes = useMemo<ReleaseNotesWidget[]>(() => activityData.activeReleaseNotes.map((note) => ({
+    entity_id: note.entityId,
+    name: note.name,
+    version: note.version,
+    summary: note.summary,
+    notes: note.notes,
+    updatedAt: note.updatedAt,
+  })), [activityData.activeReleaseNotes]);
 
   const visibleReleaseNotes = useMemo(
     () => activeReleaseNotes.filter((note) => dismissedReleaseNotes[note.entity_id] !== note.updatedAt),
@@ -837,11 +768,10 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
       const progress: Record<string, number> = {};
 
       activeTimers.forEach((timer) => {
-        const durationSec = parseTimeToSeconds(timer.duration);
+        const durationSec = timer.durationSec;
 
         if (timer.state === 'active') {
-          const entity = entities[timer.entity_id];
-          const finishesAt = entity?.attributes.finishes_at;
+          const finishesAt = timer.finishesAt;
           if (finishesAt && typeof finishesAt === 'string') {
             const finishTime = new Date(finishesAt).getTime();
             const now = Date.now();
@@ -866,63 +796,12 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
     updateTimerDisplays();
     const interval = setInterval(updateTimerDisplays, 1000);
     return () => clearInterval(interval);
-  }, [activeTimers, entities]);
+  }, [activeTimers]);
 
-  // Get pending updates
-  const activeUpdates = useMemo(() => {
-    return Object.entries(entities).filter(
-      ([entityId, entity]) =>
-        entityId.startsWith('update.') && entity.state === 'on'
-    ).map(([id, entity]) => ({
-      id,
-      name: entity.attributes.friendly_name || id,
-      picture: entity.attributes.entity_picture as string | undefined,
-    }));
-  }, [entities]);
-
-  // Get active notifications
-  const activeNotifications = useMemo(() => {
-    return Object.entries(entities).filter(([entityId]) =>
-      entityId.startsWith('persistent_notification.')
-    ).map(([id, entity]) => ({
-      id,
-      title: (entity.attributes.title || entity.attributes.friendly_name || 'System Notification') as string,
-      message: entity.attributes.message as string | undefined,
-    }));
-  }, [entities]);
-
-  // Check cloud/remote connection status
-  const isRemoteConnected = useMemo(() => {
-    // Check for Nabu Casa cloud connection
-    const cloudEntity = entities['cloud.cloud'];
-    if (cloudEntity) {
-      return cloudEntity.state === 'connected';
-    }
-
-    // Alternative: check binary_sensor.remote_ui if available
-    const remoteUi = entities['binary_sensor.remote_ui'];
-    if (remoteUi) {
-      return remoteUi.state === 'on';
-    }
-
-    // Default to false (not exposed) if we can't determine
-    return false;
-  }, [entities]);
-
-  // Count/List offline devices (only entities that belong to physical devices)
-  const offlineDevices = useMemo(() => {
-    return Object.values(entities).filter((entity) => {
-      // Only count entities that belong to a physical device
-      const hasDeviceId = entity.attributes.device_id !== undefined && entity.attributes.device_id !== null;
-      if (!hasDeviceId) return false;
-
-      // Check if the device is offline
-      return entity.state === 'unavailable' || entity.state === 'unknown';
-    }).map(entity => ({
-      id: entity.entity_id,
-      name: (entity.attributes.friendly_name || entity.entity_id) as string,
-    }));
-  }, [entities]);
+  const activeUpdates = activityData.activeUpdates;
+  const activeNotifications = activityData.activeNotifications;
+  const isRemoteConnected = activityData.isRemoteConnected;
+  const offlineDevices = activityData.offlineDevices;
 
   // Calculated counts for display
   const pendingUpdates = activeUpdates.length;
@@ -931,20 +810,14 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
 
   // Get current user's avatar (for immersive mode)
   const userAvatar = useMemo(() => {
-    const personEntry = Object.entries(entities).find(
-      ([entityId]) => entityId.startsWith('person.')
-    );
-    if (personEntry) {
-      const [, entity] = personEntry;
-      const picture = entity.attributes.entity_picture as string | undefined;
-      const name = entity.attributes.friendly_name as string | undefined;
+    if (activityData.user) {
       return {
-        picture: resolveEntityPictureUrl(haUrl, picture),
-        initials: name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U',
+        picture: resolveEntityPictureUrl(haUrl, activityData.user.picture),
+        initials: activityData.user.initials,
       };
     }
     return { picture: undefined, initials: 'U' };
-  }, [entities, haUrl]);
+  }, [activityData.user, haUrl]);
 
   const getEntityPictureUrl = (picture?: string, fallback?: string) => {
     return resolveEntityPictureUrl(haUrl, picture) ?? fallback;

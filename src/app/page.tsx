@@ -4,11 +4,12 @@ import { useState, useEffect, useRef, useCallback, CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { EntityCard, RoomCard } from '@/components/cards';
 import { DashboardSection, MobileSummaryRow, PullToRevealPanel } from '@/components/sections';
-import { useTheme, useImmersiveMode, useHomeAssistant } from '@/hooks';
+import { useTheme, useImmersiveMode, useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
 import { usePullToRevealContext, useHeader, useScreensaver } from '@/contexts';
 import { HassEntity } from '@/types';
 import { SimulationListModal } from '@/components/ui/SimulationListModal';
 import { Icon } from '@/components/ui/Icon';
+import { areSimulationEntitiesEqual, selectSimulationEntities } from '@/lib/homeassistant/selectors';
 import {
   mdiLightbulb,
   mdiInformation,
@@ -132,8 +133,9 @@ function HomeInfoPanel({ onClose }: { onClose: () => void }) {
 
 export default function DashboardPage() {
   const { theme, toggleTheme, mode, toggleMode, background, toggleBackground, setTheme, setMode, setBackground } = useTheme();
-  const { clearCredentials, setMockEntity, entities } = useHomeAssistant();
+  const { clearCredentials, setMockEntity } = useHomeAssistant();
   const { immersiveMode, setImmersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
+  const simulationEntities = useHomeAssistantSelector(selectSimulationEntities, areSimulationEntitiesEqual);
 
   const handleClearCredentials = useCallback(() => {
     const confirmed = window.confirm('Clear saved Home Assistant credentials and disconnect?');
@@ -156,14 +158,8 @@ export default function DashboardPage() {
   }, []);
 
   const getSimulatedEntities = useCallback((prefix: string) => {
-    return Object.entries(entities)
-      .filter(([id]) => id.startsWith(prefix))
-      .map(([id, entity]) => ({
-        id,
-        name: (entity.attributes.friendly_name as string) || id,
-        state: entity.state
-      })).sort((a, b) => a.id.localeCompare(b.id)); // Stable sort
-  }, [entities]);
+    return simulationEntities.filter((entity) => entity.id.startsWith(prefix));
+  }, [simulationEntities]);
 
   const createMockEntity = (type: SimulationType, id: string): HassEntity => {
       const now = new Date().toISOString();

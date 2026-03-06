@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,9 +10,15 @@ import { HALogo } from '../ui/HALogo';
 import { MdiIcon } from '../ui/MdiIcon';
 import { CircularProgress } from '../ui/CircularProgress';
 import { ProfileContent } from '../profile';
-import { useHomeAssistant, useSidebarItems } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems } from '@/hooks';
 import { usePullToRevealContext, useSearchContext } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
+import {
+  areActivityDataEqual,
+  areEntitySearchMatchesEqual,
+  selectActivityData,
+  selectMatchingEntities,
+} from '@/lib/homeassistant/selectors';
 import {
   mdiArrowLeft,
   mdiMagnify,
@@ -40,8 +46,6 @@ import {
   mdiCloudCheck,
   mdiCloudOff,
 } from '@mdi/js';
-
-const RELEASE_NOTES_PREFIX = 'update.home_assistant_release_notes_simulated';
 
 function parseTime(time: string): number {
   const parts = time.split(':').map(Number);
@@ -119,7 +123,7 @@ function isNavItemActive(currentPath: string, itemPath: string): boolean {
 
 export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAutoHiddenChange }: MobileNavProps) {
   const pathname = usePathname();
-  const { entities, haUrl, callService } = useHomeAssistant();
+  const { haUrl, callService } = useHomeAssistant();
   const { items } = useSidebarItems();
   const { isRevealed, close } = usePullToRevealContext();
   const { searchOpen, closeSearch } = useSearchContext();
@@ -173,6 +177,11 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   const isBottomSurfaceEngaged = statusExpanded || isBottomSheetDragging;
   const sheetOpenProgress = isBottomSheetDragging ? bottomSheetDragProgress : (statusExpanded ? 1 : 0);
   const isSheetVisible = sheetOpenProgress > 0.001;
+  const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
+  const matchingEntities = useHomeAssistantSelector(
+    (entities) => selectMatchingEntities(entities, expandedSearchQuery),
+    areEntitySearchMatchesEqual
+  );
   const effectiveHideProgress = disableAutoHide || isRevealed || isBottomSurfaceEngaged
     ? 0
     : hideFromInactivity
@@ -840,85 +849,25 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
 
 
-  // Get pending updates
-  const activeUpdates = useMemo(() => {
-    return Object.entries(entities).filter(
-      ([entityId, entity]) =>
-        entityId.startsWith('update.') && entity.state === 'on'
-    ).map(([id, entity]) => ({
-      id,
-      name: entity.attributes.friendly_name || id,
-      picture: entity.attributes.entity_picture as string | undefined,
-    }));
-  }, [entities]);
-
-  // Get active notifications
-  const activeNotifications = useMemo(() => {
-    return Object.entries(entities).filter(([entityId]) =>
-      entityId.startsWith('persistent_notification.')
-    ).map(([id, entity]) => ({
-      id,
-      title: (entity.attributes.title || entity.attributes.friendly_name || 'System Notification') as string,
-      message: entity.attributes.message as string | undefined,
-    }));
-  }, [entities]);
+  const activeUpdates = activityData.activeUpdates;
+  const activeNotifications = activityData.activeNotifications;
 
   const pendingUpdates = activeUpdates.length;
   const notificationCount = activeNotifications.length;
 
-  // Get current user's avatar from person entity
   const userAvatar = useMemo(() => {
-    const personEntry = Object.entries(entities).find(
-      ([entityId]) => entityId.startsWith('person.')
-    );
-    if (personEntry) {
-      const [, entity] = personEntry;
-      const picture = entity.attributes.entity_picture as string | undefined;
-      const name = entity.attributes.friendly_name as string | undefined;
+    if (activityData.user) {
       return {
-        picture: resolveEntityPictureUrl(haUrl, picture),
-        initials: name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U',
+        picture: resolveEntityPictureUrl(haUrl, activityData.user.picture),
+        initials: activityData.user.initials,
       };
     }
     return { picture: undefined, initials: 'U' };
-  }, [entities, haUrl]);
+  }, [activityData.user, haUrl]);
 
-  // Check cloud/remote connection status
-  const isRemoteConnected = useMemo(() => {
-    const cloudEntity = entities['cloud.cloud'];
-    if (cloudEntity) {
-      return cloudEntity.state === 'connected';
-    }
-    const remoteUi = entities['binary_sensor.remote_ui'];
-    if (remoteUi) {
-      return remoteUi.state === 'on';
-    }
-    // Default to false (not exposed) if we can't determine
-    return false;
-  }, [entities]);
+  const isRemoteConnected = activityData.isRemoteConnected;
 
-  // Get simulated release notes widgets
-  const allActiveReleaseNotes = useMemo(() => {
-    return Object.entries(entities)
-      .filter(([entityId, entity]) => entityId === RELEASE_NOTES_PREFIX && entity.state === 'on')
-      .map(([entityId, entity]) => {
-        const rawNotes = entity.attributes.release_notes;
-        const notes = Array.isArray(rawNotes)
-          ? rawNotes.map((item) => String(item))
-          : typeof rawNotes === 'string'
-            ? [rawNotes]
-            : [];
-        return {
-          entityId,
-          name: String(entity.attributes.friendly_name || 'Home Assistant release notes'),
-          version: String(entity.attributes.latest_version || entity.attributes.release_version || 'Latest'),
-          summary: String(entity.attributes.release_summary || 'See what is new in Home Assistant.'),
-          notes,
-          updatedAt: entity.last_updated,
-        };
-      })
-      .sort((a, b) => a.entityId.localeCompare(b.entityId));
-  }, [entities]);
+  const allActiveReleaseNotes = activityData.activeReleaseNotes;
 
   const visibleReleaseNotes = useMemo(
     () => allActiveReleaseNotes.filter((note) => dismissedReleaseNotes[note.entityId] !== note.updatedAt),
@@ -932,19 +881,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     return found || visibleReleaseNotes[0];
   }, [selectedReleaseId, visibleReleaseNotes]);
 
-  // Get all active media players
-  const allActiveMedia = useMemo(() => {
-    return Object.entries(entities)
-      .filter(([entityId, entity]) =>
-        entityId.startsWith('media_player.') && (entity.state === 'playing' || entity.state === 'paused')
-      )
-      .map(([entityId, entity]) => ({
-        entityId,
-        state: entity.state,
-        name: (entity.attributes.friendly_name as string) || entityId,
-        entityPicture: entity.attributes.entity_picture as string | undefined,
-      }));
-  }, [entities]);
+  const allActiveMedia = activityData.activePlayers;
 
   // Get active media player with image (selected or first)
   const activeMedia = useMemo(() => {
@@ -956,26 +893,10 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   // Count active media players
   const activeMediaCount = allActiveMedia.length;
 
-  // Get all active timers
-  const allActiveTimers = useMemo(() => {
-    return Object.entries(entities)
-      .filter(([entityId, entity]) =>
-        entityId.startsWith('timer.') && (entity.state === 'active' || entity.state === 'paused')
-      )
-      .map(([entityId, entity]) => {
-        const duration = String(entity.attributes.duration || '0:00:00');
-        const durationSec = parseTime(duration);
-        return {
-          entityId,
-          state: entity.state,
-          name: (entity.attributes.friendly_name as string) || entityId,
-          durationSec,
-          isPaused: entity.state === 'paused',
-          finishesAt: entity.attributes.finishes_at as string | undefined,
-          remaining: String(entity.attributes.remaining || '0:00:00'),
-        };
-      });
-  }, [entities]);
+  const allActiveTimers = useMemo(() => activityData.activeTimers.map((timer) => ({
+    ...timer,
+    isPaused: timer.state === 'paused',
+  })), [activityData.activeTimers]);
 
   // Get active timer (selected or first)
   const activeTimer = useMemo(() => {
@@ -984,21 +905,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     return found || allActiveTimers[0];
   }, [allActiveTimers, selectedTimerId]);
 
-  // Get all active cameras
-  const allActiveCameras = useMemo(() => {
-    return Object.entries(entities)
-      .filter(([entityId, entity]) => {
-        if (entityId.startsWith('binary_sensor.camera_simulated') && entity.state === 'on') return true;
-        if (entityId.startsWith('camera.') && (entity.state === 'motion' || entity.state === 'person')) return true;
-        return false;
-      })
-      .map(([entityId, entity]) => ({
-        entityId,
-        name: String(entity.attributes.friendly_name || 'Front Door'),
-        event: (entity.attributes.event_type as string) || 'Movement detected',
-        entityPicture: entity.attributes.entity_picture as string | undefined,
-      }));
-  }, [entities]);
+  const allActiveCameras = activityData.activeCameras;
 
   // Get active camera (selected or first)
   const activeCamera = useMemo(() => {
@@ -1007,24 +914,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     return found || allActiveCameras[0];
   }, [allActiveCameras, selectedCameraId]);
 
-  // Get all active printers
-  const allActivePrinters = useMemo(() => {
-    return Object.entries(entities)
-      .filter(([entityId, entity]) => {
-        const isPrinting = entity.state.toLowerCase() === 'printing';
-        if (!isPrinting) return false;
-        return entityId.startsWith('sensor.printer_simulated') || entityId.startsWith('sensor.printer_') || entityId.includes('printer');
-      })
-      .map(([entityId, entity]) => ({
-        entityId,
-        state: entity.state,
-        name: (entity.attributes.friendly_name as string) || entityId,
-        progress: Number(entity.attributes.progress || 0),
-        fileName: (entity.attributes.file_name || entity.attributes.friendly_name || 'Printing') as string,
-        remainingTime: (entity.attributes.time_remaining || '00:00:00') as string,
-        entityPicture: entity.attributes.entity_picture as string | undefined,
-      }));
-  }, [entities]);
+  const allActivePrinters = activityData.activePrinters;
 
   // Get active printer (selected or first)
   const activePrinter = useMemo(() => {
@@ -1055,7 +945,6 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   // Update timer progress every second
   useEffect(() => {
     if (!activeTimer) {
-      if (timerProgress !== 0) setTimerProgress(0);
       return;
     }
 
@@ -1083,18 +972,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   const activeTimerCount = allActiveTimers.length;
   const activeCameraCount = allActiveCameras.length;
   const activePrinterCount = allActivePrinters.length;
+  const displayedTimerProgress = activeTimer ? timerProgress : 0;
   
-  // Offline devices
-  const offlineDevices = useMemo(() => {
-    return Object.values(entities).filter((entity) => {
-      const hasDeviceId = entity.attributes.device_id !== undefined && entity.attributes.device_id !== null;
-      if (!hasDeviceId) return false;
-      return entity.state === 'unavailable' || entity.state === 'unknown';
-    }).map(entity => ({
-      id: entity.entity_id,
-      name: (entity.attributes.friendly_name || entity.entity_id) as string,
-    }));
-  }, [entities]);
+  const offlineDevices = activityData.offlineDevices;
 
   const offlineCount = offlineDevices.length;
 
@@ -1127,26 +1007,15 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         href: item.urlPath,
       }));
 
-    const matchingEntities = Object.entries(entities)
-      .filter(([entityId, entity]) => {
-        const friendlyName = String(entity.attributes.friendly_name || entityId);
-        const state = String(entity.state || '');
-        return (
-          friendlyName.toLowerCase().includes(query) ||
-          entityId.toLowerCase().includes(query) ||
-          state.toLowerCase().includes(query)
-        );
-      })
-      .slice(0, 12)
-      .map(([entityId, entity]) => ({
-        id: entityId,
-        type: 'entity' as const,
-        name: String(entity.attributes.friendly_name || entityId),
-        subtitle: `${entityId} · ${entity.state}`,
-      }));
+    const matchingEntityResults = matchingEntities.map((entity) => ({
+      id: entity.id,
+      type: 'entity' as const,
+      name: entity.name,
+      subtitle: `${entity.id} · ${entity.state}`,
+    }));
 
-    return [...matchingDashboards, ...matchingApps, ...matchingEntities];
-  }, [apps, dashboards, entities, expandedSearchQuery]);
+    return [...matchingDashboards, ...matchingApps, ...matchingEntityResults];
+  }, [apps, dashboards, expandedSearchQuery, matchingEntities]);
 
   const dashboardSearchSuggestions = useMemo<SearchResultItem[]>(() => {
     return [
@@ -1521,7 +1390,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
               <div className="text-[10px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3 self-start">Timer</div>
               <div className="relative mb-ha-5">
                 <CircularProgress
-                  progress={timerProgress}
+                  progress={displayedTimerProgress}
                   size={140}
                   strokeWidth={6}
                   className={activeTimer.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
@@ -2050,7 +1919,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                       : ''
                   }`}>
                     <CircularProgress
-                      progress={timerProgress}
+                      progress={displayedTimerProgress}
                       size={32}
                       strokeWidth={2.5}
                       className={activeTimer?.isPaused ? 'text-yellow-600' : 'text-ha-blue'}

@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SummaryCard } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
-import { useHomeAssistant } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   mdiAccountMultiple,
@@ -20,6 +20,7 @@ import {
 } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { clsx } from 'clsx';
+import { arePeoplePresenceEqual, selectPeoplePresence } from '@/lib/homeassistant/selectors';
 
 export const summaryItems = [
   { icon: mdiLightbulbGroup, title: 'Lights', state: '3 on', color: 'yellow' as const },
@@ -136,33 +137,18 @@ function TipsCard({ onToggleImmersive, onToggleDarkMode, onToggleScreensaver }: 
 }
 
 export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact?: boolean; size?: 'sm' | 'md' | 'lg'; variant?: 'compact' | 'full' }) {
-  const { entities, haUrl } = useHomeAssistant();
+  const { haUrl } = useHomeAssistant();
   const isLg = size === 'lg';
   const isMd = size === 'md';
-
-  const { peopleHome, peopleAway } = useMemo(() => {
-    const allPeople = Object.entries(entities)
-      .filter(([entityId]) => entityId.startsWith('person.'))
-      .map(([entityId, entity]) => ({
-        id: entityId,
-        name: entity.attributes.friendly_name as string || 'User',
-        state: entity.state,
-        picture: entity.attributes.entity_picture
-          ? `${haUrl}${entity.attributes.entity_picture}`
-          : undefined,
-        initials: ((entity.attributes.friendly_name as string) || 'U')
-          .split(' ')
-          .map((n) => n[0])
-          .join('')
-          .toUpperCase()
-          .slice(0, 2),
-      }));
-
-    return {
-      peopleHome: allPeople.filter(p => p.state === 'home'),
-      peopleAway: allPeople.filter(p => p.state !== 'home'),
-    };
-  }, [entities, haUrl]);
+  const { peopleHome, peopleAway } = useHomeAssistantSelector(selectPeoplePresence, arePeoplePresenceEqual);
+  const resolvedPeopleHome = peopleHome.map((person) => ({
+    ...person,
+    picture: person.picture ? `${haUrl}${person.picture}` : undefined,
+  }));
+  const resolvedPeopleAway = peopleAway.map((person) => ({
+    ...person,
+    picture: person.picture ? `${haUrl}${person.picture}` : undefined,
+  }));
 
   // Use variant if provided, otherwise fallback to compact prop
   const isCompact = variant ? variant === 'compact' : compact;
@@ -178,8 +164,8 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
           'flex flex-shrink-0',
           isLg ? '-space-x-3' : isMd ? '-space-x-2' : '-space-x-1.5'
         )}>
-          {peopleHome.length > 0 ? (
-            peopleHome.slice(0, 4).map((person) => (
+          {resolvedPeopleHome.length > 0 ? (
+            resolvedPeopleHome.slice(0, 4).map((person) => (
               <Avatar
                 key={person.id}
                 src={person.picture}
@@ -204,7 +190,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
           'font-medium text-text-primary text-left flex-shrink-0',
           isLg ? 'text-xl pr-ha-3' : isMd ? 'text-base pr-ha-2' : 'text-sm pr-ha-1'
         )}>
-          {peopleHome.length} home
+          {resolvedPeopleHome.length} home
         </span>
       </div>
     );
@@ -218,13 +204,13 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
       </div>
       <div className="flex flex-col items-start min-w-0 flex-1">
         <span className="text-sm font-medium text-text-primary text-left">People</span>
-        <span className="text-xs text-text-secondary text-left">{peopleHome.length} home</span>
+        <span className="text-xs text-text-secondary text-left">{resolvedPeopleHome.length} home</span>
       </div>
       <div className="flex items-center gap-ha-2 flex-shrink-0">
         <AnimatePresence mode="popLayout" initial={false}>
           {/* Home People */}
           <motion.div key="home-group" layout className="flex -space-x-2">
-            {peopleHome.map((person) => (
+            {resolvedPeopleHome.map((person) => (
               <motion.div
                 key={person.id}
                 layout
@@ -245,7 +231,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
           </motion.div>
 
           {/* Separator */}
-          {peopleHome.length > 0 && peopleAway.length > 0 && (
+          {resolvedPeopleHome.length > 0 && resolvedPeopleAway.length > 0 && (
             <motion.div
               key="separator"
               layout
@@ -260,7 +246,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
 
           {/* Away People */}
           <motion.div key="away-group" layout className="flex -space-x-2">
-            {peopleAway.map((person) => (
+            {resolvedPeopleAway.map((person) => (
               <motion.div
                 key={person.id}
                 layout

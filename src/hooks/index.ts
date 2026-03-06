@@ -1,6 +1,8 @@
 export {
   HomeAssistantProvider,
   useHomeAssistant,
+  useHomeAssistantEntities,
+  useHomeAssistantSelector,
   useEntity,
   useEntities,
 } from './useHomeAssistant';

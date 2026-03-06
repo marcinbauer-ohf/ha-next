@@ -1,26 +1,43 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useHomeAssistant } from './useHomeAssistant';
+import { useHomeAssistantSelector } from './useHomeAssistant';
 import type { HassEntity } from '@/types';
 
-export function useEntitiesByDomain(domain: string): HassEntity[] {
-  const { entities } = useHomeAssistant();
+function areSameEntity(previous: HassEntity | undefined, next: HassEntity | undefined): boolean {
+  return previous === next || (
+    !!previous &&
+    !!next &&
+    previous.entity_id === next.entity_id &&
+    previous.state === next.state &&
+    previous.last_updated === next.last_updated
+  );
+}
 
-  return useMemo(() => {
-    return Object.values(entities).filter((entity) =>
+function areEntityListsEqual(previous: HassEntity[], next: HassEntity[]): boolean {
+  if (previous.length !== next.length) return false;
+
+  for (let index = 0; index < previous.length; index += 1) {
+    if (!areSameEntity(previous[index], next[index])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function useEntitiesByDomain(domain: string): HassEntity[] {
+  return useHomeAssistantSelector(
+    (entities) => Object.values(entities).filter((entity) =>
       entity.entity_id.startsWith(`${domain}.`)
-    );
-  }, [entities, domain]);
+    ),
+    areEntityListsEqual
+  );
 }
 
 export function useEntitiesCount(domain: string, state?: string): number {
   const domainEntities = useEntitiesByDomain(domain);
-
-  return useMemo(() => {
-    if (!state) return domainEntities.length;
-    return domainEntities.filter((entity) => entity.state === state).length;
-  }, [domainEntities, state]);
+  if (!state) return domainEntities.length;
+  return domainEntities.filter((entity) => entity.state === state).length;
 }
 
 export function useLightsOn(): number {
@@ -29,19 +46,14 @@ export function useLightsOn(): number {
 
 export function useDoorsOpen(): number {
   const binarySensors = useEntitiesByDomain('binary_sensor');
-
-  return useMemo(() => {
-    return binarySensors.filter(
-      (entity) =>
-        entity.attributes.device_class === 'door' && entity.state === 'on'
-    ).length;
-  }, [binarySensors]);
+  return binarySensors.filter(
+    (entity) =>
+      entity.attributes.device_class === 'door' && entity.state === 'on'
+  ).length;
 }
 
 export function useAverageTemperature(): number | null {
-  const { entities } = useHomeAssistant();
-
-  return useMemo(() => {
+  return useHomeAssistantSelector((entities) => {
     const tempEntities = Object.values(entities).filter(
       (entity) =>
         entity.entity_id.startsWith('sensor.') &&
@@ -56,5 +68,5 @@ export function useAverageTemperature(): number | null {
       0
     );
     return Math.round(sum / tempEntities.length);
-  }, [entities]);
+  });
 }

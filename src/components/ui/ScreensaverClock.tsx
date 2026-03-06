@@ -5,10 +5,11 @@ import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { Tooltip } from './Tooltip';
 import { RollingDigit } from './RollingDigit';
-import { useHomeAssistant } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
 import { mdiUpdate, mdiWeb, mdiBell, mdiAlertCircle } from '@mdi/js';
 import { SummaryCard } from '../cards/SummaryCard';
 import { PeopleBadge, summaryItems } from '../sections/SummariesPanel';
+import { areScreensaverDataEqual, selectScreensaverData } from '@/lib/homeassistant/selectors';
 
 interface ScreensaverClockProps {
   visible: boolean;
@@ -29,7 +30,7 @@ function systemPrefers24HourClock(): boolean {
 }
 
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
-  const { entities, haUrl } = useHomeAssistant();
+  const { haUrl } = useHomeAssistant();
   const [time, setTime] = useState({ hours: '', minutes: '', seconds: '', period: '', isAM: true });
   const use24HourClock = useMemo(() => systemPrefers24HourClock(), []);
   const [date, setDate] = useState('');
@@ -43,65 +44,22 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const touchStartY = useRef<number | null>(null);
   const dragDistanceRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Count pending updates
-  const pendingUpdates = useMemo(() => {
-    return Object.entries(entities).filter(
-      ([entityId, entity]) =>
-        entityId.startsWith('update.') && entity.state === 'on'
-    ).length;
-  }, [entities]);
-
-  // Count active notifications
-  const notificationCount = useMemo(() => {
-    return Object.entries(entities).filter(([entityId]) =>
-      entityId.startsWith('persistent_notification.')
-    ).length;
-  }, [entities]);
-
-  // Check cloud/remote connection status
-  const isRemoteConnected = useMemo(() => {
-    const cloudEntity = entities['cloud.cloud'];
-    if (cloudEntity) {
-      return cloudEntity.state === 'connected';
-    }
-    const remoteUi = entities['binary_sensor.remote_ui'];
-    if (remoteUi) {
-      return remoteUi.state === 'on';
-    }
-    // Default to false (not exposed) if we can't determine
-    return false;
-  }, [entities]);
-
-  // Count offline devices (only entities that belong to physical devices)
-  const offlineCount = useMemo(() => {
-    return Object.values(entities).filter((entity) => {
-      // Only count entities that belong to a physical device
-      const hasDeviceId = entity.attributes.device_id !== undefined && entity.attributes.device_id !== null;
-      if (!hasDeviceId) return false;
-      
-      // Check if the device is offline
-      return entity.state === 'unavailable' || entity.state === 'unknown';
-    }).length;
-  }, [entities]);
-
-  // Get current user's avatar
+  const screensaverData = useHomeAssistantSelector(selectScreensaverData, areScreensaverDataEqual);
+  const pendingUpdates = screensaverData.pendingUpdates;
+  const notificationCount = screensaverData.notificationCount;
+  const isRemoteConnected = screensaverData.isRemoteConnected;
+  const offlineCount = screensaverData.offlineCount;
   const userAvatar = useMemo(() => {
-    const personEntry = Object.entries(entities).find(
-      ([entityId]) => entityId.startsWith('person.')
-    );
-    if (personEntry) {
-      const [, entity] = personEntry;
-      const picture = entity.attributes.entity_picture as string | undefined;
-      const name = entity.attributes.friendly_name as string | undefined;
-      return {
-        picture: picture ? `${haUrl}${picture}` : undefined,
-        name: name || 'User',
-        initials: name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U',
-      };
+    if (!screensaverData.user) {
+      return { picture: undefined, name: 'User', initials: 'U' };
     }
-    return { picture: undefined, name: 'User', initials: 'U' };
-  }, [entities, haUrl]);
+
+    return {
+      picture: screensaverData.user.picture ? `${haUrl}${screensaverData.user.picture}` : undefined,
+      name: screensaverData.user.name || 'User',
+      initials: screensaverData.user.initials,
+    };
+  }, [screensaverData.user, haUrl]);
   
   const buildInfo = useMemo(() => {
     const now = new Date();
@@ -120,19 +78,30 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
 
   // Handle mount/unmount with animation
   useEffect(() => {
+    let firstFrameId: number | null = null;
+    let secondFrameId: number | null = null;
+
     if (visible) {
-      // First mount the component
-      setShouldRender(true);
-      // Then trigger animation on next frame
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+      firstFrameId = requestAnimationFrame(() => {
+        setShouldRender(true);
+        secondFrameId = requestAnimationFrame(() => {
           setIsVisible(true);
         });
       });
     } else {
-      // Start hide animation
-      setIsVisible(false);
+      firstFrameId = requestAnimationFrame(() => {
+        setIsVisible(false);
+      });
     }
+
+    return () => {
+      if (firstFrameId !== null) {
+        cancelAnimationFrame(firstFrameId);
+      }
+      if (secondFrameId !== null) {
+        cancelAnimationFrame(secondFrameId);
+      }
+    };
   }, [visible]);
 
   const handleTransitionEnd = () => {
