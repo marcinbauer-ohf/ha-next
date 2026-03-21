@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext, useHeader } from '@/contexts';
-import { useTheme } from '@/hooks';
+import { useDesktopImmersivePageLayout, useTheme } from '@/hooks';
 import { mdiFlash } from '@mdi/js';
 
 type EnergyTab = 'now' | 'all';
@@ -116,6 +116,7 @@ export default function EnergyDashboardPage() {
   const { background } = useTheme();
   const scrollableRef = useRef<HTMLElement | null>(null);
   const { setHeader } = useHeader();
+  const { contentPaddingClasses, contentTransitionClasses, contentStyle } = useDesktopImmersivePageLayout();
 
   useEffect(() => {
     setHeader({ title: 'Energy', icon: mdiFlash });
@@ -154,9 +155,12 @@ export default function EnergyDashboardPage() {
       <PullToRevealPanel />
 
       {/* Main content row - shrinks as panel expands */}
-      <div className={`min-h-0 overflow-hidden px-edge mt-[calc(var(--ha-space-1)*(1-var(--mobile-ui-hidden-padding,0)))] pt-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] pb-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] lg:mt-0 lg:pt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
-        isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
-      }`}>
+      <div
+        className={`min-h-0 overflow-hidden ${
+          isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
+        } ${contentPaddingClasses} ${contentTransitionClasses}`}
+        style={contentStyle}
+      >
         <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl relative">
           {/* Top scroll gradient - absolute to container */}
           {showTopGradient && background !== 'image' && background !== 'gradient' && (

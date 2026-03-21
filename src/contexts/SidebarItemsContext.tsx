@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
-import { getPanels, type HaPanel } from '@/lib/homeassistant';
+import { getPanels, type HaPanel, waitForConnection } from '@/lib/homeassistant';
 
 export interface SidebarItem {
   id: string;
@@ -186,10 +186,15 @@ export function SidebarItemsProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        // Small delay to ensure connection is ready
-        await new Promise(resolve => setTimeout(resolve, 300));
+        const activeConnection = await waitForConnection();
 
-        // Fetch panels
+        if (cancelled) return;
+
+        if (!activeConnection) {
+          applyResult(cloneBaseSidebarItems());
+          return;
+        }
+
         const panels = await getPanels();
         applyResult(
           panels && typeof panels === 'object'
@@ -197,6 +202,11 @@ export function SidebarItemsProvider({ children }: { children: ReactNode }) {
             : cloneBaseSidebarItems()
         );
       } catch (err) {
+        if (err instanceof Error && err.message === 'Not connected to Home Assistant') {
+          applyResult(cloneBaseSidebarItems());
+          return;
+        }
+
         console.error('Failed to fetch sidebar items:', err);
         applyResult(
           cloneBaseSidebarItems(),

@@ -12,6 +12,10 @@ import type { HassConfig, CallServiceParams } from './types';
 let connection: Connection | null = null;
 let entitySubscription: (() => void) | null = null;
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function connect(config: HassConfig): Promise<Connection> {
   if (connection) {
     return connection;
@@ -45,6 +49,23 @@ export function disconnect(): void {
 }
 
 export function getConnection(): Connection | null {
+  return connection;
+}
+
+export async function waitForConnection(
+  timeoutMs = 1500,
+  pollIntervalMs = 50
+): Promise<Connection | null> {
+  if (connection) {
+    return connection;
+  }
+
+  const deadline = Date.now() + timeoutMs;
+
+  while (!connection && Date.now() < deadline) {
+    await delay(pollIntervalMs);
+  }
+
   return connection;
 }
 
@@ -125,12 +146,14 @@ export interface HaDashboard {
 }
 
 export async function getPanels(): Promise<Record<string, HaPanel>> {
-  if (!connection) {
+  const activeConnection = connection ?? await waitForConnection();
+
+  if (!activeConnection) {
     throw new Error('Not connected to Home Assistant');
   }
 
   try {
-    const result = await connection.sendMessagePromise<Record<string, HaPanel>>({
+    const result = await activeConnection.sendMessagePromise<Record<string, HaPanel>>({
       type: 'get_panels',
     });
     return result;
@@ -141,13 +164,15 @@ export async function getPanels(): Promise<Record<string, HaPanel>> {
 }
 
 export async function getDashboards(): Promise<HaDashboard[]> {
-  if (!connection) {
+  const activeConnection = connection ?? await waitForConnection();
+
+  if (!activeConnection) {
     throw new Error('Not connected to Home Assistant');
   }
 
   try {
     // Try the standard lovelace/dashboards endpoint
-    const result = await connection.sendMessagePromise<HaDashboard[]>({
+    const result = await activeConnection.sendMessagePromise<HaDashboard[]>({
       type: 'lovelace/dashboards',
     });
     return result;

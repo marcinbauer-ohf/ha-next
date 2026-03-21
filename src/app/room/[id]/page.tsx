@@ -6,7 +6,7 @@ import { EntityCard } from '@/components/cards';
 import { DashboardSection, PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext, useHeader } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
-import { useTheme } from '@/hooks';
+import { useDesktopImmersivePageLayout, useTheme } from '@/hooks';
 import Link from 'next/link';
 import {
   mdiSofa,
@@ -205,6 +205,7 @@ export default function RoomPage({ params }: RoomPageProps) {
   const [showBottomGradient, setShowBottomGradient] = useState(false);
   const { background } = useTheme();
   const scrollableRef = useRef<HTMLElement | null>(null);
+  const { contentPaddingClasses, contentTransitionClasses, contentStyle } = useDesktopImmersivePageLayout();
 
   const room = roomData[id] || { icon: mdiDoorOpen, name: id.replace(/_/g, ' '), temperature: 20, humidity: 45 };
   const entities = roomEntities[id] || [];
@@ -272,9 +273,12 @@ export default function RoomPage({ params }: RoomPageProps) {
       <PullToRevealPanel />
 
       {/* Main content row */}
-      <div className={`min-h-0 overflow-hidden px-edge mt-[calc(var(--ha-space-1)*(1-var(--mobile-ui-hidden-padding,0)))] pt-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] pb-[calc(var(--ha-edge-padding)*var(--mobile-ui-hidden-padding,0))] lg:mt-0 lg:pt-0 lg:pb-ha-0 lg:pr-edge transition-all duration-300 ease-out ${
-        isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
-      }`}>
+      <div
+        className={`min-h-0 overflow-hidden ${
+          isRevealed ? 'flex-none h-0 opacity-0' : 'flex-1'
+        } ${contentPaddingClasses} ${contentTransitionClasses}`}
+        style={contentStyle}
+      >
         <div className={`h-full flex ${infoOpen ? 'gap-ha-3' : ''}`}>
           {/* Dashboard container */}
             <div className="flex-1 min-w-0 bg-surface-lower overflow-hidden rounded-ha-3xl relative transition-all duration-300 ease-out">

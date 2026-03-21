@@ -6,14 +6,41 @@ import { Avatar } from './Avatar';
 import { Tooltip } from './Tooltip';
 import { RollingDigit } from './RollingDigit';
 import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
-import { mdiUpdate, mdiWeb, mdiBell, mdiAlertCircle } from '@mdi/js';
+import {
+  mdiAlertCircle,
+  mdiBell,
+  mdiCctv,
+  mdiNewspaperVariantOutline,
+  mdiPlayCircleOutline,
+  mdiPrinter3d,
+  mdiTimerOutline,
+  mdiUpdate,
+  mdiWeb,
+} from '@mdi/js';
 import { SummaryCard } from '../cards/SummaryCard';
 import { PeopleBadge, summaryItems } from '../sections/SummariesPanel';
-import { areScreensaverDataEqual, selectScreensaverData } from '@/lib/homeassistant/selectors';
+import {
+  areActivityDataEqual,
+  areScreensaverDataEqual,
+  selectActivityData,
+  selectScreensaverData,
+} from '@/lib/homeassistant/selectors';
 
 interface ScreensaverClockProps {
   visible: boolean;
   onDismiss: () => void;
+}
+
+interface ScreensaverActivityCard {
+  id: string;
+  icon: string;
+  label: string;
+  headline: string;
+  detail: string;
+  panelClassName: string;
+  iconClassName: string;
+  badgeClassName: string;
+  count?: number;
 }
 
 function systemPrefers24HourClock(): boolean {
@@ -29,6 +56,97 @@ function systemPrefers24HourClock(): boolean {
   }
 }
 
+function buildScreensaverActivityCards(
+  activityData: ReturnType<typeof selectActivityData>
+): ScreensaverActivityCard[] {
+  const cards: ScreensaverActivityCard[] = [];
+
+  if (activityData.activeReleaseNotes.length > 0) {
+    const note = activityData.activeReleaseNotes[0];
+    cards.push({
+      id: 'release-notes',
+      icon: mdiNewspaperVariantOutline,
+      label: 'Release',
+      headline: note.name,
+      detail: `Version ${note.version}`,
+      panelClassName: 'bg-fill-primary-normal/45 border-fill-primary-quiet/80',
+      iconClassName: 'text-ha-blue',
+      badgeClassName: 'bg-fill-primary-normal text-ha-blue',
+      count: activityData.activeReleaseNotes.length > 1 ? activityData.activeReleaseNotes.length : undefined,
+    });
+  }
+
+  if (activityData.activePlayers.length > 0) {
+    const player = activityData.activePlayers[0];
+    const stateLabel = player.state === 'paused' ? 'Paused' : 'Playing';
+    const detailParts = [player.mediaArtist, player.name].filter(Boolean);
+
+    cards.push({
+      id: 'media',
+      icon: mdiPlayCircleOutline,
+      label: 'Media',
+      headline: player.mediaTitle || player.name,
+      detail: detailParts.length > 0 ? detailParts.join(' • ') : stateLabel,
+      panelClassName: 'bg-green-500/10 border-green-500/20',
+      iconClassName: 'text-green-600',
+      badgeClassName: 'bg-green-500/15 text-green-600',
+      count: activityData.activePlayers.length > 1 ? activityData.activePlayers.length : undefined,
+    });
+  }
+
+  if (activityData.activeTimers.length > 0) {
+    const timer = activityData.activeTimers[0];
+    cards.push({
+      id: 'timers',
+      icon: mdiTimerOutline,
+      label: 'Timer',
+      headline: timer.name,
+      detail: timer.state === 'paused' ? `Paused • ${timer.remaining}` : `${timer.remaining} remaining`,
+      panelClassName: 'bg-fill-primary-normal/45 border-fill-primary-quiet/80',
+      iconClassName: 'text-ha-blue',
+      badgeClassName: 'bg-fill-primary-normal text-ha-blue',
+      count: activityData.activeTimers.length > 1 ? activityData.activeTimers.length : undefined,
+    });
+  }
+
+  if (activityData.activeCameras.length > 0) {
+    const camera = activityData.activeCameras[0];
+    const eventLabel = camera.event || (camera.state === 'person' ? 'Person detected' : 'Motion detected');
+
+    cards.push({
+      id: 'cameras',
+      icon: mdiCctv,
+      label: 'Camera',
+      headline: camera.name,
+      detail: eventLabel,
+      panelClassName: 'bg-red-500/10 border-red-500/20',
+      iconClassName: 'text-red-500',
+      badgeClassName: 'bg-red-500/15 text-red-500',
+      count: activityData.activeCameras.length > 1 ? activityData.activeCameras.length : undefined,
+    });
+  }
+
+  if (activityData.activePrinters.length > 0) {
+    const printer = activityData.activePrinters[0];
+    const progress = `${Math.round(printer.progress)}% complete`;
+    const detail = printer.remainingTime ? `${progress} • ${printer.remainingTime} left` : progress;
+
+    cards.push({
+      id: 'printers',
+      icon: mdiPrinter3d,
+      label: 'Printer',
+      headline: printer.fileName || printer.name,
+      detail,
+      panelClassName: 'bg-surface-low border-surface-low/80',
+      iconClassName: 'text-text-primary',
+      badgeClassName: 'bg-surface-default text-text-primary',
+      count: activityData.activePrinters.length > 1 ? activityData.activePrinters.length : undefined,
+    });
+  }
+
+  return cards;
+}
+
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
   const { haUrl } = useHomeAssistant();
   const [time, setTime] = useState({ hours: '', minutes: '', seconds: '', period: '', isAM: true });
@@ -41,14 +159,20 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const [dragDistance, setDragDistance] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
-  const touchStartY = useRef<number | null>(null);
+  const dragStartY = useRef<number | null>(null);
+  const activePointerId = useRef<number | null>(null);
   const dragDistanceRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const screensaverData = useHomeAssistantSelector(selectScreensaverData, areScreensaverDataEqual);
+  const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const pendingUpdates = screensaverData.pendingUpdates;
   const notificationCount = screensaverData.notificationCount;
   const isRemoteConnected = screensaverData.isRemoteConnected;
   const offlineCount = screensaverData.offlineCount;
+  const activeActivityCards = useMemo(
+    () => buildScreensaverActivityCards(activityData),
+    [activityData]
+  );
   const userAvatar = useMemo(() => {
     if (!screensaverData.user) {
       return { picture: undefined, name: 'User', initials: 'U' };
@@ -125,27 +249,26 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     const container = containerRef.current;
     if (!container) return;
 
-    const handleTouchStart = (e: TouchEvent) => {
-      // Only enable drag on mobile (< 1024px)
-      if (window.innerWidth >= 1024) return;
-      touchStartY.current = e.touches[0].clientY;
+    const isMobileViewport = () => window.innerWidth < 1024;
+
+    const startDrag = (startY: number) => {
+      dragStartY.current = startY;
       setIsDragging(true);
     };
 
-    const handleTouchMove = (e: TouchEvent) => {
-      if (touchStartY.current === null) return;
+    const updateDrag = (currentY: number, preventDefault?: () => void) => {
+      if (dragStartY.current === null) return;
 
-      const currentY = e.touches[0].clientY;
-      const diff = touchStartY.current - currentY; // Positive when dragging up
+      const diff = dragStartY.current - currentY; // Positive when dragging up
 
       if (diff > 0) {
-        e.preventDefault();
+        preventDefault?.();
         dragDistanceRef.current = diff;
         setDragDistance(diff);
       }
     };
 
-    const handleTouchEnd = () => {
+    const endDrag = () => {
       const minSwipe = 30; // minimum drag to count as intentional swipe
       if (dragDistanceRef.current >= minSwipe) {
         // Animate off-screen to the top, then dismiss
@@ -157,17 +280,64 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         setDragDistance(0);
         setIsDragging(false);
       }
-      touchStartY.current = null;
+
+      dragStartY.current = null;
+      activePointerId.current = null;
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (!isMobileViewport()) return;
+
+      const touch = e.touches[0];
+      if (!touch) return;
+      startDrag(touch.clientY);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      updateDrag(touch.clientY, () => e.preventDefault());
+    };
+
+    const handleTouchEnd = () => {
+      endDrag();
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if (!isMobileViewport() || e.pointerType === 'touch') return;
+
+      activePointerId.current = e.pointerId;
+      startDrag(e.clientY);
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (activePointerId.current !== e.pointerId) return;
+      updateDrag(e.clientY);
+    };
+
+    const handlePointerUpOrCancel = (e: PointerEvent) => {
+      if (activePointerId.current !== e.pointerId) return;
+      endDrag();
     };
 
     container.addEventListener('touchstart', handleTouchStart, { passive: true });
     container.addEventListener('touchmove', handleTouchMove, { passive: false });
     container.addEventListener('touchend', handleTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    container.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    document.addEventListener('pointermove', handlePointerMove, { passive: true });
+    document.addEventListener('pointerup', handlePointerUpOrCancel, { passive: true });
+    document.addEventListener('pointercancel', handlePointerUpOrCancel, { passive: true });
 
     return () => {
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
+      container.removeEventListener('touchcancel', handleTouchEnd);
+      container.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('pointermove', handlePointerMove);
+      document.removeEventListener('pointerup', handlePointerUpOrCancel);
+      document.removeEventListener('pointercancel', handlePointerUpOrCancel);
     };
   }, [onDismiss, shouldRender]);
 
@@ -216,7 +386,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         isDragging ? 'duration-0' : isDismissing ? 'duration-300' : 'duration-500'
       } ${
         isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'
-      } lg:cursor-pointer`}
+      } cursor-grab select-none lg:cursor-pointer`}
       style={{
         transform: `translateY(${translateY}px)`,
         opacity: isDismissing ? 0 : isDragging ? 1 - dragProgress * 0.3 : undefined,
@@ -237,7 +407,10 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       </div>
 
       {/* Main time display */}
-      <div className="relative tabular-nums" style={{ fontFamily: 'system-ui' }}>
+      <div
+        className="relative tabular-nums"
+        style={{ fontFamily: 'var(--font-poppins), "Poppins", system-ui, sans-serif' }}
+      >
         <div className="flex items-center gap-1">
           <div className="flex items-center">
             {time.hours.split('').map((digit, i) => (
@@ -303,8 +476,53 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         ))}
       </div>
 
+      {activeActivityCards.length > 0 && (
+        <div className="w-full max-w-6xl px-ha-6 mt-8">
+          <div className="flex items-center justify-center gap-ha-3 mb-ha-4">
+            <span className="h-px w-8 bg-surface-lower" />
+            <p className="text-[10px] lg:text-xs font-semibold uppercase tracking-[0.22em] text-text-disabled">
+              Active Now
+            </p>
+            <span className="h-px w-8 bg-surface-lower" />
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-ha-3">
+            {activeActivityCards.map((activity) => (
+              <div
+                key={activity.id}
+                className={`flex min-w-[150px] max-w-[220px] flex-[1_1_160px] items-start gap-ha-3 rounded-ha-2xl border px-ha-3 py-ha-3 ${activity.panelClassName}`}
+              >
+                <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-ha-xl bg-surface-default/80 ${activity.iconClassName}`}>
+                  <Icon path={activity.icon} size={20} />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-ha-2">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                      {activity.label}
+                    </p>
+                    {activity.count && (
+                      <span className={`rounded-ha-pill px-ha-2 py-0.5 text-[10px] font-semibold ${activity.badgeClassName}`}>
+                        {activity.count}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-1 truncate text-sm font-semibold text-text-primary">
+                    {activity.headline}
+                  </p>
+                  <p className="mt-1 truncate text-xs text-text-secondary">
+                    {activity.detail}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* User and status icons */}
-      <div className="flex items-center gap-ha-4 bg-surface-low rounded-ha-pill px-ha-4 py-ha-3 mt-8">
+      <div className={`flex items-center gap-ha-4 bg-surface-low rounded-ha-pill px-ha-4 py-ha-3 ${activeActivityCards.length > 0 ? 'mt-6' : 'mt-8'}`}>
         {/* User avatar and name */}
         <div className="flex items-center gap-ha-3">
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />

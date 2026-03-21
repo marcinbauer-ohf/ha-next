@@ -22,6 +22,7 @@ export { useIdleTimer } from './useIdleTimer';
 export { useSidebarItems, type SidebarItem } from './useSidebarItems';
 
 export { ImmersiveModeProvider, useImmersiveMode } from './useImmersiveMode';
+export { useDesktopImmersivePageLayout } from './useDesktopImmersivePageLayout';
 
 export { usePullToReveal } from './usePullToReveal';
 

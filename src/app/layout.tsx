@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Quantico, Nunito, VT323 } from 'next/font/google';
+import { Inter, Poppins, Quantico, Nunito, VT323 } from 'next/font/google';
 import './globals.css';
 import { HomeAssistantProvider } from '@/hooks/useHomeAssistant';
 import { ThemeProvider } from '@/hooks/useTheme';
@@ -10,6 +10,12 @@ import { AppShell } from '@/components/layout';
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
+});
+
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-poppins',
 });
 
 const quantico = Quantico({
@@ -53,7 +59,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${quantico.variable} ${nunito.variable} ${vt323.variable} antialiased`} suppressHydrationWarning>
+      <body className={`${inter.variable} ${poppins.variable} ${quantico.variable} ${nunito.variable} ${vt323.variable} antialiased`} suppressHydrationWarning>
         <ThemeProvider>
           <HomeAssistantProvider>
             <ImmersiveModeProvider>

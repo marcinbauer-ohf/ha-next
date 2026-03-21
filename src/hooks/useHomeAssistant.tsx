@@ -247,15 +247,20 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
 
   // Auto-connect once on page load if credentials exist in localStorage
   useEffect(() => {
-    if (configured && haUrl && haToken && !hasAutoConnected.current) {
-      hasAutoConnected.current = true;
-      doConnect(haUrl, haToken).catch(() => {});
+    if (demoMode || !configured || !haUrl || !haToken) {
+      hasAutoConnected.current = false;
+      return;
     }
-    return () => {
-      disconnect();
-      resetEntityStore();
-    };
-  }, [configured, haUrl, haToken, doConnect, demoMode]);
+
+    if (hasAutoConnected.current || connected || connecting) {
+      return;
+    }
+
+    hasAutoConnected.current = true;
+    doConnect(haUrl, haToken).catch(() => {
+      hasAutoConnected.current = false;
+    });
+  }, [configured, haUrl, haToken, doConnect, demoMode, connected, connecting]);
 
   const contextValue = useMemo<HomeAssistantContextValue>(() => ({
     connected,
