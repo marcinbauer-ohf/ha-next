@@ -1,16 +1,16 @@
 'use client';
 
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
+import { useEffect } from 'react';
 import { ProfileContent } from '@/components/profile';
 import { useHeader } from '@/contexts';
-import { useEffect } from 'react';
 
-export default function ProfilePage() {
+export default function SettingsPage() {
   const { setHeader } = useHeader();
 
   useEffect(() => {
     setHeader({
-      title: 'Profile',
+      title: 'Settings',
       subtitle: undefined,
     });
   }, [setHeader]);

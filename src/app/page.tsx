@@ -7,10 +7,12 @@ import { DashboardSection, MobileSummaryRow, PullToRevealPanel } from '@/compone
 import { useTheme, useImmersiveMode, useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
 import { usePullToRevealContext, useHeader, useScreensaver } from '@/contexts';
 import { HassEntity } from '@/types';
+import { SetupScreen } from '@/components/ui/SetupScreen';
 import { SimulationListModal } from '@/components/ui/SimulationListModal';
 import { Icon } from '@/components/ui/Icon';
 import { areSimulationEntitiesEqual, selectSimulationEntities } from '@/lib/homeassistant/selectors';
 import {
+  mdiHomeAssistant,
   mdiLightbulb,
   mdiInformation,
   mdiInformationOutline,
@@ -133,15 +135,28 @@ function HomeInfoPanel({ onClose }: { onClose: () => void }) {
 
 export default function DashboardPage() {
   const { theme, toggleTheme, mode, toggleMode, background, toggleBackground, setTheme, setMode, setBackground } = useTheme();
-  const { clearCredentials, setMockEntity } = useHomeAssistant();
+  const {
+    clearCredentials,
+    connected,
+    connecting,
+    demoMode,
+    enableDemoMode,
+    error: connectionError,
+    saveCredentials,
+    setMockEntity,
+  } = useHomeAssistant();
   const { immersiveMode, setImmersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
   const simulationEntities = useHomeAssistantSelector(selectSimulationEntities, areSimulationEntitiesEqual);
 
   const handleClearCredentials = useCallback(() => {
-    const confirmed = window.confirm('Clear saved Home Assistant credentials and disconnect?');
+    const confirmed = window.confirm(
+      demoMode
+        ? 'Reload the populated demo home data?'
+        : 'Disconnect Home Assistant and return to demo data?'
+    );
     if (!confirmed) return;
     clearCredentials();
-  }, [clearCredentials]);
+  }, [clearCredentials, demoMode]);
 
   const resetLayoutToDefaults = () => {
     setTheme('default');
@@ -151,7 +166,24 @@ export default function DashboardPage() {
   };
   const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
 
+  const [connectionSetupOpen, setConnectionSetupOpen] = useState(false);
   const [simulationModal, setSimulationModal] = useState<{ type: string; title: string; prefix: string } | null>(null);
+
+  const handleSaveCredentials = useCallback(async (url: string, token: string) => {
+    await saveCredentials(url, token);
+    setConnectionSetupOpen(false);
+  }, [saveCredentials]);
+
+  const handleUseDemoData = useCallback(() => {
+    enableDemoMode();
+    setConnectionSetupOpen(false);
+  }, [enableDemoMode]);
+
+  useEffect(() => {
+    if (connected && !demoMode && connectionSetupOpen) {
+      setConnectionSetupOpen(false);
+    }
+  }, [connected, demoMode, connectionSetupOpen]);
 
   const getSimulationPrefix = useCallback((type: SimulationType) => {
     return simulationPrefixes[type];
@@ -630,10 +662,23 @@ export default function DashboardPage() {
 
                     <DashboardSection title="Maintenance" columns={3}>
                       <EntityCard
+                        icon={mdiHomeAssistant}
+                        title={connected && !demoMode ? 'Home Assistant' : 'Connect my data'}
+                        state={
+                          connecting
+                            ? 'Connecting...'
+                            : connected && !demoMode
+                              ? 'Connected'
+                              : 'Use your live Home Assistant'
+                        }
+                        color={connected && !demoMode ? 'success' : 'primary'}
+                        onClick={() => setConnectionSetupOpen(true)}
+                      />
+                      <EntityCard
                         icon={mdiDeleteOutline}
-                        title="Clear credentials"
-                        state="Reset connection"
-                        color="danger"
+                        title={demoMode ? 'Reload demo data' : 'Disconnect'}
+                        state={demoMode ? 'Fresh sample home' : 'Return to demo data'}
+                        color={demoMode ? 'default' : 'danger'}
                         onClick={handleClearCredentials}
                       />
                       <EntityCard
@@ -687,6 +732,16 @@ export default function DashboardPage() {
           </div>
         </div>,
         document.body
+      )}
+
+      {connectionSetupOpen && (
+        <SetupScreen
+          onSave={handleSaveCredentials}
+          onUseDemo={handleUseDemoData}
+          error={connectionError}
+          connecting={connecting}
+          onClose={() => setConnectionSetupOpen(false)}
+        />
       )}
     </>
   );

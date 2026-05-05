@@ -91,14 +91,6 @@ function setMockEntities(nextEntities: HassEntities): void {
   notifyEntityStoreListeners();
 }
 
-function resetEntityStore(): void {
-  if (!hasEntities(liveEntitiesStore) && !hasEntities(mockEntitiesStore)) return;
-  liveEntitiesStore = EMPTY_ENTITIES;
-  mockEntitiesStore = EMPTY_ENTITIES;
-  mergedEntitiesStore = EMPTY_ENTITIES;
-  notifyEntityStoreListeners();
-}
-
 function updateMockEntityInStore(entityId: string, entity: HassEntity | null): void {
   if (entity === null) {
     if (!(entityId in mockEntitiesStore)) return;
@@ -139,13 +131,19 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     const storedUrl = localStorage.getItem(LS_URL_KEY) || '';
     const storedToken = localStorage.getItem(LS_TOKEN_KEY) || '';
     const storedDemoMode = localStorage.getItem(LS_DEMO_MODE_KEY) === '1';
+    const hasStoredCredentials = !!storedUrl && !!storedToken;
+    const shouldUseDemoMode = storedDemoMode || !hasStoredCredentials;
+
+    if (!storedDemoMode && !hasStoredCredentials) {
+      localStorage.setItem(LS_DEMO_MODE_KEY, '1');
+    }
 
     setHaUrl(storedUrl);
     setHaToken(storedToken);
-    setDemoMode(storedDemoMode);
-    setConfigured(storedDemoMode || (!!storedUrl && !!storedToken));
+    setDemoMode(shouldUseDemoMode);
+    setConfigured(shouldUseDemoMode || hasStoredCredentials);
     setLiveEntities(EMPTY_ENTITIES);
-    setMockEntities(storedDemoMode ? createDemoEntities() : EMPTY_ENTITIES);
+    setMockEntities(shouldUseDemoMode ? createDemoEntities() : EMPTY_ENTITIES);
     setHydrated(true);
   }, []);
 
@@ -202,19 +200,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   }, []);
 
   const clearCredentials = useCallback(() => {
-    localStorage.removeItem(LS_URL_KEY);
-    localStorage.removeItem(LS_TOKEN_KEY);
-    localStorage.removeItem(LS_DEMO_MODE_KEY);
-    disconnect();
-    setHaUrl('');
-    setHaToken('');
-    setDemoMode(false);
-    setConfigured(false);
-    setConnected(false);
-    setError(null);
-    resetEntityStore();
-    hasAutoConnected.current = false;
-  }, []);
+    enableDemoMode();
+  }, [enableDemoMode]);
 
   const reconnect = useCallback(async () => {
     disconnect();

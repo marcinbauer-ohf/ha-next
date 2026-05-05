@@ -7,28 +7,17 @@ import { useImmersiveMode } from '@/hooks';
 export default function Template({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { immersiveMode, immersivePhase } = useImmersiveMode();
+  const routeTransitionsEnabled = immersivePhase === 'normal';
   const routeStyle = immersiveMode ? { transform: 'none', filter: 'none' } : undefined;
 
-  if (immersivePhase !== 'normal') {
-    return (
-      <div
-        className="h-full w-full flex flex-col"
-        data-route-pathname={pathname}
-        style={routeStyle}
-      >
-        {children}
-      </div>
-    );
-  }
-
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode={routeTransitionsEnabled ? 'wait' : 'sync'}>
       <motion.div
         key={pathname}
-        initial={{ opacity: 0 }}
+        initial={routeTransitionsEnabled ? { opacity: 0 } : false}
         animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.25, ease: 'easeOut' }}
+        exit={routeTransitionsEnabled ? { opacity: 0 } : { opacity: 1 }}
+        transition={routeTransitionsEnabled ? { duration: 0.25, ease: 'easeOut' } : { duration: 0 }}
         className="h-full w-full flex flex-col"
         data-route-pathname={pathname}
         style={routeStyle}

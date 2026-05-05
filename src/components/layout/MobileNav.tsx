@@ -167,9 +167,13 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   const bottomSheetTouchStartY = useRef<number | null>(null);
   const bottomSheetPullDistance = useRef(0);
   const bottomSheetDragProgressRef = useRef(0);
-  const isDashboardsActive = expandedSurfaceTab === 'dashboards';
-  const isSearchActive = expandedSurfaceTab === 'search' || searchOpen;
-  const isSettingsActive = expandedSurfaceTab === 'settings';
+  const isDashboardsSurfaceVisible = statusExpanded && expandedSurfaceTab === 'dashboards';
+  const isSearchSurfaceVisible = statusExpanded && expandedSurfaceTab === 'search';
+  const isSettingsSurfaceVisible = statusExpanded && expandedSurfaceTab === 'settings';
+  const isSettingsRoute = pathname === '/profile' || pathname === '/settings' || pathname.startsWith('/settings/');
+  const isSearchActive = isSearchSurfaceVisible || searchOpen;
+  const isSettingsActive = !isDashboardsSurfaceVisible && (isSettingsSurfaceVisible || (!isSearchActive && isSettingsRoute));
+  const isDashboardsActive = isDashboardsSurfaceVisible || (!isSearchActive && !isSettingsActive);
   const pathSegments = pathname.split('/').filter(Boolean);
   const isDashboardSubView = pathSegments[0] === 'dashboard' && pathSegments.length > 1;
   const isRoomSubView = pathSegments[0] === 'room' && pathSegments.length > 1;
@@ -1445,7 +1449,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     }
 
     if (expandedSurfaceTab === 'settings') {
-      return <ProfileContent />;
+      return <ProfileContent onNavigate={closeExpandedSurface} />;
     }
 
     return (

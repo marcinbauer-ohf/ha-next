@@ -2,16 +2,17 @@
 
 import { useState } from 'react';
 import { Icon } from './Icon';
-import { mdiHomeAssistant, mdiLinkVariant, mdiKey, mdiArrowRight, mdiFlaskOutline } from '@mdi/js';
+import { mdiHomeAssistant, mdiLinkVariant, mdiKey, mdiArrowRight, mdiFlaskOutline, mdiClose } from '@mdi/js';
 
 interface SetupScreenProps {
   onSave: (url: string, token: string) => Promise<void>;
   onUseDemo: () => void;
   error?: string | null;
   connecting?: boolean;
+  onClose?: () => void;
 }
 
-export function SetupScreen({ onSave, onUseDemo, error, connecting }: SetupScreenProps) {
+export function SetupScreen({ onSave, onUseDemo, error, connecting, onClose }: SetupScreenProps) {
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
   const [securityAnswer, setSecurityAnswer] = useState('');
@@ -32,6 +33,19 @@ export function SetupScreen({ onSave, onUseDemo, error, connecting }: SetupScree
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-surface-lower p-ha-4">
       <div className="w-full max-w-md">
+        {onClose && (
+          <div className="flex justify-end mb-ha-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-ha-2 rounded-full bg-surface-default border border-surface-lower text-text-secondary hover:bg-surface-low transition-colors"
+              aria-label="Close connection setup"
+            >
+              <Icon path={mdiClose} size={18} />
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-col items-center mb-ha-8">
           <div className="w-16 h-16 rounded-2xl bg-ha-blue/10 flex items-center justify-center mb-ha-4">
             <Icon path={mdiHomeAssistant} size={36} className="text-ha-blue" />
