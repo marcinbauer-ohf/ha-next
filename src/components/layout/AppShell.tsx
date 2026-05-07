@@ -40,10 +40,9 @@ export function AppShell({ children }: AppShellProps) {
 
   const handleMobileNavAutoHiddenChange = useCallback((progress: number) => {
     const clamped = Math.max(0, Math.min(1, progress));
+    const snapped = clamped >= 0.98 ? 1 : clamped <= 0.02 ? 0 : clamped;
     setMobileNavHideProgress((prev) => {
-      if (clamped >= 0.98) return 1;
-      if (clamped <= 0.02) return 0;
-      return prev;
+      return Math.abs(prev - snapped) < 0.001 ? prev : snapped;
     });
   }, []);
 

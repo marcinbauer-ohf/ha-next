@@ -153,13 +153,8 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
   const scrollHideProgressRef = useRef(0);
-  const isTouchDraggingRef = useRef(false);
-  const isPointerDraggingRef = useRef(false);
-  const isWheelScrollingRef = useRef(false);
-  const dragStartedInScrollableRef = useRef(false);
-  const lastTouchClientYRef = useRef<number | null>(null);
-  const lastPointerClientYRef = useRef<number | null>(null);
-  const wheelEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScrollTopRef = useRef<number | null>(null);
+  const scrollSnapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
   const bottomSheetHandleRef = useRef<HTMLButtonElement | null>(null);
   const expandedSurfaceScrollRef = useRef<HTMLDivElement | null>(null);
@@ -224,24 +219,19 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   useEffect(() => {
     let scrollable: HTMLElement | null = null;
     let attachRetryRaf: number | null = null;
-    const clearWheelEndTimer = () => {
-      if (wheelEndTimerRef.current) {
-        clearTimeout(wheelEndTimerRef.current);
-        wheelEndTimerRef.current = null;
+    const clearScrollSnapTimer = () => {
+      if (scrollSnapTimerRef.current) {
+        clearTimeout(scrollSnapTimerRef.current);
+        scrollSnapTimerRef.current = null;
       }
     };
-    const resetInteractionState = () => {
-      isTouchDraggingRef.current = false;
-      isPointerDraggingRef.current = false;
-      isWheelScrollingRef.current = false;
-      dragStartedInScrollableRef.current = false;
-      lastTouchClientYRef.current = null;
-      lastPointerClientYRef.current = null;
-      clearWheelEndTimer();
+    const resetScrollTracking = () => {
+      lastScrollTopRef.current = null;
+      clearScrollSnapTimer();
     };
 
     if (disableAutoHide || isRevealed || isBottomSurfaceEngaged) {
-      resetInteractionState();
+      resetScrollTracking();
       queueMicrotask(() => {
         setClampedHideProgress(0);
         setHideFromInactivity(false);
@@ -249,10 +239,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       return;
     }
 
-    const HIDE_PROGRESS_DISTANCE_PX = 20;
-    const SHOW_PROGRESS_DISTANCE_PX = 12;
-    const WHEEL_DELTA_CLAMP = 8;
-    const WHEEL_SNAP_DELAY_MS = 140;
+    const HIDE_PROGRESS_DISTANCE_PX = 48;
+    const SHOW_PROGRESS_DISTANCE_PX = 32;
+    const SCROLL_SNAP_DELAY_MS = 120;
 
     const clearInactivityHide = () => {
       setHideFromInactivity((hidden) => (hidden ? false : hidden));
@@ -263,129 +252,48 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       setClampedHideProgress(visibleRatio > 0.5 ? 0 : 1);
     };
 
-    const beginDragGesture = (source: 'touch' | 'pointer' | 'wheel', startY?: number) => {
-      dragStartedInScrollableRef.current = true;
-      if (source === 'touch') {
-        isTouchDraggingRef.current = true;
-        lastTouchClientYRef.current = startY ?? null;
-      } else if (source === 'pointer') {
-        isPointerDraggingRef.current = true;
-        lastPointerClientYRef.current = startY ?? null;
-      } else {
-        isWheelScrollingRef.current = true;
-      }
-      clearInactivityHide();
-    };
-
-    const endDragGesture = (source: 'touch' | 'pointer' | 'wheel', shouldSnap: boolean) => {
-      if (source === 'touch') {
-        isTouchDraggingRef.current = false;
-        lastTouchClientYRef.current = null;
-      } else if (source === 'pointer') {
-        isPointerDraggingRef.current = false;
-        lastPointerClientYRef.current = null;
-      } else {
-        isWheelScrollingRef.current = false;
-        clearWheelEndTimer();
-      }
-      if (shouldSnap && dragStartedInScrollableRef.current && !isTouchDraggingRef.current && !isPointerDraggingRef.current) {
+    const scheduleScrollSnap = () => {
+      clearScrollSnapTimer();
+      scrollSnapTimerRef.current = setTimeout(() => {
+        scrollSnapTimerRef.current = null;
         snapByMidpoint();
-      }
-      if (!isTouchDraggingRef.current && !isPointerDraggingRef.current && !isWheelScrollingRef.current) {
-        dragStartedInScrollableRef.current = false;
-      }
+      }, SCROLL_SNAP_DELAY_MS);
     };
 
-    const applyInputDelta = (deltaY: number, source: 'touch' | 'pointer' | 'wheel') => {
-      if (!dragStartedInScrollableRef.current) return;
-      if (Math.abs(deltaY) < 0.1) return;
+    const handleScroll = () => {
+      if (!scrollable) return;
+
+      const nextScrollTop = scrollable.scrollTop;
+      const prevScrollTop = lastScrollTopRef.current ?? nextScrollTop;
+      lastScrollTopRef.current = nextScrollTop;
 
       clearInactivityHide();
 
-      const normalizedDelta =
-        source === 'wheel'
-          ? Math.max(-WHEEL_DELTA_CLAMP, Math.min(WHEEL_DELTA_CLAMP, deltaY))
-          : deltaY;
-      const progressDelta =
-        normalizedDelta < 0
-          ? normalizedDelta / SHOW_PROGRESS_DISTANCE_PX
-          : normalizedDelta / HIDE_PROGRESS_DISTANCE_PX;
-      setClampedHideProgress(scrollHideProgressRef.current + progressDelta);
-    };
-
-    const handleTouchStart = (event: TouchEvent) => {
-      const touch = event.touches[0];
-      beginDragGesture('touch', touch?.clientY);
-    };
-
-    const handleTouchMove = (event: TouchEvent) => {
-      if (!isTouchDraggingRef.current || !dragStartedInScrollableRef.current) return;
-      const touch = event.touches[0];
-      if (!touch) return;
-      if (lastTouchClientYRef.current === null) {
-        lastTouchClientYRef.current = touch.clientY;
+      if (nextScrollTop <= 2) {
+        clearScrollSnapTimer();
+        setClampedHideProgress(0);
         return;
       }
-      const deltaY = lastTouchClientYRef.current - touch.clientY;
-      lastTouchClientYRef.current = touch.clientY;
-      applyInputDelta(deltaY, 'touch');
-    };
 
-    const handleTouchEndOrCancel = () => {
-      const shouldSnap = isTouchDraggingRef.current;
-      endDragGesture('touch', shouldSnap);
-    };
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.pointerType === 'touch') return;
-      beginDragGesture('pointer', event.clientY);
-    };
-
-    const handlePointerMove = (event: PointerEvent) => {
-      if (!isPointerDraggingRef.current || !dragStartedInScrollableRef.current) return;
-      if (lastPointerClientYRef.current === null) {
-        lastPointerClientYRef.current = event.clientY;
-        return;
+      const deltaY = nextScrollTop - prevScrollTop;
+      if (Math.abs(deltaY) >= 0.5) {
+        const progressDelta =
+          deltaY < 0
+            ? deltaY / SHOW_PROGRESS_DISTANCE_PX
+            : deltaY / HIDE_PROGRESS_DISTANCE_PX;
+        setClampedHideProgress(scrollHideProgressRef.current + progressDelta);
       }
-      const deltaY = lastPointerClientYRef.current - event.clientY;
-      lastPointerClientYRef.current = event.clientY;
-      applyInputDelta(deltaY, 'pointer');
-    };
 
-    const handlePointerUpOrCancel = () => {
-      const shouldSnap = isPointerDraggingRef.current;
-      endDragGesture('pointer', shouldSnap);
-    };
-
-    const scheduleWheelSnap = () => {
-      clearWheelEndTimer();
-      wheelEndTimerRef.current = setTimeout(() => {
-        wheelEndTimerRef.current = null;
-        if (!isWheelScrollingRef.current) return;
-        endDragGesture('wheel', true);
-      }, WHEEL_SNAP_DELAY_MS);
-    };
-
-    const handleWheel = (event: WheelEvent) => {
-      if (!isWheelScrollingRef.current) beginDragGesture('wheel');
-      applyInputDelta(event.deltaY, 'wheel');
-      scheduleWheelSnap();
+      scheduleScrollSnap();
     };
 
     const attach = () => {
       const nextScrollable = getDashboardScrollableForPath(pathname);
       if (!nextScrollable) return false;
       scrollable = nextScrollable;
-      resetInteractionState();
-      scrollable.addEventListener('touchstart', handleTouchStart, { passive: true });
-      scrollable.addEventListener('pointerdown', handlePointerDown, { passive: true });
-      scrollable.addEventListener('wheel', handleWheel, { passive: true });
-      document.addEventListener('touchmove', handleTouchMove, { passive: true });
-      document.addEventListener('touchend', handleTouchEndOrCancel, { passive: true });
-      document.addEventListener('touchcancel', handleTouchEndOrCancel, { passive: true });
-      document.addEventListener('pointermove', handlePointerMove, { passive: true });
-      document.addEventListener('pointerup', handlePointerUpOrCancel, { passive: true });
-      document.addEventListener('pointercancel', handlePointerUpOrCancel, { passive: true });
+      resetScrollTracking();
+      lastScrollTopRef.current = scrollable.scrollTop;
+      scrollable.addEventListener('scroll', handleScroll, { passive: true });
       return true;
     };
 
@@ -404,17 +312,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     return () => {
       if (attachRetryRaf !== null) cancelAnimationFrame(attachRetryRaf);
       if (scrollable) {
-        scrollable.removeEventListener('touchstart', handleTouchStart);
-        scrollable.removeEventListener('pointerdown', handlePointerDown);
-        scrollable.removeEventListener('wheel', handleWheel);
+        scrollable.removeEventListener('scroll', handleScroll);
       }
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEndOrCancel);
-      document.removeEventListener('touchcancel', handleTouchEndOrCancel);
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUpOrCancel);
-      document.removeEventListener('pointercancel', handlePointerUpOrCancel);
-      resetInteractionState();
+      resetScrollTracking();
     };
   }, [disableAutoHide, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
 
