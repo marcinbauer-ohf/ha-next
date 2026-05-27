@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useSidebarItems } from '@/hooks';
 
@@ -7,7 +8,7 @@ interface ApplicationViewNoticeProps {
   className?: string;
 }
 
-export function ApplicationViewNotice({ className = '' }: ApplicationViewNoticeProps) {
+function ApplicationViewNoticeInner({ className = '' }: ApplicationViewNoticeProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { items } = useSidebarItems();
@@ -32,5 +33,13 @@ export function ApplicationViewNotice({ className = '' }: ApplicationViewNoticeP
         We cannot render the full application experience inside this prototype, so this view is represented here with explanatory copy.
       </p>
     </div>
+  );
+}
+
+export function ApplicationViewNotice({ className }: ApplicationViewNoticeProps) {
+  return (
+    <Suspense fallback={null}>
+      <ApplicationViewNoticeInner className={className} />
+    </Suspense>
   );
 }
