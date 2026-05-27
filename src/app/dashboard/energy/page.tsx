@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
 import { PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext, useHeader } from '@/contexts';
 import { useDesktopImmersivePageLayout, useTheme } from '@/hooks';
@@ -186,6 +187,7 @@ export default function EnergyDashboardPage() {
 
             {/* Tab content */}
             <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
+              <ApplicationViewNotice />
               {activeTab === 'now' ? <NowContent /> : <AllContent />}
             </div>
           </div>

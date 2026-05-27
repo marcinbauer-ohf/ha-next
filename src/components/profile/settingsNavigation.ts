@@ -8,6 +8,7 @@ import {
   mdiInformation,
   mdiPalette,
   mdiShieldAccount,
+  mdiUpdate,
   mdiViewDashboard,
 } from '@mdi/js';
 
@@ -16,6 +17,9 @@ export type SettingsSlug =
   | 'dashboards'
   | 'cloud'
   | 'mobile-app'
+  | 'theme-layout'
+  | 'task-bar'
+  | 'maintenance'
   | 'system'
   | 'about'
   | 'security'
@@ -67,6 +71,29 @@ export const settingsNavSections: SettingsNavSection[] = [
     ],
   },
   {
+    title: 'Prototype Debugging Tools',
+    items: [
+      {
+        slug: 'theme-layout',
+        icon: mdiPalette,
+        label: 'Theme and Layout',
+        description: 'Immersive mode, color mode, background, and screensaver',
+      },
+      {
+        slug: 'task-bar',
+        icon: mdiUpdate,
+        label: 'Task Bar Activities',
+        description: 'Release notes, media, timers, cameras, and printer mocks',
+      },
+      {
+        slug: 'maintenance',
+        icon: mdiCog,
+        label: 'Maintenance',
+        description: 'Connection mode, demo data, and layout reset',
+      },
+    ],
+  },
+  {
     title: 'Connection and App',
     items: [
       {
@@ -112,6 +139,9 @@ export function isSettingsSlug(value: string): value is SettingsSlug {
     'dashboards',
     'cloud',
     'mobile-app',
+    'theme-layout',
+    'task-bar',
+    'maintenance',
     'system',
     'about',
     'security',

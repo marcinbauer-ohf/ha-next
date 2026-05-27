@@ -91,6 +91,7 @@ interface MobileNavProps {
   disableAutoHide?: boolean;
   connectionStatus?: ConnectionStatusType;
   onNavAutoHiddenChange?: (progress: number) => void;
+  editModeFade?: boolean;
 }
 
 function getDashboardScrollableForPath(pathname: string): HTMLElement | null {
@@ -121,7 +122,7 @@ function isNavItemActive(currentPath: string, itemPath: string): boolean {
   );
 }
 
-export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAutoHiddenChange }: MobileNavProps) {
+export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAutoHiddenChange, editModeFade }: MobileNavProps) {
   const pathname = usePathname();
   const { haUrl, callService } = useHomeAssistant();
   const { items } = useSidebarItems();
@@ -1472,7 +1473,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
   return (
     <nav
-      className="lg:hidden fixed inset-x-0 bottom-0 z-50"
+      className={`lg:hidden fixed inset-x-0 bottom-0 z-50 transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : ''}`}
       style={{ paddingBottom: `calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))` }}
       data-component="MobileNav"
       data-connection-status={connectionStatus ?? 'unknown'}

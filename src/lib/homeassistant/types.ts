@@ -23,6 +23,40 @@ export interface HassServices {
   };
 }
 
+export interface EntityRegistryEntry {
+  entity_id: string;
+  device_id: string | null;
+  name: string | null;
+  original_name: string | null;
+  platform: string;
+  disabled_by: string | null;
+  hidden_by: string | null;
+}
+
+export interface DeviceRegistryEntry {
+  id: string;
+  name: string | null;
+  name_by_user: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  area_id: string | null;
+  entry_type: string | null;
+}
+
+export interface AreaRegistryEntry {
+  area_id: string;
+  name: string;
+}
+
+export interface HistoryPoint {
+  /** State value as string */
+  s: string;
+  /** Last changed Unix timestamp (seconds) */
+  lc?: number;
+  /** Last updated Unix timestamp (seconds) */
+  lu?: number;
+}
+
 export interface CallServiceParams {
   domain: string;
   service: string;

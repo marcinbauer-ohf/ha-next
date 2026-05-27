@@ -19,6 +19,7 @@ import {
 } from '@mdi/js';
 import { SummaryCard } from '../cards/SummaryCard';
 import { PeopleBadge, summaryItems } from '../sections/SummariesPanel';
+import { RingShaderBackground } from './RingShaderBackground';
 import {
   areActivityDataEqual,
   areScreensaverDataEqual,
@@ -399,6 +400,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       }}
       onTransitionEnd={handleTransitionEnd}
     >
+      <RingShaderBackground />
       {/* Build Info - Top */}
       <div className="absolute top-8 left-0 right-0 flex justify-center px-ha-6 pointer-events-none">
         <p className="text-[10px] lg:text-xs text-text-disabled opacity-40 font-mono text-center">

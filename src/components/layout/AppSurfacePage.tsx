@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext } from '@/contexts';
 import { useDesktopImmersivePageLayout } from '@/hooks';
+import { ApplicationViewNotice } from './ApplicationViewNotice';
 
 interface AppSurfacePageProps {
   children: ReactNode;
@@ -31,6 +32,7 @@ export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePag
             <main
               className={`px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
             >
+              <ApplicationViewNotice />
               {children}
             </main>
           </div>

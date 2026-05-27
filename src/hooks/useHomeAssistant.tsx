@@ -18,8 +18,12 @@ import {
   subscribeToEntities,
   toggleEntity as toggleEntityAction,
   callService as callServiceAction,
+  getEntityRegistry as getEntityRegistryAction,
+  getDeviceRegistry as getDeviceRegistryAction,
+  getAreaRegistry as getAreaRegistryAction,
+  getEntityHistory as getEntityHistoryAction,
 } from '@/lib/homeassistant';
-import type { CallServiceParams } from '@/lib/homeassistant';
+import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, HistoryPoint } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 
@@ -40,6 +44,10 @@ interface HomeAssistantContextValue {
   hydrated: boolean;
   toggleEntity: (entityId: string) => Promise<void>;
   callService: (params: CallServiceParams) => Promise<void>;
+  getEntityRegistry: () => Promise<EntityRegistryEntry[]>;
+  getDeviceRegistry: () => Promise<DeviceRegistryEntry[]>;
+  getAreaRegistry: () => Promise<AreaRegistryEntry[]>;
+  getEntityHistory: (entityId: string, hoursBack?: number) => Promise<HistoryPoint[]>;
   reconnect: () => Promise<void>;
   saveCredentials: (url: string, token: string) => Promise<void>;
   enableDemoMode: () => void;
@@ -213,20 +221,27 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   }, [haUrl, haToken, doConnect]);
 
   const toggleEntity = useCallback(async (entityId: string) => {
+    if (demoMode || !connected) return;
     try {
       await toggleEntityAction(entityId);
     } catch (err) {
-      console.error('Failed to toggle entity:', err);
+      console.error('Failed to toggle entity:', err instanceof Error ? err.message : err);
     }
-  }, []);
+  }, [demoMode, connected]);
 
   const callService = useCallback(async (params: CallServiceParams) => {
+    if (demoMode || !connected) return;
     try {
       await callServiceAction(params);
     } catch (err) {
-      console.error('Failed to call service:', err);
+      console.error('Failed to call service:', err instanceof Error ? err.message : err);
     }
   }, []);
+
+  const getEntityRegistry = useCallback(() => getEntityRegistryAction(), []);
+  const getDeviceRegistry = useCallback(() => getDeviceRegistryAction(), []);
+  const getAreaRegistry = useCallback(() => getAreaRegistryAction(), []);
+  const getEntityHistory = useCallback((entityId: string, hoursBack?: number) => getEntityHistoryAction(entityId, hoursBack), []);
 
   const setMockEntity = useCallback((entityId: string, entity: HassEntity | null) => {
     updateMockEntityInStore(entityId, entity);
@@ -259,6 +274,10 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     hydrated,
     toggleEntity,
     callService,
+    getEntityRegistry,
+    getDeviceRegistry,
+    getAreaRegistry,
+    getEntityHistory,
     reconnect,
     saveCredentials,
     enableDemoMode,
@@ -274,6 +293,10 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     hydrated,
     toggleEntity,
     callService,
+    getEntityRegistry,
+    getDeviceRegistry,
+    getAreaRegistry,
+    getEntityHistory,
     reconnect,
     saveCredentials,
     enableDemoMode,

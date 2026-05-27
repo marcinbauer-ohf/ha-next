@@ -1,16 +1,26 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import Link from 'next/link';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
-import { useHomeAssistant, useHomeAssistantSelector, useTheme } from '@/hooks';
-import { arePrimaryPeopleEqual, selectPrimaryPerson } from '@/lib/homeassistant/selectors';
+import { useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFeatureFlags } from '@/hooks';
+import {
+  arePrimaryPeopleEqual,
+  areSimulationEntitiesEqual,
+  selectPrimaryPerson,
+  selectSimulationEntities,
+} from '@/lib/homeassistant/selectors';
 import { getSettingsHref, settingsNavSections, settingsQuickActions, type SettingsNavLink } from './settingsNavigation';
-import { mdiChevronRight } from '@mdi/js';
+import { mdiChevronRight, mdiInformationOutline } from '@mdi/js';
+import { Tooltip } from '../ui/Tooltip';
+import { useScreensaver } from '@/contexts';
+import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
+import type { ColorMode } from '@/hooks/useTheme';
 
 interface ProfileContentProps {
   onNavigate?: () => void;
+  onClose?: () => void;
 }
 
 interface ProfileItemProps {
@@ -29,12 +39,10 @@ function ProfileItem({ item, value, onNavigate }: ProfileItemProps) {
       <div className="w-10 h-10 flex items-center justify-center rounded-ha-xl flex-shrink-0 bg-surface-mid text-text-secondary group-hover:text-text-primary group-hover:bg-surface-lower transition-colors">
         <Icon path={item.icon} size={22} />
       </div>
-
       <div className="flex-1 min-w-0">
         <p className="text-[15px] font-medium text-text-primary leading-tight">{item.label}</p>
         <p className="text-sm text-text-secondary truncate mt-0.5">{value}</p>
       </div>
-
       <Icon path={mdiChevronRight} size={22} className="text-text-disabled flex-shrink-0" />
     </Link>
   );
@@ -55,14 +63,54 @@ function Section({ title, children }: { title?: string; children: React.ReactNod
   );
 }
 
+function DebugSectionHeader({ label }: { label: string }) {
+  return (
+    <div className="px-ha-4 pt-ha-3 pb-ha-1 text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary border-b border-surface-low/40">
+      {label}
+    </div>
+  );
+}
+
+function DebugRow({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between px-ha-4 py-ha-3 border-b border-surface-low/40 last:border-0 gap-ha-4 min-h-[48px]">
+      <span className="text-sm font-medium text-text-primary">{label}</span>
+      <div className="flex items-center gap-ha-2 flex-shrink-0">{children}</div>
+    </div>
+  );
+}
+
+function DebugToggle({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`h-6 w-10 rounded-full px-0.5 flex items-center transition-colors flex-shrink-0 ${checked ? 'bg-ha-blue/50' : 'bg-surface-mid'}`}
+    >
+      <div className={`h-5 w-5 rounded-full bg-surface-default border border-surface-low shadow-sm transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+    </button>
+  );
+}
+
 function formatThemeName(value: string) {
   return value.replace(/-/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
-export function ProfileContent({ onNavigate }: ProfileContentProps) {
-  const { haUrl, connected, demoMode } = useHomeAssistant();
-  const { theme, mode } = useTheme();
+const SIM_DEFS: Array<{ type: Exclude<SimulationType, 'release'>; label: string }> = [
+  { type: 'media', label: 'Media' },
+  { type: 'timer', label: 'Timer' },
+  { type: 'camera', label: 'Camera' },
+  { type: 'printer', label: 'Printer' },
+];
+
+export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
+  const { haUrl, connected, demoMode, setMockEntity, enableDemoMode } = useHomeAssistant();
+  const { theme, mode, setTheme, setMode, setBackground } = useTheme();
+  const { immersiveMode, toggleImmersiveMode } = useImmersiveMode();
+  const { desktopSplitViewEnabled, toggleDesktopSplitView } = useFeatureFlags();
+  const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
   const primaryPerson = useHomeAssistantSelector(selectPrimaryPerson, arePrimaryPeopleEqual);
+  const simulationEntities = useHomeAssistantSelector(selectSimulationEntities, areSimulationEntitiesEqual);
 
   const user = React.useMemo(() => {
     if (primaryPerson) {
@@ -80,11 +128,58 @@ export function ProfileContent({ onNavigate }: ProfileContentProps) {
     dashboards: 'Overview is default · Room cards enabled',
     cloud: demoMode ? 'Preview mode active' : connected ? 'Remote access available' : 'Connection not active',
     'mobile-app': '2 devices synced · Critical alerts on',
+    'theme-layout': `${formatThemeName(theme)} · ${mode === 'system' ? 'System mode' : `${formatThemeName(mode)} mode`} · ${immersiveMode ? 'Immersive on' : 'Immersive off'}`,
+    'task-bar': simulationEntities.length > 0
+      ? `${simulationEntities.length} simulated ${simulationEntities.length === 1 ? 'activity' : 'activities'} active`
+      : 'No simulated activities',
+    maintenance: demoMode ? 'Demo home active · Layout tools ready' : connected ? 'Live Home Assistant connected' : 'Connection setup available',
     system: 'Automation, navigation, and service behavior',
     about: demoMode ? 'Preview build with demo data' : 'Live environment details and release notes',
     security: 'Sessions, MFA, and trusted devices',
     developer: demoMode ? 'Mock data and preview tools ready' : 'Feature flags and connection diagnostics',
-  }), [connected, demoMode, mode, theme]);
+  }), [connected, demoMode, immersiveMode, mode, simulationEntities.length, theme]);
+
+  const getSimCount = useCallback((prefix: string) =>
+    simulationEntities.filter((e) => e.id.startsWith(prefix)).length,
+  [simulationEntities]);
+
+  const addSim = useCallback((type: Exclude<SimulationType, 'release'>) => {
+    const prefix = simulationPrefixes[type];
+    const existing = simulationEntities.filter((e) => e.id.startsWith(prefix));
+    if (existing.length === 0) {
+      setMockEntity(prefix, createSimulatedActivityEntity(type, prefix));
+      return;
+    }
+    let counter = 2;
+    while (existing.some((e) => e.id === `${prefix}_${counter}`)) counter++;
+    setMockEntity(`${prefix}_${counter}`, createSimulatedActivityEntity(type, `${prefix}_${counter}`));
+  }, [simulationEntities, setMockEntity]);
+
+  const removeSim = useCallback((type: Exclude<SimulationType, 'release'>) => {
+    const prefix = simulationPrefixes[type];
+    const existing = simulationEntities.filter((e) => e.id.startsWith(prefix));
+    if (existing.length === 0) return;
+    setMockEntity(existing[existing.length - 1].id, null);
+  }, [simulationEntities, setMockEntity]);
+
+  const toggleRelease = useCallback(() => {
+    const prefix = simulationPrefixes.release;
+    const existing = simulationEntities.filter((e) => e.id.startsWith(prefix));
+    if (existing.length > 0) {
+      existing.forEach((e) => setMockEntity(e.id, null));
+    } else {
+      setMockEntity(prefix, createSimulatedActivityEntity('release', prefix));
+    }
+  }, [simulationEntities, setMockEntity]);
+
+  const resetLayout = useCallback(() => {
+    setTheme('default');
+    setMode('system');
+    setBackground('none');
+    if (immersiveMode) toggleImmersiveMode();
+  }, [setTheme, setMode, setBackground, immersiveMode, toggleImmersiveMode]);
+
+  const releaseCount = getSimCount(simulationPrefixes.release);
 
   return (
     <div className="space-y-ha-7 lg:space-y-ha-8 pb-ha-8 max-w-2xl lg:max-w-none mx-auto">
@@ -128,14 +223,109 @@ export function ProfileContent({ onNavigate }: ProfileContentProps) {
         {settingsNavSections.map((section) => (
           <div key={section.title} className="space-y-ha-6">
             <Section title={section.title}>
-              {section.items.map((item) => (
-                <ProfileItem
-                  key={item.slug}
-                  item={item}
-                  value={itemSummaries[item.slug]}
-                  onNavigate={onNavigate}
-                />
-              ))}
+              {section.title === 'Prototype Debugging Tools' ? (
+                <>
+                  <DebugSectionHeader label="Theme & Layout" />
+
+                  <DebugRow label="Color mode">
+                    {(['light', 'dark', 'system'] as ColorMode[]).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setMode(m)}
+                        className={`px-ha-3 py-1 rounded-ha-lg text-xs font-semibold transition-colors ${
+                          mode === m ? 'bg-fill-primary-normal text-ha-blue' : 'text-text-secondary hover:text-text-primary'
+                        }`}
+                      >
+                        {m === 'system' ? 'Auto' : m.charAt(0).toUpperCase() + m.slice(1)}
+                      </button>
+                    ))}
+                  </DebugRow>
+
+                  <DebugRow label="Immersive mode">
+                    <DebugToggle checked={immersiveMode} onToggle={() => toggleImmersiveMode()} />
+                  </DebugRow>
+
+                  <DebugRow
+                    label={
+                      <span className="flex items-center gap-ha-2">
+                        Desktop split view
+                        <span className="text-[10px] font-normal text-text-tertiary">(experimental)</span>
+                        <Tooltip content="Opens two dashboard panels side by side for quick comparison" placement="right">
+                          <Icon path={mdiInformationOutline} size={13} className="text-text-tertiary cursor-default" />
+                        </Tooltip>
+                      </span>
+                    }
+                  >
+                    <DebugToggle checked={desktopSplitViewEnabled} onToggle={toggleDesktopSplitView} />
+                  </DebugRow>
+
+                  <DebugRow label="Screensaver">
+                    <button
+                      type="button"
+                      onClick={screensaverActive ? dismissScreensaver : activateScreensaver}
+                      className="text-xs font-semibold text-ha-blue"
+                    >
+                      {screensaverActive ? 'Dismiss' : 'Activate'}
+                    </button>
+                  </DebugRow>
+
+                  <DebugSectionHeader label="Task Bar" />
+
+                  <DebugRow label="What's New">
+                    <DebugToggle checked={releaseCount > 0} onToggle={toggleRelease} />
+                  </DebugRow>
+
+                  {SIM_DEFS.map(({ type, label }) => {
+                    const count = getSimCount(simulationPrefixes[type]);
+                    return (
+                      <DebugRow key={type} label={label}>
+                        <span className="text-xs text-text-tertiary w-6 text-right tabular-nums">{count}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeSim(type)}
+                          disabled={count === 0}
+                          className="w-6 h-6 rounded-ha-md flex items-center justify-center text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-mid transition-colors disabled:opacity-30"
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addSim(type)}
+                          className="w-6 h-6 rounded-ha-md flex items-center justify-center text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-mid transition-colors"
+                        >
+                          +
+                        </button>
+                      </DebugRow>
+                    );
+                  })}
+
+                  <DebugSectionHeader label="Maintenance" />
+
+                  <DebugRow label="Demo data">
+                    <DebugToggle checked={demoMode} onToggle={() => { if (!demoMode) enableDemoMode(); }} />
+                  </DebugRow>
+
+                  <DebugRow label="Reset layout">
+                    <button
+                      type="button"
+                      onClick={resetLayout}
+                      className="text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors"
+                    >
+                      Reset
+                    </button>
+                  </DebugRow>
+                </>
+              ) : (
+                section.items.map((item) => (
+                  <ProfileItem
+                    key={item.slug}
+                    item={item}
+                    value={itemSummaries[item.slug]}
+                    onNavigate={onNavigate}
+                  />
+                ))
+              )}
             </Section>
           </div>
         ))}

@@ -219,9 +219,10 @@ interface StatusBarProps {
   connectionStatus?: ConnectionStatusType;
   profileOpen?: boolean;
   onProfileToggle?: () => void;
+  editModeFade?: boolean;
 }
 
-export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: StatusBarProps) {
+export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, editModeFade }: StatusBarProps) {
   const pathname = usePathname();
   const { callService, haUrl } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
@@ -840,7 +841,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
         <div className="absolute inset-0 bg-black/30" />
       </div>
     )}
-    <footer className="hidden lg:flex items-center justify-between pr-edge pt-ha-2 pb-edge col-span-full z-50" data-component="StatusBar">
+    <footer className={`hidden lg:flex items-center justify-between pr-edge pt-ha-2 pb-edge col-span-full z-50 transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : 'opacity-100'}`} data-component="StatusBar">
       {/* Left side widgets */}
       <div className="flex items-center flex-1 min-w-0 mr-4 gap-ha-5">
         {/* User profile avatar - Fixed */}
@@ -1240,49 +1241,80 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   style={activityFlyoutStyles['media-widget']}
                   transition={activityWindowTransition}
                 >
-                  <div className="p-ha-4 flex flex-col items-center">
-                    <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                      <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Now Playing</span>
-                    </div>
-
-                    <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-lg border border-surface-low">
-                      {player.entityPicture ? (
-                        <img src={getEntityPictureUrl(player.entityPicture)} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-surface-mid flex items-center justify-center">
-                          <Icon path={mdiPlay} size={48} className="text-ha-blue opacity-20" />
-                        </div>
-                      )}
-                    </div>
-                    <h3 className="text-base font-bold text-text-primary text-center truncate w-full">{player.mediaTitle || player.name}</h3>
-                    <p className="text-sm text-text-secondary mb-ha-5 text-center truncate w-full">{player.mediaArtist || 'Media Player'}</p>
-
-                    <div className="w-full h-1 bg-surface-mid rounded-full mb-ha-5 overflow-hidden">
-                      <div className="bg-ha-blue h-full w-1/3 rounded-full" />
-                    </div>
-
-                    <div className="flex items-center justify-center gap-ha-6 mb-ha-5">
-                      <button onClick={() => callService({ domain: 'media_player', service: 'media_previous_track', target: { entity_id: player.entity_id } })}>
-                        <Icon path={mdiSkipPrevious} size={28} className="text-text-primary hover:text-ha-blue" />
-                      </button>
-                      <button
-                        onClick={() => callService({ domain: 'media_player', service: player.state === 'playing' ? 'media_pause' : 'media_play', target: { entity_id: player.entity_id } })}
-                        className="w-14 h-14 rounded-full bg-ha-blue text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-transform"
-                      >
-                        <Icon path={player.state === 'playing' ? mdiPause : mdiPlay} size={32} />
-                      </button>
-                      <button onClick={() => callService({ domain: 'media_player', service: 'media_next_track', target: { entity_id: player.entity_id } })}>
-                        <Icon path={mdiSkipNext} size={28} className="text-text-primary hover:text-ha-blue" />
-                      </button>
-                    </div>
-
-                    <div className="w-full flex items-center gap-ha-3 text-text-secondary">
-                      <Icon path={mdiVolumeHigh} size={18} />
-                      <div className="flex-1 h-1.5 bg-surface-mid rounded-full overflow-hidden">
-                        <div className="bg-text-secondary h-full w-2/3 rounded-full" />
+                  {activePlayers.length > 1 ? (
+                    <div className="p-ha-4">
+                      <div className="w-full mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Media Players ({activePlayers.length})</span>
+                        <p className="mt-1 text-[11px] text-text-secondary pl-1">Choose a player to preview.</p>
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activePlayers.map((previewPlayer) => (
+                          <button
+                            key={previewPlayer.entity_id}
+                            onClick={() => openActivityWidget(previewPlayer.entity_id, 'media-widget')}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-fill-primary-normal flex items-center justify-center shrink-0 overflow-hidden">
+                              {previewPlayer.entityPicture ? (
+                                <img src={getEntityPictureUrl(previewPlayer.entityPicture)} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <Icon path={mdiPlay} size={16} className="text-ha-blue" />
+                              )}
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{previewPlayer.mediaTitle || previewPlayer.name}</span>
+                              <span className="text-xs text-text-secondary truncate">{previewPlayer.mediaArtist || previewPlayer.state}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Now Playing</span>
+                      </div>
+
+                      <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-lg border border-surface-low">
+                        {player.entityPicture ? (
+                          <img src={getEntityPictureUrl(player.entityPicture)} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-surface-mid flex items-center justify-center">
+                            <Icon path={mdiPlay} size={48} className="text-ha-blue opacity-20" />
+                          </div>
+                        )}
+                      </div>
+                      <h3 className="text-base font-bold text-text-primary text-center truncate w-full">{player.mediaTitle || player.name}</h3>
+                      <p className="text-sm text-text-secondary mb-ha-5 text-center truncate w-full">{player.mediaArtist || 'Media Player'}</p>
+
+                      <div className="w-full h-1 bg-surface-mid rounded-full mb-ha-5 overflow-hidden">
+                        <div className="bg-ha-blue h-full w-1/3 rounded-full" />
+                      </div>
+
+                      <div className="flex items-center justify-center gap-ha-6 mb-ha-5">
+                        <button onClick={() => callService({ domain: 'media_player', service: 'media_previous_track', target: { entity_id: player.entity_id } })}>
+                          <Icon path={mdiSkipPrevious} size={28} className="text-text-primary hover:text-ha-blue" />
+                        </button>
+                        <button
+                          onClick={() => callService({ domain: 'media_player', service: player.state === 'playing' ? 'media_pause' : 'media_play', target: { entity_id: player.entity_id } })}
+                          className="w-14 h-14 rounded-full bg-ha-blue text-white flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-transform"
+                        >
+                          <Icon path={player.state === 'playing' ? mdiPause : mdiPlay} size={32} />
+                        </button>
+                        <button onClick={() => callService({ domain: 'media_player', service: 'media_next_track', target: { entity_id: player.entity_id } })}>
+                          <Icon path={mdiSkipNext} size={28} className="text-text-primary hover:text-ha-blue" />
+                        </button>
+                      </div>
+
+                      <div className="w-full flex items-center gap-ha-3 text-text-secondary">
+                        <Icon path={mdiVolumeHigh} size={18} />
+                        <div className="flex-1 h-1.5 bg-surface-mid rounded-full overflow-hidden">
+                          <div className="bg-text-secondary h-full w-2/3 rounded-full" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1529,46 +1561,79 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   style={activityFlyoutStyles['timer-widget']}
                   transition={activityWindowTransition}
                 >
-                  <div className="p-ha-5 flex flex-col items-center">
-                    <div className="w-full flex justify-between items-center mb-ha-4 pl-1">
-                      <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timer</span>
-                    </div>
-
-                    <div className="relative mb-ha-5">
-                      <CircularProgress
-                        progress={timerProgress[timer.entity_id] ?? timer.progress}
-                        size={150}
-                        strokeWidth={7}
-                        className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
-                        trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
-                      />
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-3xl font-bold font-mono text-text-primary tracking-tighter">
-                          {timerDisplays[timer.entity_id] || timer.remaining}
-                        </span>
-                        <span className="text-[10px] font-bold text-text-disabled uppercase tracking-widest mt-1">
-                          {timer.state}
-                        </span>
+                  {activeTimers.length > 1 ? (
+                    <div className="p-ha-4">
+                      <div className="w-full mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timers ({activeTimers.length})</span>
+                        <p className="mt-1 text-[11px] text-text-secondary pl-1">Choose a timer to preview.</p>
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activeTimers.map((previewTimer) => (
+                          <button
+                            key={previewTimer.entity_id}
+                            onClick={() => openActivityWidget(previewTimer.entity_id, 'timer-widget')}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={timerProgress[previewTimer.entity_id] ?? previewTimer.progress}
+                              size={32}
+                              strokeWidth={2.5}
+                              className={previewTimer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
+                              trackClassName={previewTimer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
+                            >
+                              <Icon path={previewTimer.state === 'active' ? mdiTimerOutline : mdiPause} size={14} className={previewTimer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'} />
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{previewTimer.name}</span>
+                              <span className="text-xs text-text-secondary truncate">{timerDisplays[previewTimer.entity_id] || previewTimer.remaining}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
                       </div>
                     </div>
+                  ) : (
+                    <div className="p-ha-5 flex flex-col items-center">
+                      <div className="w-full flex justify-between items-center mb-ha-4 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timer</span>
+                      </div>
 
-                    <h3 className="text-base font-bold text-text-primary mb-ha-5 text-center truncate w-full px-4">{timer.name}</h3>
+                      <div className="relative mb-ha-5">
+                        <CircularProgress
+                          progress={timerProgress[timer.entity_id] ?? timer.progress}
+                          size={150}
+                          strokeWidth={7}
+                          className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
+                          trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
+                        />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-3xl font-bold font-mono text-text-primary tracking-tighter">
+                            {timerDisplays[timer.entity_id] || timer.remaining}
+                          </span>
+                          <span className="text-[10px] font-bold text-text-disabled uppercase tracking-widest mt-1">
+                            {timer.state}
+                          </span>
+                        </div>
+                      </div>
 
-                    <div className="flex items-center gap-ha-3 w-full">
-                      <button
-                        onClick={() => callService({ domain: 'timer', service: 'cancel', target: { entity_id: timer.entity_id } })}
-                        className="flex-1 h-11 rounded-ha-xl bg-surface-low text-text-secondary font-bold text-xs uppercase tracking-wider hover:bg-red-500/10 hover:text-red-500 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => callService({ domain: 'timer', service: timer.state === 'active' ? 'pause' : 'start', target: { entity_id: timer.entity_id } })}
-                        className={`flex-1 h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white transition-all shadow-md active:scale-95 ${timer.state === 'active' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-ha-blue hover:bg-ha-blue-dark'}`}
-                      >
-                        {timer.state === 'active' ? 'Pause' : 'Resume'}
-                      </button>
+                      <h3 className="text-base font-bold text-text-primary mb-ha-5 text-center truncate w-full px-4">{timer.name}</h3>
+
+                      <div className="flex items-center gap-ha-3 w-full">
+                        <button
+                          onClick={() => callService({ domain: 'timer', service: 'cancel', target: { entity_id: timer.entity_id } })}
+                          className="flex-1 h-11 rounded-ha-xl bg-surface-low text-text-secondary font-bold text-xs uppercase tracking-wider hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => callService({ domain: 'timer', service: timer.state === 'active' ? 'pause' : 'start', target: { entity_id: timer.entity_id } })}
+                          className={`flex-1 h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white transition-all shadow-md active:scale-95 ${timer.state === 'active' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-ha-blue hover:bg-ha-blue-dark'}`}
+                        >
+                          {timer.state === 'active' ? 'Pause' : 'Resume'}
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1811,39 +1876,68 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   style={activityFlyoutStyles['camera-widget']}
                   transition={activityWindowTransition}
                 >
-                  <div className="bg-surface-low p-ha-3 flex items-center justify-between border-b border-surface-low">
-                    <div className="flex items-center gap-2 pl-2">
-                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                      <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest pl-1">Live Feed</span>
-                    </div>
-                  </div>
-                  <div className="w-full aspect-video bg-black relative">
-                    <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
-                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-mono border border-white/10">
-                      LIVE • 2026-02-12 23:38:00
-                    </div>
-                  </div>
-                  <div className="p-ha-4">
-                    <div className="flex items-center gap-ha-3 mb-ha-4">
-                      <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
-                        <Icon path={mdiAccount} size={20} />
+                  {activeCameras.length > 1 ? (
+                    <div className="p-ha-4">
+                      <div className="w-full mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest pl-1">Cameras ({activeCameras.length})</span>
+                        <p className="mt-1 text-[11px] text-text-secondary pl-1">Choose a camera to preview.</p>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-text-primary">{camera.name}</h4>
-                        <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{camera.event}</p>
+                      <div className="space-y-ha-2">
+                        {activeCameras.map((previewCamera) => (
+                          <button
+                            key={previewCamera.entity_id}
+                            onClick={() => openActivityWidget(previewCamera.entity_id, 'camera-widget')}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
+                              <img src={getEntityPictureUrl(previewCamera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{previewCamera.name}</span>
+                              <span className="text-xs text-red-500 truncate">{previewCamera.event}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-ha-3">
-                      <button className="h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all">
-                        <Icon path={mdiMicrophone} size={16} />
-                        Talk
-                      </button>
-                      <button className="h-11 rounded-ha-xl bg-surface-low text-text-primary text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-mid border border-surface-low active:scale-95 transition-all">
-                        <Icon path={mdiVideo} size={16} />
-                        Recordings
-                      </button>
-                    </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="bg-surface-low p-ha-3 flex items-center justify-between border-b border-surface-low">
+                        <div className="flex items-center gap-2 pl-2">
+                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                          <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest pl-1">Live Feed</span>
+                        </div>
+                      </div>
+                      <div className="w-full aspect-video bg-black relative">
+                        <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-mono border border-white/10">
+                          LIVE • 2026-02-12 23:38:00
+                        </div>
+                      </div>
+                      <div className="p-ha-4">
+                        <div className="flex items-center gap-ha-3 mb-ha-4">
+                          <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 border border-red-500/20">
+                            <Icon path={mdiAccount} size={20} />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-text-primary">{camera.name}</h4>
+                            <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{camera.event}</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-ha-3">
+                          <button className="h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all">
+                            <Icon path={mdiMicrophone} size={16} />
+                            Talk
+                          </button>
+                          <button className="h-11 rounded-ha-xl bg-surface-low text-text-primary text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-mid border border-surface-low active:scale-95 transition-all">
+                            <Icon path={mdiVideo} size={16} />
+                            Recordings
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -2065,56 +2159,91 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle }: St
                   style={activityFlyoutStyles['printer-widget']}
                   transition={activityWindowTransition}
                 >
-                  <div className="p-ha-4 flex flex-col items-center">
-                    <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                      <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printer</span>
+                  {activePrinters.length > 1 ? (
+                    <div className="p-ha-4">
+                      <div className="w-full mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printers ({activePrinters.length})</span>
+                        <p className="mt-1 text-[11px] text-text-secondary pl-1">Choose a printer to preview.</p>
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activePrinters.map((previewPrinter) => (
+                          <button
+                            key={previewPrinter.entity_id}
+                            onClick={() => openActivityWidget(previewPrinter.entity_id, 'printer-widget')}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={previewPrinter.progress / 100}
+                              size={32}
+                              strokeWidth={2.5}
+                              className="text-ha-blue shrink-0"
+                              trackClassName="text-fill-primary-quiet"
+                            >
+                              <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
+                                <img src={getEntityPictureUrl(previewPrinter.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{previewPrinter.fileName}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{previewPrinter.progress}% • {previewPrinter.remainingTime}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
                     </div>
+                  ) : (
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
+                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printer</span>
+                      </div>
 
-                    <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
-                      <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
-                        <Icon path={mdiLayers} size={14} className="text-ha-blue" />
-                        <span className="text-[10px] font-bold text-white font-mono">Layer 142/208</span>
+                      <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
+                        <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
+                          <Icon path={mdiLayers} size={14} className="text-ha-blue" />
+                          <span className="text-[10px] font-bold text-white font-mono">Layer 142/208</span>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="w-full mb-ha-4 px-2">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-bold text-text-primary truncate">{printer.fileName}</h3>
-                        <span className="text-xs font-mono text-ha-blue font-bold">{printer.progress}%</span>
+                      <div className="w-full mb-ha-4 px-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-bold text-text-primary truncate">{printer.fileName}</h3>
+                          <span className="text-xs font-mono text-ha-blue font-bold">{printer.progress}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${printer.progress}%` }}
+                            className="bg-ha-blue h-full rounded-full"
+                          />
+                        </div>
                       </div>
-                      <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${printer.progress}%` }}
-                          className="bg-ha-blue h-full rounded-full"
-                        />
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
-                      <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
-                        <Icon path={mdiThermometer} size={18} className="text-red-500" />
-                        <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
-                        <span className="text-sm font-bold text-text-primary font-mono">215°C</span>
+                      <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
+                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
+                          <Icon path={mdiThermometer} size={18} className="text-red-500" />
+                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
+                          <span className="text-sm font-bold text-text-primary font-mono">215°C</span>
+                        </div>
+                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
+                          <Icon path={mdiThermometer} size={18} className="text-ha-blue" />
+                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
+                          <span className="text-sm font-bold text-text-primary font-mono">60°C</span>
+                        </div>
                       </div>
-                      <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
-                        <Icon path={mdiThermometer} size={18} className="text-ha-blue" />
-                        <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
-                        <span className="text-sm font-bold text-text-primary font-mono">60°C</span>
-                      </div>
-                    </div>
 
-                    <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
-                      <div className="flex flex-col pl-1">
-                        <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
-                        <span className="text-sm font-mono font-bold text-text-primary">{printer.remainingTime}</span>
+                      <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
+                        <div className="flex flex-col pl-1">
+                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
+                          <span className="text-sm font-mono font-bold text-text-primary">{printer.remainingTime}</span>
+                        </div>
+                        <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
+                          <Icon path={mdiStop} size={18} />
+                        </button>
                       </div>
-                      <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
-                        <Icon path={mdiStop} size={18} />
-                      </button>
                     </div>
-                  </div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

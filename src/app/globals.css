@@ -608,12 +608,8 @@
 }
 
 [data-theme="teenage"] .ha-app-icon-shell.ha-app-icon-shell-active {
-  background-color: #17181b !important;
-  border-color: rgba(255, 255, 255, 0.3) !important;
-}
-
-[data-theme="teenage"] .ha-app-icon-shell.ha-app-icon-shell-active .ha-app-icon-glyph {
-  color: #f4f0e7 !important;
+  background-color: var(--ha-color-surface-mid) !important;
+  border-color: rgba(49, 46, 42, 0.28) !important;
 }
 
 [data-theme="teenage"]
@@ -1061,11 +1057,12 @@
 
 /* E-Ink app icons: force monochrome, high-contrast glyphs */
 [data-theme="eink"] .ha-app-icon-shell {
-  background-color: var(--ha-color-fill-primary-normal) !important;
+  background-color: var(--ha-color-surface-low) !important;
   opacity: 0.82;
 }
 
 [data-theme="eink"] .ha-app-icon-shell.ha-app-icon-shell-active {
+  background-color: var(--ha-color-surface-mid) !important;
   opacity: 1;
 }
 
@@ -1400,3 +1397,4 @@ html {
 [data-mode="dark"] [data-component="Preloader"] .preloader-brand-lockup {
   opacity: 0.45;
 }
+

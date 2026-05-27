@@ -13,10 +13,10 @@ import { mdiMagnify } from '@mdi/js';
 import { clsx } from 'clsx';
 
 const appPalettes = [
-  { bg: 'bg-[var(--ha-color-fill-primary-normal)]', text: 'text-ha-blue' },
-  { bg: 'bg-[var(--ha-color-fill-danger-normal)]', text: 'text-red-600' },
-  { bg: 'bg-[var(--ha-color-fill-success-normal)]', text: 'text-green-600' },
-  { bg: 'bg-[var(--ha-color-yellow-95)]', text: 'text-yellow-600' },
+  { text: 'text-ha-blue' },
+  { text: 'text-red-600' },
+  { text: 'text-green-600' },
+  { text: 'text-yellow-600' },
 ];
 
 const getAppPalette = (id: string) => {
@@ -34,7 +34,13 @@ const formatTooltipLabel = (label: string) =>
     .map((word) => (word ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : word))
     .join(' ');
 
-export function Sidebar({ onNavigate }: { onNavigate?: (href: string) => void } = {}) {
+export function Sidebar({
+  onNavigate,
+  splitNavigationEnabled = false,
+}: {
+  onNavigate?: (href: string, options?: { openInSplit?: boolean }) => void;
+  splitNavigationEnabled?: boolean;
+} = {}) {
   const pathname = usePathname();
   const { items, loading } = useSidebarItems();
   const { searchOpen, toggleSearch } = useSearchContext();
@@ -228,16 +234,19 @@ export function Sidebar({ onNavigate }: { onNavigate?: (href: string) => void } 
                     href={item.urlPath}
                     scroll={false}
                     onClick={onNavigate ? (event) => {
+                      if (event.defaultPrevented) return;
+                      const isModifiedClick = event.metaKey || event.ctrlKey;
+                      if (isModifiedClick && !splitNavigationEnabled) return;
                       event.preventDefault();
-                      onNavigate(item.urlPath);
+                      onNavigate(item.urlPath, { openInSplit: splitNavigationEnabled && isModifiedClick });
                     } : undefined}
                     onMouseEnter={(event) => showTooltip(event.currentTarget, formatTooltipLabel(item.title))}
                     onMouseLeave={hideTooltipSoon}
                     className={clsx(
                       'w-12 h-12 flex-shrink-0 rounded-ha-xl transition-colors flex items-center justify-center',
                       isActive
-                         ? (item.isApp ? 'bg-ha-blue' : 'bg-fill-primary-normal')
-                         : (item.isApp && palette ? palette.bg : 'hover:bg-surface-low'),
+                         ? (item.isApp ? 'bg-surface-mid' : 'bg-fill-primary-normal')
+                         : (item.isApp ? 'bg-surface-low hover:bg-surface-mid' : 'hover:bg-surface-low'),
                       item.isApp && 'ha-app-icon-shell',
                       item.isApp && isActive && 'ha-app-icon-shell-active'
                     )}
@@ -250,7 +259,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: (href: string) => void } 
                         size={24}
                         className={clsx(
                           isActive
-                            ? item.isApp ? 'text-white' : 'text-ha-blue'
+                            ? item.isApp && palette ? palette.text : 'text-ha-blue'
                             : item.isApp && palette ? palette.text : 'text-text-secondary',
                           item.isApp && 'ha-app-icon-glyph'
                         )}

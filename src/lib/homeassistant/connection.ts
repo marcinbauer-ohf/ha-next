@@ -7,7 +7,7 @@ import {
   ERR_CANNOT_CONNECT,
   ERR_INVALID_AUTH,
 } from 'home-assistant-js-websocket';
-import type { HassConfig, CallServiceParams } from './types';
+import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, HistoryPoint } from './types';
 
 let connection: Connection | null = null;
 let entitySubscription: (() => void) | null = null;
@@ -143,6 +143,56 @@ export interface HaDashboard {
   icon?: string;
   url_path: string;
   mode: string;
+}
+
+export async function getEntityRegistry(): Promise<EntityRegistryEntry[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  try {
+    return await conn.sendMessagePromise<EntityRegistryEntry[]>({ type: 'config/entity_registry/list' }) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getDeviceRegistry(): Promise<DeviceRegistryEntry[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  try {
+    return await conn.sendMessagePromise<DeviceRegistryEntry[]>({ type: 'config/device_registry/list' }) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getAreaRegistry(): Promise<AreaRegistryEntry[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  try {
+    return await conn.sendMessagePromise<AreaRegistryEntry[]>({ type: 'config/area_registry/list' }) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getEntityHistory(entityId: string, hoursBack = 24): Promise<HistoryPoint[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  const end = new Date();
+  const start = new Date(end.getTime() - hoursBack * 3600 * 1000);
+  try {
+    const result = await conn.sendMessagePromise<Record<string, HistoryPoint[]>>({
+      type: 'history/history_during_period',
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      entity_ids: [entityId],
+      no_attributes: true,
+      significant_changes_only: false,
+    });
+    return result?.[entityId] ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getPanels(): Promise<Record<string, HaPanel>> {

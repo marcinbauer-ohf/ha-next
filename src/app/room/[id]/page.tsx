@@ -3,6 +3,7 @@
 import { use, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { EntityCard } from '@/components/cards';
+import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
 import { DashboardSection, PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext, useHeader } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
@@ -321,6 +322,7 @@ export default function RoomPage({ params }: RoomPageProps) {
               data-scrollable="dashboard"
             >
               <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
+                <ApplicationViewNotice />
                 {/* Lights */}
                 {lights.length > 0 && (
                   <DashboardSection title="Lights" columns={2}>

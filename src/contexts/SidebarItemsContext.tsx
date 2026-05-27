@@ -53,6 +53,14 @@ const baseSidebarItems: SidebarItem[] = [
     isCustom: true,
   },
   {
+    id: 'devices',
+    title: 'Devices',
+    icon: 'mdi:devices',
+    urlPath: '/dashboard/devices',
+    type: 'dashboard',
+    isCustom: true,
+  },
+  {
     id: 'energy',
     title: 'Energy',
     icon: 'mdi:flash',

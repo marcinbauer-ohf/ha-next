@@ -1,13 +1,14 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Icon } from '../ui/Icon';
 import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
-import { useHeader, usePullToRevealContext, ENABLE_PULL_TO_REVEAL } from '@/contexts';
+import { useHeader, usePullToRevealContext, ENABLE_PULL_TO_REVEAL, useEditMode } from '@/contexts';
 import { useTheme } from '@/hooks';
 import {
   mdiPencil,
+  mdiCheck,
   mdiPlus,
   mdiMenu,
   mdiClose,
@@ -18,7 +19,15 @@ export function TopBar() {
   const { theme } = useTheme();
   const { title, subtitle, icon, primaryAction, onBack } = useHeader();
   const { isRevealed, toggle } = usePullToRevealContext();
+  const { isEditing, toggleEditMode } = useEditMode();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // Energy has its own read-only view; all other dashboard paths support edit mode
+  const isDashboardPage = pathname === '/' ||
+    (pathname.startsWith('/dashboard/') && pathname !== '/dashboard/energy');
+  const pencilIcon = isEditing ? mdiCheck : mdiPencil;
+  const pencilLabel = isEditing ? 'Done' : 'Edit';
 
   const titleContent = subtitle ? (
     <div className="flex flex-col leading-none gap-0.5 text-left">
@@ -88,20 +97,32 @@ export function TopBar() {
               <Icon path={primaryAction.icon} size={24} />
             </button>
           )}
-          <button className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors">
-            <Icon path={mdiPencil} size={24} />
-          </button>
-        <button 
-          className={`p-ha-3 rounded-ha-xl transition-colors ${
-            theme === 'glass'
-                ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
-              : theme === 'teenage'
-                ? 'bg-[#d48e42] text-[#161616] hover:bg-[#c07d36] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_12px_-8px_rgba(0,0,0,0.6)] border border-[#b0712e]'
-                : 'bg-ha-blue text-white hover:bg-ha-blue/90'
-          }`}
-        >
-          <Icon path={mdiPlus} size={24} />
-        </button>
+          {isDashboardPage && (
+            <button
+              aria-label={pencilLabel}
+              onClick={toggleEditMode}
+              className={`p-ha-3 rounded-ha-xl transition-colors ${
+                isEditing
+                  ? 'bg-ha-blue text-white hover:bg-ha-blue/90'
+                  : 'hover:bg-surface-low text-text-secondary'
+              }`}
+            >
+              <Icon path={pencilIcon} size={24} />
+            </button>
+          )}
+          {!isEditing && (
+            <button
+              className={`p-ha-3 rounded-ha-xl transition-colors ${
+                theme === 'glass'
+                    ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
+                  : theme === 'teenage'
+                    ? 'bg-[#d48e42] text-[#161616] hover:bg-[#c07d36] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_12px_-8px_rgba(0,0,0,0.6)] border border-[#b0712e]'
+                    : 'bg-ha-blue text-white hover:bg-ha-blue/90'
+              }`}
+            >
+              <Icon path={mdiPlus} size={24} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -128,20 +149,32 @@ export function TopBar() {
             <Icon path={primaryAction.icon} size={24} />
           </button>
         )}
-        <button className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors">
-          <Icon path={mdiPencil} size={24} />
-        </button>
-        <button 
-          className={`p-ha-3 rounded-ha-xl transition-colors ${
-            theme === 'glass'
-              ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
-              : theme === 'teenage'
-                ? 'bg-[#d48e42] text-[#161616] hover:bg-[#c07d36] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_12px_-8px_rgba(0,0,0,0.6)] border border-[#b0712e]'
-              : 'bg-ha-blue text-white hover:bg-ha-blue/90'
-          }`}
-        >
-          <Icon path={mdiPlus} size={24} />
-        </button>
+        {isDashboardPage && (
+          <button
+            aria-label={pencilLabel}
+            onClick={toggleEditMode}
+            className={`p-ha-3 rounded-ha-xl transition-colors ${
+              isEditing
+                ? 'bg-ha-blue text-white hover:bg-ha-blue/90'
+                : 'hover:bg-surface-low text-text-secondary'
+            }`}
+          >
+            <Icon path={pencilIcon} size={24} />
+          </button>
+        )}
+        {!isEditing && (
+          <button
+            className={`p-ha-3 rounded-ha-xl transition-colors ${
+              theme === 'glass'
+                ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
+                : theme === 'teenage'
+                  ? 'bg-[#d48e42] text-[#161616] hover:bg-[#c07d36] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_12px_-8px_rgba(0,0,0,0.6)] border border-[#b0712e]'
+                  : 'bg-ha-blue text-white hover:bg-ha-blue/90'
+            }`}
+          >
+            <Icon path={mdiPlus} size={24} />
+          </button>
+        )}
       </div>
     </header>
   );

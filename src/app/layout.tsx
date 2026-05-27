@@ -2,9 +2,10 @@ import type { Metadata } from 'next';
 import { Inter, Poppins, Quantico, Nunito, VT323 } from 'next/font/google';
 import './globals.css';
 import { HomeAssistantProvider } from '@/hooks/useHomeAssistant';
+import { FeatureFlagsProvider } from '@/hooks/useFeatureFlags';
 import { ThemeProvider } from '@/hooks/useTheme';
 import { ImmersiveModeProvider } from '@/hooks/useImmersiveMode';
-import { PullToRevealProvider, SidebarItemsProvider, SearchProvider, AssistantProvider, HeaderProvider, ScreensaverProvider } from '@/contexts';
+import { PullToRevealProvider, SidebarItemsProvider, SearchProvider, AssistantProvider, HeaderProvider, ScreensaverProvider, EditModeProvider } from '@/contexts';
 import { AppShell } from '@/components/layout';
 
 const inter = Inter({
@@ -61,23 +62,27 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} ${poppins.variable} ${quantico.variable} ${nunito.variable} ${vt323.variable} antialiased`} suppressHydrationWarning>
         <ThemeProvider>
-          <HomeAssistantProvider>
-            <ImmersiveModeProvider>
-              <SidebarItemsProvider>
-                <PullToRevealProvider>
-                  <SearchProvider>
-                    <AssistantProvider>
-                      <HeaderProvider>
-                        <ScreensaverProvider>
-                          <AppShell>{children}</AppShell>
-                        </ScreensaverProvider>
-                      </HeaderProvider>
-                    </AssistantProvider>
-                  </SearchProvider>
-                </PullToRevealProvider>
-              </SidebarItemsProvider>
-            </ImmersiveModeProvider>
-          </HomeAssistantProvider>
+          <FeatureFlagsProvider>
+            <HomeAssistantProvider>
+              <ImmersiveModeProvider>
+                <SidebarItemsProvider>
+                  <PullToRevealProvider>
+                    <SearchProvider>
+                      <AssistantProvider>
+                        <HeaderProvider>
+                          <ScreensaverProvider>
+                            <EditModeProvider>
+                              <AppShell>{children}</AppShell>
+                            </EditModeProvider>
+                          </ScreensaverProvider>
+                        </HeaderProvider>
+                      </AssistantProvider>
+                    </SearchProvider>
+                  </PullToRevealProvider>
+                </SidebarItemsProvider>
+              </ImmersiveModeProvider>
+            </HomeAssistantProvider>
+          </FeatureFlagsProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useScreensaver } from '@/contexts';
+import { RingShaderBackground } from './RingShaderBackground';
 
 // Dynamically import Lottie to avoid SSR issues
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
@@ -122,28 +123,23 @@ export function Preloader({ onFinish }: PreloaderProps) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25, ease: 'easeInOut' }}
     >
-      {/* Radial glow beneath the animation — theme-aware */}
-      <div
-        style={{
-          position: 'absolute',
-          width: 700,
-          height: 700,
-          borderRadius: '50%',
-          background: 'radial-gradient(ellipse at center, var(--ha-color-surface-default) 0%, transparent 70%)',
-          pointerEvents: 'none',
-          zIndex: -1,
-        }}
-      />
+      <RingShaderBackground resolvedMode={resolvedMode} />
 
       {/* Centered Lottie animation — plays once, no loop */}
-      <div className="flex items-center justify-center w-[400px] h-[120px] lg:w-[800px] lg:h-[240px]">
+      <motion.div
+        className="flex items-center justify-center w-[400px] h-[120px] lg:w-[800px] lg:h-[240px]"
+        style={{ marginTop: 50 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+      >
         <Lottie
           key={`preloader-${resolvedMode}`}
           animationData={animationData}
           loop={false}
           style={{ width: '100%', height: '100%' }}
         />
-      </div>
+      </motion.div>
 
       {/* OHF logo — fades in after 1 second */}
       <motion.div

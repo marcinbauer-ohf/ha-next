@@ -1,32 +1,42 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { Icon } from '../ui/Icon';
-import { useHeader } from '@/contexts';
-import { useHomeAssistant, useImmersiveMode } from '@/hooks';
+import { SimulationListModal } from '@/components/ui/SimulationListModal';
+import { SetupScreen } from '@/components/ui/SetupScreen';
+import { useHeader, useScreensaver } from '@/contexts';
+import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme } from '@/hooks';
 import { THEMES, type Background, type ColorMode, type Theme } from '@/hooks/useTheme';
-import { useTheme } from '@/hooks';
+import { areSimulationEntitiesEqual, selectSimulationEntities } from '@/lib/homeassistant/selectors';
+import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
 import { getSettingsHref, type SettingsSlug } from './settingsNavigation';
 import {
   mdiAlphaDBox,
+  mdiArrowExpandAll,
   mdiBell,
   mdiCellphone,
   mdiCheckCircle,
   mdiChevronRight,
   mdiCloud,
   mdiCog,
+  mdiCctv,
   mdiDatabase,
   mdiDevices,
   mdiFlash,
   mdiFolderHome,
+  mdiHomeAssistant,
   mdiInformation,
   mdiPalette,
+  mdiPlay,
+  mdiPrinter3d,
   mdiRefresh,
   mdiShieldAccount,
   mdiTabletDashboard,
+  mdiTimerOutline,
+  mdiUpdate,
   mdiViewDashboard,
   mdiWifi,
 } from '@mdi/js';
@@ -226,9 +236,109 @@ function DataTable({
   );
 }
 
+function ActionButton({
+  label,
+  onClick,
+  tone = 'default',
+  disabled = false,
+}: {
+  label: string;
+  onClick: () => void;
+  tone?: 'default' | 'primary' | 'danger';
+  disabled?: boolean;
+}) {
+  const toneClassNames = {
+    default: 'border-surface-lower bg-surface-default text-text-primary hover:bg-surface-low',
+    primary: 'border-ha-blue/20 bg-fill-primary-normal text-ha-blue hover:bg-fill-primary-quiet',
+    danger: 'border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500/15',
+  } as const;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-ha-xl border px-ha-3 py-ha-2 text-sm font-medium transition-colors ${toneClassNames[tone]} ${
+        disabled ? 'cursor-not-allowed opacity-45' : ''
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function formatLabel(value: string): string {
   return value.replace(/-/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
 }
+
+const themeLabels: Record<Theme, string> = {
+  default: 'Default',
+  glass: 'Glass',
+  teenage: 'Teenage Engineering',
+  cyberpunk: 'Cyberpunk',
+  material: 'Material Design',
+  eink: 'E-Ink',
+  fallout: 'Fallout',
+};
+
+const backgroundLabels: Record<Background, string> = {
+  gradient: 'Home Assistant background',
+  image: 'Image',
+  solid: 'Solid',
+  none: 'None',
+};
+
+const taskBarActivityDefinitions: Array<{
+  type: SimulationType;
+  title: string;
+  description: string;
+  reviewTitle: string;
+  icon: string;
+  singleToggle?: boolean;
+  formatState: (count: number) => string;
+}> = [
+  {
+    type: 'release',
+    title: "What's New",
+    description: 'Control the unread release-notes task so it can appear in the activity bar.',
+    reviewTitle: "What's New in Home Assistant",
+    icon: mdiUpdate,
+    singleToggle: true,
+    formatState: (count) => (count > 0 ? 'Unread release notes' : 'No unread release notes'),
+  },
+  {
+    type: 'media',
+    title: 'Simulate Media',
+    description: 'Add or remove mock playback activity for speakers and media players.',
+    reviewTitle: 'Simulate Media',
+    icon: mdiPlay,
+    formatState: (count) => (count > 0 ? `${count} playing` : 'Idle'),
+  },
+  {
+    type: 'timer',
+    title: 'Simulate Timer',
+    description: 'Preview laundry, tea, or kitchen timer activity in the task bar.',
+    reviewTitle: 'Simulate Timer',
+    icon: mdiTimerOutline,
+    formatState: (count) => (count > 0 ? `${count} active` : 'Idle'),
+  },
+  {
+    type: 'camera',
+    title: 'Simulate Camera',
+    description: 'Surface motion events as activity for doorbells and cameras.',
+    reviewTitle: 'Simulate Camera',
+    icon: mdiCctv,
+    formatState: (count) => (count > 0 ? `${count} motion events` : 'Idle'),
+  },
+  {
+    type: 'printer',
+    title: 'Simulate Printer',
+    description: 'Show long-running print jobs in the same activity surface.',
+    reviewTitle: 'Simulate Printer',
+    icon: mdiPrinter3d,
+    formatState: (count) => (count > 0 ? `${count} printing` : 'Idle'),
+  },
+];
 
 const settingsMeta: Record<SettingsSlug, SettingsMeta> = {
   interface: {
@@ -258,6 +368,27 @@ const settingsMeta: Record<SettingsSlug, SettingsMeta> = {
     icon: mdiCellphone,
     eyebrow: 'Mobile',
     accentClassName: 'border-violet-500/20',
+  },
+  'theme-layout': {
+    title: 'Theme and Layout',
+    description: 'Move dashboard presentation controls into one focused settings surface for appearance, immersive mode, and screensaver preview.',
+    icon: mdiPalette,
+    eyebrow: 'Prototype Debugging Tools',
+    accentClassName: 'border-indigo-500/20',
+  },
+  'task-bar': {
+    title: 'Task Bar Activities',
+    description: 'Manage the simulated release notes, media, timers, cameras, and printer jobs that help debug the activity bar.',
+    icon: mdiUpdate,
+    eyebrow: 'Prototype Debugging Tools',
+    accentClassName: 'border-emerald-500/20',
+  },
+  maintenance: {
+    title: 'Maintenance',
+    description: 'Keep connection setup, demo mode, and shell reset actions close at hand without leaving them on the dashboard.',
+    icon: mdiCog,
+    eyebrow: 'Prototype Debugging Tools',
+    accentClassName: 'border-amber-500/20',
   },
   system: {
     title: 'General Settings',
@@ -292,9 +423,22 @@ const settingsMeta: Record<SettingsSlug, SettingsMeta> = {
 export function SettingsDetailPage({ slug }: SettingsDetailPageProps) {
   const router = useRouter();
   const { setHeader } = useHeader();
+  const { desktopSplitViewEnabled, toggleDesktopSplitView } = useFeatureFlags();
   const { theme, mode, background, setTheme, setMode, setBackground } = useTheme();
-  const { connected, connecting, demoMode, haUrl, enableDemoMode } = useHomeAssistant();
+  const {
+    clearCredentials,
+    connected,
+    connecting,
+    demoMode,
+    haUrl,
+    enableDemoMode,
+    error: connectionError,
+    saveCredentials,
+    setMockEntity,
+  } = useHomeAssistant();
   const { immersiveMode, setImmersiveMode } = useImmersiveMode();
+  const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
+  const simulationEntities = useHomeAssistantSelector(selectSimulationEntities, areSimulationEntitiesEqual);
   const [compactCards, setCompactCards] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [defaultDashboard, setDefaultDashboard] = useState<'overview' | 'energy' | 'security' | 'climate'>('overview');
@@ -312,8 +456,103 @@ export function SettingsDetailPage({ slug }: SettingsDetailPageProps) {
   const [trustedNetworkLogin, setTrustedNetworkLogin] = useState(true);
   const [debugBadgesEnabled, setDebugBadgesEnabled] = useState(demoMode);
   const [mockLatencyEnabled, setMockLatencyEnabled] = useState(false);
+  const [connectionSetupOpen, setConnectionSetupOpen] = useState(false);
+  const [simulationModal, setSimulationModal] = useState<{ title: string; prefix: string } | null>(null);
 
   const meta = settingsMeta[slug];
+
+  const resetLayoutToDefaults = useCallback(() => {
+    setTheme('default');
+    setMode('system');
+    setBackground('none');
+    setImmersiveMode(false);
+  }, [setBackground, setImmersiveMode, setMode, setTheme]);
+
+  const [devicesDashboardResetDone, setDevicesDashboardResetDone] = useState(false);
+  const resetDevicesDashboard = useCallback(() => {
+    // ha_device_order: section ordering, hidden cards, column widths
+    // ha_device_card_configs: per-device entity slot assignments (which entity is primary hero)
+    localStorage.removeItem('ha_device_order');
+    localStorage.removeItem('ha_device_card_configs');
+    setDevicesDashboardResetDone(true);
+    setTimeout(() => setDevicesDashboardResetDone(false), 2500);
+  }, []);
+
+  const handleClearCredentials = useCallback(() => {
+    const confirmed = window.confirm(
+      demoMode
+        ? 'Reload the populated demo home data?'
+        : 'Disconnect Home Assistant and return to demo data?'
+    );
+    if (!confirmed) return;
+    clearCredentials();
+  }, [clearCredentials, demoMode]);
+
+  const handleSaveCredentials = useCallback(async (url: string, token: string) => {
+    await saveCredentials(url, token);
+    setConnectionSetupOpen(false);
+  }, [saveCredentials]);
+
+  const handleUseDemoData = useCallback(() => {
+    enableDemoMode();
+    setConnectionSetupOpen(false);
+  }, [enableDemoMode]);
+
+  const getSimulatedEntities = useCallback((prefix: string) => {
+    return simulationEntities.filter((entity) => entity.id.startsWith(prefix));
+  }, [simulationEntities]);
+
+  const addSimulation = useCallback((type: SimulationType) => {
+    const prefix = simulationPrefixes[type];
+    const existing = getSimulatedEntities(prefix);
+
+    if (type === 'release') {
+      existing
+        .filter((entity) => entity.id !== prefix)
+        .forEach((entity) => setMockEntity(entity.id, null));
+      setMockEntity(prefix, createSimulatedActivityEntity(type, prefix));
+      return;
+    }
+
+    if (existing.length === 0) {
+      setMockEntity(prefix, createSimulatedActivityEntity(type, prefix));
+      return;
+    }
+
+    let counter = 2;
+    while (existing.some((entity) => entity.id === `${prefix}_${counter}`)) {
+      counter += 1;
+    }
+
+    setMockEntity(`${prefix}_${counter}`, createSimulatedActivityEntity(type, `${prefix}_${counter}`));
+  }, [getSimulatedEntities, setMockEntity]);
+
+  const removeLastSimulation = useCallback((type: SimulationType) => {
+    const prefix = simulationPrefixes[type];
+    const existing = getSimulatedEntities(prefix);
+    if (existing.length === 0) return;
+    setMockEntity(existing[existing.length - 1].id, null);
+  }, [getSimulatedEntities, setMockEntity]);
+
+  const toggleReleaseSimulation = useCallback(() => {
+    const prefix = simulationPrefixes.release;
+    const existing = getSimulatedEntities(prefix);
+
+    if (existing.length > 0) {
+      existing.forEach((entity) => setMockEntity(entity.id, null));
+      return;
+    }
+
+    setMockEntity(prefix, createSimulatedActivityEntity('release', prefix));
+  }, [getSimulatedEntities, setMockEntity]);
+
+  const openSimulationList = useCallback((title: string, prefix: string) => {
+    setSimulationModal({ title, prefix });
+  }, []);
+
+  const removeSimulationById = useCallback((id: string) => {
+    setMockEntity(id, null);
+  }, [setMockEntity]);
 
   useEffect(() => {
     setHeader({
@@ -331,6 +570,18 @@ export function SettingsDetailPage({ slug }: SettingsDetailPageProps) {
       : connected
         ? 'Connected'
         : 'Offline';
+
+  const themeLayoutTableRows = useMemo(
+    () => [
+      ['Immersive mode', immersiveMode ? 'Enabled' : 'Disabled', 'Shell', 'Live'],
+      ['Desktop split view', desktopSplitViewEnabled ? 'Enabled' : 'Disabled', 'Desktop workspace', 'Live'],
+      ['Color mode', mode === 'system' ? 'Follow system' : formatLabel(mode), 'Display', 'Live'],
+      ['Theme appearance', themeLabels[theme], 'Display', 'Live'],
+      ['Background', backgroundLabels[background], 'Display', 'Live'],
+      ['Screensaver', screensaverActive ? 'Active' : 'Idle', 'Preview', screensaverActive ? 'Running' : 'Ready'],
+    ],
+    [background, desktopSplitViewEnabled, immersiveMode, mode, screensaverActive, theme]
+  );
 
   const interfaceTableRows = useMemo(
     () => [
@@ -411,6 +662,29 @@ export function SettingsDetailPage({ slug }: SettingsDetailPageProps) {
     [debugBadgesEnabled, demoMode, mockLatencyEnabled]
   );
 
+  const taskBarTableRows = useMemo(
+    () => taskBarActivityDefinitions.map((definition) => {
+      const count = getSimulatedEntities(simulationPrefixes[definition.type]).length;
+      return [
+        definition.title,
+        count > 0 ? `${count} active` : 'Idle',
+        definition.description,
+        definition.formatState(count),
+      ];
+    }),
+    [getSimulatedEntities]
+  );
+
+  const maintenanceTableRows = useMemo(
+    () => [
+      ['Connection state', connectionLabel, demoMode ? 'Bundled demo home' : haUrl || 'No Home Assistant URL saved', connected ? 'Healthy' : demoMode ? 'Ready' : 'Needs attention'],
+      ['Data source', demoMode ? 'Demo entities' : 'Live Home Assistant', demoMode ? 'Great for UI iteration' : 'Reads from the configured instance', 'Current'],
+      ['Layout preset', `${themeLabels[theme]} / ${backgroundLabels[background]}`, immersiveMode ? 'Immersive enabled' : 'Immersive disabled', 'Live'],
+      ['Reset action', 'Available', 'Theme, mode, background, and immersive mode', 'Manual'],
+    ],
+    [background, connected, connectionLabel, demoMode, haUrl, immersiveMode, theme]
+  );
+
   const actions = (
     <>
       <Link
@@ -429,6 +703,325 @@ export function SettingsDetailPage({ slug }: SettingsDetailPageProps) {
       </Link>
     </>
   );
+
+  if (slug === 'theme-layout') {
+    return (
+      <SettingsShell meta={meta} actions={actions}>
+        <StatGrid
+          items={[
+            { label: 'Theme', value: themeLabels[theme], tone: 'primary' },
+            { label: 'Mode', value: mode === 'system' ? 'System' : formatLabel(mode), tone: 'default' },
+            { label: 'Background', value: backgroundLabels[background], tone: 'default' },
+            { label: 'Immersive', value: immersiveMode ? 'On' : 'Off', tone: immersiveMode ? 'success' : 'default' },
+            { label: 'Split view', value: desktopSplitViewEnabled ? 'On' : 'Off', tone: desktopSplitViewEnabled ? 'primary' : 'default' },
+          ]}
+        />
+
+        <div className="grid gap-ha-4 xl:grid-cols-2">
+          <SettingsCard title="Immersive Mode" description="Expand dashboard content edge-to-edge for a cleaner desktop shell.">
+            <ToggleRow
+              label="Desktop immersive mode"
+              description="Keep content expanded and reduce surrounding chrome while moving through subviews."
+              checked={immersiveMode}
+              onToggle={() => setImmersiveMode(!immersiveMode)}
+            />
+          </SettingsCard>
+
+          <SettingsCard title="Color Mode" description="Switch the dashboard between light, dark, or device-following color modes.">
+            <ChoiceGroup<ColorMode>
+              label="Color mode"
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: 'light', label: 'Light', caption: 'Always bright' },
+                { value: 'dark', label: 'Dark', caption: 'Always dim' },
+                { value: 'system', label: 'System', caption: 'Follow device preference' },
+              ]}
+            />
+          </SettingsCard>
+
+          <SettingsCard title="Theme Appearance" description="Cycle between the visual treatments used during dashboard design reviews.">
+            <ChoiceGroup<Theme>
+              label="Theme"
+              value={theme}
+              onChange={setTheme}
+              options={THEMES.map((entry) => ({
+                value: entry,
+                label: themeLabels[entry],
+                caption: entry === 'glass' ? 'Layered and airy' : entry === 'eink' ? 'Paper-like contrast' : 'Ready to use',
+              }))}
+            />
+          </SettingsCard>
+
+          <SettingsCard title="Background" description="Set the dashboard backdrop without returning to the home screen.">
+            <ChoiceGroup<Background>
+              label="Background"
+              value={background}
+              onChange={setBackground}
+              options={[
+                { value: 'gradient', label: 'Gradient', caption: 'Atmospheric surfaces' },
+                { value: 'image', label: 'Image', caption: 'Large visual backdrop' },
+                { value: 'none', label: 'None', caption: 'Flat surfaces only' },
+              ]}
+            />
+          </SettingsCard>
+
+          <SettingsCard title="Screensaver" description="Preview the idle clock state from settings instead of from the dashboard itself.">
+            <ToggleRow
+              label="Screensaver preview"
+              description="Activate the full-screen clock now, or dismiss it if you are already previewing it."
+              checked={screensaverActive}
+              onToggle={screensaverActive ? dismissScreensaver : activateScreensaver}
+            />
+          </SettingsCard>
+
+          <SettingsCard title="Desktop Split View" description="Keep the workspace split shortcut available without surfacing it on the dashboard.">
+            <ToggleRow
+              label="Desktop split view"
+              description="Enable the split-workspace entry points used when comparing dashboards side by side."
+              checked={desktopSplitViewEnabled}
+              onToggle={toggleDesktopSplitView}
+            />
+          </SettingsCard>
+        </div>
+
+        <SettingsCard title="Current dashboard presentation" description="A quick audit table for the live dashboard appearance controls.">
+          <DataTable headers={['Setting', 'Value', 'Scope', 'State']} rows={themeLayoutTableRows} />
+        </SettingsCard>
+      </SettingsShell>
+    );
+  }
+
+  if (slug === 'task-bar') {
+    return (
+      <>
+        <SettingsShell meta={meta} actions={actions}>
+          <StatGrid
+            items={taskBarActivityDefinitions.map((definition) => {
+              const count = getSimulatedEntities(simulationPrefixes[definition.type]).length;
+              return {
+                label: definition.title,
+                value: count > 0 ? `${count} active` : 'Idle',
+                tone: count > 0 ? (definition.type === 'release' ? 'success' : 'primary') : 'default',
+              };
+            })}
+          />
+
+          <div className="grid gap-ha-4 xl:grid-cols-2">
+            {taskBarActivityDefinitions.map((definition) => {
+              const prefix = simulationPrefixes[definition.type];
+              const count = getSimulatedEntities(prefix).length;
+
+              return (
+                <SettingsCard key={definition.type} title={definition.title} description={definition.description}>
+                  <div className="space-y-ha-4">
+                    <div className="flex items-start gap-ha-4">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
+                        <Icon path={definition.icon} size={22} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-text-primary">{definition.formatState(count)}</div>
+                        <div className="mt-1 text-sm text-text-secondary">
+                          {count > 0
+                            ? `${count} simulated ${count === 1 ? 'entity is' : 'entities are'} active for this task.`
+                            : 'No simulated entities are active right now.'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-ha-2">
+                      {definition.singleToggle ? (
+                        <ActionButton
+                          label={count > 0 ? 'Clear activity' : 'Enable activity'}
+                          onClick={toggleReleaseSimulation}
+                          tone={count > 0 ? 'danger' : 'primary'}
+                        />
+                      ) : (
+                        <>
+                          <ActionButton
+                            label="Add activity"
+                            onClick={() => addSimulation(definition.type)}
+                            tone="primary"
+                          />
+                          <ActionButton
+                            label="Remove last"
+                            onClick={() => removeLastSimulation(definition.type)}
+                            tone="danger"
+                            disabled={count === 0}
+                          />
+                        </>
+                      )}
+                      <ActionButton
+                        label="Review list"
+                        onClick={() => openSimulationList(definition.reviewTitle, prefix)}
+                      />
+                    </div>
+                  </div>
+                </SettingsCard>
+              );
+            })}
+          </div>
+
+          <SettingsCard title="Activity state table" description="A compact readout of what can currently appear in the task bar.">
+            <DataTable headers={['Activity', 'Count', 'Purpose', 'State']} rows={taskBarTableRows} />
+          </SettingsCard>
+        </SettingsShell>
+
+        {simulationModal && (
+          <SimulationListModal
+            isOpen={true}
+            onClose={() => setSimulationModal(null)}
+            title={simulationModal.title}
+            items={getSimulatedEntities(simulationModal.prefix)}
+            onRemove={removeSimulationById}
+          />
+        )}
+      </>
+    );
+  }
+
+  if (slug === 'maintenance') {
+    return (
+      <>
+        <SettingsShell meta={meta} actions={actions}>
+          <StatGrid
+            items={[
+              { label: 'Connection', value: connectionLabel, tone: connected ? 'success' : demoMode ? 'warning' : 'default' },
+              { label: 'Data mode', value: demoMode ? 'Demo home' : 'Live instance', tone: demoMode ? 'warning' : 'primary' },
+              { label: 'Theme', value: themeLabels[theme], tone: 'default' },
+              { label: 'Layout reset', value: 'Ready', tone: 'default' },
+            ]}
+          />
+
+          <div className="grid gap-ha-4 xl:grid-cols-2">
+            <SettingsCard title="Connect My Data" description="Open the Home Assistant setup flow without leaving profile settings.">
+              <div className="space-y-ha-4">
+                <div className="rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-4">
+                  <div className="flex items-center gap-ha-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
+                      <Icon path={mdiHomeAssistant} size={20} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-text-primary">
+                        {connected && !demoMode ? 'Live Home Assistant connected' : 'Connection setup ready'}
+                      </div>
+                      <div className="text-sm text-text-secondary">
+                        {demoMode ? 'Demo mode is active until you connect to a real instance.' : haUrl || 'Saved credentials appear here after a successful connection.'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-ha-2">
+                  <ActionButton
+                    label={connected && !demoMode ? 'Reconnect live data' : 'Open connection setup'}
+                    onClick={() => setConnectionSetupOpen(true)}
+                    tone="primary"
+                  />
+                  <ActionButton
+                    label="Use demo data"
+                    onClick={handleUseDemoData}
+                  />
+                </div>
+              </div>
+            </SettingsCard>
+
+            <SettingsCard title={demoMode ? 'Reload Demo Data' : 'Disconnect to Demo'} description="Refresh the sample home or step back out of the live connection without searching through the dashboard.">
+              <div className="space-y-ha-4">
+                <div className="rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-4">
+                  <div className="text-sm font-semibold text-text-primary">
+                    {demoMode ? 'Sample home is currently active' : 'Live connection is currently active'}
+                  </div>
+                  <div className="mt-1 text-sm text-text-secondary">
+                    {demoMode
+                      ? 'Reload the demo entities if you want a clean prototype state.'
+                      : 'Switch back to the bundled demo home when you want broader UI coverage.'}
+                  </div>
+                </div>
+
+                <ActionButton
+                  label={demoMode ? 'Reload demo home' : 'Disconnect and use demo'}
+                  onClick={handleClearCredentials}
+                  tone={demoMode ? 'default' : 'danger'}
+                />
+              </div>
+            </SettingsCard>
+
+            <SettingsCard title="Reset Layout" description="Restore the presentation defaults that used to be one tap from the dashboard.">
+              <div className="space-y-ha-4">
+                <div className="rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-4">
+                  <div className="text-sm font-semibold text-text-primary">Current dashboard preset</div>
+                  <div className="mt-1 text-sm text-text-secondary">
+                    {`${themeLabels[theme]} theme · ${mode === 'system' ? 'System mode' : `${formatLabel(mode)} mode`} · ${backgroundLabels[background]} background`}
+                  </div>
+                </div>
+
+                <ActionButton
+                  label="Restore dashboard defaults"
+                  onClick={resetLayoutToDefaults}
+                  tone="primary"
+                />
+              </div>
+            </SettingsCard>
+
+            <SettingsCard title="Devices Dashboard" description="Reset the card order, visibility, and column widths you've customised in the Devices dashboard back to their defaults.">
+              <ActionButton
+                label={devicesDashboardResetDone ? 'Reset complete' : 'Reset devices layout'}
+                onClick={resetDevicesDashboard}
+                tone={devicesDashboardResetDone ? 'default' : 'danger'}
+              />
+            </SettingsCard>
+
+            <SettingsCard title="Shell Snapshot" description="Useful context when you are bouncing between live data and the prototype shell.">
+              <div className="grid gap-ha-3">
+                {[
+                  {
+                    icon: mdiCloud,
+                    title: 'Connection source',
+                    detail: demoMode ? 'Bundled demo entities are providing data.' : haUrl || 'No Home Assistant URL is configured yet.',
+                  },
+                  {
+                    icon: mdiPalette,
+                    title: 'Current theme',
+                    detail: `${themeLabels[theme]} with ${backgroundLabels[background].toLowerCase()} background.`,
+                  },
+                  {
+                    icon: mdiArrowExpandAll,
+                    title: 'Immersive mode',
+                    detail: immersiveMode ? 'Desktop shell expands content edge-to-edge.' : 'Desktop chrome stays in the standard framed layout.',
+                  },
+                ].map((item) => (
+                  <div key={item.title} className="rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-4 flex items-start gap-ha-4">
+                    <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
+                      <Icon path={item.icon} size={20} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-text-primary">{item.title}</div>
+                      <div className="mt-1 text-sm text-text-secondary">{item.detail}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SettingsCard>
+          </div>
+
+          <SettingsCard title="Maintenance state table" description="Reference values for the connection and shell reset tools in this section.">
+            <DataTable headers={['Area', 'Value', 'Notes', 'State']} rows={maintenanceTableRows} />
+          </SettingsCard>
+        </SettingsShell>
+
+        {connectionSetupOpen && (
+          <SetupScreen
+            onSave={handleSaveCredentials}
+            onUseDemo={handleUseDemoData}
+            error={connectionError}
+            connecting={connecting}
+            onClose={() => setConnectionSetupOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
 
   if (slug === 'interface') {
     return (
