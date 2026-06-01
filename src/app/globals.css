@@ -1046,6 +1046,30 @@
   }
 }
 
+/* Mobile Top Bar — transparent header with a legibility gradient (mobile only).
+   The bar is layered over the dashboard surface (and over full-bleed content in
+   immersive views), so a top-down scrim that fades from the surface color to
+   transparent keeps the title, icons and actions readable without painting a
+   hard band across the top of the screen. Themes with their own chrome
+   treatment (glass / teenage / eink) opt out below. */
+@media (max-width: 1023px) {
+  [data-component="MobileTopBar"] {
+    background-color: transparent;
+    background-image: linear-gradient(
+      to bottom,
+      var(--ha-color-surface-default) 0%,
+      color-mix(in srgb, var(--ha-color-surface-default) 55%, transparent) 55%,
+      transparent 100%
+    );
+  }
+
+  [data-theme="glass"] [data-component="MobileTopBar"],
+  [data-theme="teenage"] [data-component="MobileTopBar"],
+  [data-theme="eink"] [data-component="MobileTopBar"] {
+    background-image: none;
+  }
+}
+
 [data-theme="eink"] [data-component="MobileNav"] .mobile-nav-pill,
 [data-theme="eink"] [data-component="MobileNav"] .mobile-nav-tabs {
   background: transparent !important;
