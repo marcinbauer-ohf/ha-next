@@ -248,14 +248,14 @@ function AppShellContent({ children }: AppShellProps) {
   const desktopTopBarStateClass = hideDesktopChrome
     ? 'lg:opacity-0 lg:pointer-events-none'
     : 'lg:opacity-100 lg:pointer-events-auto';
-  const mobileTopBarStyle = {
+  const mobileTopBarStyle = useMemo(() => ({
     '--mobile-topbar-opacity': `${1 - mobileTopBarHideProgress}`,
     '--mobile-topbar-translate': `${-4 * mobileTopBarHideProgress}px`,
     '--mobile-topbar-margin': `${-64 * mobileTopBarHideProgress}px`,
-  } as CSSProperties;
-  const layoutStyle = {
+  } as CSSProperties), [mobileTopBarHideProgress]);
+  const layoutStyle = useMemo(() => ({
     '--mobile-ui-hidden-padding': `${mobileHiddenPaddingProgress}`,
-  } as CSSProperties;
+  } as CSSProperties), [mobileHiddenPaddingProgress]);
 
   const handleWorkspaceSplitStart = useCallback((side: SplitSide, anchor: SplitMenuAnchor) => {
     if (!desktopSplitViewEnabled) return;

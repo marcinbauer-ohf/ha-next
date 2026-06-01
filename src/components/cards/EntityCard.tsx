@@ -1,5 +1,6 @@
 'use client';
 
+import { memo, useCallback } from 'react';
 import { clsx } from 'clsx';
 import { Icon } from '../ui/Icon';
 import type { EntityCardProps } from '@/types';
@@ -20,7 +21,7 @@ const iconColorClasses = {
   default: 'text-text-secondary',
 };
 
-export function EntityCard({
+export const EntityCard = memo(function EntityCard({
   icon,
   title,
   state,
@@ -30,6 +31,16 @@ export function EntityCard({
   onIncrement,
   onDecrement,
 }: EntityCardProps) {
+  const handleDecrement = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDecrement?.(e);
+  }, [onDecrement]);
+
+  const handleIncrement = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onIncrement?.(e);
+  }, [onIncrement]);
+
   if (size === 'sm') {
     return (
       <div
@@ -54,20 +65,20 @@ export function EntityCard({
             {state}
           </span>
         </div>
-        
+
         {(onIncrement || onDecrement) && (
           <div className="flex items-center gap-1 transition-opacity">
             {onDecrement && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onDecrement(e); }}
+              <button
+                onClick={handleDecrement}
                 className={clsx('w-6 h-6 flex items-center justify-center rounded-full transition-colors shadow-sm', color !== 'default' ? 'bg-black/10 hover:bg-black/20 text-text-primary' : 'bg-surface-default hover:bg-surface-mid text-text-secondary')}
               >
                 <span className="text-sm font-bold leading-none mb-px">-</span>
               </button>
             )}
             {onIncrement && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onIncrement(e); }}
+              <button
+                onClick={handleIncrement}
                 className={clsx('w-6 h-6 flex items-center justify-center rounded-full transition-colors shadow-sm', color !== 'default' ? 'bg-black/10 hover:bg-black/20 text-text-primary' : 'bg-surface-default hover:bg-surface-mid text-text-primary')}
               >
                 <span className="text-sm font-bold leading-none mb-px">+</span>
@@ -95,20 +106,20 @@ export function EntityCard({
             <Icon path={icon} size={32} />
           </div>
         </div>
-        
+
         {(onIncrement || onDecrement) && (
           <div className="flex flex-col gap-1 transition-opacity">
             {onIncrement && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onIncrement(e); }}
+              <button
+                onClick={handleIncrement}
                 className={clsx('w-8 h-8 flex items-center justify-center rounded-full transition-colors shadow-sm', color !== 'default' ? 'bg-black/10 hover:bg-black/20 text-text-primary' : 'bg-surface-default hover:bg-surface-mid text-text-primary')}
               >
                 <span className="text-lg font-bold leading-none mb-0.5">+</span>
               </button>
             )}
             {onDecrement && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onDecrement(e); }}
+              <button
+                onClick={handleDecrement}
                 className={clsx('w-8 h-8 flex items-center justify-center rounded-full transition-colors shadow-sm', color !== 'default' ? 'bg-black/10 hover:bg-black/20 text-text-primary' : 'bg-surface-default hover:bg-surface-mid text-text-secondary')}
               >
                 <span className="text-lg font-bold leading-none mb-0.5">-</span>
@@ -117,11 +128,11 @@ export function EntityCard({
           </div>
         )}
       </div>
-      
+
       <div className="flex flex-col items-start mt-auto w-full">
         <span className="text-base font-medium text-text-primary text-left">{title}</span>
         <span className="text-sm text-text-secondary text-left">{state}</span>
       </div>
     </div>
   );
-}
+});

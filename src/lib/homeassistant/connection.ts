@@ -100,29 +100,18 @@ export async function callService(params: CallServiceParams): Promise<void> {
   });
 }
 
-export async function toggleEntity(entityId: string): Promise<void> {
+export async function toggleEntity(entityId: string, currentState?: string): Promise<void> {
   const [domain] = entityId.split('.');
 
-  const toggleDomains = ['light', 'switch', 'fan', 'input_boolean', 'automation', 'script'];
+  const toggleDomains = ['light', 'switch', 'fan', 'input_boolean', 'media_player', 'automation', 'script'];
 
   if (toggleDomains.includes(domain)) {
-    await callService({
-      domain,
-      service: 'toggle',
-      target: { entity_id: entityId },
-    });
+    await callService({ domain, service: 'toggle', target: { entity_id: entityId } });
   } else if (domain === 'cover') {
-    await callService({
-      domain: 'cover',
-      service: 'toggle',
-      target: { entity_id: entityId },
-    });
+    await callService({ domain: 'cover', service: 'toggle', target: { entity_id: entityId } });
   } else if (domain === 'lock') {
-    await callService({
-      domain: 'lock',
-      service: 'lock', // Would need to check state for unlock
-      target: { entity_id: entityId },
-    });
+    const service = currentState === 'locked' ? 'unlock' : 'lock';
+    await callService({ domain: 'lock', service, target: { entity_id: entityId } });
   }
 }
 

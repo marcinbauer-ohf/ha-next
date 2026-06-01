@@ -232,6 +232,7 @@ export function Sidebar({
                   <Link
                     key={item.id}
                     href={item.urlPath}
+                    prefetch={false}
                     scroll={false}
                     onClick={onNavigate ? (event) => {
                       if (event.defaultPrevented) return;

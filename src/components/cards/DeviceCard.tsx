@@ -1,7 +1,9 @@
 'use client';
 
+import { memo, useCallback } from 'react';
 import { clsx } from 'clsx';
 import { Icon } from '../ui/Icon';
+import { Sparkline } from '../ui/Sparkline';
 
 // Power icon (MDI mdiPower inline — avoids adding a dep just for controls)
 const ICON_POWER =
@@ -58,13 +60,15 @@ export interface DeviceCardProps {
 
   /** Small label shown above entity rows (card variant only) */
   title?: string;
+  /** Per-entry sparkline data — parallel array to entries. null = no sparkline for that entry. */
+  sparklinePoints?: (number[] | null)[];
   onClick?: () => void;
   className?: string;
 }
 
 // ── Internal sub-components ───────────────────────────────────────────────────
 
-function DeviceIconBadge({
+const DeviceIconBadge = memo(function DeviceIconBadge({
   path,
   active,
   dark,
@@ -75,6 +79,11 @@ function DeviceIconBadge({
   dark?: boolean;
   onIconClick?: () => void;
 }) {
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onIconClick!();
+  }, [onIconClick]);
+
   const className = clsx(
     'flex-shrink-0 flex items-center justify-center w-8 h-8 transition-transform',
     onIconClick
@@ -98,7 +107,7 @@ function DeviceIconBadge({
     return (
       <button
         className={className}
-        onClick={(e) => { e.stopPropagation(); onIconClick(); }}
+        onClick={handleClick}
         tabIndex={0}
       >
         <Icon path={path} size={18} />
@@ -111,9 +120,9 @@ function DeviceIconBadge({
       <Icon path={path} size={18} />
     </div>
   );
-}
+});
 
-function AttributeRow({
+const AttributeRow = memo(function AttributeRow({
   label,
   value,
   dark,
@@ -140,9 +149,9 @@ function AttributeRow({
       </span>
     </div>
   );
-}
+});
 
-function EntryBlock({
+const EntryBlock = memo(function EntryBlock({
   entry,
   dark,
   divider,
@@ -195,9 +204,9 @@ function EntryBlock({
       )}
     </>
   );
-}
+});
 
-function Toggle({ on, dark }: { on?: boolean; dark?: boolean }) {
+const Toggle = memo(function Toggle({ on, dark }: { on?: boolean; dark?: boolean }) {
   return (
     <div
       className={clsx(
@@ -213,9 +222,9 @@ function Toggle({ on, dark }: { on?: boolean; dark?: boolean }) {
       />
     </div>
   );
-}
+});
 
-function ControlsSection({
+const ControlsSection = memo(function ControlsSection({
   label,
   showPower,
   powerOn,
@@ -272,11 +281,11 @@ function ControlsSection({
       )}
     </div>
   );
-}
+});
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DeviceCard({
+export const DeviceCard = memo(function DeviceCard({
   variant = 'row',
   dark = false,
   icon,
@@ -295,6 +304,7 @@ export function DeviceCard({
   onPower,
   onToggle,
   title,
+  sparklinePoints,
   onClick,
   className,
 }: DeviceCardProps) {
@@ -306,6 +316,11 @@ export function DeviceCard({
 
   const hasControls = label !== undefined || showPower || showToggle;
 
+  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as Element).closest('button')) return;
+    onClick!();
+  }, [onClick]);
+
   return (
     <div
       className={clsx(
@@ -313,14 +328,10 @@ export function DeviceCard({
         dark ? 'bg-[#2a2a2a]' : 'bg-surface-default',
         variant === 'card' ? 'rounded-ha-2xl p-ha-4' : 'rounded-ha-xl p-ha-3',
         onClick && 'cursor-pointer hover:bg-surface-low active:scale-[0.99]',
-        selected && 'ring-2 ring-ha-blue ring-offset-1 ring-offset-surface-lower',
+        selected && 'ha-selected',
         className,
       )}
-      onClick={onClick ? (e) => {
-        // Ignore clicks that originated from an inner button (e.g. icon toggle)
-        if ((e.target as Element).closest('button')) return;
-        onClick();
-      } : undefined}
+      onClick={onClick ? handleClick : undefined}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
@@ -330,9 +341,21 @@ export function DeviceCard({
             {title}
           </span>
         )}
-        {entries.map((entry, i) => (
-          <EntryBlock key={i} entry={entry} dark={dark} divider={i > 0} />
-        ))}
+        {entries.map((entry, i) => {
+          const pts = variant === 'card' ? sparklinePoints?.[i] : null;
+          const hasSpark = pts && pts.length >= 3;
+          const gid = `dc-sg-${i}-${entry.name.replace(/\s+/g, '-')}`;
+          return (
+            <div key={i}>
+              <EntryBlock entry={entry} dark={dark} divider={i > 0} />
+              {hasSpark && (
+                <div className={clsx('opacity-50 overflow-hidden', variant === 'card' ? '-mx-ha-1 rounded-ha-lg' : '-mx-1 mt-1')}>
+                  <Sparkline points={pts} on={!!entry.active} gradientId={gid} small />
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {hasControls && variant === 'card' && (
           <ControlsSection
@@ -349,4 +372,4 @@ export function DeviceCard({
       </div>
     </div>
   );
-}
+});

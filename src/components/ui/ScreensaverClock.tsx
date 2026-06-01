@@ -18,7 +18,7 @@ import {
   mdiWeb,
 } from '@mdi/js';
 import { SummaryCard } from '../cards/SummaryCard';
-import { PeopleBadge, summaryItems } from '../sections/SummariesPanel';
+import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
 import { RingShaderBackground } from './RingShaderBackground';
 import {
   areActivityDataEqual,
@@ -149,6 +149,7 @@ function buildScreensaverActivityCards(
 }
 
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
+  const liveSummaryItems = useLiveSummaryItems();
   const { haUrl } = useHomeAssistant();
   const [time, setTime] = useState({ hours: '', minutes: '', seconds: '', period: '', isAM: true });
   const use24HourClock = useMemo(() => systemPrefers24HourClock(), []);
@@ -466,7 +467,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       {/* Summary badges */}
       <div className="flex flex-wrap justify-center gap-ha-4 mt-12 max-w-4xl px-ha-6">
         <PeopleBadge compact />
-        {summaryItems.map((item) => (
+        {liveSummaryItems.map((item) => (
           <SummaryCard
             key={item.title}
             icon={item.icon}

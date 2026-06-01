@@ -12,6 +12,7 @@ export interface SidebarItem {
   type: 'dashboard' | 'panel';
   isCustom?: boolean;
   isApp?: boolean;
+  isPlaceholder?: boolean;
 }
 
 interface SidebarItemsContextType {
@@ -53,20 +54,13 @@ const baseSidebarItems: SidebarItem[] = [
     isCustom: true,
   },
   {
-    id: 'devices',
-    title: 'Devices',
-    icon: 'mdi:devices',
-    urlPath: '/dashboard/devices',
-    type: 'dashboard',
-    isCustom: true,
-  },
-  {
     id: 'energy',
     title: 'Energy',
     icon: 'mdi:flash',
     urlPath: '/dashboard/energy',
     type: 'dashboard',
     isCustom: true,
+    isPlaceholder: true,
   },
 ];
 
@@ -78,6 +72,7 @@ const demoSidebarItems: SidebarItem[] = [
     urlPath: '/dashboard/security',
     type: 'dashboard',
     isCustom: true,
+    isPlaceholder: true,
   },
   {
     id: 'climate',
@@ -86,6 +81,7 @@ const demoSidebarItems: SidebarItem[] = [
     urlPath: '/dashboard/climate',
     type: 'dashboard',
     isCustom: true,
+    isPlaceholder: true,
   },
   {
     id: 'music',
@@ -95,6 +91,7 @@ const demoSidebarItems: SidebarItem[] = [
     type: 'panel',
     isCustom: true,
     isApp: true,
+    isPlaceholder: true,
   },
   {
     id: 'cameras',
@@ -104,6 +101,7 @@ const demoSidebarItems: SidebarItem[] = [
     type: 'panel',
     isCustom: true,
     isApp: true,
+    isPlaceholder: true,
   },
 ];
 
@@ -139,6 +137,7 @@ function buildSidebarItemsFromPanels(panels: Record<string, HaPanel>): SidebarIt
       icon: panel.icon || 'mdi:view-dashboard-outline',
       urlPath: `/dashboard/${panel.url_path}`,
       type: 'dashboard',
+      isPlaceholder: true,
     });
   });
 
@@ -154,6 +153,7 @@ function buildSidebarItemsFromPanels(panels: Record<string, HaPanel>): SidebarIt
       urlPath: `/panel/${panel.url_path}`,
       type: 'panel',
       isApp,
+      isPlaceholder: true,
     });
   });
 

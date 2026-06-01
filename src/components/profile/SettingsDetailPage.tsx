@@ -8,7 +8,9 @@ import { Icon } from '../ui/Icon';
 import { SimulationListModal } from '@/components/ui/SimulationListModal';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { useHeader, useScreensaver } from '@/contexts';
-import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme } from '@/hooks';
+import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useDevices, useDeviceCardConfig } from '@/hooks';
+import { TOGGLEABLE } from '@/lib/homeassistant/entityHelpers';
+import type { EntitySlot, EntitySection } from '@/hooks/useDeviceCardConfig';
 import { THEMES, type Background, type ColorMode, type Theme } from '@/hooks/useTheme';
 import { areSimulationEntitiesEqual, selectSimulationEntities } from '@/lib/homeassistant/selectors';
 import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
@@ -439,6 +441,65 @@ export function SettingsDetailPage({ slug }: SettingsDetailPageProps) {
   const { immersiveMode, setImmersiveMode } = useImmersiveMode();
   const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
   const simulationEntities = useHomeAssistantSelector(selectSimulationEntities, areSimulationEntitiesEqual);
+
+  // Device card configuration
+  const { devices } = useDevices();
+  const { setConfig } = useDeviceCardConfig();
+  const [configureStatus, setConfigureStatus] = useState<'idle' | 'done'>('idle');
+
+  const autoConfigureDevices = useCallback(() => {
+    const HIDDEN_DOMAINS = new Set(['update', 'button', 'event', 'number', 'select', 'text', 'scene', 'input_number', 'input_select', 'input_text', 'input_button']);
+    const HIDDEN_DEVICE_CLASSES = new Set(['battery', 'signal_strength', 'connectivity', 'timestamp', 'voltage', 'current', 'energy_storage']);
+    const HIDDEN_PATTERN = /\b(battery|signal|rssi|lqi|firmware|version|uptime|interval|link|ssid|bssid|mac|ip_address)\b/i;
+    const GOOD_SENSOR_CLASSES = new Set(['temperature', 'humidity', 'power', 'energy', 'illuminance', 'pressure', 'co2', 'pm25', 'pm10', 'volatile_organic_compounds', 'moisture']);
+    const GOOD_BINARY_CLASSES = new Set(['door', 'garage_door', 'window', 'motion', 'occupancy', 'smoke', 'gas', 'moisture', 'safety', 'vibration', 'lock']);
+
+    for (const device of devices) {
+      if (!device.primaryEntity) continue;
+      const primaryId = device.primaryEntity.entity_id;
+      const slots: EntitySlot[] = [];
+
+      for (const entity of device.entities) {
+        const [domain] = entity.entity_id.split('.');
+        const dc = entity.attributes.device_class as string | undefined;
+        const eid = entity.entity_id.toLowerCase();
+
+        if (entity.entity_id === primaryId) {
+          slots.push({ entity_id: entity.entity_id, size: 'lg', section: 'primary' });
+          continue;
+        }
+
+        let section: EntitySection = 'hidden';
+        if (!HIDDEN_DOMAINS.has(domain) && !(dc && HIDDEN_DEVICE_CLASSES.has(dc)) && !HIDDEN_PATTERN.test(eid)) {
+          if (TOGGLEABLE.has(domain)) {
+            section = 'secondary';
+          } else if (domain === 'sensor' && dc && GOOD_SENSOR_CLASSES.has(dc)) {
+            section = 'secondary';
+          } else if (domain === 'binary_sensor' && dc && GOOD_BINARY_CLASSES.has(dc)) {
+            section = 'secondary';
+          } else if (domain === 'climate') {
+            section = 'secondary';
+          }
+        }
+
+        slots.push({ entity_id: entity.entity_id, size: 'lg', section });
+      }
+
+      setConfig(device.id, { slots });
+    }
+
+    setConfigureStatus('done');
+    setTimeout(() => setConfigureStatus('idle'), 2500);
+  }, [devices, setConfig]);
+
+  const resetDashboard = useCallback(() => {
+    for (const device of devices) {
+      setConfig(device.id, { slots: [] });
+    }
+    setConfigureStatus('done');
+    setTimeout(() => setConfigureStatus('idle'), 2500);
+  }, [devices, setConfig]);
+
   const [compactCards, setCompactCards] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [defaultDashboard, setDefaultDashboard] = useState<'overview' | 'energy' | 'security' | 'climate'>('overview');
@@ -1172,6 +1233,45 @@ export function SettingsDetailPage({ slug }: SettingsDetailPageProps) {
 
         <SettingsCard title="Dashboard surfaces" description="Status and freshness for the main views available in this prototype.">
           <DataTable headers={['Dashboard', 'Role', 'Scope', 'Last opened']} rows={dashboardTableRows} />
+        </SettingsCard>
+
+        <SettingsCard
+          title="Device cards"
+          description="Configure which entities appear on each device card in the dashboard."
+        >
+          <div className="space-y-ha-3">
+            <div className="flex items-start gap-ha-4 p-ha-4 rounded-ha-xl bg-surface-low">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text-primary">Auto-configure entities</p>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Analyses all {devices.length} devices and automatically assigns entities to Primary, Secondary, or Hidden based on their domain and type. Toggleable entities and key sensors become secondary. Diagnostic entities (battery, signal, firmware) are hidden.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={autoConfigureDevices}
+                className="shrink-0 px-ha-3 py-ha-2 rounded-ha-lg text-sm font-semibold bg-fill-primary-normal text-ha-blue hover:bg-fill-primary-quiet transition-colors"
+              >
+                {configureStatus === 'done' ? 'Done ✓' : 'Configure'}
+              </button>
+            </div>
+
+            <div className="flex items-start gap-ha-4 p-ha-4 rounded-ha-xl bg-surface-low">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text-primary">Reset dashboard</p>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Clears all entity configuration. Each device will show only its primary entity card with no secondary rows — a clean slate.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={resetDashboard}
+                className="shrink-0 px-ha-3 py-ha-2 rounded-ha-lg text-sm font-semibold text-text-secondary bg-surface-mid hover:bg-surface-lower transition-colors"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
         </SettingsCard>
       </SettingsShell>
     );

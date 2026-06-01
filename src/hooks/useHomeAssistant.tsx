@@ -42,7 +42,7 @@ interface HomeAssistantContextValue {
   configured: boolean;
   demoMode: boolean;
   hydrated: boolean;
-  toggleEntity: (entityId: string) => Promise<void>;
+  toggleEntity: (entityId: string, currentState?: string) => Promise<void>;
   callService: (params: CallServiceParams) => Promise<void>;
   getEntityRegistry: () => Promise<EntityRegistryEntry[]>;
   getDeviceRegistry: () => Promise<DeviceRegistryEntry[]>;
@@ -220,12 +220,17 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     }
   }, [haUrl, haToken, doConnect]);
 
-  const toggleEntity = useCallback(async (entityId: string) => {
+  const toggleEntity = useCallback(async (entityId: string, currentState?: string) => {
     if (demoMode || !connected) return;
     try {
-      await toggleEntityAction(entityId);
+      await toggleEntityAction(entityId, currentState);
     } catch (err) {
-      console.error('Failed to toggle entity:', err instanceof Error ? err.message : err);
+      const detail = err instanceof Error
+        ? err.message
+        : typeof err === 'object' && err !== null
+          ? ((err as Record<string, unknown>).message as string | undefined) ?? JSON.stringify(err)
+          : String(err);
+      console.error(`Failed to toggle ${entityId}:`, detail);
     }
   }, [demoMode, connected]);
 

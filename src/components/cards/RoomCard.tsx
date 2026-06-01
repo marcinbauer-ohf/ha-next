@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { clsx } from 'clsx';
 import Link from 'next/link';
 import { Icon } from '../ui/Icon';
@@ -14,7 +15,7 @@ interface RoomCardProps {
   onClick?: () => void;
 }
 
-export function RoomCard({
+export const RoomCard = memo(function RoomCard({
   icon,
   name,
   temperature,
@@ -68,4 +69,4 @@ export function RoomCard({
       {content}
     </button>
   );
-}
+});

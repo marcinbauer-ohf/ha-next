@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { Icon } from './Icon';
 import { mdiViewDashboard, mdiCog, mdiHelp } from '@mdi/js';
 
@@ -20,9 +20,11 @@ interface MdiIconProps {
   className?: string;
 }
 
-export function MdiIcon({ icon, size = 24, className }: MdiIconProps) {
-  const [path, setPath] = useState<string | null>(null);
+export const MdiIcon = memo(function MdiIcon({ icon, size = 24, className }: MdiIconProps) {
   const iconName = icon.replace(/^mdi:/, '').trim();
+  const [path, setPath] = useState<string | null>(
+    () => bundledIcons[iconName] ?? iconCache[iconName] ?? null
+  );
 
   useEffect(() => {
     // Check bundled icons first
@@ -67,4 +69,4 @@ export function MdiIcon({ icon, size = 24, className }: MdiIconProps) {
   }
 
   return <Icon path={path} size={size} className={className} />;
-}
+});

@@ -983,7 +983,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                 const isActive = isNavItemActive(pathname, dashboard.urlPath);
 
                 return (
-                  <Link
+                  <Link prefetch={false}
                     key={dashboard.id}
                     href={dashboard.urlPath}
                     onClick={closeExpandedSurface}
@@ -1033,7 +1033,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                 const palette = getAppPalette(app.id);
 
                 return (
-                  <Link
+                  <Link prefetch={false}
                     key={app.id}
                     href={app.urlPath}
                     onClick={closeExpandedSurface}
@@ -1121,7 +1121,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
                   if (result.href) {
                     return (
-                      <Link
+                      <Link prefetch={false}
                         key={result.id}
                         href={result.href}
                         onClick={closeExpandedSurface}
@@ -1559,7 +1559,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         {/* Top row: Ask your home + Media + Timer + Status */}
         <div className="flex items-center gap-ha-2">
           {showHomeBackButton && (
-            <Link
+            <Link prefetch={false}
               href="/"
               aria-label="Back to Home"
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-ha-blue/15 text-ha-blue ring-1 ring-ha-blue/30 shadow-[0_8px_16px_-12px_rgba(3,169,244,0.9)] active:scale-95 transition-transform"
@@ -1710,7 +1710,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                       expandedSurfaceTab === 'widget' &&
                       expandedWidgetType === 'printer' &&
                       expandedWidgetId === activePrinter?.entityId
-                        ? 'ring-2 ring-ha-blue'
+                        ? 'ha-selected'
                         : ''
                     }`}
                   >
@@ -1764,7 +1764,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                       expandedSurfaceTab === 'widget' &&
                       expandedWidgetType === 'media' &&
                       expandedWidgetId === activeMedia?.entityId
-                        ? 'ring-2 ring-ha-blue ring-offset-2'
+                        ? 'ha-selected'
                         : ''
                     }`}
                   >
@@ -1820,7 +1820,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                     expandedSurfaceTab === 'widget' &&
                     expandedWidgetType === 'timer' &&
                     expandedWidgetId === activeTimer?.entityId
-                      ? 'ring-2 ring-ha-blue'
+                      ? 'ha-selected'
                       : ''
                   }`}>
                     <CircularProgress

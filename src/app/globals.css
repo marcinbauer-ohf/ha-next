@@ -1398,3 +1398,9 @@ html {
   opacity: 0.45;
 }
 
+
+/* Consistent selection ring — use .ha-selected on any selectable card */
+.ha-selected {
+  outline: 2px solid var(--ha-color-blue);
+  outline-offset: 2px;
+}

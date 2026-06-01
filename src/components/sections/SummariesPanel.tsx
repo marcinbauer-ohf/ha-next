@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { SummaryCard } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
-import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities } from '@/hooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   mdiAccountMultiple,
@@ -22,12 +22,70 @@ import { Icon } from '../ui/Icon';
 import { clsx } from 'clsx';
 import { arePeoplePresenceEqual, selectPeoplePresence } from '@/lib/homeassistant/selectors';
 
-export const summaryItems = [
-  { icon: mdiLightbulbGroup, title: 'Lights', state: '3 on', color: 'yellow' as const },
-  { icon: mdiThermometer, title: 'Climate', state: '22°C avg', color: 'primary' as const },
-  { icon: mdiShieldHome, title: 'Security', state: 'Armed', color: 'success' as const },
-  { icon: mdiWeatherPartlyCloudy, title: 'Weather', state: '18°C Cloudy', color: 'default' as const },
-];
+export function useLiveSummaryItems() {
+  const entities = useHomeAssistantEntities();
+  return useMemo(() => {
+    const all = Object.values(entities);
+
+    const lights = all.filter(e => e.entity_id.startsWith('light.'));
+    const lightsOn = lights.filter(e => e.state === 'on').length;
+
+    const tempSensors = all.filter(e =>
+      (e.entity_id.startsWith('sensor.') || e.entity_id.startsWith('climate.')) &&
+      (e.attributes.device_class === 'temperature' || e.attributes.current_temperature != null) &&
+      !isNaN(parseFloat(String(e.attributes.current_temperature ?? e.state)))
+    );
+    const temps = tempSensors.map(e =>
+      parseFloat(String(e.attributes.current_temperature ?? e.state))
+    ).filter(v => !isNaN(v));
+    const avgTemp = temps.length > 0
+      ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1)
+      : null;
+
+    const locks = all.filter(e => e.entity_id.startsWith('lock.'));
+    const locksLocked = locks.filter(e => e.state === 'locked').length;
+    const allLocked = locks.length > 0 && locksLocked === locks.length;
+
+    const weather = all.find(e => e.entity_id.startsWith('weather.'));
+    const weatherTemp = weather?.attributes.temperature as number | undefined;
+
+    const items = [
+      {
+        icon: mdiLightbulbGroup,
+        title: 'Lights',
+        state: lights.length > 0 ? `${lightsOn} on` : '—',
+        color: 'yellow' as const,
+      },
+      ...(avgTemp ? [{
+        icon: mdiThermometer,
+        title: 'Climate',
+        state: `${avgTemp}°C avg`,
+        color: 'primary' as const,
+      }] : []),
+      ...(locks.length > 0 ? [{
+        icon: mdiShieldHome,
+        title: 'Security',
+        state: allLocked ? 'All locked' : `${locksLocked}/${locks.length} locked`,
+        color: (allLocked ? 'success' : 'default') as 'success' | 'default',
+      }] : []),
+      ...(weather ? [{
+        icon: mdiWeatherPartlyCloudy,
+        title: 'Weather',
+        state: weatherTemp != null ? `${weatherTemp}° ${weather.state}` : weather.state,
+        color: 'default' as const,
+      }] : []),
+    ];
+
+    // Fallback if no real data yet
+    if (items.every(i => i.state === '—') && all.length === 0) {
+      return [
+        { icon: mdiLightbulbGroup, title: 'Lights', state: '—', color: 'yellow' as const },
+        { icon: mdiThermometer, title: 'Climate', state: '—', color: 'primary' as const },
+      ];
+    }
+    return items;
+  }, [entities]);
+}
 
 const tips = [
   {
@@ -276,6 +334,7 @@ interface MobileSummaryRowProps {
 }
 
 export function MobileSummaryRow({ fullBleed = false }: MobileSummaryRowProps) {
+  const liveSummaryItems = useLiveSummaryItems();
   const [showLeftGradient, setShowLeftGradient] = useState(false);
   const [showRightGradient, setShowRightGradient] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -324,13 +383,13 @@ export function MobileSummaryRow({ fullBleed = false }: MobileSummaryRowProps) {
             }`} 
           />
           
-          <div 
+          <div
             ref={scrollContainerRef}
             onScroll={checkScroll}
             className="overflow-x-auto scrollbar-hide flex gap-ha-2 pr-4 pl-1"
           >
             <PeopleBadge compact />
-            {summaryItems.map((item) => (
+            {liveSummaryItems.map((item) => (
               <SummaryCard
                 key={item.title}
                 icon={item.icon}
@@ -361,6 +420,7 @@ interface SummariesPanelProps {
 }
 
 export function SummariesPanel({ onToggleImmersive, onToggleDarkMode, onToggleScreensaver }: SummariesPanelProps) {
+  const liveSummaryItems = useLiveSummaryItems();
   const [isCompact, setIsCompact] = useState(false);
 
   // Check window width to clear up space on smaller desktop screens
@@ -385,7 +445,7 @@ export function SummariesPanel({ onToggleImmersive, onToggleDarkMode, onToggleSc
       <h2 className="text-lg font-semibold text-text-primary mb-ha-4">Summary</h2>
       <div className="space-y-ha-3">
         <PeopleBadge variant={isCompact ? 'compact' : 'full'} />
-        {summaryItems.map((item) => (
+        {liveSummaryItems.map((item) => (
           <SummaryCard
             key={item.title}
             icon={item.icon}
