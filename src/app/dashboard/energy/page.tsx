@@ -5,36 +5,15 @@ import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice
 import { PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext, useHeader } from '@/contexts';
 import { useDesktopImmersivePageLayout, useTheme } from '@/hooks';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { mdiFlash } from '@mdi/js';
 
 type EnergyTab = 'now' | 'all';
 
-function EnergyTabs({ activeTab, onTabChange }: { activeTab: EnergyTab; onTabChange: (tab: EnergyTab) => void }) {
-  return (
-    <div className="flex gap-ha-2">
-      <button
-        onClick={() => onTabChange('now')}
-        className={`px-ha-4 py-ha-2 rounded-ha-pill text-sm font-medium transition-colors ${
-          activeTab === 'now'
-            ? 'bg-fill-primary-normal text-ha-blue'
-            : 'bg-surface-low text-text-secondary hover:bg-surface-default'
-        }`}
-      >
-        Now
-      </button>
-      <button
-        onClick={() => onTabChange('all')}
-        className={`px-ha-4 py-ha-2 rounded-ha-pill text-sm font-medium transition-colors ${
-          activeTab === 'all'
-            ? 'bg-fill-primary-normal text-ha-blue'
-            : 'bg-surface-low text-text-secondary hover:bg-surface-default'
-        }`}
-      >
-        All
-      </button>
-    </div>
-  );
-}
+const ENERGY_SEGMENTS = [
+  { value: 'now' as EnergyTab, label: 'Now' },
+  { value: 'all' as EnergyTab, label: 'All' },
+];
 
 function NowContent() {
   return (
@@ -182,7 +161,7 @@ export default function EnergyDashboardPage() {
               className="sticky top-0 -mx-ha-3 px-ha-3 lg:-ml-14 lg:pl-14 lg:-mr-ha-5 lg:pr-ha-5 pt-ha-1 pb-ha-3 z-30 backdrop-blur-md"
               style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 80%, transparent), transparent)' }}
             >
-              <EnergyTabs activeTab={activeTab} onTabChange={setActiveTab} />
+              <SegmentedControl segments={ENERGY_SEGMENTS} value={activeTab} onChange={setActiveTab} />
             </div>
 
             {/* Tab content */}

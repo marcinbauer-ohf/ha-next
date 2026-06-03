@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import Link from 'next/link';
-import { Icon } from '../ui/Icon';
+import { Icon, ListSection } from '../ui';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFeatureFlags } from '@/hooks';
 import {
@@ -49,18 +49,7 @@ function ProfileItem({ item, value, onNavigate }: ProfileItemProps) {
 }
 
 function Section({ title, children }: { title?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-ha-2">
-      {title && (
-        <h3 className="text-[12px] font-bold text-text-tertiary uppercase tracking-wider px-ha-2">
-          {title}
-        </h3>
-      )}
-      <div className="bg-surface-default rounded-ha-2xl border border-surface-lower overflow-hidden shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)]">
-        {children}
-      </div>
-    </div>
-  );
+  return <ListSection title={title} className="shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)]">{children}</ListSection>;
 }
 
 function DebugSectionHeader({ label }: { label: string }) {

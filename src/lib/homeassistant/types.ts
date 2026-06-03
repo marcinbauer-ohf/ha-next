@@ -46,6 +46,14 @@ export interface DeviceRegistryEntry {
 export interface AreaRegistryEntry {
   area_id: string;
   name: string;
+  floor_id?: string | null;
+}
+
+export interface FloorRegistryEntry {
+  floor_id: string;
+  name: string;
+  level?: number | null;
+  icon?: string | null;
 }
 
 export interface HistoryPoint {

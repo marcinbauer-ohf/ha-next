@@ -1,22 +1,28 @@
 'use client';
 
 import { clsx } from 'clsx';
+import { mdiPower } from '@mdi/js';
 import { Icon } from '../ui/Icon';
+import { RollingNumericValue } from '../ui/RollingNumericValue';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface DeviceCardV2Entity {
   entityId: string;
-  icon: string;        // MDI path
+  icon: string;
   name: string;
   state: string;
   active?: boolean;
-  entityPicture?: string; // URL from HA attributes
+  entityPicture?: string;
   toggleable?: boolean;
+  /** true for press-only entities (button, script) — renders action button instead of pill switch */
+  pressable?: boolean;
+  /** unit_of_measurement — used to style numeric read-only primary state prominently */
+  unit?: string;
   /** 'sm' = compact row (no icon). Default 'lg' */
   size?: 'sm' | 'lg';
-  onToggle?: () => void;    // called when icon/toggle is tapped
-  onClick?: () => void;     // called when row/hero is tapped → opens detail panel
+  onToggle?: () => void;
+  onClick?: () => void;
 }
 
 export interface DeviceCardV2Props {
@@ -24,6 +30,40 @@ export interface DeviceCardV2Props {
   secondary?: DeviceCardV2Entity[];
   selected?: boolean;
   className?: string;
+}
+
+// ── Controls ──────────────────────────────────────────────────────────────────
+
+/** Pill toggle switch for binary on/off entities */
+function ToggleSwitch({ on, onToggle }: { on?: boolean; onToggle: () => void }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      className={clsx(
+        'flex items-center shrink-0 w-11 h-[26px] rounded-full px-[4px] transition-colors',
+        on ? 'bg-green-500' : 'bg-surface-mid hover:bg-surface-lower',
+      )}
+      aria-checked={on}
+      role="switch"
+    >
+      <div className={clsx(
+        'w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200',
+        on ? 'translate-x-[18px]' : 'translate-x-0',
+      )} />
+    </button>
+  );
+}
+
+/** Pill action button (same dimensions as ToggleSwitch) for press-only entities */
+function ActionButton({ onPress }: { onPress: () => void }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onPress(); }}
+      className="flex items-center justify-center shrink-0 w-11 h-[26px] rounded-full bg-surface-mid hover:bg-surface-lower active:bg-surface-lower transition-colors"
+    >
+      <Icon path={mdiPower} size={14} className="text-text-secondary" />
+    </button>
+  );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -39,7 +79,7 @@ export function DeviceCardV2({ primary, secondary, selected, className }: Device
         className,
       )}
     >
-      {/* Primary entity row — ~2× secondary row height */}
+      {/* Primary entity — ~2× secondary row height */}
       <div
         className={clsx(
           'flex flex-col justify-between px-3 pt-3 pb-3 cursor-pointer rounded-t-[inherit] relative overflow-hidden transition-colors',
@@ -50,43 +90,45 @@ export function DeviceCardV2({ primary, secondary, selected, className }: Device
         )}
         onClick={primary.onClick}
       >
-        {/* Entity picture as subtle background when available */}
         {hasPicture && (
-          <img
-            src={primary.entityPicture}
-            alt=""
-            aria-hidden
-            className="absolute inset-0 w-full h-full object-cover opacity-20"
-          />
+          <img src={primary.entityPicture} alt="" aria-hidden
+            className="absolute inset-0 w-full h-full object-cover opacity-20" />
         )}
 
-        {/* Icon — top-left. Toggleable: rounded bg + interactions. Read-only: bare icon only. */}
-        <div className="relative">
-          {primary.toggleable ? (
-            <button
-              className={clsx(
-                'w-9 h-9 rounded-ha-lg flex items-center justify-center transition-all',
-                primary.active
-                  ? 'bg-green-500/20 text-green-500 hover:bg-green-500/30 active:bg-green-500/40'
-                  : 'bg-surface-mid text-text-secondary hover:bg-surface-lower active:bg-surface-lower',
-              )}
-              onClick={(e) => { e.stopPropagation(); primary.onToggle?.(); }}
-            >
-              <Icon path={primary.icon} size={20} />
-            </button>
+        {/* Top row: icon (identifier only) + toggle switch if controllable */}
+        <div className="relative flex items-center justify-between">
+          {/* Icon — always non-interactive, purely informational */}
+          <Icon
+            path={primary.icon}
+            size={20}
+            className={primary.active ? 'text-green-500' : 'text-text-tertiary'}
+          />
+
+          {/* Toggle switch for controllable; prominent state value for read-only */}
+          {primary.toggleable && primary.onToggle ? (
+            <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
           ) : (
-            <Icon
-              path={primary.icon}
-              size={20}
-              className={primary.active ? 'text-green-500' : 'text-text-tertiary'}
-            />
+            <div className="flex items-baseline gap-0.5 shrink-0">
+              <RollingNumericValue
+                value={primary.unit ? String(parseFloat(primary.state) || primary.state) : primary.state}
+                className={clsx(
+                  'font-bold font-mono leading-none',
+                  primary.unit ? 'text-2xl text-text-primary' : 'text-lg text-text-primary',
+                )}
+              />
+              {primary.unit && (
+                <span className="text-sm font-mono text-text-secondary">{primary.unit}</span>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Name + state — bottom */}
+        {/* Bottom: name, and state only for toggleable (read-only shows state top-right) */}
         <div className="relative">
           <p className="text-sm font-semibold text-text-primary leading-tight truncate">{primary.name}</p>
-          <p className="text-xs text-text-secondary mt-0.5">{primary.state}</p>
+          {primary.toggleable && (
+            <p className="text-sm font-medium font-mono text-text-secondary mt-0.5">{primary.state}</p>
+          )}
         </div>
       </div>
 
@@ -99,14 +141,16 @@ export function DeviceCardV2({ primary, secondary, selected, className }: Device
               className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-low transition-colors border-t border-surface-lower"
               onClick={entity.onClick}
             >
-              {/* Icon — hidden in compact ('sm') mode */}
+              {/* Icon — non-interactive identifier, hidden in compact mode */}
               {entity.size !== 'sm' && (
-                <div className={clsx(
-                  'w-6 h-6 flex items-center justify-center flex-shrink-0',
-                  entity.active ? 'text-green-500' : 'text-text-tertiary',
-                )}>
-                  <Icon path={entity.icon} size={16} />
-                </div>
+                <Icon
+                  path={entity.icon}
+                  size={16}
+                  className={clsx(
+                    'flex-shrink-0',
+                    entity.active ? 'text-green-500' : 'text-text-tertiary',
+                  )}
+                />
               )}
 
               {/* Name */}
@@ -117,10 +161,17 @@ export function DeviceCardV2({ primary, secondary, selected, className }: Device
                 {entity.name}
               </span>
 
-              {/* State */}
-              <span className="text-xs text-text-secondary tabular-nums shrink-0">
-                {entity.state}
-              </span>
+              {/* Dedicated control — suppressed for compact ('sm') rows */}
+              {entity.size !== 'sm' && entity.toggleable && entity.onToggle ? (
+                <ToggleSwitch on={entity.active} onToggle={entity.onToggle} />
+              ) : entity.size !== 'sm' && entity.pressable && entity.onToggle ? (
+                <ActionButton onPress={entity.onToggle} />
+              ) : (
+                <RollingNumericValue
+                  value={entity.state}
+                  className="text-sm font-medium font-mono text-text-secondary shrink-0"
+                />
+              )}
             </div>
           ))}
         </div>

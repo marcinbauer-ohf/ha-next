@@ -1,41 +1,77 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, CSSProperties, type ReactNode } from 'react';
 import { mdiHomeAssistant, mdiChevronDown, mdiChevronRight } from '@mdi/js';
 import { clsx } from 'clsx';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
-import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
+import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
+import { DashboardSidePanel } from '@/components/layout/DashboardSidePanel';
+import { ModalSheet } from '@/components/layout/ModalSheet';
 import { MobileSummaryRow } from '@/components/sections';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
-import { DashboardSidePanel } from '@/components/layout/DashboardSidePanel';
 import { PullToRevealPanel } from '@/components/sections';
 import { useTheme, useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig } from '@/hooks';
 import { usePullToRevealContext, useHeader } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
 import {
-  entityDomain, friendlyName, stateLabel, isOn, TOGGLEABLE,
+  entityDomain, friendlyName, entityLabel, stateLabel, isOn, TOGGLEABLE,
   domainIcon, SECTION_ORDER, SECTION_TITLES,
 } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
-function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
+const SECTION_COLLAPSE_KEY = 'ha_section_collapsed';
+
+function loadCollapsed(): Record<string, boolean> {
+  try { return JSON.parse(localStorage.getItem(SECTION_COLLAPSE_KEY) ?? '{}'); } catch { return {}; }
+}
+
+function Section({ sectionKey, title, count, children }: { sectionKey: string; title: string; count: number; children: React.ReactNode }) {
+  const [open, setOpen] = useState(() => {
+    const collapsed = loadCollapsed();
+    return collapsed[sectionKey] !== true;
+  });
+
   if (count === 0) return null;
+
+  function toggle() {
+    setOpen(v => {
+      const next = !v;
+      try {
+        const collapsed = loadCollapsed();
+        if (!next) collapsed[sectionKey] = true;
+        else delete collapsed[sectionKey];
+        localStorage.setItem(SECTION_COLLAPSE_KEY, JSON.stringify(collapsed));
+      } catch { /* noop */ }
+      return next;
+    });
+  }
+
   return (
     <div>
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-ha-2 w-full text-left mb-ha-3 group"
+      <div
+        style={{
+          top: 'var(--dashboard-sticky-top, 0px)',
+          background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 70%, transparent), transparent)',
+        }}
+        className="sticky z-[45] py-ha-2 mb-ha-1 backdrop-blur-md"
       >
-        <span className="text-sm font-semibold text-text-primary">{title}</span>
-        <span className="text-xs font-medium text-text-tertiary bg-surface-mid rounded-ha-pill px-ha-2 py-0.5">{count}</span>
-        <span className="ml-auto text-text-secondary group-hover:text-text-primary transition-colors">
-          <Icon path={open ? mdiChevronDown : mdiChevronRight} size={18} />
-        </span>
-      </button>
+        <button
+          onClick={toggle}
+          className="flex items-center gap-ha-2 text-left group"
+        >
+          <span className="text-base font-semibold text-text-primary">{title}</span>
+          <Icon
+            path={open ? mdiChevronDown : mdiChevronRight}
+            size={18}
+            className="text-text-secondary group-hover:text-text-primary transition-colors"
+          />
+        </button>
+      </div>
+
       {open && (
         <div className="grid gap-ha-3 items-start grid-cols-2 lg:grid-cols-3">
           {children}
@@ -51,18 +87,20 @@ export default function DashboardPage() {
   const { background } = useTheme();
   const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
   const scrollableRef = useRef<HTMLElement | null>(null);
+  const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const { isRevealed } = usePullToRevealContext();
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
   const [dashboardReady, setDashboardReady] = useState(false);
   const { setHeader } = useHeader();
-  const { toggleEntity } = useHomeAssistant();
+  const { toggleEntity, haUrl } = useHomeAssistant();
 
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<'entity' | 'edit'>('entity');
 
-  const { devices, areas, loading } = useDevices();
+  const { devices, areas, areaReg, floors, loading } = useDevices();
+  const [activeFloorId, setActiveFloorId] = useState<string | null>(null);
   const { getConfig, setConfig } = useDeviceCardConfig();
 
   useEffect(() => {
@@ -98,6 +136,26 @@ export default function DashboardPage() {
     window.addEventListener('resize', update);
     return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
   }, []);
+
+  // Track sticky header height so section headers stick just below it
+  useEffect(() => {
+    const el = stickyHeaderRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(([entry]) => {
+      document.documentElement.style.setProperty(
+        '--dashboard-sticky-top',
+        `${entry.contentRect.height}px`,
+      );
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  // area_id → floor_id lookup
+  const areaFloorMap = useMemo<Map<string, string | null>>(
+    () => new Map(areaReg.map(a => [a.area_id, a.floor_id ?? null])),
+    [areaReg],
+  );
 
   const sections = useMemo(() => {
     type Sec = { key: string; title: string; devices: HassDevice[] };
@@ -135,39 +193,46 @@ export default function DashboardPage() {
     return ordered;
   }, [devices, areas]);
 
+  // Filtered sections for the active floor tab
+  const visibleSections = useMemo(() => {
+    if (!activeFloorId || floors.length < 2) return sections;
+    return sections.filter(s => {
+      const floorId = areaFloorMap.get(s.key);
+      return floorId === activeFloorId;
+    });
+  }, [sections, activeFloorId, floors, areaFloorMap]);
+
   const selectedDevice = useMemo(
     () => devices.find(d => d.id === selectedDeviceId) ?? null,
     [devices, selectedDeviceId],
   );
-  const selectedEntity = useMemo(
-    () => selectedDevice?.entities.find(e => e.entity_id === selectedEntityId) ?? null,
-    [selectedDevice, selectedEntityId],
-  );
-
-  // Other visible entities on the same device (secondary section, excluding the selected one)
-  const otherPanelEntities = useMemo(() => {
-    if (!selectedDevice || !selectedEntityId) return [];
+  // All visible entities for the selected device in stable order — panel uses this as its list
+  const allPanelEntities = useMemo(() => {
+    if (!selectedDevice) return [];
     const config = getConfig(selectedDevice.id);
     const visibleIds = config.slots.length === 0
-      ? selectedDevice.entities.map(e => e.entity_id)
+      ? selectedDevice.entities.slice(0, 1).map(e => e.entity_id) // default: primary only
       : config.slots.filter(s => s.section === 'primary' || s.section === 'secondary').map(s => s.entity_id);
-    return visibleIds
-      .filter(id => id !== selectedEntityId)
-      .flatMap(id => {
-        const e = selectedDevice.entities.find(ent => ent.entity_id === id);
-        if (!e) return [];
-        return [{
-          entityId: e.entity_id,
-          icon: domainIcon(e),
-          name: friendlyName(e),
-          state: stateLabel(e),
-          active: isOn(e),
-          toggleable: TOGGLEABLE.has(entityDomain(e)),
-          onToggle: TOGGLEABLE.has(entityDomain(e)) ? () => toggleEntity(e.entity_id, e.state) : undefined,
-          onClick: () => selectEntity(selectedDevice.id, e.entity_id),
-        }];
-      });
-  }, [selectedDevice, selectedEntityId, getConfig, toggleEntity]);
+    return visibleIds.flatMap(id => {
+      const e = selectedDevice.entities.find(ent => ent.entity_id === id);
+      if (!e) return [];
+      const dom = entityDomain(e);
+      const isToggleable = TOGGLEABLE.has(dom);
+      const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
+      return [{
+        entityId: e.entity_id,
+        icon: domainIcon(e),
+        name: entityLabel(e, selectedDevice.name),
+        state: stateLabel(e),
+        active: isOn(e),
+        toggleable: isToggleable,
+        pressable: isPressable,
+        unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
+        entityPicture: (() => { const p = e.attributes.entity_picture as string | undefined; return p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined; })(),
+        onToggle: (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
+      }];
+    });
+  }, [selectedDevice, getConfig, toggleEntity]);
 
   function selectEntity(deviceId: string, entityId: string) {
     setSelectedDeviceId(deviceId);
@@ -222,7 +287,7 @@ export default function DashboardPage() {
         )}
         style={contentStyle}
       >
-        <div className={clsx('h-full flex', selectedDeviceId ? 'gap-ha-3' : '')}>
+        <div className={clsx('h-full flex', panelMode === 'edit' && selectedDevice ? 'gap-ha-3' : '')} >
           {/* Dashboard surface */}
           <div
             className={clsx(
@@ -248,7 +313,23 @@ export default function DashboardPage() {
               )}
               data-scrollable="dashboard"
             >
-              <MobileSummaryRow fullBleed={isMobileImmersive} />
+              {/* Sticky header: summary badges + optional floor tabs */}
+              <div ref={stickyHeaderRef} className="sticky top-0 z-[60]">
+                <MobileSummaryRow
+                  fullBleed={isMobileImmersive}
+                  noSticky
+                  extraContent={floors.length >= 2 ? (
+                    <SegmentedControl
+                      segments={[
+                        { value: '__all__', label: 'All' },
+                        ...floors.map(f => ({ value: f.floor_id, label: f.name })),
+                      ]}
+                      value={activeFloorId ?? '__all__'}
+                      onChange={v => setActiveFloorId(v === '__all__' ? null : v)}
+                    />
+                  ) : undefined}
+                />
+              </div>
 
               <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full space-y-ha-6">
                 <ApplicationViewNotice />
@@ -261,14 +342,14 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {!loading && sections.length === 0 && (
+                {!loading && visibleSections.length === 0 && (
                   <p className="text-sm text-text-secondary text-center py-ha-8">
                     No devices found. Connect to Home Assistant to see your devices.
                   </p>
                 )}
 
-                {sections.map(({ key, title, devices: sectionDevices }) => (
-                  <Section key={key} title={title} count={sectionDevices.length}>
+                {visibleSections.map(({ key, title, devices: sectionDevices }) => (
+                  <Section key={key} sectionKey={key} title={title} count={sectionDevices.length}>
                     {sectionDevices.map(device => {
                       if (!device.primaryEntity) return null;
                       const config = getConfig(device.id);
@@ -294,7 +375,8 @@ export default function DashboardPage() {
                             name: device.name,
                             state: stateLabel(primaryEntity),
                             active: isOn(primaryEntity),
-                            entityPicture: (primaryEntity.attributes.entity_picture as string | undefined) ?? undefined,
+                            entityPicture: (() => { const p = primaryEntity.attributes.entity_picture as string | undefined; return p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined; })(),
+                            unit: (primaryEntity.attributes.unit_of_measurement as string | undefined) ?? undefined,
                             toggleable: TOGGLEABLE.has(entityDomain(primaryEntity)),
                             onToggle: TOGGLEABLE.has(entityDomain(primaryEntity)) ? () => toggleEntity(primaryEntity.entity_id, primaryEntity.state) : undefined,
                             onClick: () => selectEntity(device.id, primaryEntity.entity_id),
@@ -302,15 +384,19 @@ export default function DashboardPage() {
                           secondary={secondarySlotInfos.flatMap(slot => {
                             const e = device.entities.find(ent => ent.entity_id === slot.entity_id);
                             if (!e) return [];
+                            const dom = entityDomain(e);
+                            const isToggleable = TOGGLEABLE.has(dom);
+                            const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
                             return [{
                               entityId: e.entity_id,
                               icon: domainIcon(e),
-                              name: friendlyName(e),
+                              name: entityLabel(e, device.name),
                               state: stateLabel(e),
                               active: isOn(e),
                               size: slot.size,
-                              toggleable: TOGGLEABLE.has(entityDomain(e)),
-                              onToggle: TOGGLEABLE.has(entityDomain(e)) ? () => toggleEntity(e.entity_id, e.state) : undefined,
+                              toggleable: isToggleable,
+                              pressable: isPressable,
+                              onToggle: (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
                               onClick: () => selectEntity(device.id, e.entity_id),
                             }];
                           })}
@@ -323,8 +409,21 @@ export default function DashboardPage() {
             </main>
           </div>
 
-          {/* Side panel — entity detail or card edit */}
-          <DashboardSidePanel open={!!selectedDeviceId} onClose={closePanel}>
+          {/* Entity detail — modal dialog */}
+          <ModalSheet open={panelMode === 'entity' && !!selectedDevice} onClose={closePanel}>
+            {selectedDevice && panelMode === 'entity' && allPanelEntities.length > 0 && (
+              <EntityDetailPanel
+                initialEntityId={selectedEntityId ?? allPanelEntities[0].entityId}
+                entities={allPanelEntities}
+                deviceName={selectedDevice.name}
+                onClose={closePanel}
+                onEditCard={() => setPanelMode('edit')}
+              />
+            )}
+          </ModalSheet>
+
+          {/* Card edit — side panel */}
+          <DashboardSidePanel open={panelMode === 'edit' && !!selectedDevice} onClose={closePanel}>
             {selectedDevice && panelMode === 'edit' && (
               <DeviceCardEditPanel
                 device={selectedDevice}
@@ -332,22 +431,6 @@ export default function DashboardPage() {
                 onSave={cfg => setConfig(selectedDevice.id, cfg)}
                 onBack={() => setPanelMode('entity')}
                 onClose={closePanel}
-              />
-            )}
-            {selectedDevice && selectedEntity && panelMode === 'entity' && (
-              <EntityDetailPanel
-                entityId={selectedEntity.entity_id}
-                name={friendlyName(selectedEntity)}
-                state={stateLabel(selectedEntity)}
-                icon={domainIcon(selectedEntity)}
-                active={isOn(selectedEntity)}
-                toggleable={TOGGLEABLE.has(entityDomain(selectedEntity))}
-                unit={(selectedEntity.attributes.unit_of_measurement as string | undefined) ?? undefined}
-                deviceName={selectedDevice.name}
-                otherEntities={otherPanelEntities}
-                onToggle={TOGGLEABLE.has(entityDomain(selectedEntity)) ? () => toggleEntity(selectedEntity.entity_id, selectedEntity.state) : undefined}
-                onClose={closePanel}
-                onEditCard={() => setPanelMode('edit')}
               />
             )}
           </DashboardSidePanel>

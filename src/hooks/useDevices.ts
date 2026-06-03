@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useHomeAssistant, useHomeAssistantEntities } from './useHomeAssistant';
-import type { EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry } from '@/lib/homeassistant/types';
+import type { EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry } from '@/lib/homeassistant/types';
 import type { HassEntities, HassEntity } from '@/types';
 
 const DOMAIN_PRIORITY = [
@@ -133,13 +133,14 @@ function buildFromEntities(allEntities: HassEntities): HassDevice[] {
 
 // ── Hook ──────────────────────────────────────────────────────────────────
 
-export function useDevices(): { devices: HassDevice[]; areas: Map<string, string>; loading: boolean } {
-  const { connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry } = useHomeAssistant();
+export function useDevices(): { devices: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; loading: boolean } {
+  const { connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry } = useHomeAssistant();
   const allEntities = useHomeAssistantEntities();
 
   const [entityReg, setEntityReg] = useState<EntityRegistryEntry[]>([]);
   const [deviceReg, setDeviceReg] = useState<DeviceRegistryEntry[]>([]);
   const [areaReg, setAreaReg] = useState<AreaRegistryEntry[]>([]);
+  const [floorReg, setFloorReg] = useState<FloorRegistryEntry[]>([]);
   const [regLoading, setRegLoading] = useState(false);
 
   useEffect(() => {
@@ -149,12 +150,13 @@ export function useDevices(): { devices: HassDevice[]; areas: Map<string, string
 
     async function load() {
       try {
-        const [e, d, a] = await Promise.all([
+        const [e, d, a, f] = await Promise.all([
           getEntityRegistry(),
           getDeviceRegistry(),
           getAreaRegistry(),
+          getFloorRegistry(),
         ]);
-        if (!cancelled) { setEntityReg(e); setDeviceReg(d); setAreaReg(a); }
+        if (!cancelled) { setEntityReg(e); setDeviceReg(d); setAreaReg(a); setFloorReg(f); }
       } finally {
         if (!cancelled) setRegLoading(false);
       }
@@ -162,7 +164,7 @@ export function useDevices(): { devices: HassDevice[]; areas: Map<string, string
 
     load();
     return () => { cancelled = true; };
-  }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry]);
+  }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry]);
 
   const devices = useMemo<HassDevice[]>(() => {
     if (connected && entityReg.length > 0 && deviceReg.length > 0) {
@@ -177,9 +179,17 @@ export function useDevices(): { devices: HassDevice[]; areas: Map<string, string
     [areaReg],
   );
 
+  // floors sorted by level
+  const floors = useMemo<FloorRegistryEntry[]>(
+    () => [...floorReg].sort((a, b) => (a.level ?? 0) - (b.level ?? 0)),
+    [floorReg],
+  );
+
   return {
     devices,
     areas,
+    areaReg,
+    floors,
     loading: connected && regLoading,
   };
 }

@@ -21,9 +21,10 @@ import {
   getEntityRegistry as getEntityRegistryAction,
   getDeviceRegistry as getDeviceRegistryAction,
   getAreaRegistry as getAreaRegistryAction,
+  getFloorRegistry as getFloorRegistryAction,
   getEntityHistory as getEntityHistoryAction,
 } from '@/lib/homeassistant';
-import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, HistoryPoint } from '@/lib/homeassistant';
+import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 
@@ -47,6 +48,7 @@ interface HomeAssistantContextValue {
   getEntityRegistry: () => Promise<EntityRegistryEntry[]>;
   getDeviceRegistry: () => Promise<DeviceRegistryEntry[]>;
   getAreaRegistry: () => Promise<AreaRegistryEntry[]>;
+  getFloorRegistry: () => Promise<FloorRegistryEntry[]>;
   getEntityHistory: (entityId: string, hoursBack?: number) => Promise<HistoryPoint[]>;
   reconnect: () => Promise<void>;
   saveCredentials: (url: string, token: string) => Promise<void>;
@@ -246,6 +248,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const getEntityRegistry = useCallback(() => getEntityRegistryAction(), []);
   const getDeviceRegistry = useCallback(() => getDeviceRegistryAction(), []);
   const getAreaRegistry = useCallback(() => getAreaRegistryAction(), []);
+  const getFloorRegistry = useCallback(() => getFloorRegistryAction(), []);
   const getEntityHistory = useCallback((entityId: string, hoursBack?: number) => getEntityHistoryAction(entityId, hoursBack), []);
 
   const setMockEntity = useCallback((entityId: string, entity: HassEntity | null) => {
@@ -282,6 +285,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getEntityRegistry,
     getDeviceRegistry,
     getAreaRegistry,
+    getFloorRegistry,
     getEntityHistory,
     reconnect,
     saveCredentials,
@@ -301,6 +305,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getEntityRegistry,
     getDeviceRegistry,
     getAreaRegistry,
+    getFloorRegistry,
     getEntityHistory,
     reconnect,
     saveCredentials,

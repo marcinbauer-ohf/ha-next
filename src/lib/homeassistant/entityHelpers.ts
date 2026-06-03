@@ -33,6 +33,18 @@ export function friendlyName(entity: HassEntity): string {
   return (entity.attributes.friendly_name as string | undefined) ?? entity.entity_id;
 }
 
+/** Strip device name prefix from entity name for use in contexts where device is already shown. */
+export function entityLabel(entity: HassEntity, deviceName: string): string {
+  const name = friendlyName(entity);
+  const prefix = deviceName.trim().toLowerCase();
+  const lower = name.toLowerCase();
+  if (lower.startsWith(prefix)) {
+    const stripped = name.slice(deviceName.trim().length).replace(/^[\s\-–—_]+/, '').trim();
+    return stripped || name;
+  }
+  return name;
+}
+
 export function stateLabel(entity: HassEntity): string {
   const s = entity.state;
   if (s === 'unavailable') return 'Unavailable';

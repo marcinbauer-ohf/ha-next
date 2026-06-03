@@ -4,3 +4,6 @@ export { Button } from './Button';
 export { HALogo } from './HALogo';
 export { CircularProgress } from './CircularProgress';
 export { InfoSidebar } from './InfoSidebar';
+export { ListSection } from './ListSection';
+export { SegmentedControl } from './SegmentedControl';
+export { RollingNumericValue } from './RollingNumericValue';

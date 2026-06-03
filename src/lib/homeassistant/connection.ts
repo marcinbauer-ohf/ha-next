@@ -7,7 +7,7 @@ import {
   ERR_CANNOT_CONNECT,
   ERR_INVALID_AUTH,
 } from 'home-assistant-js-websocket';
-import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, HistoryPoint } from './types';
+import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint } from './types';
 
 let connection: Connection | null = null;
 let entitySubscription: (() => void) | null = null;
@@ -159,6 +159,16 @@ export async function getAreaRegistry(): Promise<AreaRegistryEntry[]> {
   if (!conn) return [];
   try {
     return await conn.sendMessagePromise<AreaRegistryEntry[]>({ type: 'config/area_registry/list' }) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getFloorRegistry(): Promise<FloorRegistryEntry[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  try {
+    return await conn.sendMessagePromise<FloorRegistryEntry[]>({ type: 'config/floor_registry/list' }) ?? [];
   } catch {
     return [];
   }

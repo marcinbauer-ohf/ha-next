@@ -331,9 +331,13 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
 
 interface MobileSummaryRowProps {
   fullBleed?: boolean;
+  /** Pass true when the parent is already sticky — prevents double sticky stacking */
+  noSticky?: boolean;
+  /** Extra content rendered below the chips row (e.g. floor tabs) */
+  extraContent?: React.ReactNode;
 }
 
-export function MobileSummaryRow({ fullBleed = false }: MobileSummaryRowProps) {
+export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraContent }: MobileSummaryRowProps) {
   const liveSummaryItems = useLiveSummaryItems();
   const [showLeftGradient, setShowLeftGradient] = useState(false);
   const [showRightGradient, setShowRightGradient] = useState(false);
@@ -368,7 +372,8 @@ export function MobileSummaryRow({ fullBleed = false }: MobileSummaryRowProps) {
   return (
     <div
       className={clsx(
-        'sticky top-0 lg:mx-0 lg:px-0 pt-ha-4 pb-ha-3 z-[60] backdrop-blur-md w-full',
+        !noSticky && 'sticky top-0 z-[60]',
+        'lg:mx-0 lg:px-0 pt-ha-4 pb-ha-3 backdrop-blur-md w-full',
         fullBleed ? '' : '-mx-ha-1 px-ha-1'
       )}
       style={containerStyle}
@@ -402,13 +407,20 @@ export function MobileSummaryRow({ fullBleed = false }: MobileSummaryRowProps) {
           </div>
 
           {/* Right Gradient */}
-          <div 
+          <div
             className={`absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface-lower to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
               showRightGradient ? 'opacity-100' : 'opacity-0'
-            }`} 
+            }`}
           />
         </div>
       </div>
+
+      {/* Extra content (e.g. floor tabs) — same visual block, below chips */}
+      {extraContent && (
+        <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full pt-ha-2">
+          {extraContent}
+        </div>
+      )}
     </div>
   );
 }
