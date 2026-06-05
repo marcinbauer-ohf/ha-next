@@ -2,15 +2,15 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { HALogo } from '../ui/HALogo';
 import { MdiIcon } from '../ui/MdiIcon';
 import { CircularProgress } from '../ui/CircularProgress';
-import { ProfileContent } from '../profile';
 import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems } from '@/hooks';
+import { SettingsNavPanel } from '@/components/profile';
 import { usePullToRevealContext, useSearchContext } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
@@ -37,10 +37,8 @@ import {
   mdiDoorbellVideo,
   mdiSend,
   mdiPrinter3d,
-  mdiLayers,
   mdiViewDashboardOutline,
   mdiMenu,
-  mdiCog,
   mdiCheckCircle,
   mdiAlertCircle,
   mdiCloudCheck,
@@ -124,6 +122,7 @@ function isNavItemActive(currentPath: string, itemPath: string): boolean {
 
 export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAutoHiddenChange, editModeFade }: MobileNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { haUrl, callService } = useHomeAssistant();
   const { items } = useSidebarItems();
   const { isRevealed, close } = usePullToRevealContext();
@@ -943,29 +942,6 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     ];
   }, [apps, dashboards]);
 
-  const expandedSurfaceHeader = useMemo(() => {
-    if (expandedSurfaceTab === 'dashboards') {
-      return { title: 'Dashboards and Apps', icon: mdiLayers };
-    }
-    if (expandedSurfaceTab === 'search') {
-      return { title: 'Search', icon: mdiMagnify };
-    }
-    if (expandedSurfaceTab === 'widget') {
-      if (expandedWidgetType === 'release') return { title: "What's New", icon: mdiUpdate };
-      if (expandedWidgetType === 'media') return { title: 'Now Playing', icon: mdiPlay };
-      if (expandedWidgetType === 'timer') return { title: 'Timer', icon: mdiTimerOutline };
-      if (expandedWidgetType === 'camera') return { title: 'Camera Alert', icon: mdiDoorbellVideo };
-      if (expandedWidgetType === 'printer') return { title: '3D Printer', icon: mdiPrinter3d };
-      return { title: 'Activity', icon: mdiViewDashboardOutline };
-    }
-    if (expandedSurfaceTab === 'chat') {
-      return { title: 'Ask your home', icon: mdiMicrophone };
-    }
-    if (expandedSurfaceTab === 'settings') {
-      return { title: 'Settings', icon: mdiCog };
-    }
-    return { title: 'Dashboard', icon: mdiViewDashboardOutline };
-  }, [expandedSurfaceTab, expandedWidgetType]);
 
   const expandedSearchItems = expandedSearchQuery.trim()
     ? dashboardSearchResults
@@ -1350,7 +1326,17 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     }
 
     if (expandedSurfaceTab === 'settings') {
-      return <ProfileContent onNavigate={closeExpandedSurface} />;
+      return (
+        <div className="pb-8">
+          <SettingsNavPanel
+            activeSlug={null}
+            onSelect={(slug) => {
+              closeExpandedSurface();
+              router.push(`/settings/${slug}`);
+            }}
+          />
+        </div>
+      );
     }
 
     return (
@@ -1473,7 +1459,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
   return (
     <nav
-      className={`lg:hidden fixed inset-x-0 bottom-0 z-50 transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : ''}`}
+      className={`lg:hidden fixed inset-x-0 bottom-0 z-50 transition-[transform,opacity] duration-300 ${editModeFade ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}
       style={{ paddingBottom: `calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))` }}
       data-component="MobileNav"
       data-connection-status={connectionStatus ?? 'unknown'}
@@ -1491,15 +1477,18 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         type="button"
         aria-label="Close expanded panel"
         onClick={closeExpandedSurface}
-        className={`fixed inset-0 bg-black/45 backdrop-blur-[1px] ${
+        className={`fixed inset-0 backdrop-blur-[1px] ${
           isSheetVisible ? 'z-0' : '-z-10'
         } ${
           statusExpanded && !isBottomSheetDragging ? '' : 'pointer-events-none'
-        }`}
+        } ${isSettingsSurfaceVisible ? 'bg-black/60' : 'bg-black/45'}`}
         style={{ opacity: isSheetVisible ? 1 : 0 }}
       />
       <div className="relative z-10 px-edge">
-        <div className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] max-h-[calc(100svh-4rem)] overflow-hidden">
+        <div
+          className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] max-h-[calc(100svh-4rem)] overflow-hidden"
+          style={isSettingsSurfaceVisible ? { maxHeight: 'calc(100svh - 3rem)' } : undefined}
+        >
           <div className="relative rounded-[23px] bg-surface-default/95 backdrop-blur-md">
             <div className="flex flex-col px-edge pt-ha-1 pb-ha-4">
               <div className="flex justify-center py-0 mb-0">
@@ -1520,23 +1509,12 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                   isSheetVisible ? 'mb-ha-1' : 'mb-0 pointer-events-none'
                 }`}
                 style={{
-                  height: `calc((100svh - 4rem - 10rem) * ${sheetOpenProgress})`,
+                  height: isSettingsSurfaceVisible
+                    ? `calc((100svh - 3rem - 10rem) * ${sheetOpenProgress})`
+                    : `calc((100svh - 4rem - 10rem) * ${sheetOpenProgress})`,
                   opacity: Math.max(0, Math.min(1, sheetOpenProgress * 1.05)),
                 }}
               >
-                {expandedSurfaceTab !== 'search' && (
-                  <div className="flex-none flex items-center justify-between px-ha-1 py-ha-2 border-b border-surface-low">
-                    <h3 className="font-semibold text-text-primary">
-                      {expandedSurfaceHeader.title}
-                    </h3>
-                    <button
-                      onClick={closeExpandedSurface}
-                      className="p-1 hover:bg-surface-mid rounded-full text-text-secondary transition-colors"
-                    >
-                      <Icon path={mdiClose} size={24} />
-                    </button>
-                  </div>
-                )}
                 <div className="relative flex-1 min-h-0">
                   <div
                     className={`pointer-events-none absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-20 transition-opacity duration-200 ${

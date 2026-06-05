@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { mdiClose, mdiPencilOutline, mdiPower } from '@mdi/js';
+import { mdiClose, mdiPencilOutline, mdiPower, mdiChartAreaspline, mdiInformationOutline } from '@mdi/js';
 import { clsx } from 'clsx';
-import { Icon, ListSection, RollingNumericValue, SegmentedControl } from '../ui';
+import { Icon, ListSection, RollingNumericValue, SegmentedControl, HALoader } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { HistoryPoint } from '@/lib/homeassistant/types';
@@ -21,8 +21,8 @@ type TimeSpan = typeof TIME_SPANS[number]['value'];
 const AGGREGATIONS = [
   { value: 'auto',   label: 'Auto' },
   { value: 'raw',    label: 'Raw' },
-  { value: 'hourly', label: 'Hourly' },
-  { value: 'daily',  label: 'Daily' },
+  { value: 'hourly', label: 'Avg/h' },
+  { value: 'daily',  label: 'Avg/d' },
 ] as const;
 type Aggregation = typeof AGGREGATIONS[number]['value'];
 
@@ -72,12 +72,21 @@ export interface PanelEntity {
   onToggle?: () => void;
 }
 
+export interface DeviceMeta {
+  deviceId?: string;
+  manufacturer?: string;
+  model?: string;
+  areaName?: string;
+  allEntities?: { entityId: string; name: string; domain: string }[];
+}
+
 export interface EntityDetailPanelProps {
   /** Entity that was clicked — panel starts here, then manages selection internally */
   initialEntityId: string;
   /** ALL visible entities in stable order (primary first, then secondary) */
   entities: PanelEntity[];
   deviceName?: string;
+  deviceMeta?: DeviceMeta;
   onClose: () => void;
   onEditCard?: () => void;
 }
@@ -241,9 +250,9 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
           </div>
 
           {/* Sparkline — always reserves height to prevent layout jump */}
-          <div className="w-full" style={{ height: 56 }}>
+          <div className="w-full flex items-center" style={{ height: 56 }}>
             {isHistoryLoading ? (
-              <div className="w-full h-full rounded-ha-lg bg-surface-low animate-pulse" />
+              <HALoader size="sm" />
             ) : hasChart ? (
               <div className="w-full opacity-80">
                 <Sparkline
@@ -264,19 +273,67 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
               onChange={v => setTimeSpan(v as TimeSpan)}
               className="text-xs"
             />
-            <select
+            <SegmentedControl
+              segments={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
               value={aggregation}
-              onChange={e => setAggregation(e.target.value as Aggregation)}
-              className="text-xs font-medium bg-surface-mid text-text-secondary rounded-ha-lg px-2 py-1.5 border-0 outline-none cursor-pointer hover:bg-surface-lower transition-colors appearance-none pr-5 relative"
-              style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 24 24\'%3E%3Cpath fill=\'%23888\' d=\'M7 10l5 5 5-5z\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 4px center' }}
-            >
-              {AGGREGATIONS.map(a => (
-                <option key={a.value} value={a.value}>{a.label}</option>
-              ))}
-            </select>
+              onChange={v => setAggregation(v as Aggregation)}
+              className="text-xs"
+            />
           </div>
         </>
       )}
+      </div>
+    </div>
+  );
+}
+
+// ── Info tab ─────────────────────────────────────────────────────────────────
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 px-ha-4 py-ha-3">
+      <span className="text-sm text-text-secondary shrink-0">{label}</span>
+      <span className="text-sm text-text-primary text-right font-mono break-all">{value}</span>
+    </div>
+  );
+}
+
+function DeviceInfoTab({ deviceName, deviceMeta, entities }: {
+  deviceName?: string;
+  deviceMeta?: DeviceMeta;
+  entities: PanelEntity[];
+}) {
+  const rows: { label: string; value: string }[] = [];
+  if (deviceName) rows.push({ label: 'Device', value: deviceName });
+  if (deviceMeta?.areaName) rows.push({ label: 'Area', value: deviceMeta.areaName });
+  if (deviceMeta?.manufacturer) rows.push({ label: 'Manufacturer', value: deviceMeta.manufacturer });
+  if (deviceMeta?.model) rows.push({ label: 'Model', value: deviceMeta.model });
+  if (deviceMeta?.deviceId) rows.push({ label: 'Device ID', value: deviceMeta.deviceId });
+
+  const allEntities = deviceMeta?.allEntities ?? entities.map(e => ({
+    entityId: e.entityId,
+    name: e.name,
+    domain: e.entityId.split('.')[0],
+  }));
+
+  return (
+    <div className="flex-1 overflow-y-auto px-0 py-ha-2">
+      {rows.length > 0 && (
+        <div className="px-ha-4 mb-ha-4">
+          <ListSection>
+            {rows.map(r => <InfoRow key={r.label} label={r.label} value={r.value} />)}
+          </ListSection>
+        </div>
+      )}
+      <div className="px-ha-4">
+        <ListSection title={`Entities (${allEntities.length})`}>
+          {allEntities.map(e => (
+            <div key={e.entityId} className="flex items-center justify-between gap-4 px-ha-4 py-ha-3">
+              <span className="text-sm text-text-primary capitalize">{e.name || e.domain}</span>
+              <span className="text-xs text-text-tertiary font-mono truncate max-w-[55%] text-right">{e.entityId}</span>
+            </div>
+          ))}
+        </ListSection>
       </div>
     </div>
   );
@@ -288,14 +345,17 @@ export function EntityDetailPanel({
   initialEntityId,
   entities,
   deviceName,
+  deviceMeta,
   onClose,
   onEditCard,
 }: EntityDetailPanelProps) {
   const [activeEntityId, setActiveEntityId] = useState(initialEntityId);
+  const [tab, setTab] = useState<'stats' | 'info'>('stats');
 
   // When the user clicks a different card on the dashboard, reset to the new entity
   useEffect(() => {
     setActiveEntityId(initialEntityId);
+    setTab('stats');
   }, [initialEntityId]);
 
   const activeEntity = entities.find(e => e.entityId === activeEntityId) ?? entities[0];
@@ -308,6 +368,29 @@ export function EntityDetailPanel({
           {deviceName && (
             <p className="text-xs text-text-tertiary truncate">{deviceName}</p>
           )}
+        </div>
+        {/* Tab toggle */}
+        <div className="inline-flex items-center bg-surface-low rounded-ha-lg p-[3px] gap-[2px] shrink-0">
+          <button
+            onClick={() => setTab('stats')}
+            className={clsx(
+              'flex items-center justify-center w-8 h-7 rounded-[7px] transition-all duration-150',
+              tab === 'stats' ? 'bg-surface-default text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary',
+            )}
+            title="Stats"
+          >
+            <Icon path={mdiChartAreaspline} size={15} />
+          </button>
+          <button
+            onClick={() => setTab('info')}
+            className={clsx(
+              'flex items-center justify-center w-8 h-7 rounded-[7px] transition-all duration-150',
+              tab === 'info' ? 'bg-surface-default text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary',
+            )}
+            title="Device info"
+          >
+            <Icon path={mdiInformationOutline} size={15} />
+          </button>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {onEditCard && (
@@ -330,6 +413,10 @@ export function EntityDetailPanel({
 
       <div className="h-px bg-surface-lower mx-ha-4 shrink-0" />
 
+      {tab === 'info' ? (
+        <DeviceInfoTab deviceName={deviceName} deviceMeta={deviceMeta} entities={entities} />
+      ) : (
+        <div className="contents">
       {/* Detail section — big value/toggle, updates in place */}
       {activeEntity && <EntityDetailBody key={activeEntity.entityId} entity={activeEntity} />}
 
@@ -396,6 +483,8 @@ export function EntityDetailPanel({
               );
             })}
           </ListSection>
+        </div>
+      )}
         </div>
       )}
     </div>

@@ -20,6 +20,7 @@ import {
 import { SummaryCard } from '../cards/SummaryCard';
 import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
 import { RingShaderBackground } from './RingShaderBackground';
+import { SystemStatusPanel } from './SystemStatusPanel';
 import {
   areActivityDataEqual,
   areScreensaverDataEqual,
@@ -161,6 +162,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const [dragDistance, setDragDistance] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
+  const [statusPanelOpen, setStatusPanelOpen] = useState(false);
   const dragStartY = useRef<number | null>(null);
   const activePointerId = useRef<number | null>(null);
   const dragDistanceRef = useRef(0);
@@ -394,7 +396,10 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         opacity: isDismissing ? 0 : isDragging ? 1 - dragProgress * 0.3 : undefined,
       }}
       onClick={() => {
-        // Only dismiss on click for desktop
+        if (statusPanelOpen) {
+          setStatusPanelOpen(false);
+          return;
+        }
         if (window.innerWidth >= 1024) {
           onDismiss();
         }
@@ -524,74 +529,62 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         </div>
       )}
 
-      {/* User and status icons */}
-      <div className={`flex items-center gap-ha-4 bg-surface-low rounded-ha-pill px-ha-4 py-ha-3 ${activeActivityCards.length > 0 ? 'mt-6' : 'mt-8'}`}>
-        {/* User avatar and name */}
-        <div className="flex items-center gap-ha-3">
+      {/* Status pill — clickable, opens detail panel */}
+      <div className={`relative ${activeActivityCards.length > 0 ? 'mt-6' : 'mt-8'}`}>
+        {/* Detail panel — appears above the pill */}
+        {statusPanelOpen && (
+          <div
+            className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-80 max-h-[55vh] overflow-y-auto scrollbar-hide bg-surface-default/95 backdrop-blur-md rounded-ha-3xl p-ha-5 shadow-2xl border border-surface-lower z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SystemStatusPanel />
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setStatusPanelOpen((prev) => !prev);
+          }}
+          className={`flex items-center gap-ha-4 rounded-ha-pill px-ha-4 py-ha-3 transition-colors ${
+            statusPanelOpen ? 'bg-surface-default' : 'bg-surface-low hover:bg-surface-mid'
+          }`}
+        >
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />
-        </div>
 
-        {/* Divider */}
-        <div className="w-px h-6 bg-surface-lower" />
+          <div className="w-px h-6 bg-surface-lower" />
 
-        {/* Updates indicator */}
-        <Tooltip content={pendingUpdates > 0 ? `Updates: ${pendingUpdates} update${pendingUpdates > 1 ? 's' : ''} available` : 'Updates: System is up to date'}>
-          <div className="relative cursor-help">
-            <Icon
-              path={mdiUpdate}
-              size={22}
-              className="text-text-secondary"
-            />
-            {pendingUpdates > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-ha-blue rounded-full w-2.5 h-2.5" />
-            )}
-          </div>
-        </Tooltip>
-
-        {/* Remote access indicator */}
-        <Tooltip content={isRemoteConnected ? 'Remote Access: Available via internet' : 'Remote Access: Not exposed to internet'}>
-          <div className="relative cursor-help">
-            <Icon
-              path={mdiWeb}
-              size={22}
-              className="text-text-secondary"
-            />
-            {isRemoteConnected && (
-              <span className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full w-2.5 h-2.5" />
-            )}
-            {!isRemoteConnected && (
-              <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2.5 h-2.5" />
-            )}
-          </div>
-        </Tooltip>
-
-        {/* Notifications indicator */}
-        <Tooltip content={notificationCount > 0 ? `Notifications: ${notificationCount} active` : 'Notifications: None'}>
-          <div className="relative cursor-help">
-            <Icon
-              path={mdiBell}
-              size={22}
-              className="text-text-secondary"
-            />
+          {/* Notifications */}
+          <div className="relative">
+            <Icon path={mdiBell} size={22} className="text-text-secondary" />
             {notificationCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-yellow-500 rounded-full w-2.5 h-2.5" />
             )}
           </div>
-        </Tooltip>
 
-        {/* Offline devices indicator */}
-        {offlineCount > 0 && (
-          <Tooltip content={`Offline: ${offlineCount} device${offlineCount > 1 ? 's' : ''} unavailable`}>
-            <div className="relative cursor-help">
-              <Icon
-                path={mdiAlertCircle}
-                size={22}
-                className="text-text-secondary"
-              />
+          {/* Updates */}
+          <div className="relative">
+            <Icon path={mdiUpdate} size={22} className="text-text-secondary" />
+            {pendingUpdates > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-ha-blue rounded-full w-2.5 h-2.5" />
+            )}
+          </div>
+
+          {/* Issues */}
+          <div className="relative">
+            <Icon path={mdiAlertCircle} size={22} className="text-text-secondary" />
+            {offlineCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2.5 h-2.5 animate-pulse" />
-            </div>
-          </Tooltip>
-        )}
+            )}
+          </div>
+
+          {/* Connectivity */}
+          <div className="relative">
+            <Icon path={mdiWeb} size={22} className="text-text-secondary" />
+            <span className={`absolute -top-0.5 -right-0.5 rounded-full w-2.5 h-2.5 ${isRemoteConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+          </div>
+        </button>
       </div>
 
       {/* Desktop: Hint to dismiss */}

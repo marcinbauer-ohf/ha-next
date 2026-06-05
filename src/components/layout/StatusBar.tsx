@@ -217,12 +217,11 @@ export type ConnectionStatusType = 'connecting' | 'connected' | 'error' | null;
 
 interface StatusBarProps {
   connectionStatus?: ConnectionStatusType;
-  profileOpen?: boolean;
   onProfileToggle?: () => void;
   editModeFade?: boolean;
 }
 
-export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, editModeFade }: StatusBarProps) {
+export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: StatusBarProps) {
   const pathname = usePathname();
   const { callService, haUrl } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
@@ -847,9 +846,7 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
         {/* User profile avatar - Fixed */}
         <button
           onClick={onProfileToggle}
-          className={`p-ha-1 rounded-full transition-all flex-shrink-0 ${
-            profileOpen ? 'ring-2 ring-ha-blue' : 'hover:ring-2 hover:ring-surface-lower'
-          }`}
+          className="p-ha-1 rounded-full transition-all flex-shrink-0 hover:ring-2 hover:ring-surface-lower"
           style={{ marginLeft: '8px' }}
         >
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />
@@ -868,13 +865,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                 transition={activityWindowTransition}
               >
                 <div className="p-ha-4 flex flex-col gap-ha-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Ask {chatContextForPrompt}</span>
-                    <button onClick={(e) => { e.stopPropagation(); setExpandedWidgetId(null); }} className="p-ha-1 hover:bg-surface-low rounded-full">
-                      <Icon path={mdiClose} size={18} className="text-text-secondary" />
-                    </button>
-                  </div>
-
                   <div className="flex flex-col gap-ha-4 h-full min-h-[180px] justify-center items-center text-center px-ha-4">
                     <div className="w-16 h-16 bg-ha-blue/10 rounded-full flex items-center justify-center mb-ha-2">
                        <Icon path={mdiMicrophone} size={32} className="text-ha-blue" />
@@ -999,9 +989,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
               {showPreview && (
                 <motion.div
                   key="release-notes-preview"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
                   onMouseEnter={() => showActivityPreview('release-notes-widget')}
                   onMouseLeave={() => scheduleHideActivityPreview('release-notes-widget')}
                   className="fixed -translate-x-1/2 z-50 w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
@@ -1009,10 +999,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                   transition={activityWindowTransition}
                 >
                   <div className="p-ha-4 flex flex-col gap-ha-3">
-                    <div className="w-full flex justify-between items-center pl-1">
-                      <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest pl-1">What&apos;s New</span>
-                    </div>
-
                     <div className="w-full rounded-ha-xl bg-green-500/10 border border-green-500/20 p-ha-3">
                       <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1">{releaseNote.version}</p>
                       <h3 className="text-sm font-bold text-text-primary">{releaseNote.name}</h3>
@@ -1037,9 +1023,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     <motion.div
                       key="release-notes-expanded"
                       ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+                      initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.97 }}
                       className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                       style={activityWidgetView === 'dock' ? activityFlyoutStyles['release-notes-widget'] : activityDialogStyle}
                       transition={activityWindowTransition}
@@ -1047,9 +1033,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                       <div className="p-ha-4 flex flex-col gap-ha-3">
                         <div
                           onMouseDown={handleActivityDialogHeaderMouseDown}
-                          className={`w-full flex justify-between items-center pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                          className={`w-full flex justify-end items-center ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                         >
-                          <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest pl-1">What&apos;s New</span>
                           {renderActivityWindowActions(
                             (e) => { e.stopPropagation(); setExpandedWidgetId(visibleReleaseNotes.length > 1 ? 'list-release-notes' : null); },
                             visibleReleaseNotes.length > 1 ? mdiChevronUp : mdiClose
@@ -1107,9 +1092,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     <motion.div
                       key="release-notes-list"
                       ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
+                      initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.97 }}
                       className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                       style={activityWidgetView === 'dock' ? activityFlyoutStyles['release-notes-widget'] : activityDialogStyle}
                       transition={activityWindowTransition}
@@ -1117,9 +1102,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                       <div className="p-ha-4">
                         <div
                           onMouseDown={handleActivityDialogHeaderMouseDown}
-                          className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                          className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                         >
-                          <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest pl-1">What&apos;s New ({visibleReleaseNotes.length})</span>
                           {renderActivityWindowActions(
                             (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
                             mdiClose
@@ -1232,9 +1216,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
               {showPreview && (
                 <motion.div
                   key="media-preview"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
                   onMouseEnter={() => showActivityPreview('media-widget')}
                   onMouseLeave={() => scheduleHideActivityPreview('media-widget')}
                   className="fixed -translate-x-1/2 z-50 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
@@ -1243,10 +1227,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                 >
                   {activePlayers.length > 1 ? (
                     <div className="p-ha-4">
-                      <div className="w-full mb-ha-3 pl-1">
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Media Players ({activePlayers.length})</span>
-                        <p className="mt-1 text-[11px] text-text-secondary pl-1">Choose a player to preview.</p>
-                      </div>
                       <div className="space-y-ha-2">
                         {activePlayers.map((previewPlayer) => (
                           <button
@@ -1272,10 +1252,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     </div>
                   ) : (
                     <div className="p-ha-4 flex flex-col items-center">
-                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Now Playing</span>
-                      </div>
-
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-lg border border-surface-low">
                         {player.entityPicture ? (
                           <img src={getEntityPictureUrl(player.entityPicture)} alt="" className="w-full h-full object-cover" />
@@ -1324,9 +1300,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                   <motion.div
                     key="media-expanded"
                     ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                     style={activityWidgetView === 'dock' ? activityFlyoutStyles['media-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
@@ -1334,9 +1310,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     <div className="p-ha-4 flex flex-col items-center">
                       <div
                         onMouseDown={handleActivityDialogHeaderMouseDown}
-                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                        className={`w-full flex justify-end items-center ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                       >
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Now Playing</span>
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(activePlayers.length > 1 ? 'list-media' : null); },
                           activePlayers.length > 1 ? mdiChevronUp : mdiClose
@@ -1406,9 +1381,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                   <motion.div
                     key="media-list"
                     ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                     style={activityWidgetView === 'dock' ? activityFlyoutStyles['media-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
@@ -1416,9 +1391,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     <div className="p-ha-4">
                       <div
                         onMouseDown={handleActivityDialogHeaderMouseDown}
-                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                        className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                       >
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Media Players ({activePlayers.length})</span>
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
                           mdiClose
@@ -1552,9 +1526,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
               {showPreview && (
                 <motion.div
                   key="timer-preview"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
                   onMouseEnter={() => showActivityPreview('timer-widget')}
                   onMouseLeave={() => scheduleHideActivityPreview('timer-widget')}
                   className="fixed -translate-x-1/2 z-50 w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
@@ -1563,10 +1537,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                 >
                   {activeTimers.length > 1 ? (
                     <div className="p-ha-4">
-                      <div className="w-full mb-ha-3 pl-1">
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timers ({activeTimers.length})</span>
-                        <p className="mt-1 text-[11px] text-text-secondary pl-1">Choose a timer to preview.</p>
-                      </div>
                       <div className="space-y-ha-2">
                         {activeTimers.map((previewTimer) => (
                           <button
@@ -1594,10 +1564,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     </div>
                   ) : (
                     <div className="p-ha-5 flex flex-col items-center">
-                      <div className="w-full flex justify-between items-center mb-ha-4 pl-1">
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timer</span>
-                      </div>
-
                       <div className="relative mb-ha-5">
                         <CircularProgress
                           progress={timerProgress[timer.entity_id] ?? timer.progress}
@@ -1643,9 +1609,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                   <motion.div
                     key="timer-expanded"
                     ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                     style={activityWidgetView === 'dock' ? activityFlyoutStyles['timer-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
@@ -1653,9 +1619,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     <div className="p-ha-5 flex flex-col items-center">
                       <div
                         onMouseDown={handleActivityDialogHeaderMouseDown}
-                        className={`w-full flex justify-between items-center mb-ha-4 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                        className={`w-full flex justify-end items-center ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                       >
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timer</span>
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(activeTimers.length > 1 ? 'list-timer' : null); },
                           activeTimers.length > 1 ? mdiChevronUp : mdiClose
@@ -1722,9 +1687,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                   <motion.div
                     key="timer-list"
                     ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                     style={activityWidgetView === 'dock' ? activityFlyoutStyles['timer-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
@@ -1732,9 +1697,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     <div className="p-ha-4">
                       <div
                         onMouseDown={handleActivityDialogHeaderMouseDown}
-                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                        className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                       >
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">Timers ({activeTimers.length})</span>
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
                           mdiClose
@@ -1867,9 +1831,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
               {showPreview && (
                 <motion.div
                   key="camera-preview"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
                   onMouseEnter={() => showActivityPreview('camera-widget')}
                   onMouseLeave={() => scheduleHideActivityPreview('camera-widget')}
                   className="fixed -translate-x-1/2 z-50 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
@@ -1878,10 +1842,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                 >
                   {activeCameras.length > 1 ? (
                     <div className="p-ha-4">
-                      <div className="w-full mb-ha-3 pl-1">
-                        <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest pl-1">Cameras ({activeCameras.length})</span>
-                        <p className="mt-1 text-[11px] text-text-secondary pl-1">Choose a camera to preview.</p>
-                      </div>
                       <div className="space-y-ha-2">
                         {activeCameras.map((previewCamera) => (
                           <button
@@ -1903,12 +1863,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     </div>
                   ) : (
                     <>
-                      <div className="bg-surface-low p-ha-3 flex items-center justify-between border-b border-surface-low">
-                        <div className="flex items-center gap-2 pl-2">
-                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                          <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest pl-1">Live Feed</span>
-                        </div>
-                      </div>
                       <div className="w-full aspect-video bg-black relative">
                         <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
                         <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-mono border border-white/10">
@@ -1947,21 +1901,17 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                   <motion.div
                     key="camera-expanded"
                     ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                     style={activityWidgetView === 'dock' ? activityFlyoutStyles['camera-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
                   >
                     <div
                       onMouseDown={handleActivityDialogHeaderMouseDown}
-                      className={`bg-surface-low p-ha-3 flex items-center justify-between border-b border-surface-low ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      className={`absolute top-0 right-0 p-ha-2 flex items-center gap-1 z-10 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                     >
-                      <div className="flex items-center gap-2 pl-2">
-                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                        <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest pl-1">Live Feed</span>
-                      </div>
                       {renderActivityWindowActions(
                         (e) => { e.stopPropagation(); setExpandedWidgetId(activeCameras.length > 1 ? 'list-camera' : null); },
                         activeCameras.length > 1 ? mdiChevronUp : mdiClose
@@ -2019,9 +1969,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                   <motion.div
                     key="camera-list"
                     ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                     style={activityWidgetView === 'dock' ? activityFlyoutStyles['camera-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
@@ -2029,9 +1979,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     <div className="p-ha-4">
                       <div
                         onMouseDown={handleActivityDialogHeaderMouseDown}
-                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                        className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                       >
-                        <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest pl-1">Cameras ({activeCameras.length})</span>
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
                           mdiClose
@@ -2150,9 +2099,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
               {showPreview && (
                 <motion.div
                   key="printer-preview"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
                   onMouseEnter={() => showActivityPreview('printer-widget')}
                   onMouseLeave={() => scheduleHideActivityPreview('printer-widget')}
                   className="fixed -translate-x-1/2 z-50 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
@@ -2161,10 +2110,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                 >
                   {activePrinters.length > 1 ? (
                     <div className="p-ha-4">
-                      <div className="w-full mb-ha-3 pl-1">
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printers ({activePrinters.length})</span>
-                        <p className="mt-1 text-[11px] text-text-secondary pl-1">Choose a printer to preview.</p>
-                      </div>
                       <div className="space-y-ha-2">
                         {activePrinters.map((previewPrinter) => (
                           <button
@@ -2194,10 +2139,6 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     </div>
                   ) : (
                     <div className="p-ha-4 flex flex-col items-center">
-                      <div className="w-full flex justify-between items-center mb-ha-3 pl-1">
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printer</span>
-                      </div>
-
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
                         <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
                         <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
@@ -2253,9 +2194,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                   <motion.div
                     key="printer-expanded"
                     ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                     style={activityWidgetView === 'dock' ? activityFlyoutStyles['printer-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
@@ -2263,9 +2204,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     <div className="p-ha-4 flex flex-col items-center">
                       <div
                         onMouseDown={handleActivityDialogHeaderMouseDown}
-                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                        className={`w-full flex justify-end items-center ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                       >
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printer</span>
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(activePrinters.length > 1 ? 'list-printer' : null); },
                           activePrinters.length > 1 ? mdiChevronUp : mdiClose
@@ -2342,9 +2282,9 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                   <motion.div
                     key="printer-list"
                     ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
                     style={activityWidgetView === 'dock' ? activityFlyoutStyles['printer-widget'] : activityDialogStyle}
                     transition={activityWindowTransition}
@@ -2352,9 +2292,8 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     <div className="p-ha-4">
                       <div
                         onMouseDown={handleActivityDialogHeaderMouseDown}
-                        className={`w-full flex justify-between items-center mb-ha-3 pl-1 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                        className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
                       >
-                        <span className="text-[10px] font-bold text-ha-blue uppercase tracking-widest pl-1">3D Printers ({activePrinters.length})</span>
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
                           mdiClose
@@ -2482,25 +2421,17 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
       <div className="relative" ref={statusContainerRef}>
         
         {/* Status Details Pop-up */}
+        <AnimatePresence>
         {statusExpanded && (
-          <div 
-            className="absolute right-0 bottom-full mb-ha-2 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden transition-all duration-300 z-50 flex flex-col origin-bottom-right animate-in fade-in zoom-in-95 slide-in-from-bottom-2"
+          <motion.div
+            key="status-popup"
+            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            transition={{ duration: 0.16, ease: [0.2, 0.9, 0.2, 1] }}
+            className="absolute right-0 bottom-full mb-ha-2 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col origin-bottom-right"
             style={{ maxHeight: 'calc(100vh - 120px)' }}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between p-ha-4 border-b border-surface-low bg-surface-low/50 backdrop-blur-md sticky top-0 z-10">
-                <h3 className="font-semibold text-text-primary flex items-center gap-2">
-                  <Icon path={mdiCheckCircle} size={20} className="text-ha-blue" />
-                  Home status
-                </h3>
-                <button 
-                    onClick={() => setStatusExpanded(false)}
-                    className="p-1 hover:bg-surface-mid rounded-full text-text-secondary transition-colors"
-                >
-                    <Icon path={mdiClose} size={20} />
-                </button>
-            </div>
-            
             <div className="overflow-y-auto p-ha-3 space-y-ha-3 custom-scrollbar">
                 
                 {/* Connection Section */}
@@ -2616,15 +2547,11 @@ export function StatusBar({ connectionStatus, profileOpen, onProfileToggle, edit
                     </div>
                 )}
             </div>
-            
-            {/* Footer with version or info */}
-            <div className="p-3 border-t border-surface-low bg-surface-low/30 text-center">
-               <p className="text-[10px] text-text-disabled">Home Assistant • Connected</p>
-            </div>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
-        <button 
+        <button
           className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50"
           onClick={() => setStatusExpanded(!statusExpanded)}
         >

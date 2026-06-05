@@ -1,11 +1,8 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef, useTransition, ReactNode, CSSProperties, useCallback, useMemo } from 'react';
+import { Suspense, useState, useEffect, useRef, ReactNode, CSSProperties, useCallback, useMemo } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { Sidebar, StatusBar, MobileNav, TopBar } from '@/components/layout';
-import { Icon } from '@/components/ui/Icon';
-import { mdiArrowLeft } from '@mdi/js';
-import { ProfileContent } from '@/components/profile';
+import { Sidebar, StatusBar, MobileNav, TopBar, EditingToolbar } from '@/components/layout';
 import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout } from '@/hooks';
 import { useSearchContext, useHeader, useEditMode } from '@/contexts';
 import { ConnectionToast } from '@/components/ui/ConnectionToast';
@@ -44,24 +41,19 @@ export function AppShell({ children }: AppShellProps) {
 function AppShellContent({ children }: AppShellProps) {
   const { connecting, connected, error, configured, hydrated, saveCredentials, enableDemoMode } = useHomeAssistant();
   const { desktopSplitViewEnabled } = useFeatureFlags();
-  const { immersiveMode, immersivePhase, toggleImmersiveMode } = useImmersiveMode();
+  const { immersiveMode, immersivePhase } = useImmersiveMode();
   const { contentStyle: immersiveContentStyle, contentTransitionClasses, isImmersiveFixed } = useDesktopImmersivePageLayout();
   const { toggleSearch } = useSearchContext();
-  const { title, subtitle, setHeader } = useHeader();
-  const { isEditing } = useEditMode();
+  const { title, subtitle } = useHeader();
+  const { isEditing, previewViewport } = useEditMode();
   const { items: sidebarItems } = useSidebarItems();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const prevPathnameRef = useRef(pathname);
-  const profileNavigationTargetRef = useRef<string | null>(null);
-  const pendingProfileOpenAfterImmersiveRef = useRef(false);
   const splitFlagCollapsePendingRef = useRef(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(null);
   const [showPreloader, setShowPreloader] = useState(true);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [mobileNavHideProgress, setMobileNavHideProgress] = useState(0);
-  const [profileNavigationPending, startProfileNavigation] = useTransition();
   const wasConnecting = useRef(false);
   const isEmbeddedView = searchParams.get('embed') === '1';
   const [desktopWorkspaceStart, setDesktopWorkspaceStart] = useState<{
@@ -116,47 +108,6 @@ function AppShellContent({ children }: AppShellProps) {
       return Math.abs(prev - snapped) < 0.001 ? prev : snapped;
     });
   }, []);
-
-  // When navigating from profile via sidebar, keep profile visible as a "curtain"
-  // until the route transition has finished to avoid flashing stale content.
-  useEffect(() => {
-    if (!profileOpen) {
-      prevPathnameRef.current = pathname;
-      return;
-    }
-
-    const pathnameChanged = pathname !== prevPathnameRef.current;
-    const profileNavigationTarget = profileNavigationTargetRef.current;
-
-    if (profileNavigationTarget) {
-      if (pathname === profileNavigationTarget && !profileNavigationPending) {
-        queueMicrotask(() => {
-          pendingProfileOpenAfterImmersiveRef.current = false;
-          setProfileOpen(false);
-        });
-        profileNavigationTargetRef.current = null;
-      }
-    } else if (pathnameChanged) {
-      queueMicrotask(() => {
-        pendingProfileOpenAfterImmersiveRef.current = false;
-        setProfileOpen(false);
-      });
-    }
-
-    prevPathnameRef.current = pathname;
-  }, [pathname, profileOpen, profileNavigationPending]);
-
-  // If profile is requested while immersive is on, wait for the collapse
-  // transition to complete before opening profile for a smoother handoff.
-  useEffect(() => {
-    if (!pendingProfileOpenAfterImmersiveRef.current) return;
-    if (immersiveMode || immersivePhase !== 'normal') return;
-
-    queueMicrotask(() => {
-      setProfileOpen(true);
-      pendingProfileOpenAfterImmersiveRef.current = false;
-    });
-  }, [immersiveMode, immersivePhase]);
 
   // Track connection state changes and manage status toast visibility
   useEffect(() => {
@@ -216,34 +167,13 @@ function AppShellContent({ children }: AppShellProps) {
     }
   }, [configured, hydrated, resetPreloader]);
 
-  // Drive the TopBar header when profile panel is open.
-  // Children are fully unmounted while profile is open so their setHeader
-  // effects won't compete; when they remount they restore their own title.
-  useEffect(() => {
-    if (profileOpen) {
-      setHeader({
-        title: 'Profile',
-        subtitle: ' ', // non-empty so the back arrow renders, but visually blank
-        onBack: () => {
-          profileNavigationTargetRef.current = null;
-          pendingProfileOpenAfterImmersiveRef.current = false;
-          setProfileOpen(false);
-        },
-      });
-    }
-    // No reset on close — the remounting page sets its own header
-  }, [profileOpen, setHeader]);
-
   const hideDesktopChrome = immersivePhase !== 'normal';
-  const workspaceActive = desktopSplitViewEnabled && desktopWorkspaceStart !== null && !profileOpen;
+  const workspaceActive = desktopSplitViewEnabled && desktopWorkspaceStart !== null;
   const rootSplitRouteOptions = useMemo(
     () => buildSplitViewOptions(pathname, sidebarItems),
     [pathname, sidebarItems]
   );
   const mobileTopBarHideProgress = Math.max(0, Math.min(1, mobileNavHideProgress));
-  const mobileTopBarPointerEventsClass = mobileTopBarHideProgress >= 0.995
-    ? 'pointer-events-none'
-    : 'pointer-events-auto';
   const mobileHiddenPaddingProgress = immersiveMode ? 0 : mobileTopBarHideProgress;
   const desktopTopBarStateClass = hideDesktopChrome
     ? 'lg:opacity-0 lg:pointer-events-none'
@@ -349,25 +279,6 @@ function AppShellContent({ children }: AppShellProps) {
         nonce: Date.now(),
       });
       setWorkspacePrimaryRoute(pathname);
-      if (profileOpen) {
-        profileNavigationTargetRef.current = null;
-        pendingProfileOpenAfterImmersiveRef.current = false;
-        setProfileOpen(false);
-      }
-      return;
-    }
-
-    if (profileOpen) {
-      if (href === pathname) {
-        profileNavigationTargetRef.current = null;
-        pendingProfileOpenAfterImmersiveRef.current = false;
-        setProfileOpen(false);
-        return;
-      }
-      profileNavigationTargetRef.current = href;
-      startProfileNavigation(() => {
-        router.push(href);
-      });
       return;
     }
 
@@ -380,7 +291,7 @@ function AppShellContent({ children }: AppShellProps) {
     }
 
     router.push(href);
-  }, [desktopSplitViewEnabled, pathname, profileOpen, router, workspaceActive]);
+  }, [desktopSplitViewEnabled, pathname, router, workspaceActive]);
 
   useEffect(() => {
     if (!desktopSplitViewEnabled) return;
@@ -435,19 +346,18 @@ function AppShellContent({ children }: AppShellProps) {
       });
       setWorkspacePrimaryRoute(pathname);
       setRootSplitMenu(null);
-      if (profileOpen) {
-        profileNavigationTargetRef.current = null;
-        pendingProfileOpenAfterImmersiveRef.current = false;
-        setProfileOpen(false);
-      }
     };
 
     document.addEventListener('click', handleModifiedLinkClick, true);
     return () => document.removeEventListener('click', handleModifiedLinkClick, true);
-  }, [desktopSplitViewEnabled, isEmbeddedView, pathname, profileOpen, workspaceActive]);
+  }, [desktopSplitViewEnabled, isEmbeddedView, pathname, workspaceActive]);
 
   if (!hydrated) {
     return null;
+  }
+
+  if (pathname.startsWith('/dev/')) {
+    return <>{children}</>;
   }
 
   if (!configured) {
@@ -484,106 +394,71 @@ function AppShellContent({ children }: AppShellProps) {
         {/* TopBar - Desktop & Mobile persistent header */}
         <div
           data-component="MobileTopBar"
-          className={`h-16 lg:bg-transparent px-edge lg:pr-edge overflow-hidden flex-shrink-0 relative z-10 opacity-[var(--mobile-topbar-opacity)] translate-y-[var(--mobile-topbar-translate)] mb-[var(--mobile-topbar-margin)] transition-[opacity,transform,margin-bottom] duration-120 ease-out lg:translate-y-0 lg:mb-0 lg:duration-300 ${mobileTopBarPointerEventsClass} ${desktopTopBarStateClass}`}
+          className={`h-16 bg-transparent lg:bg-transparent px-edge lg:pr-edge overflow-hidden flex-shrink-0 relative z-10 pointer-events-auto ${desktopTopBarStateClass}`}
           style={mobileTopBarStyle}
         >
-          <TopBar />
+            {/* Mobile translucent backdrop — blurs app background, fades into content */}
+          <div
+            className="lg:hidden absolute inset-0 pointer-events-none backdrop-blur-md"
+            style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 80%, transparent), color-mix(in srgb, var(--ha-color-surface-lower) 30%, transparent))' }}
+            aria-hidden
+          />
+          <div className="relative z-[1] h-full">
+            <TopBar />
+          </div>
         </div>
 
-        {/* Content area — profile replaces dashboard when open */}
+        {/* Content area */}
         <div className="flex-1 min-h-0 overflow-hidden relative z-0">
-          {/* Dashboard children — unmounted while profile is open so their
-              setHeader effects don't compete with the Profile title */}
-          {!profileOpen && (
-            <div className="h-full relative">
-              {workspaceActive && desktopWorkspaceStart ? (
-                <DesktopSplitWorkspace
-                  key={`${desktopWorkspaceStart.pathname}-${desktopWorkspaceStart.side}-${desktopWorkspaceStart.route}-${desktopWorkspaceStart.nonce}`}
-                  initialPathname={desktopWorkspaceStart.pathname}
-                  initialSplit={{
-                    side: desktopWorkspaceStart.side,
-                    route: desktopWorkspaceStart.route,
-                  }}
-                  routeOptions={rootSplitRouteOptions}
-                  navigationRequest={workspaceNavigationRequest}
-                  splitRequest={workspaceSplitRequest}
-                  onPrimaryRouteChange={setWorkspacePrimaryRoute}
-                  onExit={handleWorkspaceExit}
-                />
-              ) : (
-                <>
-                  {children}
-                  {desktopSplitViewEnabled && <DesktopSplitHotspots onSplit={handleWorkspaceSplitStart} />}
-                  {desktopSplitViewEnabled && rootSplitMenu && (
-                    <DesktopSplitViewMenu
-                      side={rootSplitMenu.side}
-                      anchor={rootSplitMenu.anchor}
-                      options={rootSplitRouteOptions}
-                      onSelect={handleRootSplitSelect}
-                      onClose={() => setRootSplitMenu(null)}
-                    />
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Profile view — same container/padding as other dashboard pages */}
-          {profileOpen && (
-            <div
-              className={`${isImmersiveFixed ? '' : 'h-full flex flex-col px-edge pt-1 pb-0 pr-edge'} ${contentTransitionClasses}`}
-              style={isImmersiveFixed ? immersiveContentStyle : undefined}
-            >
-              <div className={`${isImmersiveFixed ? 'h-full' : 'flex-1 min-h-0'} bg-surface-lower rounded-ha-3xl overflow-hidden relative`}>
-                {/* Back arrow in left padding - full height hit area, desktop only */}
-                <button
-                  onClick={() => {
-                    profileNavigationTargetRef.current = null;
-                    pendingProfileOpenAfterImmersiveRef.current = false;
-                    setProfileOpen(false);
-                  }}
-                  className="hidden lg:flex group absolute inset-y-0 left-0 w-14 z-10 items-center justify-center transition-all duration-300"
-                >
-                  <div className="absolute inset-0 rounded-l-ha-3xl bg-gradient-to-r from-transparent to-transparent group-hover:from-ha-blue/[0.06] group-hover:to-transparent transition-all duration-500 delay-0 group-hover:delay-150" />
-                  <Icon
-                    path={mdiArrowLeft}
-                    size={16}
-                    className="relative opacity-15 group-hover:opacity-100 group-hover:text-ha-blue group-hover:-translate-x-0.5 transition-all duration-500 delay-0 group-hover:delay-150 text-text-primary"
+          <div
+            className="h-full relative transition-[max-width,margin] duration-300 ease-out"
+            style={
+              isEditing && previewViewport !== 'desktop'
+                ? {
+                    maxWidth: previewViewport === 'tablet' ? 768 : 390,
+                    marginLeft: 'auto',
+                    marginRight: 'auto',
+                  }
+                : undefined
+            }
+          >
+            {workspaceActive && desktopWorkspaceStart ? (
+              <DesktopSplitWorkspace
+                key={`${desktopWorkspaceStart.pathname}-${desktopWorkspaceStart.side}-${desktopWorkspaceStart.route}-${desktopWorkspaceStart.nonce}`}
+                initialPathname={desktopWorkspaceStart.pathname}
+                initialSplit={{
+                  side: desktopWorkspaceStart.side,
+                  route: desktopWorkspaceStart.route,
+                }}
+                routeOptions={rootSplitRouteOptions}
+                navigationRequest={workspaceNavigationRequest}
+                splitRequest={workspaceSplitRequest}
+                onPrimaryRouteChange={setWorkspacePrimaryRoute}
+                onExit={handleWorkspaceExit}
+              />
+            ) : (
+              <>
+                {children}
+                {desktopSplitViewEnabled && <DesktopSplitHotspots onSplit={handleWorkspaceSplitStart} />}
+                {desktopSplitViewEnabled && rootSplitMenu && (
+                  <DesktopSplitViewMenu
+                    side={rootSplitMenu.side}
+                    anchor={rootSplitMenu.anchor}
+                    options={rootSplitRouteOptions}
+                    onSelect={handleRootSplitSelect}
+                    onClose={() => setRootSplitMenu(null)}
                   />
-                </button>
-
-                <div className="h-full overflow-y-auto scrollbar-hide">
-                  <div className="px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5">
-                    <div className="max-w-[860px] mx-auto lg:px-ha-8 w-full">
-                      <ProfileContent onClose={() => setProfileOpen(false)} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* Status bar row - Desktop only */}
         <StatusBar
           connectionStatus={connectionStatus}
-          profileOpen={profileOpen}
           editModeFade={isEditing}
-          onProfileToggle={() => {
-            profileNavigationTargetRef.current = null;
-            if (profileOpen) {
-              pendingProfileOpenAfterImmersiveRef.current = false;
-              setProfileOpen(false);
-              return;
-            }
-            if (immersiveMode) {
-              pendingProfileOpenAfterImmersiveRef.current = true;
-              toggleImmersiveMode();
-              return;
-            }
-            pendingProfileOpenAfterImmersiveRef.current = false;
-            setProfileOpen(true);
-          }}
+          onProfileToggle={() => router.push('/settings')}
         />
       </div>
 
@@ -595,6 +470,9 @@ function AppShellContent({ children }: AppShellProps) {
           editModeFade={isEditing}
         />
       )}
+
+      {/* Editing toolbar - replaces MobileNav on mobile, floats on desktop */}
+      <EditingToolbar />
 
       {/* Install app banner - mobile browsers only */}
       <InstallBanner />

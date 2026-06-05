@@ -11,7 +11,7 @@ import {
   selectPrimaryPerson,
   selectSimulationEntities,
 } from '@/lib/homeassistant/selectors';
-import { getSettingsHref, settingsNavSections, settingsQuickActions, type SettingsNavLink } from './settingsNavigation';
+import { getSettingsHref, settingsNavSections, type SettingsNavLink } from './settingsNavigation';
 import { mdiChevronRight, mdiInformationOutline } from '@mdi/js';
 import { Tooltip } from '../ui/Tooltip';
 import { useScreensaver } from '@/contexts';
@@ -112,19 +112,13 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
     return { name: 'Home Assistant User', picture: undefined, initials: 'U' };
   }, [primaryPerson, haUrl]);
 
-  const itemSummaries = React.useMemo<Record<SettingsNavLink['slug'], string>>(() => ({
-    interface: `${formatThemeName(theme)} theme · ${mode === 'system' ? 'Follow system' : formatThemeName(mode)}`,
-    dashboards: 'Overview is default · Room cards enabled',
-    cloud: demoMode ? 'Preview mode active' : connected ? 'Remote access available' : 'Connection not active',
-    'mobile-app': '2 devices synced · Critical alerts on',
+  const itemSummaries = React.useMemo<Partial<Record<SettingsNavLink['slug'], string>>>(() => ({
+    dashboards: 'Device card layout and entity configuration',
     'theme-layout': `${formatThemeName(theme)} · ${mode === 'system' ? 'System mode' : `${formatThemeName(mode)} mode`} · ${immersiveMode ? 'Immersive on' : 'Immersive off'}`,
     'task-bar': simulationEntities.length > 0
       ? `${simulationEntities.length} simulated ${simulationEntities.length === 1 ? 'activity' : 'activities'} active`
       : 'No simulated activities',
     maintenance: demoMode ? 'Demo home active · Layout tools ready' : connected ? 'Live Home Assistant connected' : 'Connection setup available',
-    system: 'Automation, navigation, and service behavior',
-    about: demoMode ? 'Preview build with demo data' : 'Live environment details and release notes',
-    security: 'Sessions, MFA, and trusted devices',
     developer: demoMode ? 'Mock data and preview tools ready' : 'Feature flags and connection diagnostics',
   }), [connected, demoMode, immersiveMode, mode, simulationEntities.length, theme]);
 
@@ -190,20 +184,14 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
               Administrator
             </p>
 
-            <div className="grid grid-cols-2 gap-ha-3 lg:max-w-md">
-              {settingsQuickActions.map((action) => (
-                <Link
-                  key={action.slug}
-                  href={getSettingsHref(action.slug)}
-                  onClick={onNavigate}
-                  className="flex flex-col items-center justify-center p-ha-4 bg-surface-low hover:bg-surface-mid rounded-ha-2xl border border-surface-lower transition-colors gap-ha-1 text-center"
-                >
-                  <Icon path={action.icon} size={24} className="text-text-secondary" />
-                  <span className="text-xs font-bold text-text-primary uppercase tracking-tight">{action.label}</span>
-                  <span className="text-[11px] text-text-secondary leading-tight">{action.description}</span>
-                </Link>
-              ))}
-            </div>
+            <Link
+              href="/settings"
+              onClick={onNavigate}
+              className="inline-flex items-center gap-ha-2 px-ha-4 py-ha-2 bg-surface-low hover:bg-surface-mid rounded-ha-xl border border-surface-lower transition-colors text-sm font-medium text-text-secondary hover:text-text-primary"
+            >
+              <Icon path={mdiChevronRight} size={16} className="text-text-disabled" />
+              Settings
+            </Link>
           </div>
         </div>
       </div>
@@ -310,7 +298,7 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
                   <ProfileItem
                     key={item.slug}
                     item={item}
-                    value={itemSummaries[item.slug]}
+                    value={itemSummaries[item.slug] ?? item.description}
                     onNavigate={onNavigate}
                   />
                 ))

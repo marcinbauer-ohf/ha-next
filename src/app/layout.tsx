@@ -5,7 +5,7 @@ import { HomeAssistantProvider } from '@/hooks/useHomeAssistant';
 import { FeatureFlagsProvider } from '@/hooks/useFeatureFlags';
 import { ThemeProvider } from '@/hooks/useTheme';
 import { ImmersiveModeProvider } from '@/hooks/useImmersiveMode';
-import { PullToRevealProvider, SidebarItemsProvider, SearchProvider, AssistantProvider, HeaderProvider, ScreensaverProvider, EditModeProvider } from '@/contexts';
+import { PullToRevealProvider, SidebarItemsProvider, SearchProvider, AssistantProvider, HeaderProvider, ScreensaverProvider, EditModeProvider, ToastProvider } from '@/contexts';
 import { AppShell } from '@/components/layout';
 
 const inter = Inter({
@@ -72,7 +72,9 @@ export default function RootLayout({
                         <HeaderProvider>
                           <ScreensaverProvider>
                             <EditModeProvider>
-                              <AppShell>{children}</AppShell>
+                              <ToastProvider>
+                                <AppShell>{children}</AppShell>
+                              </ToastProvider>
                             </EditModeProvider>
                           </ScreensaverProvider>
                         </HeaderProvider>

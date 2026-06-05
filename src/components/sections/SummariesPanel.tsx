@@ -356,7 +356,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
     return () => window.removeEventListener('resize', checkScroll);
   }, []);
 
-  const summaryBackground = 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent), transparent)';
+  const summaryBackground = 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent) 0%, transparent 80%)';
   const containerStyle = fullBleed
     ? {
         background: summaryBackground,

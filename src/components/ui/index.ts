@@ -1,4 +1,6 @@
 export { Icon } from './Icon';
+export { HALoader } from './HALoader';
+export { AddMenu } from './AddMenu';
 export { Avatar } from './Avatar';
 export { Button } from './Button';
 export { HALogo } from './HALogo';
@@ -7,3 +9,5 @@ export { InfoSidebar } from './InfoSidebar';
 export { ListSection } from './ListSection';
 export { SegmentedControl } from './SegmentedControl';
 export { RollingNumericValue } from './RollingNumericValue';
+export { Toast, ToastContainer } from './Toast';
+export type { ToastProps } from './Toast';

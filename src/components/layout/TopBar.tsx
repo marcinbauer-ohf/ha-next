@@ -1,9 +1,11 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Icon } from '../ui/Icon';
 import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
+import { AddMenu } from '../ui/AddMenu';
 import { useHeader, usePullToRevealContext, ENABLE_PULL_TO_REVEAL, useEditMode } from '@/contexts';
 import { useTheme } from '@/hooks';
 import {
@@ -22,6 +24,8 @@ export function TopBar() {
   const { isEditing, toggleEditMode } = useEditMode();
   const router = useRouter();
   const pathname = usePathname();
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const desktopAddButtonRef = useRef<HTMLButtonElement | null>(null);
 
   // Energy has its own read-only view; all other dashboard paths support edit mode
   const isDashboardPage = pathname === '/' ||
@@ -55,14 +59,16 @@ export function TopBar() {
       <div className="flex items-center justify-between w-full lg:hidden h-full">
         <div className="flex items-center gap-ha-3">
           {subtitle ? (
-            <button 
+            <button
               onClick={() => onBack ? onBack() : router.back()}
               className="p-1 -ml-1 text-text-secondary hover:text-text-primary transition-colors"
             >
               <Icon path={mdiArrowLeft} size={24} />
             </button>
           ) : icon ? (
-            <MdiIcon icon={icon} size={24} className="text-text-secondary" />
+            icon.includes(' ')
+              ? <Icon path={icon} size={24} className="text-text-secondary" />
+              : <MdiIcon icon={icon} size={24} className="text-text-secondary" />
           ) : (
             <HALogo size={24} />
           )}
@@ -97,21 +103,18 @@ export function TopBar() {
               <Icon path={primaryAction.icon} size={24} />
             </button>
           )}
-          {isDashboardPage && (
+          {isDashboardPage && !isEditing && (
             <button
-              aria-label={pencilLabel}
+              aria-label="Edit dashboard"
               onClick={toggleEditMode}
-              className={`p-ha-3 rounded-ha-xl transition-colors ${
-                isEditing
-                  ? 'bg-ha-blue text-white hover:bg-ha-blue/90'
-                  : 'hover:bg-surface-low text-text-secondary'
-              }`}
+              className="p-ha-3 rounded-ha-xl transition-colors hover:bg-surface-low text-text-secondary"
             >
               <Icon path={pencilIcon} size={24} />
             </button>
           )}
           {!isEditing && (
             <button
+              onClick={() => setAddMenuOpen(true)}
               className={`p-ha-3 rounded-ha-xl transition-colors ${
                 theme === 'glass'
                     ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
@@ -149,21 +152,19 @@ export function TopBar() {
             <Icon path={primaryAction.icon} size={24} />
           </button>
         )}
-        {isDashboardPage && (
+        {isDashboardPage && !isEditing && (
           <button
-            aria-label={pencilLabel}
+            aria-label="Edit dashboard"
             onClick={toggleEditMode}
-            className={`p-ha-3 rounded-ha-xl transition-colors ${
-              isEditing
-                ? 'bg-ha-blue text-white hover:bg-ha-blue/90'
-                : 'hover:bg-surface-low text-text-secondary'
-            }`}
+            className="p-ha-3 rounded-ha-xl transition-colors hover:bg-surface-low text-text-secondary"
           >
             <Icon path={pencilIcon} size={24} />
           </button>
         )}
         {!isEditing && (
           <button
+            ref={desktopAddButtonRef}
+            onClick={() => setAddMenuOpen(true)}
             className={`p-ha-3 rounded-ha-xl transition-colors ${
               theme === 'glass'
                 ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
@@ -176,6 +177,12 @@ export function TopBar() {
           </button>
         )}
       </div>
+
+      <AddMenu
+        isOpen={addMenuOpen}
+        onClose={() => setAddMenuOpen(false)}
+        anchorRef={desktopAddButtonRef}
+      />
     </header>
   );
 }

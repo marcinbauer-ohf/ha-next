@@ -1,9 +1,11 @@
 'use client';
 
+import { useRef, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { mdiPower } from '@mdi/js';
+import { mdiPower, mdiAlertCircleOutline, mdiPencil } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { RollingNumericValue } from '../ui/RollingNumericValue';
+import { EntityMiniSparkline } from '../ui/EntityMiniSparkline';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,6 +14,7 @@ export interface DeviceCardV2Entity {
   icon: string;
   name: string;
   state: string;
+  lastChanged?: string;
   active?: boolean;
   entityPicture?: string;
   toggleable?: boolean;
@@ -25,11 +28,29 @@ export interface DeviceCardV2Entity {
   onClick?: () => void;
 }
 
+function formatUnavailableDuration(lastChanged: string | undefined): string | null {
+  if (!lastChanged) return null;
+  const diffMs = Date.now() - new Date(lastChanged).getTime();
+  if (isNaN(diffMs) || diffMs < 0) return null;
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d`;
+  return `${Math.floor(days / 7)}w`;
+}
+
 export interface DeviceCardV2Props {
   primary: DeviceCardV2Entity;
   secondary?: DeviceCardV2Entity[];
   selected?: boolean;
+  editMode?: boolean;
+  onLongPress?: () => void;
   className?: string;
+  /** Shown above device name in smaller muted text — use when grouped by type */
+  areaName?: string;
 }
 
 // ── Controls ──────────────────────────────────────────────────────────────────
@@ -68,112 +89,182 @@ function ActionButton({ onPress }: { onPress: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DeviceCardV2({ primary, secondary, selected, className }: DeviceCardV2Props) {
+export function DeviceCardV2({ primary, secondary, selected, editMode, onLongPress, className, areaName }: DeviceCardV2Props) {
   const hasPicture = !!primary.entityPicture;
+  const rawState = primary.state.toLowerCase();
+  const isUnavailable = rawState === 'unavailable' || rawState === 'unknown';
+  const hasSecondary = secondary && secondary.length > 0;
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handlePointerDown = useCallback(() => {
+    if (!onLongPress) return;
+    longPressTimer.current = setTimeout(() => { onLongPress(); }, 500);
+  }, [onLongPress]);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  }, []);
 
   return (
     <div
+      onPointerDown={handlePointerDown}
+      onPointerUp={cancelLongPress}
+      onPointerLeave={cancelLongPress}
+      onPointerCancel={cancelLongPress}
       className={clsx(
-        'rounded-ha-2xl overflow-hidden bg-surface-default transition-all',
+        'group/card relative rounded-ha-2xl overflow-hidden bg-surface-default transition-[box-shadow]',
+        editMode && 'cursor-grab active:cursor-grabbing select-none',
         selected && 'ha-selected',
+        isUnavailable && 'ring-2 ring-inset ring-amber-500/40',
         className,
       )}
     >
-      {/* Primary entity — ~2× secondary row height */}
-      <div
-        className={clsx(
-          'flex flex-col justify-between px-3 pt-3 pb-3 cursor-pointer rounded-t-[inherit] relative overflow-hidden transition-colors',
-          'min-h-[88px]',
-          primary.active
-            ? 'bg-green-500/10 hover:bg-green-500/[0.16] active:bg-green-500/20'
-            : 'bg-surface-default hover:bg-surface-low active:bg-surface-mid',
-        )}
-        onClick={primary.onClick}
-      >
-        {hasPicture && (
-          <img src={primary.entityPicture} alt="" aria-hidden
-            className="absolute inset-0 w-full h-full object-cover opacity-20" />
-        )}
-
-        {/* Top row: icon (identifier only) + toggle switch if controllable */}
-        <div className="relative flex items-center justify-between">
-          {/* Icon — always non-interactive, purely informational */}
-          <Icon
-            path={primary.icon}
-            size={20}
-            className={primary.active ? 'text-green-500' : 'text-text-tertiary'}
-          />
-
-          {/* Toggle switch for controllable; prominent state value for read-only */}
-          {primary.toggleable && primary.onToggle ? (
-            <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
-          ) : (
-            <div className="flex items-baseline gap-0.5 shrink-0">
-              <RollingNumericValue
-                value={primary.unit ? String(parseFloat(primary.state) || primary.state) : primary.state}
-                className={clsx(
-                  'font-bold font-mono leading-none',
-                  primary.unit ? 'text-2xl text-text-primary' : 'text-lg text-text-primary',
-                )}
-              />
-              {primary.unit && (
-                <span className="text-sm font-mono text-text-secondary">{primary.unit}</span>
-              )}
-            </div>
-          )}
+      {/* Edit mode: full-card ring + pencil on hover */}
+      {editMode && (
+        <div
+          className="absolute inset-0 rounded-ha-2xl ring-2 ring-inset ring-ha-blue/30 pointer-events-none z-10 opacity-0 group-hover/card:opacity-100 transition-opacity duration-150"
+          aria-hidden
+        />
+      )}
+      {editMode && (
+        <div className="absolute top-2 right-2 z-20 w-6 h-6 rounded-full bg-ha-blue flex items-center justify-center shadow-md pointer-events-none opacity-0 group-hover/card:opacity-100 transition-opacity duration-150">
+          <Icon path={mdiPencil} size={12} className="text-white" />
         </div>
+      )}
 
-        {/* Bottom: name, and state only for toggleable (read-only shows state top-right) */}
-        <div className="relative">
-          <p className="text-sm font-semibold text-text-primary leading-tight truncate">{primary.name}</p>
-          {primary.toggleable && (
-            <p className="text-sm font-medium font-mono text-text-secondary mt-0.5">{primary.state}</p>
+      {/* Primary entity */}
+      {isUnavailable ? (
+        <div
+          className={clsx(
+            'flex flex-col items-center justify-center gap-1.5 px-3 py-5 min-h-[88px] bg-amber-500/[0.07] cursor-pointer hover:bg-amber-500/[0.11] active:bg-amber-500/[0.15] transition-colors',
+            hasSecondary ? 'rounded-t-ha-2xl' : 'rounded-ha-2xl',
           )}
+          onClick={primary.onClick}
+        >
+          <Icon path={mdiAlertCircleOutline} size={24} className="text-amber-500/70 flex-shrink-0" />
+          <p className="text-sm font-semibold text-text-secondary leading-tight truncate text-center max-w-full">{primary.name}</p>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-500/80 bg-amber-500/10 px-2 py-0.5 rounded-full">
+              Unavailable
+            </span>
+            {formatUnavailableDuration(primary.lastChanged) && (
+              <span className="text-[10px] text-text-disabled">
+                {formatUnavailableDuration(primary.lastChanged)}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div
+          className={clsx(
+            'flex flex-col justify-between px-3 pt-3 pb-3 relative overflow-hidden transition-colors',
+            hasSecondary ? 'rounded-t-ha-2xl' : 'rounded-ha-2xl',
+            'min-h-[108px]',
+            editMode
+              ? 'bg-surface-default hover:bg-surface-low'
+              : primary.active && primary.toggleable
+                ? 'bg-green-500/10 hover:bg-green-500/[0.16] active:bg-green-500/20 cursor-pointer'
+                : 'bg-surface-default hover:bg-surface-low active:bg-surface-mid cursor-pointer',
+          )}
+          onClick={primary.onClick}
+        >
+          {hasPicture && (
+            <img src={primary.entityPicture} alt="" aria-hidden
+              className="absolute inset-0 w-full h-full object-cover opacity-20" />
+          )}
 
-      {/* Secondary entity rows */}
-      {secondary && secondary.length > 0 && (
-        <div>
-          {secondary.map((entity) => (
-            <div
-              key={entity.entityId}
-              className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-low transition-colors border-t border-surface-lower"
-              onClick={entity.onClick}
-            >
-              {/* Icon — non-interactive identifier, hidden in compact mode */}
-              {entity.size !== 'sm' && (
-                <Icon
-                  path={entity.icon}
-                  size={16}
+          {/* Top row: icon + control */}
+          <div className="relative flex items-center justify-between">
+            <Icon path={primary.icon} size={20} className="text-text-tertiary" />
+            {primary.toggleable && primary.onToggle ? (
+              <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
+            ) : (
+              <div className="flex items-baseline gap-0.5 shrink-0">
+                <RollingNumericValue
+                  value={primary.unit ? String(parseFloat(primary.state) || primary.state) : primary.state}
                   className={clsx(
-                    'flex-shrink-0',
-                    entity.active ? 'text-green-500' : 'text-text-tertiary',
+                    'font-bold font-mono leading-none',
+                    primary.unit ? 'text-2xl text-text-primary' : 'text-lg text-text-primary',
                   )}
                 />
-              )}
+                {primary.unit && (
+                  <span className="text-sm font-mono text-text-secondary">{primary.unit}</span>
+                )}
+              </div>
+            )}
+          </div>
 
-              {/* Name */}
-              <span className={clsx(
-                'flex-1 truncate',
-                entity.size === 'sm' ? 'text-xs text-text-secondary' : 'text-sm text-text-primary',
-              )}>
-                {entity.name}
-              </span>
+          {/* Sparkline — sensor entities only */}
+          {primary.unit && (
+            <EntityMiniSparkline entityId={primary.entityId} />
+          )}
 
-              {/* Dedicated control — suppressed for compact ('sm') rows */}
-              {entity.size !== 'sm' && entity.toggleable && entity.onToggle ? (
-                <ToggleSwitch on={entity.active} onToggle={entity.onToggle} />
-              ) : entity.size !== 'sm' && entity.pressable && entity.onToggle ? (
-                <ActionButton onPress={entity.onToggle} />
-              ) : (
-                <RollingNumericValue
-                  value={entity.state}
-                  className="text-sm font-medium font-mono text-text-secondary shrink-0"
-                />
-              )}
-            </div>
-          ))}
+          {/* Bottom: name + state */}
+          <div className="relative">
+            {areaName && (
+              <p className="text-[10px] font-medium text-text-tertiary leading-none truncate mb-0.5">{areaName}</p>
+            )}
+            <p className="text-sm font-semibold text-text-primary leading-tight truncate">{primary.name}</p>
+            {primary.toggleable ? (
+              <p className="text-sm font-medium font-mono text-text-secondary mt-0.5">{primary.state}</p>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Secondary entity rows */}
+      {hasSecondary && (
+        <div className={clsx('rounded-b-ha-2xl overflow-hidden', isUnavailable && 'opacity-40 pointer-events-none')}>
+          {secondary!.map((entity) => {
+            const entityUnavailable = entity.state === 'unavailable' || entity.state === 'unknown';
+            return (
+              <div
+                key={entity.entityId}
+                className={clsx(
+                  'flex items-center gap-3 px-3 border-t border-surface-lower transition-colors min-h-[44px]',
+                  entityUnavailable
+                    ? 'opacity-50 cursor-default'
+                    : editMode
+                      ? 'hover:bg-surface-low'
+                      : entity.active && entity.toggleable
+                        ? 'cursor-pointer bg-green-500/10 hover:bg-green-500/[0.16] active:bg-green-500/20'
+                        : 'cursor-pointer hover:bg-surface-low',
+                )}
+                onClick={entityUnavailable ? undefined : entity.onClick}
+              >
+                {entity.size !== 'sm' && (
+                  <Icon
+                    path={entity.icon}
+                    size={16}
+                    className={clsx(
+                      'flex-shrink-0',
+                      entityUnavailable ? 'text-text-disabled' : (entity.active && entity.toggleable) ? 'text-green-500' : 'text-text-tertiary',
+                    )}
+                  />
+                )}
+
+                <span className={clsx(
+                  'flex-1 truncate',
+                  entity.size === 'sm' ? 'text-xs text-text-secondary' : 'text-sm text-text-primary',
+                )}>
+                  {entity.name}
+                </span>
+
+                {entityUnavailable ? (
+                  <Icon path={mdiAlertCircleOutline} size={14} className="text-amber-500 shrink-0" />
+                ) : entity.size !== 'sm' && entity.toggleable && entity.onToggle ? (
+                  <ToggleSwitch on={entity.active} onToggle={entity.onToggle} />
+                ) : entity.size !== 'sm' && entity.pressable && entity.onToggle ? (
+                  <ActionButton onPress={entity.onToggle} />
+                ) : (
+                  <RollingNumericValue
+                    value={entity.state}
+                    className="text-sm font-medium font-mono text-text-secondary shrink-0"
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

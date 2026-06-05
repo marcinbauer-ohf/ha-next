@@ -1,20 +1,41 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, CSSProperties, type ReactNode } from 'react';
-import { mdiHomeAssistant, mdiChevronDown, mdiChevronRight } from '@mdi/js';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { mdiHomeAssistant, mdiChevronRight, mdiViewGrid, mdiCube, mdiAutoFix, mdiClose, mdiHome, mdiTag, mdiLayers } from '@mdi/js';
+import { MdiIcon } from '@/components/ui/MdiIcon';
 import { clsx } from 'clsx';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+
+const DashboardFloorView = dynamic(() => import('@/components/sections/DashboardFloorView'), { ssr: false });
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
-import { DashboardSidePanel } from '@/components/layout/DashboardSidePanel';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { MobileSummaryRow } from '@/components/sections';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
 import { PullToRevealPanel } from '@/components/sections';
 import { useTheme, useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig } from '@/hooks';
-import { usePullToRevealContext, useHeader } from '@/contexts';
+import { usePullToRevealContext, useHeader, useEditMode, useToast } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
+import { HALoader } from '@/components/ui/HALoader';
 import {
   entityDomain, friendlyName, entityLabel, stateLabel, isOn, TOGGLEABLE,
   domainIcon, SECTION_ORDER, SECTION_TITLES,
@@ -23,77 +44,113 @@ import type { HassDevice } from '@/hooks';
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
-const SECTION_COLLAPSE_KEY = 'ha_section_collapsed';
-
-function loadCollapsed(): Record<string, boolean> {
-  try { return JSON.parse(localStorage.getItem(SECTION_COLLAPSE_KEY) ?? '{}'); } catch { return {}; }
-}
-
-function Section({ sectionKey, title, count, children }: { sectionKey: string; title: string; count: number; children: React.ReactNode }) {
-  const [open, setOpen] = useState(() => {
-    const collapsed = loadCollapsed();
-    return collapsed[sectionKey] !== true;
-  });
-
+// Section only renders the sticky header; the grid is provided as children by the caller
+function Section({ title, count, href, children }: { title: string; count: number; href?: string; children: React.ReactNode }) {
   if (count === 0) return null;
-
-  function toggle() {
-    setOpen(v => {
-      const next = !v;
-      try {
-        const collapsed = loadCollapsed();
-        if (!next) collapsed[sectionKey] = true;
-        else delete collapsed[sectionKey];
-        localStorage.setItem(SECTION_COLLAPSE_KEY, JSON.stringify(collapsed));
-      } catch { /* noop */ }
-      return next;
-    });
-  }
 
   return (
     <div>
-      <div
-        style={{
-          top: 'var(--dashboard-sticky-top, 0px)',
-          background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 70%, transparent), transparent)',
-        }}
-        className="sticky z-[45] py-ha-2 mb-ha-1 backdrop-blur-md"
-      >
-        <button
-          onClick={toggle}
-          className="flex items-center gap-ha-2 text-left group"
-        >
+      <div className="py-ha-2 mb-ha-1">
+        {href ? (
+          <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
+            <span className="text-base font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
+            <Icon path={mdiChevronRight} size={16} className="text-text-tertiary group-hover:text-ha-blue transition-colors" />
+          </Link>
+        ) : (
           <span className="text-base font-semibold text-text-primary">{title}</span>
-          <Icon
-            path={open ? mdiChevronDown : mdiChevronRight}
-            size={18}
-            className="text-text-secondary group-hover:text-text-primary transition-colors"
-          />
-        </button>
+        )}
       </div>
+      {children}
+    </div>
+  );
+}
 
-      {open && (
-        <div className="grid gap-ha-3 items-start grid-cols-2 lg:grid-cols-3">
-          {children}
-        </div>
-      )}
+function applyDeviceOrder(devices: HassDevice[], order?: string[]): HassDevice[] {
+  if (!order?.length) return devices;
+  const map = new Map(devices.map(d => [d.id, d]));
+  const sorted = order.flatMap(id => map.has(id) ? [map.get(id)!] : []);
+  const extra = devices.filter(d => !order.includes(d.id));
+  return [...sorted, ...extra];
+}
+
+function SortableCard({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  // Use translate-only transform (no scaleX/scaleY) to prevent distortion on
+  // displaced cards that have overflow-hidden + border-radius compositing.
+  const translateTransform = transform
+    ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
+    : undefined;
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: translateTransform,
+        transition: isDragging ? 'none' : transition,
+        zIndex: isDragging ? 50 : undefined,
+        opacity: isDragging ? 0.8 : 1,
+        willChange: transform ? 'transform' : undefined,
+      }}
+      {...attributes}
+      {...listeners}
+    >
+      {children}
     </div>
   );
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+function useMasonryCols() {
+  const [cols, setCols] = useState(2);
+  useEffect(() => {
+    const update = () => setCols(window.innerWidth >= 1024 ? 3 : 2);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  return cols;
+}
+
 export default function DashboardPage() {
   const { background } = useTheme();
+  const masonryCols = useMasonryCols();
   const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
+  const router = useRouter();
   const scrollableRef = useRef<HTMLElement | null>(null);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
+  const [dashboardView, setDashboardView] = useState<'list' | '3d'>('list');
   const { isRevealed } = usePullToRevealContext();
+  const { isEditing, toggleEditMode, previewViewport } = useEditMode();
+
+  const gridCols = isEditing
+    ? previewViewport === 'desktop' ? 'grid-cols-4'
+    : previewViewport === 'tablet'  ? 'grid-cols-3'
+    :                                  'grid-cols-2'
+    : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
+
+  const [sectionOrders, setSectionOrders] = useState<Record<string, string[]>>(() => {
+    if (typeof window === 'undefined') return {};
+    try { return JSON.parse(localStorage.getItem('ha_device_order') ?? '{}'); }
+    catch { return {}; }
+  });
+
+  const handleSectionReorder = useCallback((sectionKey: string, newIds: string[]) => {
+    setSectionOrders(prev => {
+      const next = { ...prev, [sectionKey]: newIds };
+      localStorage.setItem('ha_device_order', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
   const [dashboardReady, setDashboardReady] = useState(false);
   const { setHeader } = useHeader();
   const { toggleEntity, haUrl } = useHomeAssistant();
+  const { showToast } = useToast();
 
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
@@ -101,7 +158,59 @@ export default function DashboardPage() {
 
   const { devices, areas, areaReg, floors, loading } = useDevices();
   const [activeFloorId, setActiveFloorId] = useState<string | null>(null);
+  const [groupBy, setGroupBy] = useState<'area' | 'type'>(() => {
+    if (typeof window === 'undefined') return 'area';
+    return (localStorage.getItem('ha_group_by') as 'area' | 'type') ?? 'area';
+  });
   const { getConfig, setConfig } = useDeviceCardConfig();
+
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('ha_onboarding_v1') === 'done';
+  });
+
+  const dismissOnboarding = useCallback(() => {
+    localStorage.setItem('ha_onboarding_v1', 'done');
+    setOnboardingDismissed(true);
+  }, []);
+
+  const autoConfigureDevices = useCallback(() => {
+    let count = 0;
+    for (const device of devices) {
+      if (!device.primaryEntity) continue;
+      const existing = getConfig(device.id);
+      if (existing.slots.length > 0) continue;
+      const primary = device.primaryEntity;
+      const others = device.entities.filter(e =>
+        e.entity_id !== primary.entity_id &&
+        e.state !== 'unavailable' &&
+        e.state !== 'unknown'
+      );
+      const secondaries = others
+        .filter(e => ['sensor', 'binary_sensor'].includes(e.entity_id.split('.')[0]))
+        .slice(0, 2);
+      setConfig(device.id, {
+        slots: [
+          { entity_id: primary.entity_id, size: 'lg', section: 'primary' },
+          ...secondaries.map(e => ({ entity_id: e.entity_id, size: 'sm' as const, section: 'secondary' as const })),
+        ],
+      });
+      count++;
+    }
+    dismissOnboarding();
+    showToast({
+      icon: mdiAutoFix,
+      title: 'Auto-configured',
+      subtitle: count > 0 ? `${count} device${count === 1 ? '' : 's'} set up` : 'No new devices to configure',
+    });
+  }, [devices, getConfig, setConfig, dismissOnboarding, showToast]);
+
+  const handleSwitchTo3D = useCallback(() => {
+    if (floors.length >= 1 && activeFloorId === null) {
+      setActiveFloorId(floors[0].floor_id);
+    }
+    setDashboardView('3d');
+  }, [floors, activeFloorId]);
 
   useEffect(() => {
     setHeader({ title: 'Home', icon: mdiHomeAssistant });
@@ -158,10 +267,10 @@ export default function DashboardPage() {
   );
 
   const sections = useMemo(() => {
-    type Sec = { key: string; title: string; devices: HassDevice[] };
+    type Sec = { key: string; title: string; devices: HassDevice[]; isArea: boolean };
     const ordered: Sec[] = [];
 
-    if (areas.size > 0) {
+    if (areas.size > 0 && groupBy === 'area') {
       const byArea = new Map<string, HassDevice[]>();
       for (const device of devices) {
         const key = device.areaId ?? '__none__';
@@ -169,9 +278,9 @@ export default function DashboardPage() {
         byArea.get(key)!.push(device);
       }
       for (const [areaId, areaName] of areas) {
-        if (byArea.has(areaId)) ordered.push({ key: areaId, title: areaName, devices: byArea.get(areaId)! });
+        if (byArea.has(areaId)) ordered.push({ key: areaId, title: areaName, devices: byArea.get(areaId)!, isArea: true });
       }
-      if (byArea.has('__none__')) ordered.push({ key: '__none__', title: 'Other', devices: byArea.get('__none__')! });
+      if (byArea.has('__none__')) ordered.push({ key: '__none__', title: 'Other', devices: byArea.get('__none__')!, isArea: true });
     } else {
       const byDomain = new Map<string, HassDevice[]>();
       for (const device of devices) {
@@ -182,20 +291,20 @@ export default function DashboardPage() {
       }
       for (const domain of SECTION_ORDER) {
         if (byDomain.has(domain)) {
-          ordered.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, devices: byDomain.get(domain)! });
+          ordered.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, devices: byDomain.get(domain)!, isArea: false });
           byDomain.delete(domain);
         }
       }
       for (const [domain, devs] of byDomain) {
-        ordered.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, devices: devs });
+        ordered.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, devices: devs, isArea: false });
       }
     }
     return ordered;
-  }, [devices, areas]);
+  }, [devices, areas, groupBy]);
 
-  // Filtered sections for the active floor tab
+  // Filtered sections for the active floor tab (area mode only)
   const visibleSections = useMemo(() => {
-    if (!activeFloorId || floors.length < 2) return sections;
+    if (groupBy !== 'area' || !activeFloorId || floors.length < 2) return sections;
     return sections.filter(s => {
       const floorId = areaFloorMap.get(s.key);
       return floorId === activeFloorId;
@@ -238,6 +347,11 @@ export default function DashboardPage() {
     setSelectedDeviceId(deviceId);
     setSelectedEntityId(entityId);
     setPanelMode('entity');
+  }
+  function selectDeviceForEdit(deviceId: string) {
+    setSelectedDeviceId(deviceId);
+    setSelectedEntityId(null);
+    setPanelMode('edit');
   }
   function closePanel() {
     setSelectedDeviceId(null);
@@ -287,7 +401,7 @@ export default function DashboardPage() {
         )}
         style={contentStyle}
       >
-        <div className={clsx('h-full flex', panelMode === 'edit' && selectedDevice ? 'gap-ha-3' : '')} >
+        <div className="h-full flex">
           {/* Dashboard surface */}
           <div
             className={clsx(
@@ -306,51 +420,157 @@ export default function DashboardPage() {
             <main
               ref={el => { scrollableRef.current = el; }}
               className={clsx(
-                'h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide',
-                'pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-ha-5',
+                'h-full overscroll-none touch-pan-y scrollbar-hide select-none',
+                dashboardView === '3d' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto',
+                dashboardView !== '3d' && 'pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-ha-5',
                 isMobileImmersive ? 'px-ha-4' : 'px-ha-1',
                 'lg:px-0',
               )}
               data-scrollable="dashboard"
             >
               {/* Sticky header: summary badges + optional floor tabs */}
-              <div ref={stickyHeaderRef} className="sticky top-0 z-[60]">
+              <div ref={stickyHeaderRef} className={clsx('z-[60]', dashboardView !== '3d' && 'sticky top-0')}>
                 <MobileSummaryRow
                   fullBleed={isMobileImmersive}
                   noSticky
-                  extraContent={floors.length >= 2 ? (
-                    <SegmentedControl
-                      segments={[
-                        { value: '__all__', label: 'All' },
-                        ...floors.map(f => ({ value: f.floor_id, label: f.name })),
-                      ]}
-                      value={activeFloorId ?? '__all__'}
-                      onChange={v => setActiveFloorId(v === '__all__' ? null : v)}
-                    />
-                  ) : undefined}
+                  extraContent={
+                    <div className="flex items-center gap-ha-2 flex-wrap">
+                      {groupBy === 'area' && floors.length >= 2 && (
+                        <SegmentedControl
+                          segments={[
+                            { value: '__all__', label: 'All', icon: <Icon path={mdiLayers} size={13} /> },
+                            ...floors.map(f => ({
+                              value: f.floor_id,
+                              label: f.name,
+                              icon: f.icon ? <MdiIcon icon={f.icon} size={13} /> : undefined,
+                            })),
+                          ]}
+                          value={activeFloorId ?? '__all__'}
+                          onChange={v => setActiveFloorId(v === '__all__' ? null : v)}
+                        />
+                      )}
+                      {areas.size > 0 && (
+                        <SegmentedControl
+                          segments={[
+                            { value: 'area', label: 'Room', icon: <Icon path={mdiHome} size={13} /> },
+                            { value: 'type', label: 'Type', icon: <Icon path={mdiTag} size={13} /> },
+                          ]}
+                          value={groupBy}
+                          onChange={v => {
+                            const next = v as 'area' | 'type';
+                            localStorage.setItem('ha_group_by', next);
+                            setGroupBy(next);
+                            if (next === 'type') setActiveFloorId(null);
+                          }}
+                        />
+                      )}
+                      {/* 3D view toggle — hidden until home model is ready
+                      <div className="ml-auto inline-flex items-center bg-surface-mid rounded-ha-xl p-[3px] gap-[2px]">
+                        <button
+                          onClick={() => setDashboardView('list')}
+                          className={clsx(
+                            'flex items-center justify-center w-8 h-7 rounded-ha-lg transition-all duration-200',
+                            dashboardView === 'list'
+                              ? 'bg-surface-default text-text-primary shadow-sm'
+                              : 'text-text-secondary hover:text-text-primary',
+                          )}
+                          aria-label="List view"
+                        >
+                          <Icon path={mdiViewGrid} size={16} />
+                        </button>
+                        <button
+                          onClick={handleSwitchTo3D}
+                          className={clsx(
+                            'flex items-center justify-center w-8 h-7 rounded-ha-lg transition-all duration-200',
+                            dashboardView === '3d'
+                              ? 'bg-surface-default text-text-primary shadow-sm'
+                              : 'text-text-secondary hover:text-text-primary',
+                          )}
+                          aria-label="3D view"
+                        >
+                          <Icon path={mdiCube} size={16} />
+                        </button>
+                      </div>
+                      */}
+                    </div>
+                  }
                 />
               </div>
 
-              <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full space-y-ha-6">
-                <ApplicationViewNotice />
+              {dashboardView === '3d' ? (
+                <div className="flex-1 min-h-0">
+                  <DashboardFloorView
+                    sections={visibleSections}
+                    onRoomClick={key => { if (key !== '__none__') router.push(`/room/${key}`); }}
+                  />
+                </div>
+              ) : (
+                <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full space-y-ha-6">
+                  <ApplicationViewNotice />
 
-                {loading && (
-                  <div className="grid gap-ha-3 grid-cols-2 lg:grid-cols-3">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                      <div key={i} className="h-[88px] rounded-ha-2xl bg-surface-low animate-pulse" />
-                    ))}
-                  </div>
-                )}
+                  {/* Onboarding banner — shown once on first connect */}
+                  {!loading && devices.length > 0 && !onboardingDismissed && (
+                    <div className="rounded-ha-2xl bg-ha-blue/8 border border-ha-blue/15 p-ha-4 flex items-start gap-ha-3">
+                      <div className="w-9 h-9 rounded-ha-xl bg-ha-blue/15 flex items-center justify-center shrink-0 mt-0.5">
+                        <Icon path={mdiAutoFix} size={20} className="text-ha-blue" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-text-primary">Configure your dashboard</p>
+                        <p className="text-sm text-text-secondary mt-0.5 leading-snug">
+                          Auto-assign primary and sensor entities to each device card based on smart defaults.
+                        </p>
+                        <div className="flex gap-ha-2 mt-ha-3">
+                          <button
+                            onClick={autoConfigureDevices}
+                            className="text-sm font-semibold text-white bg-ha-blue rounded-ha-xl px-ha-3 py-1.5 hover:bg-ha-blue/90 active:scale-95 transition-all"
+                          >
+                            Auto-configure
+                          </button>
+                          <button
+                            onClick={dismissOnboarding}
+                            className="text-sm text-text-secondary hover:text-text-primary transition-colors px-ha-2 py-1.5"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                      <button onClick={dismissOnboarding} className="text-text-tertiary hover:text-text-secondary transition-colors shrink-0 p-0.5">
+                        <Icon path={mdiClose} size={18} />
+                      </button>
+                    </div>
+                  )}
 
-                {!loading && visibleSections.length === 0 && (
-                  <p className="text-sm text-text-secondary text-center py-ha-8">
-                    No devices found. Connect to Home Assistant to see your devices.
-                  </p>
-                )}
+                  {loading && <HALoader className="mb-ha-5" />}
 
-                {visibleSections.map(({ key, title, devices: sectionDevices }) => (
-                  <Section key={key} sectionKey={key} title={title} count={sectionDevices.length}>
-                    {sectionDevices.map(device => {
+                  {loading && (() => {
+                    const skeletons = [140, 88, 88, 88, 140, 88];
+                    const colArrays: number[][] = Array.from({ length: masonryCols }, () => []);
+                    skeletons.forEach((h, i) => colArrays[i % masonryCols].push(h));
+                    return (
+                      <div className="flex gap-ha-3 items-start">
+                        {colArrays.map((col, ci) => (
+                          <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
+                            {col.map((h, j) => (
+                              <div key={j} className="rounded-ha-2xl bg-surface-low animate-pulse" style={{ height: h }} />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {!loading && visibleSections.length === 0 && (
+                    <p className="text-sm text-text-secondary text-center py-ha-8">
+                      No devices found. Connect to Home Assistant to see your devices.
+                    </p>
+                  )}
+
+                  {visibleSections.map(({ key, title, devices: sectionDevices, isArea }) => {
+                    const orderedDevices = applyDeviceOrder(sectionDevices, sectionOrders[key]);
+                    const orderedIds = orderedDevices.map(d => d.id);
+                    const editGridClass = `grid gap-ha-3 items-start ${gridCols ?? 'grid-cols-2 lg:grid-cols-3'}`;
+
+                    const renderCard = (device: HassDevice) => {
                       if (!device.primaryEntity) return null;
                       const config = getConfig(device.id);
                       const primarySlot = config.slots.find(s => s.section === 'primary');
@@ -361,25 +581,27 @@ export default function DashboardPage() {
                             ...(primarySlot ? [{ entity_id: primarySlot.entity_id, size: 'lg' as const }] : []),
                             ...secondarySlots,
                           ];
-
                       const [primarySlotInfo, ...secondarySlotInfos] = displaySlots;
                       const primaryEntity = device.entities.find(e => e.entity_id === primarySlotInfo?.entity_id) ?? device.primaryEntity;
 
                       return (
                         <DeviceCardV2
-                          key={device.id}
                           selected={selectedDeviceId === device.id}
+                          editMode={isEditing}
+                          areaName={groupBy === 'type' ? (areas.get(device.areaId ?? '') ?? undefined) : undefined}
+                          onLongPress={!isEditing ? () => { selectDeviceForEdit(device.id); toggleEditMode(); } : undefined}
                           primary={{
                             entityId: primaryEntity.entity_id,
                             icon: domainIcon(primaryEntity),
                             name: device.name,
                             state: stateLabel(primaryEntity),
+                            lastChanged: primaryEntity.last_changed,
                             active: isOn(primaryEntity),
                             entityPicture: (() => { const p = primaryEntity.attributes.entity_picture as string | undefined; return p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined; })(),
                             unit: (primaryEntity.attributes.unit_of_measurement as string | undefined) ?? undefined,
-                            toggleable: TOGGLEABLE.has(entityDomain(primaryEntity)),
-                            onToggle: TOGGLEABLE.has(entityDomain(primaryEntity)) ? () => toggleEntity(primaryEntity.entity_id, primaryEntity.state) : undefined,
-                            onClick: () => selectEntity(device.id, primaryEntity.entity_id),
+                            toggleable: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)),
+                            onToggle: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)) ? () => toggleEntity(primaryEntity.entity_id, primaryEntity.state) : undefined,
+                            onClick: isEditing ? () => selectDeviceForEdit(device.id) : () => selectEntity(device.id, primaryEntity.entity_id),
                           }}
                           secondary={secondarySlotInfos.flatMap(slot => {
                             const e = device.entities.find(ent => ent.entity_id === slot.entity_id);
@@ -394,46 +616,103 @@ export default function DashboardPage() {
                               state: stateLabel(e),
                               active: isOn(e),
                               size: slot.size,
-                              toggleable: isToggleable,
-                              pressable: isPressable,
-                              onToggle: (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
-                              onClick: () => selectEntity(device.id, e.entity_id),
+                              toggleable: !isEditing && isToggleable,
+                              pressable: !isEditing && isPressable,
+                              onToggle: !isEditing && (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
+                              onClick: isEditing ? () => selectDeviceForEdit(device.id) : () => selectEntity(device.id, e.entity_id),
                             }];
                           })}
                         />
                       );
-                    })}
-                  </Section>
-                ))}
-              </div>
+                    };
+
+                    const handleDragEnd = (event: DragEndEvent) => {
+                      const { active, over } = event;
+                      if (!over || active.id === over.id) return;
+                      const oldIndex = orderedIds.indexOf(active.id as string);
+                      const newIndex = orderedIds.indexOf(over.id as string);
+                      if (oldIndex === -1 || newIndex === -1) return;
+                      handleSectionReorder(key, arrayMove(orderedIds, oldIndex, newIndex));
+                    };
+
+                    return (
+                      <Section key={key} title={title} count={sectionDevices.length} href={isArea && key !== '__none__' ? `/room/${key}` : undefined}>
+                        {isEditing ? (
+                          <DndContext
+                            sensors={dndSensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                          >
+                            <SortableContext items={orderedIds} strategy={rectSortingStrategy}>
+                              <div className={editGridClass}>
+                                {orderedDevices.map(device => (
+                                  <SortableCard key={device.id} id={device.id}>
+                                    {renderCard(device)}
+                                  </SortableCard>
+                                ))}
+                              </div>
+                            </SortableContext>
+                          </DndContext>
+                        ) : (() => {
+                          // Distribute items round-robin across columns so
+                          // ordering is left-to-right and column heights
+                          // never constrain each other (true flex masonry).
+                          const colArrays: HassDevice[][] = Array.from(
+                            { length: masonryCols }, () => []
+                          );
+                          orderedDevices.forEach((d, i) => colArrays[i % masonryCols].push(d));
+                          return (
+                            <div className="flex gap-ha-3 items-start">
+                              {colArrays.map((col, ci) => (
+                                <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
+                                  {col.map(device => (
+                                    <div key={device.id}>{renderCard(device)}</div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </Section>
+                    );
+                  })}
+                </div>
+              )}
             </main>
           </div>
 
-          {/* Entity detail — modal dialog */}
-          <ModalSheet open={panelMode === 'entity' && !!selectedDevice} onClose={closePanel}>
+          {/* Entity detail / card edit — modal dialog */}
+          <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel}>
             {selectedDevice && panelMode === 'entity' && allPanelEntities.length > 0 && (
               <EntityDetailPanel
                 initialEntityId={selectedEntityId ?? allPanelEntities[0].entityId}
                 entities={allPanelEntities}
                 deviceName={selectedDevice.name}
+                deviceMeta={{
+                  deviceId: selectedDevice.id,
+                  manufacturer: selectedDevice.manufacturer,
+                  model: selectedDevice.model,
+                  areaName: selectedDevice.areaId ? areas.get(selectedDevice.areaId) : undefined,
+                  allEntities: selectedDevice.entities.map(e => ({
+                    entityId: e.entity_id,
+                    name: (e.attributes.friendly_name as string | undefined) ?? e.entity_id.split('.')[1],
+                    domain: e.entity_id.split('.')[0],
+                  })),
+                }}
                 onClose={closePanel}
                 onEditCard={() => setPanelMode('edit')}
               />
             )}
-          </ModalSheet>
-
-          {/* Card edit — side panel */}
-          <DashboardSidePanel open={panelMode === 'edit' && !!selectedDevice} onClose={closePanel}>
             {selectedDevice && panelMode === 'edit' && (
               <DeviceCardEditPanel
                 device={selectedDevice}
                 config={getConfig(selectedDevice.id)}
                 onSave={cfg => setConfig(selectedDevice.id, cfg)}
-                onBack={() => setPanelMode('entity')}
+                onBack={isEditing ? closePanel : () => setPanelMode('entity')}
                 onClose={closePanel}
               />
             )}
-          </DashboardSidePanel>
+          </ModalSheet>
         </div>
       </div>
     </>

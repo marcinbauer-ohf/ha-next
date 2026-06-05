@@ -6,3 +6,4 @@ export { AssistantProvider, useAssistantContext } from './AssistantContext';
 export { HeaderProvider, useHeader } from './HeaderContext';
 export { ScreensaverProvider, useScreensaver } from './ScreensaverContext';
 export { EditModeProvider, useEditMode } from './EditModeContext';
+export { ToastProvider, useToast } from './ToastContext';

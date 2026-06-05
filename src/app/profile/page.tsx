@@ -1,25 +1,5 @@
-'use client';
-
-import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
-import { ProfileContent } from '@/components/profile';
-import { useHeader } from '@/contexts';
-import { useEffect } from 'react';
+import { redirect } from 'next/navigation';
 
 export default function ProfilePage() {
-  const { setHeader } = useHeader();
-
-  useEffect(() => {
-    setHeader({
-      title: 'Profile',
-      subtitle: undefined,
-    });
-  }, [setHeader]);
-
-  return (
-    <AppSurfacePage>
-      <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
-        <ProfileContent />
-      </div>
-    </AppSurfacePage>
-  );
+  redirect('/settings');
 }
