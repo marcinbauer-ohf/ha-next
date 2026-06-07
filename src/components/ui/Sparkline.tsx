@@ -7,16 +7,18 @@ interface SparklineProps {
   on: boolean;
   gradientId: string;
   small?: boolean;
+  /** Render as step function — best for boolean (on/off) data */
+  stepped?: boolean;
   /** Called with nearest data-point index on hover, null on leave */
   onHover?: (index: number | null) => void;
 }
 
-export function Sparkline({ points, on, gradientId, small, onHover }: SparklineProps) {
+export function Sparkline({ points, on, gradientId, small, stepped, onHover }: SparklineProps) {
   if (points.length < 3) return null;
 
   const W = 280;
   const H = small ? 32 : 56;
-  const pad = small ? 1 : 2;
+  const pad = small ? 1 : 4;
   const min = Math.min(...points);
   const max = Math.max(...points);
   const range = max - min || 1;
@@ -26,12 +28,17 @@ export function Sparkline({ points, on, gradientId, small, onHover }: SparklineP
     y: H - pad - ((v - min) / range) * (H - pad * 2),
   }));
 
-  const line = coords.reduce((p, pt, i) => {
-    if (i === 0) return `M${pt.x},${pt.y}`;
-    const prev = coords[i - 1];
-    const cx = (prev.x + pt.x) / 2;
-    return `${p} C${cx},${prev.y} ${cx},${pt.y} ${pt.x},${pt.y}`;
-  }, '');
+  const line = stepped
+    ? coords.reduce((p, pt, i) => {
+        if (i === 0) return `M${pt.x},${pt.y}`;
+        return `${p} H${pt.x} V${pt.y}`;
+      }, '')
+    : coords.reduce((p, pt, i) => {
+        if (i === 0) return `M${pt.x},${pt.y}`;
+        const prev = coords[i - 1];
+        const cx = (prev.x + pt.x) / 2;
+        return `${p} C${cx},${prev.y} ${cx},${pt.y} ${pt.x},${pt.y}`;
+      }, '');
 
   const area = `${line} L${W},${H} L0,${H} Z`;
 

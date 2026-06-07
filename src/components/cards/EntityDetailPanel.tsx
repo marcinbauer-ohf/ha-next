@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { mdiClose, mdiPencilOutline, mdiPower, mdiChartAreaspline, mdiInformationOutline } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon, ListSection, RollingNumericValue, SegmentedControl, HALoader } from '../ui';
+import { EntityMiniSparkline } from '../ui/EntityMiniSparkline';
 import { Sparkline } from '../ui/Sparkline';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { HistoryPoint } from '@/lib/homeassistant/types';
@@ -168,11 +169,15 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
   const rawNumeric = parseFloat(entity.state);
   const isNumeric = !isNaN(rawNumeric);
   const numericDisplay = isNumeric ? String(rawNumeric) : entity.state;
+  // Boolean: all history values are 0 or 1 (on/off binary sensor)
+  const isBoolean = numericPoints.length >= 3 && numericPoints.every(v => v === 0 || v === 1);
 
   const hoveredData = hoveredIndex !== null ? historyData[hoveredIndex] : null;
   const displayValue = hoveredData
-    ? (Number.isInteger(hoveredData.value) ? String(hoveredData.value) : hoveredData.value.toFixed(1))
-    : numericDisplay;
+    ? (isBoolean
+        ? (hoveredData.value === 1 ? 'On' : 'Off')
+        : Number.isInteger(hoveredData.value) ? String(hoveredData.value) : hoveredData.value.toFixed(1))
+    : (isBoolean ? entity.state : numericDisplay);
   const timeLabel = hoveredData
     ? (hoveredData.ts ? formatHoverTime(hoveredData.ts) : null)
     : 'NOW';
@@ -224,7 +229,7 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
         </>
       ) : (
         <>
-          {/* Value — rolling digit animation for numerics */}
+          {/* Value — rolling digit animation for numerics, capitalized state for booleans */}
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-baseline justify-center">
               {isNumeric && entity.unit ? (
@@ -237,7 +242,7 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
               )}
             </div>
             {/* Time label: "NOW" at rest, timestamp on hover */}
-            {isNumeric && (
+            {(isNumeric || isBoolean) && (
               <span className={clsx(
                 'text-[10px] font-semibold uppercase tracking-wider transition-colors',
                 entity.entityPicture
@@ -259,6 +264,7 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
                   points={numericPoints}
                   on={entity.active ?? false}
                   gradientId={sparklineId}
+                  stepped={isBoolean}
                   onHover={setHoveredIndex}
                 />
               </div>
@@ -349,16 +355,15 @@ export function EntityDetailPanel({
   onClose,
   onEditCard,
 }: EntityDetailPanelProps) {
-  const [activeEntityId, setActiveEntityId] = useState(initialEntityId);
   const [tab, setTab] = useState<'stats' | 'info'>('stats');
 
-  // When the user clicks a different card on the dashboard, reset to the new entity
+  // Reset tab when a different device is opened
   useEffect(() => {
-    setActiveEntityId(initialEntityId);
     setTab('stats');
   }, [initialEntityId]);
 
-  const activeEntity = entities.find(e => e.entityId === activeEntityId) ?? entities[0];
+  const primaryEntity = entities[0];
+  const secondaryEntities = entities.slice(1);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -366,7 +371,10 @@ export function EntityDetailPanel({
       <div className="flex items-center justify-between px-ha-4 pt-ha-4 pb-ha-3 shrink-0 gap-2">
         <div className="min-w-0 flex-1">
           {deviceName && (
-            <p className="text-xs text-text-tertiary truncate">{deviceName}</p>
+            <p className="text-base font-semibold text-text-primary truncate leading-tight">{deviceName}</p>
+          )}
+          {deviceMeta?.areaName && (
+            <p className="text-xs text-text-tertiary truncate mt-0.5">{deviceMeta.areaName}</p>
           )}
         </div>
         {/* Tab toggle */}
@@ -416,76 +424,72 @@ export function EntityDetailPanel({
       {tab === 'info' ? (
         <DeviceInfoTab deviceName={deviceName} deviceMeta={deviceMeta} entities={entities} />
       ) : (
-        <div className="contents">
-      {/* Detail section — big value/toggle, updates in place */}
-      {activeEntity && <EntityDetailBody key={activeEntity.entityId} entity={activeEntity} />}
+        <>
+          {/* Big preview — primary entity only */}
+          {primaryEntity && <EntityDetailBody key={primaryEntity.entityId} entity={primaryEntity} />}
 
-      {/* Entity list — stable, always same order, pinned to bottom */}
-      {entities.length > 1 && (
-        <div className="shrink-0 px-ha-4 pb-ha-4 pt-ha-2">
-          <ListSection title="Features">
-            {entities.map(entity => {
-              const isActive = entity.entityId === activeEntityId;
-              return (
-                <div
-                  key={entity.entityId}
-                  className={clsx(
-                    'flex items-center gap-ha-3 px-ha-4 py-ha-2 cursor-pointer transition-colors',
-                    isActive ? 'bg-fill-primary-normal' : 'hover:bg-surface-low',
-                  )}
-                  onClick={() => setActiveEntityId(entity.entityId)}
-                >
-                  {/* Icon (always non-interactive) */}
-                  <div className={clsx(
-                    'w-7 h-7 flex items-center justify-center shrink-0',
-                    entity.active ? 'text-green-500' : 'text-text-tertiary',
-                  )}>
-                    <Icon path={entity.icon} size={16} />
-                  </div>
-                  <span className={clsx(
-                    'flex-1 text-sm truncate',
-                    isActive ? 'text-ha-blue font-medium' : 'text-text-primary',
-                  )}>
-                    {entity.name}
-                  </span>
-                  {entity.toggleable && entity.onToggle ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); entity.onToggle!(); }}
-                      className={clsx(
-                        'flex items-center shrink-0 w-11 h-[26px] rounded-full px-[4px] transition-colors',
-                        entity.active ? 'bg-green-500' : 'bg-surface-mid hover:bg-surface-lower',
+          {/* Secondary entities — informational only, no body switching */}
+          {secondaryEntities.length > 0 && (
+            <div className="flex-1 overflow-y-auto px-ha-4 pb-ha-4 pt-ha-2 min-h-0">
+              <ListSection title="Also on this device">
+                {secondaryEntities.map(entity => {
+                  const isReadOnly = !entity.toggleable && !entity.pressable;
+                  return (
+                    <div key={entity.entityId} className="flex flex-col px-ha-4 pt-ha-2 pb-ha-2">
+                      {/* Main row */}
+                      <div className="flex items-center gap-ha-3">
+                        <div className={clsx(
+                          'w-7 h-7 flex items-center justify-center shrink-0',
+                          entity.active && entity.toggleable ? 'text-green-500' : 'text-text-tertiary',
+                        )}>
+                          <Icon path={entity.icon} size={16} />
+                        </div>
+                        <span className="flex-1 text-sm truncate text-text-primary">
+                          {entity.name}
+                        </span>
+                        {entity.toggleable && entity.onToggle ? (
+                          <button
+                            onClick={entity.onToggle}
+                            className={clsx(
+                              'flex items-center shrink-0 w-11 h-[26px] rounded-full px-[4px] transition-colors',
+                              entity.active ? 'bg-green-500' : 'bg-surface-mid hover:bg-surface-lower',
+                            )}
+                            role="switch"
+                            aria-checked={entity.active}
+                          >
+                            <div className={clsx(
+                              'w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200',
+                              entity.active ? 'translate-x-[18px]' : 'translate-x-0',
+                            )} />
+                          </button>
+                        ) : entity.pressable && entity.onToggle ? (
+                          <button
+                            onClick={entity.onToggle}
+                            className="flex items-center justify-center shrink-0 w-11 h-[26px] rounded-full bg-surface-mid hover:bg-surface-lower transition-colors"
+                          >
+                            <Icon path={mdiPower} size={12} className="text-text-secondary" />
+                          </button>
+                        ) : (
+                          <RollingNumericValue
+                            value={entity.state}
+                            className="text-sm font-medium font-mono shrink-0 text-text-secondary"
+                          />
+                        )}
+                      </div>
+                      {/* Inline sparkline for read-only entities */}
+                      {isReadOnly && (
+                        <div className="ml-[28px] mt-1">
+                          <EntityMiniSparkline entityId={entity.entityId} />
+                          <p className="text-[10px] text-text-tertiary mt-0.5">Last 24h</p>
+                        </div>
                       )}
-                      role="switch"
-                      aria-checked={entity.active}
-                    >
-                      <div className={clsx(
-                        'w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200',
-                        entity.active ? 'translate-x-[18px]' : 'translate-x-0',
-                      )} />
-                    </button>
-                  ) : entity.pressable && entity.onToggle ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); entity.onToggle!(); }}
-                      className="flex items-center justify-center shrink-0 w-11 h-[26px] rounded-full bg-surface-mid hover:bg-surface-lower transition-colors"
-                    >
-                      <Icon path={mdiPower} size={12} className="text-text-secondary" />
-                    </button>
-                  ) : (
-                    <RollingNumericValue
-                      value={entity.state}
-                      className={clsx(
-                        'text-sm font-medium font-mono shrink-0',
-                        isActive ? 'text-ha-blue' : 'text-text-secondary',
-                      )}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </ListSection>
-        </div>
-      )}
-        </div>
+                    </div>
+                  );
+                })}
+              </ListSection>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

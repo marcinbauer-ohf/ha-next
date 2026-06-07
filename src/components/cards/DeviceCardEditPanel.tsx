@@ -20,6 +20,7 @@ interface DeviceCardEditPanelProps {
   onSave: (config: DeviceCardConfig) => void;
   onBack: () => void;   // return to entity detail
   onClose: () => void;  // close the whole panel
+  hideBack?: boolean;   // hide back arrow (dialog mode — Done is enough)
 }
 
 const SECTIONS: Array<{
@@ -40,7 +41,7 @@ const SECTIONS: Array<{
   },
 ];
 
-export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose }: DeviceCardEditPanelProps) {
+export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, hideBack }: DeviceCardEditPanelProps) {
   // Initialise slots — if empty, put first entity as primary, rest as hidden
   const [slots, setSlots] = useState<EntitySlot[]>(() => {
     if (config.slots.length > 0) return config.slots;
@@ -117,13 +118,15 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose }:
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-ha-2 px-ha-4 pt-ha-4 pb-ha-3 shrink-0">
-        <button
-          onClick={onBack}
-          className="p-1 rounded-ha-lg text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors shrink-0"
-          title="Back"
-        >
-          <Icon path={mdiArrowLeft} size={18} />
-        </button>
+        {!hideBack && (
+          <button
+            onClick={onBack}
+            className="p-1 rounded-ha-lg text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors shrink-0"
+            title="Back"
+          >
+            <Icon path={mdiArrowLeft} size={18} />
+          </button>
+        )}
 
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-text-primary leading-tight truncate">{device.name}</h2>

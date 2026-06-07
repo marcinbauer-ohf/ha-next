@@ -710,6 +710,7 @@ export default function DashboardPage() {
                 onSave={cfg => setConfig(selectedDevice.id, cfg)}
                 onBack={isEditing ? closePanel : () => setPanelMode('entity')}
                 onClose={closePanel}
+                hideBack={!isEditing}
               />
             )}
           </ModalSheet>
