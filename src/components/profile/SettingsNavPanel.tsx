@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Icon } from '../ui';
+import { Icon, SectionLabel } from '../ui';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useDevices } from '@/hooks';
 import {
@@ -20,6 +20,8 @@ import { mdiChevronRight, mdiMagnify, mdiClose } from '@mdi/js';
 interface SettingsNavPanelProps {
   activeSlug: SettingsSlug | null;
   onSelect: (slug: SettingsSlug) => void;
+  /** Background color token for sticky search gradient — match the container. Default: surface-lower (desktop page) */
+  bg?: 'surface-lower' | 'surface-default';
 }
 
 function NavItem({
@@ -41,17 +43,17 @@ function NavItem({
         subtitle ? 'py-ha-3 min-h-[60px]' : 'py-ha-3'
       } ${
         isActive
-          ? 'bg-fill-primary-normal'
+          ? 'bg-surface-mid'
           : 'hover:bg-surface-mid/50 active:bg-surface-mid'
       }`}
     >
       <div className={`w-9 h-9 flex items-center justify-center rounded-ha-xl flex-shrink-0 transition-colors ${
-        isActive ? 'bg-ha-blue/15 text-ha-blue' : 'bg-surface-mid text-text-secondary'
+        isActive ? 'bg-surface-low text-text-primary' : 'bg-surface-mid text-text-secondary'
       }`}>
         <Icon path={item.icon} size={18} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={`text-[13px] font-semibold leading-tight ${isActive ? 'text-ha-blue' : 'text-text-primary'}`}>
+        <p className="text-[13px] font-semibold leading-tight text-text-primary">
           {item.label}
         </p>
         {subtitle && (
@@ -61,13 +63,13 @@ function NavItem({
       <Icon
         path={mdiChevronRight}
         size={16}
-        className={isActive ? 'text-ha-blue/60' : 'text-text-disabled'}
+        className={isActive ? 'text-text-secondary' : 'text-text-disabled'}
       />
     </button>
   );
 }
 
-export function SettingsNavPanel({ activeSlug, onSelect }: SettingsNavPanelProps) {
+export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower' }: SettingsNavPanelProps) {
   const { haUrl, connected, demoMode } = useHomeAssistant();
   const { theme, mode } = useTheme();
   const { immersiveMode } = useImmersiveMode();
@@ -132,22 +134,9 @@ export function SettingsNavPanel({ activeSlug, onSelect }: SettingsNavPanelProps
 
   return (
     <div>
-      {/* Profile card — scrolls away */}
-      <div className="bg-surface-default rounded-ha-3xl p-ha-5 border border-surface-lower shadow-[0_18px_42px_-30px_rgba(15,23,42,0.32)] mb-ha-4">
-        <div className="flex items-center gap-ha-4">
-          <Avatar src={user.picture} initials={user.initials} size="lg" className="ring-4 ring-surface-mid shadow flex-shrink-0" />
-          <div>
-            <h2 className="text-base font-bold text-text-primary leading-tight">{user.name}</h2>
-            <p className="text-[11px] text-text-secondary font-medium px-ha-2 py-0.5 bg-surface-mid rounded-full inline-block mt-0.5">
-              Administrator
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Search — sticky within scroll container */}
+      {/* Search — sticky at top */}
       <div className="sticky top-0 z-10">
-        <div className="bg-surface-lower pb-ha-3">
+        <div className={`${bg === 'surface-default' ? 'bg-surface-default' : 'bg-surface-lower'} pt-ha-1 pb-ha-3`}>
           <div className="relative">
             <Icon path={mdiMagnify} size={18} className="absolute left-ha-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
             <input
@@ -155,7 +144,7 @@ export function SettingsNavPanel({ activeSlug, onSelect }: SettingsNavPanelProps
               placeholder="Search settings…"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full h-10 pl-9 pr-9 rounded-ha-xl bg-surface-default border border-surface-lower text-sm text-text-primary placeholder-text-tertiary outline-none focus:border-ha-blue/40 focus:ring-1 focus:ring-ha-blue/20 transition-colors"
+              className="w-full h-10 pl-9 pr-9 rounded-ha-xl bg-surface-low border border-surface-lower text-sm text-text-primary placeholder-text-tertiary outline-none focus:border-ha-blue/40 focus:ring-1 focus:ring-ha-blue/20 transition-colors"
             />
             {searchQuery && (
               <button
@@ -169,7 +158,20 @@ export function SettingsNavPanel({ activeSlug, onSelect }: SettingsNavPanelProps
           </div>
         </div>
         {/* Gradient fades nav items scrolling under the sticky search */}
-        <div className="h-8 bg-gradient-to-b from-surface-lower to-transparent pointer-events-none" />
+        <div className={`h-6 bg-gradient-to-b ${bg === 'surface-default' ? 'from-surface-default' : 'from-surface-lower'} to-transparent pointer-events-none`} />
+      </div>
+
+      {/* Profile card — below search, scrolls away */}
+      <div className="bg-surface-default rounded-ha-3xl p-ha-5 border border-surface-lower shadow-[0_18px_42px_-30px_rgba(15,23,42,0.32)] mb-ha-4">
+        <div className="flex items-center gap-ha-4">
+          <Avatar src={user.picture} initials={user.initials} size="lg" className="ring-4 ring-surface-mid shadow flex-shrink-0" />
+          <div>
+            <h2 className="text-base font-bold text-text-primary leading-tight">{user.name}</h2>
+            <p className="text-[11px] text-text-secondary font-medium px-ha-2 py-0.5 bg-surface-mid rounded-full inline-block mt-0.5">
+              Administrator
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Nav sections */}
@@ -178,10 +180,8 @@ export function SettingsNavPanel({ activeSlug, onSelect }: SettingsNavPanelProps
           <p className="text-sm text-text-tertiary text-center py-ha-6">No results for &ldquo;{searchQuery}&rdquo;</p>
         ) : (
           visibleSections.map((section) => (
-            <div key={section.title}>
-              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-text-tertiary px-ha-2 mb-ha-2">
-                {section.title}
-              </p>
+            <div key={section.title || '__top'}>
+              {section.title && <SectionLabel className="px-ha-2 mb-ha-3">{section.title}</SectionLabel>}
               <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden">
                 {section.items.map((item) => (
                   <NavItem

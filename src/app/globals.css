@@ -1,10 +1,53 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Hyperlegible Sans';
+  src: url('/fonts/HyperlegibleSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Hyperlegible Sans';
+  src: url('/fonts/HyperlegibleSans-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Hyperlegible Sans';
+  src: url('/fonts/HyperlegibleSans-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Hyperlegible Sans';
+  src: url('/fonts/HyperlegibleSans-MediumItalic.woff2') format('woff2');
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Hyperlegible Sans';
+  src: url('/fonts/HyperlegibleSans-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Hyperlegible Sans';
+  src: url('/fonts/HyperlegibleSans-BoldItalic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 :root {
   /* HA Edge Padding - outer edges of the application */
   --ha-edge-padding: 12px;
   --ha-edge-padding-mobile: 12px;
-  --ha-font-family-base: var(--font-inter);
+  --ha-font-family-base: 'Hyperlegible Sans', var(--font-inter), sans-serif;
 
   /* HA Surface Colors */
   --ha-color-surface-default: #ffffff;
@@ -1264,6 +1307,30 @@
 @media (max-width: 1023px) {
   :root {
     --ha-edge-padding: var(--ha-edge-padding-mobile);
+  }
+}
+
+/* Corner toast (bottom-right) — positioned relative to the dashboard <main>.
+   Mobile: bottom offset tracks the mobile nav's auto-hide so the toast rides
+   the top edge of the bottom nav when shown and drops to the screen edge when
+   hidden. Desktop: inset a bit from the corner of the main content area. */
+.corner-toast {
+  right: var(--spacing-edge, 12px);
+  width: min(21rem, calc(100% - 2 * var(--spacing-edge, 12px)));
+  /* Shown: sit a small gap above the full nav height (which already includes
+     the safe-area inset). Hidden: drop to the screen's bottom safe edge. */
+  bottom: calc(
+    (1 - var(--mobile-nav-hidden, 0)) *
+      (var(--mobile-nav-height, 6rem) + var(--ha-space-2, 0.5rem)) +
+      var(--mobile-nav-hidden, 0) *
+      (var(--ha-space-3, 0.75rem) + env(safe-area-inset-bottom, 0px))
+  );
+}
+@media (min-width: 1024px) {
+  .corner-toast {
+    right: 1.5rem;
+    bottom: 1.5rem;
+    width: 24rem;
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Icon } from './Icon';
+import { SectionLabel } from './SectionLabel';
 import { useSearchContext } from '@/contexts/SearchContext';
 import {
   mdiMagnify,
@@ -196,7 +197,7 @@ export function SearchOverlay() {
           {/* Recent searches when no query */}
           {!query && (
             <div className="px-ha-2 mb-ha-1">
-              <div className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium px-ha-3 py-ha-1">Recent</div>
+              <SectionLabel className="px-ha-3 py-ha-1">Recent</SectionLabel>
               {recentSearches.map((term) => (
                 <button
                   key={term}
@@ -213,9 +214,7 @@ export function SearchOverlay() {
           {/* Grouped results */}
           {grouped.map((group) => (
             <div key={group.type} className="px-ha-2 mb-ha-1">
-              <div className="text-[11px] text-text-tertiary uppercase tracking-wider font-medium px-ha-3 py-ha-1">
-                {typeLabels[group.type]}
-              </div>
+              <SectionLabel className="px-ha-3 py-ha-1">{typeLabels[group.type]}</SectionLabel>
               {group.items.map((item) => {
                 const currentIndex = flatIndex++;
                 const isSelected = currentIndex === selectedIndex;

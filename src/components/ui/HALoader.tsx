@@ -4,52 +4,69 @@ import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 
 interface HALoaderProps {
-  /** sm = inline tight spaces, md = content areas (default), lg = prominent / full-width */
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
 
-// Stroke weight is shared between circle border and bar height — they match visually.
+// stroke = shared weight between ball border and track height
 const SIZES = {
-  sm: { stroke: 2, circle: 8,  gap: 8  },
-  md: { stroke: 3, circle: 12, gap: 10 },
-  lg: { stroke: 4, circle: 16, gap: 12 },
+  sm: { stroke: 2, circle: 7,  trail: 38,  track: 90  },
+  md: { stroke: 3, circle: 10, trail: 52,  track: 140 },
+  lg: { stroke: 4, circle: 13, trail: 68,  track: 180 },
 } as const;
 
 export function HALoader({ size = 'md', className }: HALoaderProps) {
-  const { stroke, circle, gap } = SIZES[size];
+  const { stroke, circle, trail, track } = SIZES[size];
+
+  // The trail div is `trail` px wide, ball sits at its right edge.
+  // startX puts ball flush with left edge; endX puts ball flush with right edge.
+  const startX = -(trail);
+  const endX   = track - circle;
 
   return (
     <div
-      className={clsx('flex items-center w-full', className)}
-      style={{ gap, height: Math.max(circle, stroke * 2) }}
+      className={clsx('relative flex-shrink-0', className)}
+      style={{ width: track, height: circle }}
       role="status"
       aria-label="Loading"
     >
-      {/* Ring — same stroke weight as the bar height */}
-      <motion.div
-        className="flex-shrink-0 rounded-full border-ha-blue"
-        style={{ width: circle, height: circle, borderWidth: stroke }}
-        animate={{ opacity: [0.4, 1, 0.4] }}
-        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+      {/* Track */}
+      <div
+        className="absolute inset-x-0 rounded-full bg-surface-low"
+        style={{ height: stroke, top: '50%', transform: 'translateY(-50%)' }}
       />
 
-      {/* Track with bouncing gradient */}
-      <div
-        className="relative flex-1 overflow-hidden rounded-full bg-surface-low"
-        style={{ height: stroke }}
+      {/* Trail + ball — bounces left ↔ right */}
+      <motion.div
+        className="absolute top-0 bottom-0"
+        style={{ width: trail }}
+        animate={{ x: [startX, endX] }}
+        transition={{
+          duration: 0.85,
+          repeat: Infinity,
+          repeatType: 'mirror',
+          ease: 'easeInOut',
+        }}
       >
-        <motion.div
-          className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-ha-blue/50 to-ha-blue"
-          animate={{ x: ['-100%', '300%'] }}
-          transition={{
-            duration: 1.6,
-            repeat: Infinity,
-            repeatType: 'mirror',
-            ease: [0.4, 0, 0.6, 1],
+        {/* Gradient trail — transparent at left, bright at ball */}
+        <div
+          className="absolute inset-x-0 rounded-full bg-gradient-to-r from-transparent to-ha-blue/70"
+          style={{ height: stroke, top: '50%', transform: 'translateY(-50%)' }}
+        />
+
+        {/* Ball at the right edge of the trail */}
+        <div
+          className="absolute rounded-full bg-ha-blue"
+          style={{
+            width: circle,
+            height: circle,
+            right: 0,
+            top: '50%',
+            transform: 'translate(50%, -50%)',
+            boxShadow: `0 0 ${circle}px ${circle / 2}px color-mix(in srgb, var(--ha-color-fill-primary-normal) 50%, transparent)`,
           }}
         />
-      </div>
+      </motion.div>
     </div>
   );
 }

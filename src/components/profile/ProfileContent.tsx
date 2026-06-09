@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import Link from 'next/link';
-import { Icon, ListSection } from '../ui';
+import { Icon, ListSection, SectionLabel } from '../ui';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFeatureFlags } from '@/hooks';
 import {
@@ -54,8 +54,8 @@ function Section({ title, children }: { title?: string; children: React.ReactNod
 
 function DebugSectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-ha-4 pt-ha-3 pb-ha-1 text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary border-b border-surface-low/40">
-      {label}
+    <div className="px-ha-4 pt-ha-3 pb-ha-1 border-b border-surface-low/40">
+      <SectionLabel>{label}</SectionLabel>
     </div>
   );
 }

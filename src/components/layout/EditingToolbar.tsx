@@ -68,16 +68,14 @@ export function EditingToolbar() {
             <div className="relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)]">
               <div className="relative rounded-[23px] bg-surface-default/95 backdrop-blur-md px-edge py-ha-3">
                 <div className="flex items-center gap-ha-2">
-                  <ViewportButtons id="mobile" active={previewViewport} onChange={setPreviewViewport} />
-
-                  <div className="flex-1" />
-
                   <button aria-label="Undo" className="w-11 h-11 rounded-full flex items-center justify-center text-text-disabled opacity-40 cursor-default">
                     <Icon path={mdiUndo} size={20} />
                   </button>
                   <button aria-label="Redo" className="w-11 h-11 rounded-full flex items-center justify-center text-text-disabled opacity-40 cursor-default">
                     <Icon path={mdiRedo} size={20} />
                   </button>
+
+                  <div className="flex-1" />
 
                   <button
                     onClick={exitEditMode}

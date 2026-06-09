@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { Icon } from '../ui/Icon';
 import { SimulationListModal } from '@/components/ui/SimulationListModal';
+import { SystemStatusPanel } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { useHeader, useScreensaver } from '@/contexts';
 import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useDevices, useDeviceCardConfig } from '@/hooks';
@@ -94,7 +95,7 @@ function ChoiceGroup<T extends string>({
 }) {
   return (
     <div className="space-y-ha-2">
-      <div className="text-[12px] font-bold uppercase tracking-[0.18em] text-text-tertiary">{label}</div>
+      <div className="text-xs font-medium uppercase tracking-wider text-text-tertiary">{label}</div>
       <div className="flex flex-wrap gap-ha-2">
         {options.map((option) => {
           const selected = option.value === value;
@@ -516,6 +517,14 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
             </div>
           </div>
         </div>
+      </SettingsShell>
+    );
+  }
+
+  if (slug === 'home-center') {
+    return (
+      <SettingsShell panelMode={panelMode}>
+        <SystemStatusPanel />
       </SettingsShell>
     );
   }

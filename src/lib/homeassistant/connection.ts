@@ -174,11 +174,40 @@ export async function getFloorRegistry(): Promise<FloorRegistryEntry[]> {
   }
 }
 
+// History requests are made by every visible sparkline at once. On a real
+// instance the home dashboard can mount dozens of cards simultaneously, and an
+// unbounded burst of `history_during_period` calls (each returning a large
+// payload) floods the socket and freezes the main thread while parsing. Cap the
+// number in flight so the dashboard stays responsive.
+const HISTORY_MAX_CONCURRENT = 6;
+let historyActive = 0;
+const historyQueue: Array<() => void> = [];
+
+function acquireHistorySlot(): Promise<void> {
+  if (historyActive < HISTORY_MAX_CONCURRENT) {
+    historyActive += 1;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    historyQueue.push(() => {
+      historyActive += 1;
+      resolve();
+    });
+  });
+}
+
+function releaseHistorySlot(): void {
+  historyActive -= 1;
+  const next = historyQueue.shift();
+  if (next) next();
+}
+
 export async function getEntityHistory(entityId: string, hoursBack = 24): Promise<HistoryPoint[]> {
   const conn = connection ?? await waitForConnection();
   if (!conn) return [];
   const end = new Date();
   const start = new Date(end.getTime() - hoursBack * 3600 * 1000);
+  await acquireHistorySlot();
   try {
     const result = await conn.sendMessagePromise<Record<string, HistoryPoint[]>>({
       type: 'history/history_during_period',
@@ -191,6 +220,8 @@ export async function getEntityHistory(entityId: string, hoursBack = 24): Promis
     return result?.[entityId] ?? [];
   } catch {
     return [];
+  } finally {
+    releaseHistorySlot();
   }
 }
 

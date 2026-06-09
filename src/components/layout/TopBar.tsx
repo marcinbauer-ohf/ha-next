@@ -58,14 +58,7 @@ export function TopBar() {
       {/* Mobile: Logo/Icon + Title with dropdown - Centered vertically on mobile */}
       <div className="flex items-center justify-between w-full lg:hidden h-full">
         <div className="flex items-center gap-ha-3">
-          {subtitle ? (
-            <button
-              onClick={() => onBack ? onBack() : router.back()}
-              className="p-1 -ml-1 text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <Icon path={mdiArrowLeft} size={24} />
-            </button>
-          ) : icon ? (
+          {icon ? (
             icon.includes(' ')
               ? <Icon path={icon} size={24} className="text-text-secondary" />
               : <MdiIcon icon={icon} size={24} className="text-text-secondary" />

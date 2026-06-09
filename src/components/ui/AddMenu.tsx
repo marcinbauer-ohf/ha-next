@@ -6,12 +6,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { MdiIcon } from './MdiIcon';
 
 const ITEMS = [
-  { key: 'device', label: 'Device', icon: 'mdi:devices', desc: 'Pair and set up a device', colorClass: 'bg-ha-blue/10 text-ha-blue' },
-  { key: 'integration', label: 'Integration', icon: 'mdi:puzzle-outline', desc: 'Connect a service or platform', colorClass: 'bg-purple-500/10 text-purple-500' },
-  { key: 'dashboard', label: 'Dashboard', icon: 'mdi:view-dashboard-outline', desc: 'Create a new dashboard', colorClass: 'bg-teal-500/10 text-teal-500' },
-  { key: 'automation', label: 'Automation', icon: 'mdi:robot-happy-outline', desc: 'Automate your home', colorClass: 'bg-orange-500/10 text-orange-500' },
-  { key: 'scene', label: 'Scene', icon: 'mdi:palette-outline', desc: 'Save a state snapshot', colorClass: 'bg-pink-500/10 text-pink-500' },
-  { key: 'script', label: 'Script', icon: 'mdi:script-text-outline', desc: 'Create reusable actions', colorClass: 'bg-green-500/10 text-green-500' },
+  { key: 'device', label: 'Device', icon: 'mdi:devices', colorClass: 'bg-ha-blue/10 text-ha-blue' },
+  { key: 'integration', label: 'Integration', icon: 'mdi:puzzle-outline', colorClass: 'bg-purple-500/10 text-purple-500' },
+  { key: 'dashboard', label: 'Dashboard', icon: 'mdi:view-dashboard-outline', colorClass: 'bg-teal-500/10 text-teal-500' },
+  { key: 'automation', label: 'Automation', icon: 'mdi:robot-happy-outline', colorClass: 'bg-orange-500/10 text-orange-500' },
+  { key: 'scene', label: 'Scene', icon: 'mdi:palette-outline', colorClass: 'bg-pink-500/10 text-pink-500' },
+  { key: 'script', label: 'Script', icon: 'mdi:script-text-outline', colorClass: 'bg-green-500/10 text-green-500' },
 ];
 
 interface Props {
@@ -59,7 +59,7 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: -6 }}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              className="hidden lg:block fixed z-[200] w-72 bg-surface-default rounded-ha-2xl shadow-2xl border border-surface-low/80 overflow-hidden"
+              className="hidden lg:block fixed z-[200] w-60 bg-surface-default rounded-ha-2xl shadow-2xl border border-surface-low/80 overflow-hidden"
               style={{
                 top: anchorRect.bottom + 8,
                 right: typeof window !== 'undefined' ? window.innerWidth - anchorRect.right : 16,
@@ -71,15 +71,12 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
                   <button
                     key={item.key}
                     onClick={onClose}
-                    className="w-full flex items-center gap-ha-3 px-ha-3 py-ha-2.5 rounded-ha-xl hover:bg-surface-low transition-colors text-left"
+                    className="w-full flex items-center gap-ha-3 px-ha-3 py-ha-3 rounded-ha-xl hover:bg-surface-low transition-colors text-left"
                   >
                     <div className={`w-9 h-9 rounded-ha-lg flex items-center justify-center flex-shrink-0 ${item.colorClass}`}>
                       <MdiIcon icon={item.icon} size={20} />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-text-primary">{item.label}</p>
-                      <p className="text-xs text-text-secondary truncate">{item.desc}</p>
-                    </div>
+                    <p className="text-sm font-medium text-text-primary">{item.label}</p>
                   </button>
                 ))}
               </div>
@@ -111,10 +108,7 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
                     <div className={`w-10 h-10 rounded-ha-xl flex items-center justify-center flex-shrink-0 ${item.colorClass}`}>
                       <MdiIcon icon={item.icon} size={22} />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-text-primary">{item.label}</p>
-                      <p className="text-xs text-text-secondary">{item.desc}</p>
-                    </div>
+                    <p className="text-sm font-medium text-text-primary">{item.label}</p>
                   </button>
                 ))}
               </div>

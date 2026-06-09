@@ -87,6 +87,8 @@ interface SearchResultItem {
 
 interface MobileNavProps {
   disableAutoHide?: boolean;
+  /** Hold the nav at its current shown/hidden state (e.g. while a toast is up). */
+  freezeAutoHide?: boolean;
   connectionStatus?: ConnectionStatusType;
   onNavAutoHiddenChange?: (progress: number) => void;
   editModeFade?: boolean;
@@ -120,7 +122,7 @@ function isNavItemActive(currentPath: string, itemPath: string): boolean {
   );
 }
 
-export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAutoHiddenChange, editModeFade }: MobileNavProps) {
+export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, connectionStatus, onNavAutoHiddenChange, editModeFade }: MobileNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { haUrl, callService } = useHomeAssistant();
@@ -156,6 +158,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
   const lastScrollTopRef = useRef<number | null>(null);
   const scrollSnapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
   const bottomSheetHandleRef = useRef<HTMLButtonElement | null>(null);
   const expandedSurfaceScrollRef = useRef<HTMLDivElement | null>(null);
   const activityListScrollRef = useRef<HTMLDivElement | null>(null);
@@ -230,6 +233,12 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       clearScrollSnapTimer();
     };
 
+    // Freeze: hold the current progress, ignore scroll while a toast is up.
+    if (freezeAutoHide) {
+      resetScrollTracking();
+      return;
+    }
+
     if (disableAutoHide || isRevealed || isBottomSurfaceEngaged) {
       resetScrollTracking();
       queueMicrotask(() => {
@@ -242,6 +251,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     const HIDE_PROGRESS_DISTANCE_PX = 48;
     const SHOW_PROGRESS_DISTANCE_PX = 32;
     const SCROLL_SNAP_DELAY_MS = 120;
+    // Gap of inactivity that marks the next scroll event as a fresh gesture.
+    const GESTURE_GAP_MS = 180;
+    let lastScrollTime = 0;
 
     const clearInactivityHide = () => {
       setHideFromInactivity((hidden) => (hidden ? false : hidden));
@@ -263,6 +275,10 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
     const handleScroll = () => {
       if (!scrollable) return;
 
+      const now = Date.now();
+      const isNewGesture = now - lastScrollTime > GESTURE_GAP_MS;
+      lastScrollTime = now;
+
       const nextScrollTop = scrollable.scrollTop;
       const prevScrollTop = lastScrollTopRef.current ?? nextScrollTop;
       lastScrollTopRef.current = nextScrollTop;
@@ -272,6 +288,14 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       if (nextScrollTop <= 2) {
         clearScrollSnapTimer();
         setClampedHideProgress(0);
+        return;
+      }
+
+      // Starting a fresh scroll gesture while the nav is hidden reveals it,
+      // regardless of direction. Continued scrolling then drives hide/show by delta.
+      if (isNewGesture && scrollHideProgressRef.current > 0.02) {
+        setClampedHideProgress(0);
+        scheduleScrollSnap();
         return;
       }
 
@@ -316,10 +340,13 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
       }
       resetScrollTracking();
     };
-  }, [disableAutoHide, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
+  }, [disableAutoHide, freezeAutoHide, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
 
   // Inactivity detection for hiding bottom row after 10s
   useEffect(() => {
+    // Freeze: don't start the inactivity timer or alter state while a toast is up.
+    if (freezeAutoHide) return;
+
     if (disableAutoHide || isRevealed || isBottomSurfaceEngaged) {
       queueMicrotask(() => {
         setHideFromInactivity(false);
@@ -389,7 +416,26 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         scrollable.removeEventListener('scroll', resetInactivityTimer);
       }
     };
-  }, [disableAutoHide, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
+  }, [disableAutoHide, freezeAutoHide, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
+
+  // Publish the nav's rendered height so the corner toast can sit just above it.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const apply = () => {
+      document.documentElement.style.setProperty('--mobile-nav-height', `${el.offsetHeight}px`);
+    };
+    apply();
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(apply);
+      ro.observe(el);
+    }
+    return () => {
+      ro?.disconnect();
+      document.documentElement.style.removeProperty('--mobile-nav-height');
+    };
+  }, []);
 
   // Bottom-edge gradient: shown only when dashboard content continues below the fold
   useEffect(() => {
@@ -1330,6 +1376,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         <div className="pb-8">
           <SettingsNavPanel
             activeSlug={null}
+            bg="surface-default"
             onSelect={(slug) => {
               closeExpandedSurface();
               router.push(`/settings/${slug}`);
@@ -1459,8 +1506,9 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
   return (
     <nav
-      className={`lg:hidden fixed inset-x-0 bottom-0 z-50 transition-[transform,opacity] duration-300 ${editModeFade ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}
-      style={{ paddingBottom: `calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))` }}
+      ref={navRef}
+      className={`lg:hidden fixed inset-x-0 bottom-0 z-50 ${editModeFade ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+      style={{ paddingBottom: 'calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))' }}
       data-component="MobileNav"
       data-connection-status={connectionStatus ?? 'unknown'}
       onMouseEnter={() => {
@@ -1477,21 +1525,18 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
         type="button"
         aria-label="Close expanded panel"
         onClick={closeExpandedSurface}
-        className={`fixed inset-0 backdrop-blur-[1px] ${
+        className={`fixed inset-0 backdrop-blur-[1px] transition-opacity duration-300 ${
           isSheetVisible ? 'z-0' : '-z-10'
         } ${
           statusExpanded && !isBottomSheetDragging ? '' : 'pointer-events-none'
-        } ${isSettingsSurfaceVisible ? 'bg-black/60' : 'bg-black/45'}`}
+        } bg-black/50`}
         style={{ opacity: isSheetVisible ? 1 : 0 }}
       />
       <div className="relative z-10 px-edge">
-        <div
-          className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] max-h-[calc(100svh-4rem)] overflow-hidden"
-          style={isSettingsSurfaceVisible ? { maxHeight: 'calc(100svh - 3rem)' } : undefined}
-        >
+        <div className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden">
           <div className="relative rounded-[23px] bg-surface-default/95 backdrop-blur-md">
             <div className="flex flex-col px-edge pt-ha-1 pb-ha-4">
-              <div className="flex justify-center py-0 mb-0">
+              <div className="flex justify-center py-0 mb-0 shrink-0">
                 <button
                   ref={bottomSheetHandleRef}
                   type="button"
@@ -1503,16 +1548,13 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                 </button>
               </div>
               <div
-                className={`overflow-hidden flex flex-col ${
-                  isBottomSheetDragging ? 'transition-none' : 'transition-[height,opacity,margin] duration-300 ease-out'
-                } ${
-                  isSheetVisible ? 'mb-ha-1' : 'mb-0 pointer-events-none'
-                }`}
+                className={`overflow-hidden flex flex-col ${isSheetVisible ? 'mb-ha-1' : 'mb-0 pointer-events-none'}`}
                 style={{
-                  height: isSettingsSurfaceVisible
-                    ? `calc((100svh - 3rem - 10rem) * ${sheetOpenProgress})`
-                    : `calc((100svh - 4rem - 10rem) * ${sheetOpenProgress})`,
-                  opacity: Math.max(0, Math.min(1, sheetOpenProgress * 1.05)),
+                  height: `calc(${sheetOpenProgress} * (100svh - 15rem))`,
+                  opacity: Math.max(0, Math.min(1, sheetOpenProgress * 1.5)),
+                  transition: isBottomSheetDragging
+                    ? 'none'
+                    : 'height 0.5s cubic-bezier(0.22,1,0.36,1), opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
                 }}
               >
                 <div className="relative flex-1 min-h-0">
@@ -1535,7 +1577,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
                 </div>
               </div>
         {/* Top row: Ask your home + Media + Timer + Status */}
-        <div className="flex items-center gap-ha-2">
+        <div className="flex items-center gap-ha-2 shrink-0">
           {showHomeBackButton && (
             <Link prefetch={false}
               href="/"
@@ -1915,7 +1957,7 @@ export function MobileNav({ disableAutoHide = false, connectionStatus, onNavAuto
 
         {/* Bottom row: Navigation pill */}
         <div
-          className="overflow-hidden transition-[max-height,margin-top,opacity,transform] duration-120 ease-out"
+          className="overflow-hidden transition-[max-height,margin-top,opacity,transform] duration-120 ease-out shrink-0"
           style={{
             maxHeight: `${56 * bottomRowVisibleRatio}px`,
             marginTop: `${12 * bottomRowVisibleRatio}px`,

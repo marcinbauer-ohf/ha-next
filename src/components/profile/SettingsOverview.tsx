@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { Icon } from '../ui/Icon';
+import { SectionLabel } from '../ui';
 import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { useLiveSummaryItems, PeopleBadge } from '@/components/sections/SummariesPanel';
@@ -25,11 +26,6 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-text-tertiary mb-ha-3">{children}</p>
-  );
-}
 
 export function SettingsOverview() {
   const { connected, connecting, demoMode, haUrl } = useHomeAssistant();
@@ -136,7 +132,7 @@ export function SettingsOverview() {
 
       {/* Home at a glance */}
       <Card>
-        <SectionLabel>Home</SectionLabel>
+        <SectionLabel className="mb-ha-3">Home</SectionLabel>
         <div className="flex flex-wrap gap-ha-2">
           <PeopleBadge compact variant="compact" />
           {liveSummaryItems.map((item) => (
@@ -156,7 +152,7 @@ export function SettingsOverview() {
       {/* Active now */}
       {activityCards.length > 0 && (
         <Card>
-          <SectionLabel>Active Now</SectionLabel>
+          <SectionLabel className="mb-ha-3">Active Now</SectionLabel>
           <div className="space-y-ha-2">
             {activityCards.map((activity) => (
               <div

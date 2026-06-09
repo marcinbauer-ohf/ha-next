@@ -19,8 +19,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { mdiHomeAssistant, mdiChevronRight, mdiViewGrid, mdiCube, mdiAutoFix, mdiClose, mdiHome, mdiTag, mdiLayers } from '@mdi/js';
-import { MdiIcon } from '@/components/ui/MdiIcon';
+import { mdiHomeAssistant, mdiChevronRight, mdiViewGrid, mdiCube, mdiAutoFix, mdiClose, mdiAccessPointNetwork } from '@mdi/js';
 import { clsx } from 'clsx';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 
@@ -213,8 +212,35 @@ export default function DashboardPage() {
   }, [floors, activeFloorId]);
 
   useEffect(() => {
-    setHeader({ title: 'Home', icon: mdiHomeAssistant });
+    setHeader({ title: 'Home' });
   }, [setHeader]);
+
+  // Demo: surface a simulated "new device detected" event as a corner toast
+  // (bottom-right of the dashboard). Random one-shot for now — placeholder until
+  // wired to real HA discovery / notification events.
+  useEffect(() => {
+    if (loading) return;
+    const candidates = [
+      'Living Room Speaker',
+      'Hallway Motion Sensor',
+      'Kitchen Smart Plug',
+      'Bedroom Light Strip',
+      'Front Door Lock',
+      'Garage Temperature Sensor',
+    ];
+    const delay = 8000 + Math.random() * 12000; // 8–20s after load
+    const timer = setTimeout(() => {
+      const name = candidates[Math.floor(Math.random() * candidates.length)];
+      showToast({
+        icon: mdiAccessPointNetwork,
+        title: 'New device detected',
+        subtitle: name,
+        position: 'bottom-right',
+        action: { label: 'Set up', onClick: () => {} },
+      });
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [loading, showToast]);
 
   // Dashboard entrance animation
   useEffect(() => {
@@ -231,7 +257,7 @@ export default function DashboardPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [toggleImmersiveMode]);
 
-  // Scroll gradients
+  // Scroll gradients — re-measured on scroll, resize, and content-size changes
   useEffect(() => {
     const el = scrollableRef.current;
     if (!el) return;
@@ -241,10 +267,20 @@ export default function DashboardPage() {
       setShowBottomGradient(scrollHeight > clientHeight + 10 && scrollTop + clientHeight < scrollHeight - 10);
     };
     update();
-    el.addEventListener('scroll', update);
+    el.addEventListener('scroll', update, { passive: true });
     window.addEventListener('resize', update);
-    return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
-  }, []);
+    // Content height changes (devices load, masonry reflow, view switch) must re-measure.
+    // Observe the scroll container AND every child — the tall card content is the
+    // last child, so observing only firstElementChild misses growth.
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    Array.from(el.children).forEach(child => ro.observe(child));
+    return () => {
+      el.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+      ro.disconnect();
+    };
+  }, [loading, dashboardView]);
 
   // Track sticky header height so section headers stick just below it
   useEffect(() => {
@@ -266,13 +302,19 @@ export default function DashboardPage() {
     [areaReg],
   );
 
+  // Devices on the active floor — applies in BOTH area and type modes
+  const floorDevices = useMemo(() => {
+    if (!activeFloorId || floors.length < 2) return devices;
+    return devices.filter(d => areaFloorMap.get(d.areaId ?? '') === activeFloorId);
+  }, [devices, activeFloorId, floors, areaFloorMap]);
+
   const sections = useMemo(() => {
     type Sec = { key: string; title: string; devices: HassDevice[]; isArea: boolean };
     const ordered: Sec[] = [];
 
     if (areas.size > 0 && groupBy === 'area') {
       const byArea = new Map<string, HassDevice[]>();
-      for (const device of devices) {
+      for (const device of floorDevices) {
         const key = device.areaId ?? '__none__';
         if (!byArea.has(key)) byArea.set(key, []);
         byArea.get(key)!.push(device);
@@ -283,7 +325,7 @@ export default function DashboardPage() {
       if (byArea.has('__none__')) ordered.push({ key: '__none__', title: 'Other', devices: byArea.get('__none__')!, isArea: true });
     } else {
       const byDomain = new Map<string, HassDevice[]>();
-      for (const device of devices) {
+      for (const device of floorDevices) {
         if (!device.primaryEntity) continue;
         const domain = entityDomain(device.primaryEntity);
         if (!byDomain.has(domain)) byDomain.set(domain, []);
@@ -300,16 +342,9 @@ export default function DashboardPage() {
       }
     }
     return ordered;
-  }, [devices, areas, groupBy]);
+  }, [floorDevices, areas, groupBy]);
 
-  // Filtered sections for the active floor tab (area mode only)
-  const visibleSections = useMemo(() => {
-    if (groupBy !== 'area' || !activeFloorId || floors.length < 2) return sections;
-    return sections.filter(s => {
-      const floorId = areaFloorMap.get(s.key);
-      return floorId === activeFloorId;
-    });
-  }, [sections, activeFloorId, floors, areaFloorMap]);
+  const visibleSections = sections;
 
   const selectedDevice = useMemo(
     () => devices.find(d => d.id === selectedDeviceId) ?? null,
@@ -410,11 +445,17 @@ export default function DashboardPage() {
               isMobileImmersive ? 'bg-surface-lower rounded-none lg:rounded-ha-3xl' : 'bg-surface-lower rounded-ha-3xl',
             )}
           >
-            {showTopGradient && background !== 'image' && background !== 'gradient' && (
-              <div className="absolute top-0 left-0 right-0 lg:left-0 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20" />
-            )}
-            {showBottomGradient && background !== 'image' && background !== 'gradient' && (
-              <div className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20" />
+            {background !== 'image' && background !== 'gradient' && (
+              <>
+                <div className={clsx(
+                  'absolute top-0 left-0 right-0 lg:left-0 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300',
+                  showTopGradient ? 'opacity-100' : 'opacity-0',
+                )} />
+                <div className={clsx(
+                  'absolute bottom-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300',
+                  showBottomGradient ? 'opacity-100' : 'opacity-0',
+                )} />
+              </>
             )}
 
             <main
@@ -423,7 +464,7 @@ export default function DashboardPage() {
                 'h-full overscroll-none touch-pan-y scrollbar-hide select-none',
                 dashboardView === '3d' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto',
                 dashboardView !== '3d' && 'pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-ha-5',
-                isMobileImmersive ? 'px-ha-4' : 'px-ha-1',
+                isMobileImmersive ? 'px-ha-5' : 'px-ha-3',
                 'lg:px-0',
               )}
               data-scrollable="dashboard"
@@ -434,33 +475,34 @@ export default function DashboardPage() {
                   fullBleed={isMobileImmersive}
                   noSticky
                   extraContent={
-                    <div className="flex items-center gap-ha-2 flex-wrap">
-                      {groupBy === 'area' && floors.length >= 2 && (
-                        <SegmentedControl
-                          segments={[
-                            { value: '__all__', label: 'All', icon: <Icon path={mdiLayers} size={13} /> },
-                            ...floors.map(f => ({
-                              value: f.floor_id,
-                              label: f.name,
-                              icon: f.icon ? <MdiIcon icon={f.icon} size={13} /> : undefined,
-                            })),
-                          ]}
-                          value={activeFloorId ?? '__all__'}
-                          onChange={v => setActiveFloorId(v === '__all__' ? null : v)}
-                        />
+                    <div className="flex items-center gap-ha-2 min-w-0">
+                      {/* Floors — scrollable when many, takes remaining width on the left */}
+                      {floors.length >= 2 && (
+                        <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide -mx-ha-1 px-ha-1">
+                          <SegmentedControl
+                            segments={[
+                              { value: '__all__', label: 'All' },
+                              ...floors.map(f => ({ value: f.floor_id, label: f.name })),
+                            ]}
+                            value={activeFloorId ?? '__all__'}
+                            onChange={v => setActiveFloorId(v === '__all__' ? null : v)}
+                            className="w-max"
+                          />
+                        </div>
                       )}
+                      {/* Room/Type — pinned to the right edge */}
                       {areas.size > 0 && (
                         <SegmentedControl
+                          className="shrink-0 ml-auto"
                           segments={[
-                            { value: 'area', label: 'Room', icon: <Icon path={mdiHome} size={13} /> },
-                            { value: 'type', label: 'Type', icon: <Icon path={mdiTag} size={13} /> },
+                            { value: 'area', label: 'Room' },
+                            { value: 'type', label: 'Type' },
                           ]}
                           value={groupBy}
                           onChange={v => {
                             const next = v as 'area' | 'type';
                             localStorage.setItem('ha_group_by', next);
                             setGroupBy(next);
-                            if (next === 'type') setActiveFloorId(null);
                           }}
                         />
                       )}
@@ -636,7 +678,7 @@ export default function DashboardPage() {
                     };
 
                     return (
-                      <Section key={key} title={title} count={sectionDevices.length} href={isArea && key !== '__none__' ? `/room/${key}` : undefined}>
+                      <Section key={key} title={title} count={sectionDevices.length} href={key === '__none__' ? undefined : isArea ? `/room/${key}` : `/type/${key}`}>
                         {isEditing ? (
                           <DndContext
                             sensors={dndSensors}

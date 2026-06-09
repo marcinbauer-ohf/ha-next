@@ -176,7 +176,7 @@ export function Sidebar({
       <button
         onClick={toggleSearch}
         className={`p-ha-3 rounded-ha-xl transition-colors mb-ha-4 ${
-          searchOpen ? 'bg-fill-primary-normal text-ha-blue' : 'hover:bg-surface-low text-text-secondary'
+          searchOpen ? 'bg-surface-mid text-text-primary' : 'hover:bg-surface-low text-text-secondary'
         }`}
       >
         <Icon path={mdiMagnify} size={24} />
@@ -246,7 +246,7 @@ export function Sidebar({
                     className={clsx(
                       'w-12 h-12 flex-shrink-0 rounded-ha-xl transition-colors flex items-center justify-center',
                       isActive
-                         ? (item.isApp ? 'bg-surface-mid' : 'bg-fill-primary-normal')
+                         ? 'bg-surface-mid'
                          : (item.isApp ? 'bg-surface-low hover:bg-surface-mid' : 'hover:bg-surface-low'),
                       item.isApp && 'ha-app-icon-shell',
                       item.isApp && isActive && 'ha-app-icon-shell-active'

@@ -6,6 +6,7 @@ import { PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext, useHeader } from '@/contexts';
 import { useDesktopImmersivePageLayout, useTheme } from '@/hooks';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { SectionLabel } from '@/components/ui';
 import { mdiFlash } from '@mdi/js';
 
 type EnergyTab = 'now' | 'all';
@@ -36,7 +37,7 @@ function NowContent() {
 
       {/* Active Devices - Basic cards */}
       <div>
-        <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Active Devices</div>
+        <SectionLabel className="mb-ha-2">Active Devices</SectionLabel>
         <div className="space-y-ha-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="bg-surface-low rounded-ha-xl h-16" />
@@ -65,19 +66,19 @@ function AllContent() {
 
       {/* Usage Chart - Basic card */}
       <div>
-        <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Usage History</div>
+        <SectionLabel className="mb-ha-2">Usage History</SectionLabel>
         <div className="bg-surface-low rounded-ha-xl p-ha-4 h-64" />
       </div>
 
       {/* Energy Sources - Basic card */}
       <div>
-        <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Energy Sources</div>
+        <SectionLabel className="mb-ha-2">Energy Sources</SectionLabel>
         <div className="bg-surface-low rounded-ha-xl p-ha-4 h-32" />
       </div>
 
       {/* Device Consumption - Basic cards */}
       <div>
-        <div className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-ha-2">Device Consumption</div>
+        <SectionLabel className="mb-ha-2">Device Consumption</SectionLabel>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-ha-2">
           {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="bg-surface-low rounded-ha-xl h-16" />

@@ -4,6 +4,7 @@ import {
   mdiAccountGroup,
   mdiAccountKey,
   mdiAlphaDBox,
+  mdiHomeVariant,
   mdiApi,
   mdiBackupRestore,
   mdiCalendarClock,
@@ -39,6 +40,7 @@ import {
 } from '@mdi/js';
 
 export type SettingsSlug =
+  | 'home-center'
   // Prototype tools
   | 'dashboards'
   | 'theme-layout'
@@ -100,6 +102,12 @@ export interface SettingsNavSection {
 }
 
 export const settingsNavSections: SettingsNavSection[] = [
+  {
+    title: '',
+    items: [
+      { slug: 'home-center', icon: mdiHomeVariant, label: 'Home Center', description: 'Status, notifications, updates and connectivity' },
+    ],
+  },
   {
     title: 'My Home',
     items: [

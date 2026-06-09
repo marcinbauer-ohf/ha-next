@@ -11,37 +11,15 @@ import { Icon } from '@/components/ui/Icon';
 import { HALoader } from '@/components/ui/HALoader';
 import { usePullToRevealContext, useHeader } from '@/contexts';
 import { useTheme, useDevices, useDesktopImmersivePageLayout } from '@/hooks';
-import { entityDomain, SECTION_ORDER, SECTION_TITLES } from '@/lib/homeassistant/entityHelpers';
+import { entityDomain, SECTION_TITLES } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
-interface RoomPageProps {
-  params: Promise<{ id: string }>;
+interface TypePageProps {
+  params: Promise<{ domain: string }>;
 }
 
-// Group a device list into sections by primary-entity domain, in canonical order.
-function groupByType(list: HassDevice[]): DeviceSection[] {
-  const byDomain = new Map<string, HassDevice[]>();
-  for (const device of list) {
-    if (!device.primaryEntity) continue;
-    const domain = entityDomain(device.primaryEntity);
-    if (!byDomain.has(domain)) byDomain.set(domain, []);
-    byDomain.get(domain)!.push(device);
-  }
-  const sections: DeviceSection[] = [];
-  for (const domain of SECTION_ORDER) {
-    if (byDomain.has(domain)) {
-      sections.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, href: `/type/${domain}`, devices: byDomain.get(domain)! });
-      byDomain.delete(domain);
-    }
-  }
-  for (const [domain, devs] of byDomain) {
-    sections.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, href: `/type/${domain}`, devices: devs });
-  }
-  return sections;
-}
-
-export default function RoomPage({ params }: RoomPageProps) {
-  const { id } = use(params);
+export default function TypePage({ params }: TypePageProps) {
+  const { domain } = use(params);
   const { isRevealed } = usePullToRevealContext();
   const { setHeader } = useHeader();
   const { background } = useTheme();
@@ -52,17 +30,29 @@ export default function RoomPage({ params }: RoomPageProps) {
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
 
-  const areaName = areas.get(id) ?? id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const typeName = SECTION_TITLES[domain] ?? domain.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
   useEffect(() => {
-    setHeader({ title: areaName, subtitle: 'Home' });
-  }, [setHeader, areaName]);
+    setHeader({ title: typeName, subtitle: 'Home' });
+  }, [setHeader, typeName]);
 
-  // Devices in this area, grouped into sections by device type
-  const sections = useMemo(
-    () => groupByType(devices.filter(d => d.areaId === id)),
-    [devices, id],
-  );
+  // Devices whose primary entity is of this domain, grouped into sections by area
+  const sections = useMemo<DeviceSection[]>(() => {
+    const matching = devices.filter(d => d.primaryEntity && entityDomain(d.primaryEntity) === domain);
+    const byArea = new Map<string, HassDevice[]>();
+    for (const device of matching) {
+      const key = device.areaId ?? '__none__';
+      if (!byArea.has(key)) byArea.set(key, []);
+      byArea.get(key)!.push(device);
+    }
+    const out: DeviceSection[] = [];
+    for (const [areaId, areaName] of areas) {
+      if (byArea.has(areaId)) out.push({ key: areaId, title: areaName, href: `/room/${areaId}`, devices: byArea.get(areaId)! });
+    }
+    if (byArea.has('__none__')) out.push({ key: '__none__', title: 'Other', devices: byArea.get('__none__')! });
+    return out;
+  }, [devices, areas, domain]);
+
   const deviceCount = useMemo(() => sections.reduce((n, s) => n + s.devices.length, 0), [sections]);
 
   useEffect(() => {
@@ -130,7 +120,7 @@ export default function RoomPage({ params }: RoomPageProps) {
 
                 {!loading && deviceCount === 0 && (
                   <p className="text-sm text-text-secondary text-center py-ha-8">
-                    No devices in this area.
+                    No {typeName.toLowerCase()} devices found.
                   </p>
                 )}
 

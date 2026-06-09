@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Icon } from './Icon';
 
@@ -19,7 +21,52 @@ const FADE             = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const }
 // Use a value that shows just the icon pill cleanly.
 const ICON_ONLY_WIDTH = 68;
 
-export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, action }: ToastProps) {
+export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, action, compact }: ToastProps & { compact?: boolean }) {
+  // Compact card — used by the corner toast. Same pill on every breakpoint
+  // (the default mobile variant expands to full width, which is wrong here).
+  if (compact) {
+    return (
+      <div className="w-full px-ha-4 py-ha-3 rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50">
+        <div className="flex items-center gap-ha-3">
+          <div className="shrink-0 w-10 h-10 rounded-ha-xl bg-surface-mid flex items-center justify-center">
+            <Icon path={icon} size={20} className={iconColor} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <motion.p
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...FADE, delay: 0.12 }}
+              className="text-sm font-semibold text-text-primary leading-tight truncate"
+            >
+              {title}
+            </motion.p>
+            {subtitle && (
+              <motion.p
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...FADE, delay: 0.2 }}
+                className="text-xs text-text-secondary mt-0.5 leading-tight truncate"
+              >
+                {subtitle}
+              </motion.p>
+            )}
+          </div>
+          {action && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ ...FADE, delay: 0.26 }}
+              onClick={action.onClick}
+              className="shrink-0 h-8 px-ha-3 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-xs font-semibold text-text-primary transition-colors active:scale-95"
+            >
+              {action.label}
+            </motion.button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {/* ── Mobile: pill expands from icon → full text ── */}
@@ -114,7 +161,22 @@ export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, actio
   );
 }
 
-export function ToastContainer({ children }: { children: React.ReactNode }) {
+export type ToastPosition = 'bottom-center' | 'bottom-right';
+
+export function ToastContainer({
+  children,
+  position = 'bottom-center',
+}: {
+  children: React.ReactNode;
+  position?: ToastPosition;
+}) {
+  // Sit above the status bar / nav clearance, matching EditingToolbar.
+  const bottom = `calc(var(--ha-space-3, 0.75rem) + env(safe-area-inset-bottom, 0px) + 4.75rem)`;
+
+  if (position === 'bottom-right') {
+    return <CornerToast>{children}</CornerToast>;
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.96 }}
@@ -124,11 +186,34 @@ export function ToastContainer({ children }: { children: React.ReactNode }) {
       // Mobile: sit just above the nav bar (matching EditingToolbar's clearance)
       // Desktop: floating above status bar, offset left for sidebar
       className="fixed inset-x-0 z-[65] pointer-events-auto lg:left-[76px]"
-      style={{
-        bottom: `calc(var(--ha-space-3, 0.75rem) + env(safe-area-inset-bottom, 0px) + 4.75rem`,
-      }}
+      style={{ bottom }}
     >
       {children}
     </motion.div>
   );
+}
+
+// Corner toast is positioned relative to the dashboard's main content area by
+// portaling into #toast-glow-root (absolute inset-0 inside <main>). Falls back
+// to viewport-fixed when that root isn't mounted (non-dashboard routes).
+function CornerToast({ children }: { children: React.ReactNode }) {
+  const [root, setRoot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setRoot(document.getElementById('toast-glow-root'));
+  }, []);
+
+  const node = (
+    <motion.div
+      initial={{ opacity: 0, x: 48, scale: 0.96 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 32, scale: 0.97 }}
+      transition={SPRING_CONTAINER}
+      className={`${root ? 'absolute' : 'fixed'} corner-toast z-[65] pointer-events-auto`}
+    >
+      {children}
+    </motion.div>
+  );
+
+  return root ? createPortal(node, root) : node;
 }

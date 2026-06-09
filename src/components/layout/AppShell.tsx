@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useRef, ReactNode, CSSProperties, useCal
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar, EditingToolbar } from '@/components/layout';
 import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout } from '@/hooks';
-import { useSearchContext, useHeader, useEditMode } from '@/contexts';
+import { useSearchContext, useHeader, useEditMode, useToast } from '@/contexts';
 import { ConnectionToast } from '@/components/ui/ConnectionToast';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
@@ -46,6 +46,7 @@ function AppShellContent({ children }: AppShellProps) {
   const { toggleSearch } = useSearchContext();
   const { title, subtitle } = useHeader();
   const { isEditing, previewViewport } = useEditMode();
+  const { isToastVisible } = useToast();
   const { items: sidebarItems } = useSidebarItems();
   const router = useRouter();
   const pathname = usePathname();
@@ -54,6 +55,7 @@ function AppShellContent({ children }: AppShellProps) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(null);
   const [showPreloader, setShowPreloader] = useState(true);
   const [mobileNavHideProgress, setMobileNavHideProgress] = useState(0);
+  const [isLgScreen, setIsLgScreen] = useState(false);
   const wasConnecting = useRef(false);
   const isEmbeddedView = searchParams.get('embed') === '1';
   const [desktopWorkspaceStart, setDesktopWorkspaceStart] = useState<{
@@ -185,7 +187,9 @@ function AppShellContent({ children }: AppShellProps) {
   } as CSSProperties), [mobileTopBarHideProgress]);
   const layoutStyle = useMemo(() => ({
     '--mobile-ui-hidden-padding': `${mobileHiddenPaddingProgress}`,
-  } as CSSProperties), [mobileHiddenPaddingProgress]);
+    // Consumed by the corner toast to ride the mobile nav's auto-hide.
+    '--mobile-nav-hidden': `${mobileTopBarHideProgress}`,
+  } as CSSProperties), [mobileHiddenPaddingProgress, mobileTopBarHideProgress]);
 
   const handleWorkspaceSplitStart = useCallback((side: SplitSide, anchor: SplitMenuAnchor) => {
     if (!desktopSplitViewEnabled) return;
@@ -292,6 +296,15 @@ function AppShellContent({ children }: AppShellProps) {
 
     router.push(href);
   }, [desktopSplitViewEnabled, pathname, router, workspaceActive]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsLgScreen(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     if (!desktopSplitViewEnabled) return;
@@ -409,11 +422,11 @@ function AppShellContent({ children }: AppShellProps) {
         </div>
 
         {/* Content area */}
-        <div className="flex-1 min-h-0 overflow-hidden relative z-0">
+        <div className="flex-1 min-h-0 overflow-hidden relative z-0" id="dashboard-content-area">
           <div
             className="h-full relative transition-[max-width,margin] duration-300 ease-out"
             style={
-              isEditing && previewViewport !== 'desktop'
+              isLgScreen && isEditing && previewViewport !== 'desktop'
                 ? {
                     maxWidth: previewViewport === 'tablet' ? 768 : 390,
                     marginLeft: 'auto',
@@ -452,6 +465,9 @@ function AppShellContent({ children }: AppShellProps) {
               </>
             )}
           </div>
+
+          {/* Portal root — overlays portaled into here are clipped to the dashboard bounds */}
+          <div id="toast-glow-root" className="absolute inset-0 pointer-events-none" style={{ zIndex: 62 }} />
         </div>
 
         {/* Status bar row - Desktop only */}
@@ -468,6 +484,7 @@ function AppShellContent({ children }: AppShellProps) {
           connectionStatus={connectionStatus}
           onNavAutoHiddenChange={handleMobileNavAutoHiddenChange}
           editModeFade={isEditing}
+          freezeAutoHide={isToastVisible}
         />
       )}
 

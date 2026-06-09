@@ -3,10 +3,12 @@
 import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { Icon } from './Icon';
+import { SectionLabel } from './SectionLabel';
 import {
   mdiBell,
   mdiCheckCircleOutline,
   mdiAlertCircleOutline,
+  mdiChevronRight,
   mdiUpdate,
   mdiWeb,
   mdiCloudOutline,
@@ -19,6 +21,7 @@ function Section({
   tone,
   count,
   emptyLabel,
+  onNavigate,
   children,
 }: {
   icon: string;
@@ -26,6 +29,7 @@ function Section({
   tone: 'default' | 'primary' | 'warning' | 'danger';
   count: number;
   emptyLabel: string;
+  onNavigate?: () => void;
   children?: React.ReactNode;
 }) {
   const toneIcon: Record<string, string> = {
@@ -45,9 +49,14 @@ function Section({
     <div>
       <div className="flex items-center gap-ha-2 mb-ha-2">
         <Icon path={icon} size={14} className={toneIcon[tone]} />
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-text-tertiary flex-1">{label}</span>
+        <SectionLabel className="flex-1">{label}</SectionLabel>
         {count > 0 && (
           <span className={`text-[10px] font-semibold px-ha-2 py-0.5 rounded-full ${toneBadge[tone]}`}>{count}</span>
+        )}
+        {onNavigate && (
+          <button type="button" onClick={onNavigate} className="text-text-disabled hover:text-text-secondary transition-colors -mr-1">
+            <Icon path={mdiChevronRight} size={14} />
+          </button>
         )}
       </div>
       <div className="rounded-ha-2xl border border-surface-lower bg-surface-default overflow-hidden">
@@ -75,7 +84,7 @@ function Row({ primary, secondary }: { primary: string; secondary?: string }) {
   );
 }
 
-export function SystemStatusPanel() {
+export function SystemStatusPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { connected, connecting, demoMode, haUrl } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const { activeNotifications, activeUpdates, offlineDevices, isRemoteConnected } = activityData;
@@ -91,21 +100,21 @@ export function SystemStatusPanel() {
   return (
     <div className="space-y-ha-4">
       {/* Notifications */}
-      <Section icon={mdiBell} label="Notifications" tone={activeNotifications.length > 0 ? 'warning' : 'default'} count={activeNotifications.length} emptyLabel="No notifications">
+      <Section icon={mdiBell} label="Notifications" tone={activeNotifications.length > 0 ? 'warning' : 'default'} count={activeNotifications.length} emptyLabel="No notifications" onNavigate={onNavigate}>
         {activeNotifications.map((n) => (
           <Row key={n.id} primary={n.title} secondary={n.message} />
         ))}
       </Section>
 
       {/* Updates */}
-      <Section icon={mdiUpdate} label="Updates" tone={activeUpdates.length > 0 ? 'primary' : 'default'} count={activeUpdates.length} emptyLabel="System up to date">
+      <Section icon={mdiUpdate} label="Updates" tone={activeUpdates.length > 0 ? 'primary' : 'default'} count={activeUpdates.length} emptyLabel="System up to date" onNavigate={onNavigate}>
         {activeUpdates.map((u) => (
           <Row key={u.id} primary={u.name} />
         ))}
       </Section>
 
       {/* Issues */}
-      <Section icon={mdiAlertCircleOutline} label="Issues" tone={offlineDevices.length > 0 ? 'danger' : 'default'} count={offlineDevices.length} emptyLabel="All devices reachable">
+      <Section icon={mdiAlertCircleOutline} label="Issues" tone={offlineDevices.length > 0 ? 'danger' : 'default'} count={offlineDevices.length} emptyLabel="All devices reachable" onNavigate={onNavigate}>
         {offlineDevices.map((d) => (
           <Row key={d.id} primary={d.name} secondary="Unavailable" />
         ))}
@@ -115,7 +124,12 @@ export function SystemStatusPanel() {
       <div>
         <div className="flex items-center gap-ha-2 mb-ha-2">
           <Icon path={mdiWeb} size={14} className="text-text-secondary" />
-          <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-text-tertiary">Connectivity</span>
+          <SectionLabel className="flex-1">Connectivity</SectionLabel>
+          {onNavigate && (
+            <button type="button" onClick={onNavigate} className="text-text-disabled hover:text-text-secondary transition-colors -mr-1">
+              <Icon path={mdiChevronRight} size={14} />
+            </button>
+          )}
         </div>
         <div className="rounded-ha-2xl border border-surface-lower bg-surface-default overflow-hidden">
           <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3 border-b border-surface-low/40">

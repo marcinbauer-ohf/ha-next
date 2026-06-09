@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   mdiLightbulb,
   mdiThermometer,
@@ -25,6 +25,10 @@ import {
 } from '@mdi/js';
 import { useToast } from '@/contexts';
 import { Button } from '@/components/ui/Button';
+import { HALoader } from '@/components/ui/HALoader';
+import { RollingNumericValue } from '@/components/ui/RollingNumericValue';
+import { ModalSheet } from '@/components/layout/ModalSheet';
+import { AddMenu } from '@/components/ui/AddMenu';
 import { Avatar } from '@/components/ui/Avatar';
 import { CircularProgress } from '@/components/ui/CircularProgress';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
@@ -106,6 +110,9 @@ const TEXT_TOKENS = [
 
 export default function DesignSystemPage() {
   const [seg, setSeg] = useState<'all' | 'active' | 'inactive'>('all');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const addMenuAnchorRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
 
   return (
@@ -546,40 +553,112 @@ export default function DesignSystemPage() {
           </div>
         </Section>
 
-        <Section title="Toast">
+        {/* ── HALoader ────────────────────────────────────────────────────────── */}
+        <Section title="HALoader">
+          <div className="bg-surface-default rounded-ha-2xl p-ha-5 border border-surface-lower space-y-ha-4">
+            <Row label="size">
+              {(['sm','md','lg'] as const).map(s => (
+                <div key={s} className="flex flex-col gap-ha-2 w-48">
+                  <HALoader size={s} />
+                  <PropTag name="size" value={s} />
+                </div>
+              ))}
+            </Row>
+          </div>
+        </Section>
+
+        {/* ── RollingNumericValue ──────────────────────────────────────────────── */}
+        <Section title="RollingNumericValue">
+          <div className="bg-surface-default rounded-ha-2xl p-ha-5 border border-surface-lower space-y-ha-4">
+            <Row label="values">
+              <RollingNumericValue value="22.4°C" className="text-2xl font-bold" />
+              <RollingNumericValue value="142 W" className="text-xl font-semibold text-ha-blue" />
+              <RollingNumericValue value="98.6%" className="text-lg font-medium text-green-500" />
+              <RollingNumericValue value="-12.3" className="text-base text-text-secondary" />
+            </Row>
+          </div>
+        </Section>
+
+        {/* ── ModalSheet ──────────────────────────────────────────────────────── */}
+        <Section title="ModalSheet">
           <div className="bg-surface-default rounded-ha-2xl p-ha-5 border border-surface-lower space-y-ha-3">
-            <div className="flex flex-wrap gap-ha-2">
-              <button
-                onClick={() => showToast({ icon: mdiAutoFix, title: 'Auto-configured', subtitle: '12 devices set up' })}
-                className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
-              >
-                Default
-              </button>
-              <button
-                onClick={() => showToast({ icon: mdiCheckCircle, iconColor: 'text-green-500', title: 'Saved', subtitle: 'Changes applied successfully' })}
-                className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
-              >
-                Success
-              </button>
-              <button
-                onClick={() => showToast({ icon: mdiAlertCircle, iconColor: 'text-amber-500', title: 'Warning', subtitle: 'Something needs attention' })}
-                className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
-              >
-                Warning
-              </button>
+            <p className="text-xs text-text-secondary">Desktop: centered card. Mobile: bottom sheet. Click outside to close.</p>
+            <Button onClick={() => setModalOpen(true)} icon={mdiPlus}>Open modal</Button>
+            <ModalSheet open={modalOpen} onClose={() => setModalOpen(false)}>
+              <div className="p-ha-5 space-y-ha-3">
+                <h3 className="text-lg font-semibold text-text-primary">Modal title</h3>
+                <p className="text-sm text-text-secondary">This is a ModalSheet — centered card on desktop, bottom sheet on mobile. Springs in and out.</p>
+                <div className="flex gap-ha-2 pt-ha-2">
+                  <Button variant="primary" onClick={() => setModalOpen(false)}>Confirm</Button>
+                  <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
+                </div>
+              </div>
+            </ModalSheet>
+          </div>
+        </Section>
+
+        {/* ── AddMenu ─────────────────────────────────────────────────────────── */}
+        <Section title="AddMenu">
+          <div className="bg-surface-default rounded-ha-2xl p-ha-5 border border-surface-lower space-y-ha-3">
+            <p className="text-xs text-text-secondary">Desktop: anchored dropdown from button. Mobile: bottom sheet.</p>
+            <button
+              ref={addMenuAnchorRef}
+              onClick={() => setAddMenuOpen(true)}
+              className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+            >
+              + Add
+            </button>
+            <AddMenu isOpen={addMenuOpen} onClose={() => setAddMenuOpen(false)} anchorRef={addMenuAnchorRef} />
+          </div>
+        </Section>
+
+        {/* ── Toast ───────────────────────────────────────────────────────────── */}
+        <Section title="Toast">
+          <div className="bg-surface-default rounded-ha-2xl p-ha-5 border border-surface-lower space-y-ha-4">
+            <Row label="icon + content">
+              {[
+                { label: 'Default', props: { icon: mdiAutoFix, title: 'Auto-configured', subtitle: '12 devices set up' } },
+                { label: 'Success', props: { icon: mdiCheckCircle, iconColor: 'text-green-500', title: 'Saved', subtitle: 'Changes applied successfully' } },
+                { label: 'Warning', props: { icon: mdiAlertCircle, iconColor: 'text-amber-500', title: 'Warning', subtitle: 'Something needs attention' } },
+                { label: 'No subtitle', props: { icon: mdiAutoFix, title: 'Title only' } },
+              ].map(({ label, props }) => (
+                <button
+                  key={label}
+                  onClick={() => showToast(props)}
+                  className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+                >
+                  {label}
+                </button>
+              ))}
+            </Row>
+            <Row label="with action">
               <button
                 onClick={() => showToast({ icon: mdiAutoFix, title: 'With action', subtitle: 'Tap the button to undo', action: { label: 'Undo', onClick: () => {} } })}
                 className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
               >
                 With action
               </button>
-              <button
-                onClick={() => showToast({ icon: mdiAutoFix, title: 'Title only' })}
-                className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
-              >
-                No subtitle
-              </button>
-            </div>
+            </Row>
+            <Row label="position">
+              <div className="flex flex-col gap-ha-1 items-start">
+                <button
+                  onClick={() => showToast({ icon: mdiCheckCircle, iconColor: 'text-green-500', title: 'Bottom center', subtitle: 'Default position', position: 'bottom-center' })}
+                  className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+                >
+                  bottom-center
+                </button>
+                <PropTag name="position" value="bottom-center (default)" />
+              </div>
+              <div className="flex flex-col gap-ha-1 items-start">
+                <button
+                  onClick={() => showToast({ icon: mdiCheckCircle, iconColor: 'text-ha-blue', title: 'Bottom right', subtitle: 'Slides in from edge', position: 'bottom-right' })}
+                  className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+                >
+                  bottom-right
+                </button>
+                <PropTag name="position" value="bottom-right" />
+              </div>
+            </Row>
           </div>
         </Section>
 

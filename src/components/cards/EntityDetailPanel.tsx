@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { mdiClose, mdiPencilOutline, mdiPower, mdiChartAreaspline, mdiInformationOutline } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon, ListSection, RollingNumericValue, SegmentedControl, HALoader } from '../ui';
-import { EntityMiniSparkline } from '../ui/EntityMiniSparkline';
 import { Sparkline } from '../ui/Sparkline';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { HistoryPoint } from '@/lib/homeassistant/types';
@@ -356,14 +355,16 @@ export function EntityDetailPanel({
   onEditCard,
 }: EntityDetailPanelProps) {
   const [tab, setTab] = useState<'stats' | 'info'>('stats');
+  const [focusedEntityId, setFocusedEntityId] = useState(initialEntityId);
 
-  // Reset tab when a different device is opened
+  // Focus the clicked entity (and reset tab) whenever a new card is opened
   useEffect(() => {
     setTab('stats');
+    setFocusedEntityId(initialEntityId);
   }, [initialEntityId]);
 
-  const primaryEntity = entities[0];
-  const secondaryEntities = entities.slice(1);
+  const focusedEntity = entities.find(e => e.entityId === focusedEntityId) ?? entities[0];
+  const otherEntities = entities.filter(e => e.entityId !== focusedEntity?.entityId);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -425,67 +426,58 @@ export function EntityDetailPanel({
         <DeviceInfoTab deviceName={deviceName} deviceMeta={deviceMeta} entities={entities} />
       ) : (
         <>
-          {/* Big preview — primary entity only */}
-          {primaryEntity && <EntityDetailBody key={primaryEntity.entityId} entity={primaryEntity} />}
+          {/* Big preview — the focused entity (clicked card / row) */}
+          {focusedEntity && <EntityDetailBody key={focusedEntity.entityId} entity={focusedEntity} />}
 
-          {/* Secondary entities — informational only, no body switching */}
-          {secondaryEntities.length > 0 && (
+          {/* Other entities on the device — click to focus */}
+          {otherEntities.length > 0 && (
             <div className="flex-1 overflow-y-auto px-ha-4 pb-ha-4 pt-ha-2 min-h-0">
               <ListSection title="Also on this device">
-                {secondaryEntities.map(entity => {
-                  const isReadOnly = !entity.toggleable && !entity.pressable;
-                  return (
-                    <div key={entity.entityId} className="flex flex-col px-ha-4 pt-ha-2 pb-ha-2">
-                      {/* Main row */}
-                      <div className="flex items-center gap-ha-3">
-                        <div className={clsx(
-                          'w-7 h-7 flex items-center justify-center shrink-0',
-                          entity.active && entity.toggleable ? 'text-green-500' : 'text-text-tertiary',
-                        )}>
-                          <Icon path={entity.icon} size={16} />
-                        </div>
-                        <span className="flex-1 text-sm truncate text-text-primary">
-                          {entity.name}
-                        </span>
-                        {entity.toggleable && entity.onToggle ? (
-                          <button
-                            onClick={entity.onToggle}
-                            className={clsx(
-                              'flex items-center shrink-0 w-11 h-[26px] rounded-full px-[4px] transition-colors',
-                              entity.active ? 'bg-green-500' : 'bg-surface-mid hover:bg-surface-lower',
-                            )}
-                            role="switch"
-                            aria-checked={entity.active}
-                          >
-                            <div className={clsx(
-                              'w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200',
-                              entity.active ? 'translate-x-[18px]' : 'translate-x-0',
-                            )} />
-                          </button>
-                        ) : entity.pressable && entity.onToggle ? (
-                          <button
-                            onClick={entity.onToggle}
-                            className="flex items-center justify-center shrink-0 w-11 h-[26px] rounded-full bg-surface-mid hover:bg-surface-lower transition-colors"
-                          >
-                            <Icon path={mdiPower} size={12} className="text-text-secondary" />
-                          </button>
-                        ) : (
-                          <RollingNumericValue
-                            value={entity.state}
-                            className="text-sm font-medium font-mono shrink-0 text-text-secondary"
-                          />
-                        )}
-                      </div>
-                      {/* Inline sparkline for read-only entities */}
-                      {isReadOnly && (
-                        <div className="ml-[28px] mt-1">
-                          <EntityMiniSparkline entityId={entity.entityId} />
-                          <p className="text-[10px] text-text-tertiary mt-0.5">Last 24h</p>
-                        </div>
-                      )}
+                {otherEntities.map(entity => (
+                  <div
+                    key={entity.entityId}
+                    onClick={() => setFocusedEntityId(entity.entityId)}
+                    className="flex items-center gap-ha-3 px-ha-4 py-ha-2 cursor-pointer hover:bg-surface-low transition-colors"
+                  >
+                    <div className={clsx(
+                      'w-7 h-7 flex items-center justify-center shrink-0',
+                      entity.active && entity.toggleable ? 'text-green-500' : 'text-text-tertiary',
+                    )}>
+                      <Icon path={entity.icon} size={16} />
                     </div>
-                  );
-                })}
+                    <span className="flex-1 text-sm truncate text-text-primary">
+                      {entity.name}
+                    </span>
+                    {entity.toggleable && entity.onToggle ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); entity.onToggle!(); }}
+                        className={clsx(
+                          'flex items-center shrink-0 w-11 h-[26px] rounded-full px-[4px] transition-colors',
+                          entity.active ? 'bg-green-500' : 'bg-surface-mid hover:bg-surface-lower',
+                        )}
+                        role="switch"
+                        aria-checked={entity.active}
+                      >
+                        <div className={clsx(
+                          'w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200',
+                          entity.active ? 'translate-x-[18px]' : 'translate-x-0',
+                        )} />
+                      </button>
+                    ) : entity.pressable && entity.onToggle ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); entity.onToggle!(); }}
+                        className="flex items-center justify-center shrink-0 w-11 h-[26px] rounded-full bg-surface-mid hover:bg-surface-lower transition-colors"
+                      >
+                        <Icon path={mdiPower} size={12} className="text-text-secondary" />
+                      </button>
+                    ) : (
+                      <RollingNumericValue
+                        value={entity.state}
+                        className="text-sm font-medium font-mono shrink-0 text-text-secondary"
+                      />
+                    )}
+                  </div>
+                ))}
               </ListSection>
             </div>
           )}

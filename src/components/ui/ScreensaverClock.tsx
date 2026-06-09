@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { Tooltip } from './Tooltip';
@@ -8,6 +9,7 @@ import { RollingDigit } from './RollingDigit';
 import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
 import {
   mdiAlertCircle,
+  mdiChevronRight,
   mdiBell,
   mdiCctv,
   mdiNewspaperVariantOutline,
@@ -163,6 +165,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const [isDragging, setIsDragging] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
   const [statusPanelOpen, setStatusPanelOpen] = useState(false);
+  const router = useRouter();
   const dragStartY = useRef<number | null>(null);
   const activePointerId = useRef<number | null>(null);
   const dragDistanceRef = useRef(0);
@@ -534,10 +537,28 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         {/* Detail panel — appears above the pill */}
         {statusPanelOpen && (
           <div
-            className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-80 max-h-[55vh] overflow-y-auto scrollbar-hide bg-surface-default/95 backdrop-blur-md rounded-ha-3xl p-ha-5 shadow-2xl border border-surface-lower z-10"
+            className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-80 max-h-[55vh] overflow-y-auto scrollbar-hide bg-surface-default/95 backdrop-blur-md rounded-ha-3xl shadow-2xl border border-surface-lower z-10"
             onClick={(e) => e.stopPropagation()}
           >
-            <SystemStatusPanel />
+            {/* Header */}
+            <div className="flex items-center justify-between px-ha-5 pt-ha-4 pb-ha-3 border-b border-surface-lower sticky top-0 bg-surface-default/95 backdrop-blur-md rounded-t-ha-3xl z-10">
+              <span className="text-sm font-semibold text-text-primary">Home Center</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusPanelOpen(false);
+                  onDismiss();
+                  router.push('/settings');
+                }}
+                className="flex items-center gap-0.5 text-xs font-medium text-ha-blue hover:text-ha-blue/80 transition-colors"
+              >
+                Open
+                <Icon path={mdiChevronRight} size={14} />
+              </button>
+            </div>
+            <div className="p-ha-5">
+              <SystemStatusPanel onNavigate={() => { setStatusPanelOpen(false); onDismiss(); router.push('/settings'); }} />
+            </div>
           </div>
         )}
 

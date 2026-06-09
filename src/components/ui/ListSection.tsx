@@ -17,7 +17,7 @@ export function ListSection({ title, children, className }: ListSectionProps) {
   return (
     <div className={clsx('space-y-ha-2', className)}>
       {title && (
-        <p className="text-xs font-semibold text-text-tertiary uppercase tracking-wider px-ha-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-text-tertiary px-ha-1">
           {title}
         </p>
       )}

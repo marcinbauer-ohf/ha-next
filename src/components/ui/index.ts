@@ -7,6 +7,7 @@ export { HALogo } from './HALogo';
 export { CircularProgress } from './CircularProgress';
 export { InfoSidebar } from './InfoSidebar';
 export { ListSection } from './ListSection';
+export { SectionLabel } from './SectionLabel';
 export { SegmentedControl } from './SegmentedControl';
 export { RollingNumericValue } from './RollingNumericValue';
 export { Toast, ToastContainer } from './Toast';

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Icon } from './Icon';
+import { SectionLabel } from './SectionLabel';
 import { useAssistantContext } from '@/contexts/AssistantContext';
 import {
   mdiClose,
@@ -163,7 +164,7 @@ export function AssistantOverlay() {
         <div className={`px-ha-4 pb-ha-6 transition-all duration-300 delay-150 ${
           visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}>
-          <p className="text-xs text-text-tertiary uppercase tracking-wider font-medium mb-ha-2 px-ha-1">Suggestions</p>
+          <SectionLabel className="mb-ha-2 px-ha-1">Suggestions</SectionLabel>
           <div className="flex flex-wrap gap-ha-2">
             {suggestions.map((s, i) => (
               <button

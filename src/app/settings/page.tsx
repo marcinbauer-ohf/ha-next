@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { SettingsNavPanel } from '@/components/profile';
 import { SettingsDetailPage } from '@/components/profile/SettingsDetailPage';
-import { SettingsOverview } from '@/components/profile/SettingsOverview';
 import { useHeader } from '@/contexts';
 import { type SettingsSlug } from '@/components/profile/settingsNavigation';
 
@@ -48,7 +47,7 @@ function ScrollColumn({ children, className = '' }: { children: React.ReactNode;
 export default function SettingsPage() {
   const { setHeader } = useHeader();
   const router = useRouter();
-  const [activeSlug, setActiveSlug] = useState<SettingsSlug | null>(null);
+  const [activeSlug, setActiveSlug] = useState<SettingsSlug>('home-center');
 
   useEffect(() => {
     setHeader({ title: 'Settings', subtitle: undefined });
@@ -70,10 +69,7 @@ export default function SettingsPage() {
           <SettingsNavPanel activeSlug={activeSlug} onSelect={setActiveSlug} />
         </ScrollColumn>
         <ScrollColumn className="flex-1 min-w-0">
-          {activeSlug
-            ? <SettingsDetailPage slug={activeSlug} panelMode />
-            : <SettingsOverview />
-          }
+          <SettingsDetailPage slug={activeSlug} panelMode />
         </ScrollColumn>
       </div>
     </AppSurfacePage>

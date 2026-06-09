@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useHomeAssistant, useHomeAssistantEntities } from './useHomeAssistant';
 import type { EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry } from '@/lib/homeassistant/types';
 import type { HassEntities, HassEntity } from '@/types';
@@ -131,39 +131,115 @@ function buildFromEntities(allEntities: HassEntities): HassDevice[] {
   return devices;
 }
 
+// ── Shared registry cache ───────────────────────────────────────────────────
+// The 4 registries (entity/device/area/floor) change rarely but are large for a
+// real HA instance. Multiple components mount useDevices at once (e.g. the
+// settings page mounts it twice), so without sharing, every navigation refires
+// 4+ WebSocket round-trips and reparses the full entity registry — which is what
+// makes switching dashboards / opening settings hang. Fetch once per connection,
+// cache at module level, and share via useSyncExternalStore.
+
+interface RegistryStore {
+  entityReg: EntityRegistryEntry[];
+  deviceReg: DeviceRegistryEntry[];
+  areaReg: AreaRegistryEntry[];
+  floorReg: FloorRegistryEntry[];
+  loading: boolean;
+  loaded: boolean;
+}
+
+const EMPTY_REGISTRY: RegistryStore = {
+  entityReg: [],
+  deviceReg: [],
+  areaReg: [],
+  floorReg: [],
+  loading: false,
+  loaded: false,
+};
+
+let registryStore: RegistryStore = EMPTY_REGISTRY;
+let registryInFlight: Promise<void> | null = null;
+const registryListeners = new Set<() => void>();
+
+function notifyRegistryListeners(): void {
+  registryListeners.forEach((l) => l());
+}
+
+function setRegistryStore(next: RegistryStore): void {
+  registryStore = next;
+  notifyRegistryListeners();
+}
+
+function subscribeToRegistry(listener: () => void): () => void {
+  registryListeners.add(listener);
+  return () => { registryListeners.delete(listener); };
+}
+
+function getRegistrySnapshot(): RegistryStore {
+  return registryStore;
+}
+
+function getServerRegistrySnapshot(): RegistryStore {
+  return EMPTY_REGISTRY;
+}
+
+interface RegistryGetters {
+  getEntityRegistry: () => Promise<EntityRegistryEntry[]>;
+  getDeviceRegistry: () => Promise<DeviceRegistryEntry[]>;
+  getAreaRegistry: () => Promise<AreaRegistryEntry[]>;
+  getFloorRegistry: () => Promise<FloorRegistryEntry[]>;
+}
+
+function loadRegistry(getters: RegistryGetters): Promise<void> {
+  if (registryInFlight) return registryInFlight;
+  if (registryStore.loaded) return Promise.resolve();
+
+  setRegistryStore({ ...registryStore, loading: true });
+
+  registryInFlight = (async () => {
+    const [entityReg, deviceReg, areaReg, floorReg] = await Promise.all([
+      getters.getEntityRegistry(),
+      getters.getDeviceRegistry(),
+      getters.getAreaRegistry(),
+      getters.getFloorRegistry(),
+    ]);
+    setRegistryStore({ entityReg, deviceReg, areaReg, floorReg, loading: false, loaded: true });
+  })()
+    .catch(() => {
+      setRegistryStore({ ...registryStore, loading: false });
+    })
+    .finally(() => {
+      registryInFlight = null;
+    });
+
+  return registryInFlight;
+}
+
+function resetRegistry(): void {
+  registryInFlight = null;
+  if (registryStore !== EMPTY_REGISTRY) {
+    setRegistryStore(EMPTY_REGISTRY);
+  }
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────
 
 export function useDevices(): { devices: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; loading: boolean } {
   const { connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry } = useHomeAssistant();
   const allEntities = useHomeAssistantEntities();
 
-  const [entityReg, setEntityReg] = useState<EntityRegistryEntry[]>([]);
-  const [deviceReg, setDeviceReg] = useState<DeviceRegistryEntry[]>([]);
-  const [areaReg, setAreaReg] = useState<AreaRegistryEntry[]>([]);
-  const [floorReg, setFloorReg] = useState<FloorRegistryEntry[]>([]);
-  const [regLoading, setRegLoading] = useState(false);
+  const { entityReg, deviceReg, areaReg, floorReg, loading: regLoading } = useSyncExternalStore(
+    subscribeToRegistry,
+    getRegistrySnapshot,
+    getServerRegistrySnapshot,
+  );
 
   useEffect(() => {
-    if (!connected) return;
-    setRegLoading(true);
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const [e, d, a, f] = await Promise.all([
-          getEntityRegistry(),
-          getDeviceRegistry(),
-          getAreaRegistry(),
-          getFloorRegistry(),
-        ]);
-        if (!cancelled) { setEntityReg(e); setDeviceReg(d); setAreaReg(a); setFloorReg(f); }
-      } finally {
-        if (!cancelled) setRegLoading(false);
-      }
+    if (!connected) {
+      resetRegistry();
+      return;
     }
-
-    load();
-    return () => { cancelled = true; };
+    loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry });
   }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry]);
 
   const devices = useMemo<HassDevice[]>(() => {

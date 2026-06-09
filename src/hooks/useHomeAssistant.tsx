@@ -165,8 +165,25 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
       await connect({ url, token });
       setConnected(true);
 
+      // A live instance pushes a state_changed event per entity — many per
+      // second. Propagating each one to React individually re-runs every store
+      // selector (some O(all entities)) and re-renders the shell on every tick,
+      // which freezes navigation app-wide. Coalesce all updates that arrive
+      // within a frame into a single notification (~60Hz ceiling).
+      let frameHandle = 0;
+      let pendingEntities: HassEntities | null = null;
+      const flushPendingEntities = () => {
+        frameHandle = 0;
+        if (pendingEntities) {
+          setLiveEntities(pendingEntities);
+          pendingEntities = null;
+        }
+      };
       subscribeToEntities((newEntities: HAEntities) => {
-        setLiveEntities(newEntities as unknown as HassEntities);
+        pendingEntities = newEntities as unknown as HassEntities;
+        if (frameHandle === 0) {
+          frameHandle = requestAnimationFrame(flushPendingEntities);
+        }
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed');

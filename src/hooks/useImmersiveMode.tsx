@@ -14,11 +14,7 @@ interface ImmersiveModeContextType {
 const ImmersiveModeContext = createContext<ImmersiveModeContextType | null>(null);
 
 export function ImmersiveModeProvider({ children }: { children: ReactNode }) {
-  const [immersiveMode, setImmersiveMode] = useState(() => {
-    // Default to true on mobile devices
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth < 1024;
-  });
+  const [immersiveMode, setImmersiveMode] = useState(true); // always on by default; desktop turns off after mount
   const [isDesktop, setIsDesktop] = useState(true);
 
   // Animation phases:
@@ -30,10 +26,15 @@ export function ImmersiveModeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsDesktop(window.innerWidth >= 1024);
+      const desktop = window.innerWidth >= 1024;
+      setIsDesktop(desktop);
     };
 
-    handleResize();
+    // On first mount: turn off immersive on desktop
+    if (window.innerWidth >= 1024) {
+      setImmersiveMode(false);
+    }
+    setIsDesktop(window.innerWidth >= 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);

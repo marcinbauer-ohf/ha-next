@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { mdiClose, mdiPencilOutline } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon } from '../ui/Icon';
+import { SectionLabel } from '../ui';
 import { EntityDetailBody, type PanelEntity } from './EntityDetailPanel';
 
 interface ToggleSwitch {
@@ -154,9 +155,7 @@ export function DeviceCardExpanded({
           {/* Features list */}
           {panelEntities.length > 0 && (
             <div className="border-t border-surface-lower">
-              <p className="px-ha-4 pt-ha-3 pb-ha-1 text-xs font-semibold text-text-tertiary uppercase tracking-wider">
-                Features
-              </p>
+              <SectionLabel className="px-ha-4 pt-ha-3 pb-ha-1">Features</SectionLabel>
               {panelEntities.map(entity => {
                 const isActive = entity.entityId === activeEntityId;
                 return (
