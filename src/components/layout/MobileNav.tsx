@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../ui/Icon';
+import { SearchField } from '../ui/SearchField';
 import { Avatar } from '../ui/Avatar';
 import { HALogo } from '../ui/HALogo';
 import { MdiIcon } from '../ui/MdiIcon';
@@ -1095,16 +1096,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       return (
         <div className="space-y-ha-5 pb-ha-2">
           <div className="flex items-center gap-ha-3">
-            <div className="flex items-center gap-ha-3 px-ha-4 h-12 rounded-ha-2xl border border-surface-low/80 bg-surface-low flex-1">
-              <Icon path={mdiMagnify} size={20} className="text-text-secondary flex-shrink-0" />
-              <input
-                type="text"
-                placeholder="Search dashboards, apps, entities..."
-                value={expandedSearchQuery}
-                onChange={(e) => setExpandedSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent text-sm text-text-primary placeholder-text-tertiary outline-none"
-              />
-            </div>
+            <SearchField
+              value={expandedSearchQuery}
+              onChange={setExpandedSearchQuery}
+              placeholder="Search dashboards, apps, entities..."
+              autoFocus
+              className="flex-1"
+            />
             <button
               type="button"
               aria-label="Close search"

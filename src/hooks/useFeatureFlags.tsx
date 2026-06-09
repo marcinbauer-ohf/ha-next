@@ -1,13 +1,45 @@
 'use client';
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import type { ReactiveTriggerMode } from './useHomeEventReactor';
+import type { PulseIntensity } from '@/components/ui/RingShaderBackground';
 
 const LS_DESKTOP_SPLIT_VIEW_KEY = 'ha-flag-desktop-split-view';
+const LS_OFFSCREEN_CHANGE_HINTS_KEY = 'ha-flag-offscreen-change-hints';
+const LS_SCROLL_INDEX_KEY = 'ha-flag-scroll-index';
+const LS_WAVY_BACKGROUND_KEY = 'ha-flag-wavy-background';
+const LS_REACTIVE_BACKGROUND_KEY = 'ha-flag-reactive-background';
+const LS_REACTIVE_TRIGGER_KEY = 'ha-flag-reactive-trigger';
+const LS_REACTIVE_INTENSITY_KEY = 'ha-flag-reactive-intensity';
+const LS_PULSE_WALLPAPER_REACTIVE_KEY = 'ha-flag-pulse-wallpaper-reactive';
+
+const REACTIVE_TRIGGER_MODES: ReactiveTriggerMode[] = ['toggles-errors', 'all', 'errors'];
+const PULSE_INTENSITIES: PulseIntensity[] = ['subtle', 'bold'];
 
 interface FeatureFlagsContextValue {
   desktopSplitViewEnabled: boolean;
   setDesktopSplitViewEnabled: (value: boolean) => void;
   toggleDesktopSplitView: () => void;
+  offscreenChangeHintsEnabled: boolean;
+  setOffscreenChangeHintsEnabled: (value: boolean) => void;
+  toggleOffscreenChangeHints: () => void;
+  scrollIndexEnabled: boolean;
+  setScrollIndexEnabled: (value: boolean) => void;
+  toggleScrollIndex: () => void;
+  wavyBackgroundEnabled: boolean;
+  setWavyBackgroundEnabled: (value: boolean) => void;
+  toggleWavyBackground: () => void;
+  reactiveBackgroundEnabled: boolean;
+  setReactiveBackgroundEnabled: (value: boolean) => void;
+  toggleReactiveBackground: () => void;
+  reactiveTriggerMode: ReactiveTriggerMode;
+  setReactiveTriggerMode: (value: ReactiveTriggerMode) => void;
+  reactiveIntensity: PulseIntensity;
+  setReactiveIntensity: (value: PulseIntensity) => void;
+  /** When the "Pulse" wallpaper is active, ripple on device toggles/errors. */
+  pulseWallpaperReactive: boolean;
+  setPulseWallpaperReactive: (value: boolean) => void;
+  togglePulseWallpaperReactive: () => void;
 }
 
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue | undefined>(undefined);
@@ -16,6 +48,12 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
   const [desktopSplitViewEnabled, setDesktopSplitViewEnabledState] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem(LS_DESKTOP_SPLIT_VIEW_KEY) === '1';
+  });
+
+  // Defaults on — opt-out flag. Only an explicit '0' disables it.
+  const [offscreenChangeHintsEnabled, setOffscreenChangeHintsEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(LS_OFFSCREEN_CHANGE_HINTS_KEY) !== '0';
   });
 
   const setDesktopSplitViewEnabled = useCallback((value: boolean) => {
@@ -27,12 +65,124 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     setDesktopSplitViewEnabled(!desktopSplitViewEnabled);
   }, [desktopSplitViewEnabled, setDesktopSplitViewEnabled]);
 
+  const setOffscreenChangeHintsEnabled = useCallback((value: boolean) => {
+    setOffscreenChangeHintsEnabledState(value);
+    localStorage.setItem(LS_OFFSCREEN_CHANGE_HINTS_KEY, value ? '1' : '0');
+  }, []);
+
+  const toggleOffscreenChangeHints = useCallback(() => {
+    setOffscreenChangeHintsEnabled(!offscreenChangeHintsEnabled);
+  }, [offscreenChangeHintsEnabled, setOffscreenChangeHintsEnabled]);
+
+  // Scroll index rail — defaults on, opt-out. Only an explicit '0' disables it.
+  const [scrollIndexEnabled, setScrollIndexEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(LS_SCROLL_INDEX_KEY) !== '0';
+  });
+
+  const setScrollIndexEnabled = useCallback((value: boolean) => {
+    setScrollIndexEnabledState(value);
+    localStorage.setItem(LS_SCROLL_INDEX_KEY, value ? '1' : '0');
+  }, []);
+
+  const toggleScrollIndex = useCallback(() => {
+    setScrollIndexEnabled(!scrollIndexEnabled);
+  }, [scrollIndexEnabled, setScrollIndexEnabled]);
+
+  // Default off — original radial background. Only explicit '1' enables the wavy variant.
+  const [wavyBackgroundEnabled, setWavyBackgroundEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(LS_WAVY_BACKGROUND_KEY) === '1';
+  });
+
+  const setWavyBackgroundEnabled = useCallback((value: boolean) => {
+    setWavyBackgroundEnabledState(value);
+    localStorage.setItem(LS_WAVY_BACKGROUND_KEY, value ? '1' : '0');
+  }, []);
+
+  const toggleWavyBackground = useCallback(() => {
+    setWavyBackgroundEnabled(!wavyBackgroundEnabled);
+  }, [wavyBackgroundEnabled, setWavyBackgroundEnabled]);
+
+  // Reactive background — off by default.
+  const [reactiveBackgroundEnabled, setReactiveBackgroundEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(LS_REACTIVE_BACKGROUND_KEY) === '1';
+  });
+
+  const [reactiveTriggerMode, setReactiveTriggerModeState] = useState<ReactiveTriggerMode>(() => {
+    if (typeof window === 'undefined') return 'toggles-errors';
+    const stored = localStorage.getItem(LS_REACTIVE_TRIGGER_KEY);
+    return REACTIVE_TRIGGER_MODES.includes(stored as ReactiveTriggerMode)
+      ? (stored as ReactiveTriggerMode)
+      : 'toggles-errors';
+  });
+
+  const [reactiveIntensity, setReactiveIntensityState] = useState<PulseIntensity>(() => {
+    if (typeof window === 'undefined') return 'subtle';
+    const stored = localStorage.getItem(LS_REACTIVE_INTENSITY_KEY);
+    return PULSE_INTENSITIES.includes(stored as PulseIntensity) ? (stored as PulseIntensity) : 'subtle';
+  });
+
+  const setReactiveBackgroundEnabled = useCallback((value: boolean) => {
+    setReactiveBackgroundEnabledState(value);
+    localStorage.setItem(LS_REACTIVE_BACKGROUND_KEY, value ? '1' : '0');
+  }, []);
+
+  const toggleReactiveBackground = useCallback(() => {
+    setReactiveBackgroundEnabled(!reactiveBackgroundEnabled);
+  }, [reactiveBackgroundEnabled, setReactiveBackgroundEnabled]);
+
+  const setReactiveTriggerMode = useCallback((value: ReactiveTriggerMode) => {
+    setReactiveTriggerModeState(value);
+    localStorage.setItem(LS_REACTIVE_TRIGGER_KEY, value);
+  }, []);
+
+  const setReactiveIntensity = useCallback((value: PulseIntensity) => {
+    setReactiveIntensityState(value);
+    localStorage.setItem(LS_REACTIVE_INTENSITY_KEY, value);
+  }, []);
+
+  // Pulse wallpaper reactivity — defaults on, so the wallpaper ripples on toggles.
+  const [pulseWallpaperReactive, setPulseWallpaperReactiveState] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(LS_PULSE_WALLPAPER_REACTIVE_KEY) !== '0';
+  });
+
+  const setPulseWallpaperReactive = useCallback((value: boolean) => {
+    setPulseWallpaperReactiveState(value);
+    localStorage.setItem(LS_PULSE_WALLPAPER_REACTIVE_KEY, value ? '1' : '0');
+  }, []);
+
+  const togglePulseWallpaperReactive = useCallback(() => {
+    setPulseWallpaperReactive(!pulseWallpaperReactive);
+  }, [pulseWallpaperReactive, setPulseWallpaperReactive]);
+
   return (
     <FeatureFlagsContext.Provider
       value={{
         desktopSplitViewEnabled,
         setDesktopSplitViewEnabled,
         toggleDesktopSplitView,
+        offscreenChangeHintsEnabled,
+        setOffscreenChangeHintsEnabled,
+        toggleOffscreenChangeHints,
+        scrollIndexEnabled,
+        setScrollIndexEnabled,
+        toggleScrollIndex,
+        wavyBackgroundEnabled,
+        setWavyBackgroundEnabled,
+        toggleWavyBackground,
+        reactiveBackgroundEnabled,
+        setReactiveBackgroundEnabled,
+        toggleReactiveBackground,
+        reactiveTriggerMode,
+        setReactiveTriggerMode,
+        reactiveIntensity,
+        setReactiveIntensity,
+        pulseWallpaperReactive,
+        setPulseWallpaperReactive,
+        togglePulseWallpaperReactive,
       }}
     >
       {children}

@@ -5,18 +5,14 @@ import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/se
 import { Icon } from './Icon';
 import { SectionLabel } from './SectionLabel';
 import {
-  mdiBell,
   mdiCheckCircleOutline,
-  mdiAlertCircleOutline,
   mdiChevronRight,
-  mdiUpdate,
   mdiWeb,
   mdiCloudOutline,
   mdiCloudOffOutline,
 } from '@mdi/js';
 
 function Section({
-  icon,
   label,
   tone,
   count,
@@ -24,7 +20,6 @@ function Section({
   onNavigate,
   children,
 }: {
-  icon: string;
   label: string;
   tone: 'default' | 'primary' | 'warning' | 'danger';
   count: number;
@@ -32,12 +27,6 @@ function Section({
   onNavigate?: () => void;
   children?: React.ReactNode;
 }) {
-  const toneIcon: Record<string, string> = {
-    default: 'text-text-secondary',
-    primary: 'text-ha-blue',
-    warning: 'text-yellow-500',
-    danger: 'text-red-500',
-  };
   const toneBadge: Record<string, string> = {
     default: 'text-text-tertiary bg-surface-mid',
     primary: 'text-ha-blue bg-fill-primary-normal',
@@ -48,7 +37,6 @@ function Section({
   return (
     <div>
       <div className="flex items-center gap-ha-2 mb-ha-2">
-        <Icon path={icon} size={14} className={toneIcon[tone]} />
         <SectionLabel className="flex-1">{label}</SectionLabel>
         {count > 0 && (
           <span className={`text-[10px] font-semibold px-ha-2 py-0.5 rounded-full ${toneBadge[tone]}`}>{count}</span>
@@ -84,7 +72,17 @@ function Row({ primary, secondary }: { primary: string; secondary?: string }) {
   );
 }
 
-export function SystemStatusPanel({ onNavigate }: { onNavigate?: () => void } = {}) {
+export type HomeCenterSection = 'notifications' | 'updates' | 'issues' | 'connectivity';
+
+export function SystemStatusPanel({
+  onNavigate,
+  focus,
+}: {
+  /** Called with the section the user wants to open in full. */
+  onNavigate?: (target: HomeCenterSection) => void;
+  /** When set, renders only that section (full-page view). */
+  focus?: HomeCenterSection;
+} = {}) {
   const { connected, connecting, demoMode, haUrl } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const { activeNotifications, activeUpdates, offlineDevices, isRemoteConnected } = activityData;
@@ -97,36 +95,46 @@ export function SystemStatusPanel({ onNavigate }: { onNavigate?: () => void } = 
     danger: 'text-red-500',
   };
 
+  const shows = (section: HomeCenterSection) => !focus || focus === section;
+  const navTo = (section: HomeCenterSection) =>
+    onNavigate ? () => onNavigate(section) : undefined;
+
   return (
     <div className="space-y-ha-4">
       {/* Notifications */}
-      <Section icon={mdiBell} label="Notifications" tone={activeNotifications.length > 0 ? 'warning' : 'default'} count={activeNotifications.length} emptyLabel="No notifications" onNavigate={onNavigate}>
+      {shows('notifications') && (
+      <Section label="Notifications" tone={activeNotifications.length > 0 ? 'warning' : 'default'} count={activeNotifications.length} emptyLabel="No notifications" onNavigate={navTo('notifications')}>
         {activeNotifications.map((n) => (
           <Row key={n.id} primary={n.title} secondary={n.message} />
         ))}
       </Section>
+      )}
 
       {/* Updates */}
-      <Section icon={mdiUpdate} label="Updates" tone={activeUpdates.length > 0 ? 'primary' : 'default'} count={activeUpdates.length} emptyLabel="System up to date" onNavigate={onNavigate}>
+      {shows('updates') && (
+      <Section label="Updates" tone={activeUpdates.length > 0 ? 'primary' : 'default'} count={activeUpdates.length} emptyLabel="System up to date" onNavigate={navTo('updates')}>
         {activeUpdates.map((u) => (
           <Row key={u.id} primary={u.name} />
         ))}
       </Section>
+      )}
 
       {/* Issues */}
-      <Section icon={mdiAlertCircleOutline} label="Issues" tone={offlineDevices.length > 0 ? 'danger' : 'default'} count={offlineDevices.length} emptyLabel="All devices reachable" onNavigate={onNavigate}>
+      {shows('issues') && (
+      <Section label="Issues" tone={offlineDevices.length > 0 ? 'danger' : 'default'} count={offlineDevices.length} emptyLabel="All devices reachable" onNavigate={navTo('issues')}>
         {offlineDevices.map((d) => (
           <Row key={d.id} primary={d.name} secondary="Unavailable" />
         ))}
       </Section>
+      )}
 
       {/* Connectivity */}
+      {shows('connectivity') && (
       <div>
         <div className="flex items-center gap-ha-2 mb-ha-2">
-          <Icon path={mdiWeb} size={14} className="text-text-secondary" />
           <SectionLabel className="flex-1">Connectivity</SectionLabel>
-          {onNavigate && (
-            <button type="button" onClick={onNavigate} className="text-text-disabled hover:text-text-secondary transition-colors -mr-1">
+          {navTo('connectivity') && (
+            <button type="button" onClick={navTo('connectivity')} className="text-text-disabled hover:text-text-secondary transition-colors -mr-1">
               <Icon path={mdiChevronRight} size={14} />
             </button>
           )}
@@ -146,6 +154,7 @@ export function SystemStatusPanel({ onNavigate }: { onNavigate?: () => void } = 
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

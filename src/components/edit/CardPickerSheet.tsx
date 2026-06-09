@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/ui/Icon';
+import { SearchField } from '@/components/ui/SearchField';
 import { useHomeAssistantEntities } from '@/hooks/useHomeAssistant';
 import {
   mdiClose,
-  mdiMagnify,
   mdiLightbulb,
   mdiLightbulbOutline,
   mdiToggleSwitchOutline,
@@ -155,16 +155,12 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
 
         {/* Search */}
         <div className="px-ha-4 pb-ha-3">
-          <div className="flex items-center gap-ha-2 px-ha-3 py-ha-2 rounded-ha-xl bg-surface-low">
-            <Icon path={mdiMagnify} size={18} className="text-text-tertiary flex-shrink-0" />
-            <input
-              ref={searchRef}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search entities…"
-              className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none"
-            />
-          </div>
+          <SearchField
+            value={search}
+            onChange={setSearch}
+            placeholder="Search entities…"
+            inputRef={searchRef}
+          />
         </div>
 
         {/* Tabs */}

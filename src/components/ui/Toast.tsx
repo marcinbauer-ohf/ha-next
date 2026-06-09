@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
+import { mdiClose } from '@mdi/js';
 import { Icon } from './Icon';
 
 export interface ToastProps {
@@ -11,6 +12,8 @@ export interface ToastProps {
   title: string;
   subtitle?: string;
   action?: { label: string; onClick: () => void };
+  /** When provided, the compact (corner) toast shows a dismiss (✕) button. */
+  onClose?: () => void;
 }
 
 const SPRING_CONTAINER = { type: 'spring' as const, stiffness: 420, damping: 32, mass: 0.75 };
@@ -21,7 +24,7 @@ const FADE             = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const }
 // Use a value that shows just the icon pill cleanly.
 const ICON_ONLY_WIDTH = 68;
 
-export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, action, compact }: ToastProps & { compact?: boolean }) {
+export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, action, onClose, compact }: ToastProps & { compact?: boolean }) {
   // Compact card — used by the corner toast. Same pill on every breakpoint
   // (the default mobile variant expands to full width, which is wrong here).
   if (compact) {
@@ -57,9 +60,21 @@ export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, actio
               animate={{ opacity: 1 }}
               transition={{ ...FADE, delay: 0.26 }}
               onClick={action.onClick}
-              className="shrink-0 h-8 px-ha-3 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-xs font-semibold text-text-primary transition-colors active:scale-95"
+              className="relative shrink-0 h-8 px-ha-3 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-xs font-semibold text-text-primary transition-colors active:scale-95 before:absolute before:-inset-2 before:content-['']"
             >
               {action.label}
+            </motion.button>
+          )}
+          {onClose && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ ...FADE, delay: 0.32 }}
+              onClick={onClose}
+              aria-label="Dismiss"
+              className="relative shrink-0 w-8 h-8 -mr-1 rounded-ha-pill flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-surface-mid transition-colors active:scale-95 before:absolute before:-inset-2.5 before:content-['']"
+            >
+              <Icon path={mdiClose} size={16} />
             </motion.button>
           )}
         </div>

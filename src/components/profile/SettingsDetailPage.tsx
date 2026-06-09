@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { Icon } from '../ui/Icon';
 import { SimulationListModal } from '@/components/ui/SimulationListModal';
-import { SystemStatusPanel } from '@/components/ui/SystemStatusPanel';
+import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { useHeader, useScreensaver } from '@/contexts';
 import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useDevices, useDeviceCardConfig } from '@/hooks';
@@ -14,7 +14,7 @@ import type { EntitySlot, EntitySection } from '@/hooks/useDeviceCardConfig';
 import { THEMES, type Background, type ColorMode, type Theme } from '@/hooks/useTheme';
 import { areSimulationEntitiesEqual, selectSimulationEntities } from '@/lib/homeassistant/selectors';
 import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
-import { type SettingsSlug, settingsNavSections } from './settingsNavigation';
+import { type SettingsSlug, allSettingsLinks } from './settingsNavigation';
 import {
   mdiAlphaDBox,
   mdiCog,
@@ -45,12 +45,21 @@ interface SettingsMeta {
 function SettingsShell({
   children,
   panelMode,
+  title,
 }: {
   children: React.ReactNode;
   panelMode?: boolean;
+  title?: string;
 }) {
   if (panelMode) {
-    return <div className="space-y-ha-6">{children}</div>;
+    return (
+      <div className="space-y-ha-6">
+        {title && (
+          <h1 className="text-3xl font-bold tracking-tight text-text-primary px-ha-1">{title}</h1>
+        )}
+        {children}
+      </div>
+    );
   }
 
   return (
@@ -59,6 +68,30 @@ function SettingsShell({
         {children}
       </div>
     </AppSurfacePage>
+  );
+}
+
+function SectionHeader({
+  title,
+  description,
+  icon,
+}: {
+  title: string;
+  description?: string;
+  icon?: string;
+}) {
+  return (
+    <div className="flex items-start gap-ha-3 px-ha-1 pt-ha-2">
+      {icon && (
+        <div className="flex h-9 w-9 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary shrink-0">
+          <Icon path={icon} size={20} />
+        </div>
+      )}
+      <div className="min-w-0">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">{title}</h2>
+        {description && <p className="mt-ha-1 text-sm text-text-secondary">{description}</p>}
+      </div>
+    </div>
   );
 }
 
@@ -104,7 +137,7 @@ function ChoiceGroup<T extends string>({
               key={option.value}
               type="button"
               onClick={() => onChange(option.value)}
-              className={`rounded-ha-2xl border px-ha-4 py-ha-3 text-left transition-colors ${
+              className={`rounded-ha-2xl border px-ha-4 py-ha-2 text-left transition-colors ${
                 selected
                   ? 'border-ha-blue/40 bg-fill-primary-normal text-ha-blue'
                   : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low'
@@ -135,14 +168,14 @@ function ToggleRow({
     <button
       type="button"
       onClick={onToggle}
-      className="w-full rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-4 flex items-center gap-ha-4 text-left hover:bg-surface-low transition-colors"
+      className="w-full rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 flex items-center gap-ha-4 text-left hover:bg-surface-low transition-colors"
     >
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold text-text-primary">{label}</div>
-        <div className="mt-1 text-sm text-text-secondary">{description}</div>
+        <div className="mt-0.5 text-xs text-text-secondary">{description}</div>
       </div>
-      <div className={`h-7 w-12 rounded-full px-0.5 flex items-center transition-colors ${checked ? 'bg-ha-blue/50' : 'bg-surface-mid'}`}>
-        <div className={`h-6 w-6 rounded-full bg-surface-default border border-surface-low shadow-sm transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+      <div className={`h-6 w-11 rounded-full px-0.5 flex items-center transition-colors ${checked ? 'bg-ha-blue/50' : 'bg-surface-mid'}`}>
+        <div className={`h-5 w-5 rounded-full bg-surface-default border border-surface-low shadow-sm transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
       </div>
     </button>
   );
@@ -198,6 +231,7 @@ const backgroundLabels: Record<Background, string> = {
   image: 'Image',
   solid: 'Solid',
   none: 'None',
+  pulse: 'Pulse',
 };
 
 const taskBarActivityDefinitions: Array<{
@@ -293,7 +327,7 @@ const settingsMeta: Partial<Record<SettingsSlug, SettingsMeta>> = {
 export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps) {
   const router = useRouter();
   const { setHeader } = useHeader();
-  const { desktopSplitViewEnabled, toggleDesktopSplitView } = useFeatureFlags();
+  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, pulseWallpaperReactive, togglePulseWallpaperReactive } = useFeatureFlags();
   const { theme, mode, background, setTheme, setMode, setBackground } = useTheme();
   const {
     clearCredentials,
@@ -374,7 +408,7 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
   const [connectionSetupOpen, setConnectionSetupOpen] = useState(false);
   const [simulationModal, setSimulationModal] = useState<{ title: string; prefix: string } | null>(null);
 
-  const allNavItems = settingsNavSections.flatMap(s => s.items);
+  const allNavItems = allSettingsLinks;
   const navItem = allNavItems.find(item => item.slug === slug);
   const meta: SettingsMeta = settingsMeta[slug] ?? {
     title: navItem?.label ?? slug,
@@ -496,10 +530,351 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
 
   const actions = null;
 
+  // ── Prototype debugging tool card groups (used standalone and merged) ───────
+  const renderDashboardsCards = () => (
+    <SettingsCard
+      title="Device cards"
+      description="Configure which entities appear on each device card in the dashboard."
+    >
+      <div className="space-y-ha-3">
+        <div className="flex items-start gap-ha-4 px-ha-4 py-ha-3 rounded-ha-xl bg-surface-low">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-text-primary">Auto-configure entities</p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Analyses all {devices.length} devices and automatically assigns entities to Primary, Secondary, or Hidden based on their domain and type.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={autoConfigureDevices}
+            className="shrink-0 px-ha-3 py-ha-2 rounded-ha-lg text-sm font-semibold bg-fill-primary-normal text-ha-blue hover:bg-fill-primary-quiet transition-colors"
+          >
+            {configureStatus === 'done' ? 'Done ✓' : 'Configure'}
+          </button>
+        </div>
+        <div className="flex items-start gap-ha-4 px-ha-4 py-ha-3 rounded-ha-xl bg-surface-low">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-text-primary">Reset dashboard</p>
+            <p className="text-xs text-text-secondary mt-0.5">
+              Clears all entity configuration. Each device will show only its primary entity card.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={resetDashboard}
+            className="shrink-0 px-ha-3 py-ha-2 rounded-ha-lg text-sm font-semibold text-text-secondary bg-surface-mid hover:bg-surface-lower transition-colors"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+    </SettingsCard>
+  );
+
+  const renderThemeCards = () => (
+    <>
+      <SettingsCard title="Immersive Mode" description="Expand dashboard content edge-to-edge for a cleaner shell on desktop and mobile. On by default on mobile.">
+        <ToggleRow
+          label="Immersive mode"
+          description="Keep content expanded and reduce surrounding chrome while moving through subviews."
+          checked={immersiveMode}
+          onToggle={() => setImmersiveMode(!immersiveMode)}
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Color Mode" description="Switch the dashboard between light, dark, or device-following color modes.">
+        <ChoiceGroup<ColorMode>
+          label="Color mode"
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'light', label: 'Light', caption: 'Always bright' },
+            { value: 'dark', label: 'Dark', caption: 'Always dim' },
+            { value: 'system', label: 'System', caption: 'Follow device preference' },
+          ]}
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Theme Appearance" description="Cycle between the visual treatments used during dashboard design reviews.">
+        <ChoiceGroup<Theme>
+          label="Theme"
+          value={theme}
+          onChange={setTheme}
+          options={THEMES.map((entry) => ({
+            value: entry,
+            label: themeLabels[entry],
+            caption: entry === 'glass' ? 'Layered and airy' : entry === 'eink' ? 'Paper-like contrast' : 'Ready to use',
+          }))}
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Background" description="Set the dashboard backdrop without returning to the home screen.">
+        <div className="space-y-ha-4">
+          <ChoiceGroup<Background>
+            label="Background"
+            value={background}
+            onChange={setBackground}
+            options={[
+              { value: 'gradient', label: 'Gradient', caption: 'Atmospheric surfaces' },
+              { value: 'image', label: 'Image', caption: 'Large visual backdrop' },
+              { value: 'pulse', label: 'Pulse', caption: 'Animated rings that react to your home' },
+              { value: 'none', label: 'None', caption: 'Flat surfaces only' },
+            ]}
+          />
+          {background === 'pulse' && (
+            <div className="rounded-ha-2xl border border-surface-lower bg-surface-low/40 px-ha-4 py-ha-3">
+              <ToggleRow
+                label="Pulse on device toggles"
+                description="Ripple a coloured wave across the wallpaper whenever a device turns on or off, or goes unavailable — gold for on, blue for off, red for errors."
+                checked={pulseWallpaperReactive}
+                onToggle={togglePulseWallpaperReactive}
+              />
+            </div>
+          )}
+        </div>
+      </SettingsCard>
+
+      <SettingsCard title="Screensaver" description="Preview the idle clock state from settings instead of from the dashboard itself.">
+        <ToggleRow
+          label="Screensaver preview"
+          description="Activate the full-screen clock now, or dismiss it if you are already previewing it."
+          checked={screensaverActive}
+          onToggle={screensaverActive ? dismissScreensaver : activateScreensaver}
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Desktop Split View" description="Keep the workspace split shortcut available without surfacing it on the dashboard.">
+        <ToggleRow
+          label="Desktop split view"
+          description="Enable the split-workspace entry points used when comparing dashboards side by side."
+          checked={desktopSplitViewEnabled}
+          onToggle={toggleDesktopSplitView}
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Off-screen Change Hints" description="Surface a glowing cue at the dashboard edge when a card scrolled out of view changes state.">
+        <ToggleRow
+          label="Edge change hints"
+          description="Pulse a bar at the top or bottom edge, aligned with the changed card. Tap it to scroll the card into view."
+          checked={offscreenChangeHintsEnabled}
+          onToggle={toggleOffscreenChangeHints}
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Scroll Index" description="Show a section scrubber on the right edge of the dashboard for jumping between rooms or types.">
+        <ToggleRow
+          label="Scroll index rail"
+          description="A thin rail of section ticks that fades in while scrolling. Drag it to scrub, with a preview bubble showing the section name."
+          checked={scrollIndexEnabled}
+          onToggle={toggleScrollIndex}
+        />
+      </SettingsCard>
+    </>
+  );
+
+  const renderTaskBarCards = () => (
+    <>
+      {taskBarActivityDefinitions.map((definition) => {
+        const prefix = simulationPrefixes[definition.type];
+        const count = getSimulatedEntities(prefix).length;
+
+        return (
+          <SettingsCard key={definition.type} title={definition.title} description={definition.description}>
+            <div className="space-y-ha-4">
+              <div className="flex items-start gap-ha-4">
+                <div className="flex h-11 w-11 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
+                  <Icon path={definition.icon} size={22} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-text-primary">{definition.formatState(count)}</div>
+                  <div className="mt-1 text-sm text-text-secondary">
+                    {count > 0
+                      ? `${count} simulated ${count === 1 ? 'entity is' : 'entities are'} active for this task.`
+                      : 'No simulated entities are active right now.'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-ha-2">
+                {definition.singleToggle ? (
+                  <ActionButton
+                    label={count > 0 ? 'Clear activity' : 'Enable activity'}
+                    onClick={toggleReleaseSimulation}
+                    tone={count > 0 ? 'danger' : 'primary'}
+                  />
+                ) : (
+                  <>
+                    <ActionButton
+                      label="Add activity"
+                      onClick={() => addSimulation(definition.type)}
+                      tone="primary"
+                    />
+                    <ActionButton
+                      label="Remove last"
+                      onClick={() => removeLastSimulation(definition.type)}
+                      tone="danger"
+                      disabled={count === 0}
+                    />
+                  </>
+                )}
+                <ActionButton
+                  label="Review list"
+                  onClick={() => openSimulationList(definition.reviewTitle, prefix)}
+                />
+              </div>
+            </div>
+          </SettingsCard>
+        );
+      })}
+    </>
+  );
+
+  const renderMaintenanceCards = () => (
+    <>
+      <SettingsCard title="Connect My Data" description="Open the Home Assistant setup flow without leaving profile settings.">
+        <div className="space-y-ha-4">
+          <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3">
+            <div className="flex items-center gap-ha-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
+                <Icon path={mdiHomeAssistant} size={20} />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-text-primary">
+                  {connected && !demoMode ? 'Live Home Assistant connected' : 'Connection setup ready'}
+                </div>
+                <div className="text-sm text-text-secondary">
+                  {demoMode ? 'Demo mode is active until you connect to a real instance.' : haUrl || 'Saved credentials appear here after a successful connection.'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-ha-2">
+            <ActionButton
+              label={connected && !demoMode ? 'Reconnect live data' : 'Open connection setup'}
+              onClick={() => setConnectionSetupOpen(true)}
+              tone="primary"
+            />
+            <ActionButton
+              label="Use demo data"
+              onClick={handleUseDemoData}
+            />
+          </div>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard title={demoMode ? 'Reload Demo Data' : 'Disconnect to Demo'} description="Refresh the sample home or step back out of the live connection without searching through the dashboard.">
+        <div className="space-y-ha-4">
+          <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3">
+            <div className="text-sm font-semibold text-text-primary">
+              {demoMode ? 'Sample home is currently active' : 'Live connection is currently active'}
+            </div>
+            <div className="mt-1 text-sm text-text-secondary">
+              {demoMode
+                ? 'Reload the demo entities if you want a clean prototype state.'
+                : 'Switch back to the bundled demo home when you want broader UI coverage.'}
+            </div>
+          </div>
+
+          <ActionButton
+            label={demoMode ? 'Reload demo home' : 'Disconnect and use demo'}
+            onClick={handleClearCredentials}
+            tone={demoMode ? 'default' : 'danger'}
+          />
+        </div>
+      </SettingsCard>
+
+      <SettingsCard title="Reset Layout" description="Restore the presentation defaults that used to be one tap from the dashboard.">
+        <div className="space-y-ha-4">
+          <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3">
+            <div className="text-sm font-semibold text-text-primary">Current dashboard preset</div>
+            <div className="mt-1 text-sm text-text-secondary">
+              {`${themeLabels[theme]} theme · ${mode === 'system' ? 'System mode' : `${formatLabel(mode)} mode`} · ${backgroundLabels[background]} background`}
+            </div>
+          </div>
+
+          <ActionButton
+            label="Restore dashboard defaults"
+            onClick={resetLayoutToDefaults}
+            tone="primary"
+          />
+        </div>
+      </SettingsCard>
+
+      <SettingsCard title="Devices Dashboard" description="Reset the card order, visibility, and column widths you've customised in the Devices dashboard back to their defaults.">
+        <ActionButton
+          label={devicesDashboardResetDone ? 'Reset complete' : 'Reset devices layout'}
+          onClick={resetDevicesDashboard}
+          tone={devicesDashboardResetDone ? 'default' : 'danger'}
+        />
+      </SettingsCard>
+    </>
+  );
+
+  const renderDeveloperCards = () => (
+    <SettingsCard title="Preview controls" description="These toggles are useful when shaping the prototype experience.">
+      <div className="space-y-ha-3">
+        <ToggleRow
+          label="Debug badges"
+          description="Expose small diagnostic hints on cards and settings rows."
+          checked={debugBadgesEnabled}
+          onToggle={() => setDebugBadgesEnabled((value) => !value)}
+        />
+        <ToggleRow
+          label="Mock latency"
+          description="Add a small artificial delay to make loading and response states easier to review."
+          checked={mockLatencyEnabled}
+          onToggle={() => setMockLatencyEnabled((value) => !value)}
+        />
+        <ToggleRow
+          label="Demo data mode"
+          description="Return to the bundled sample home for broader coverage during UI review."
+          checked={demoMode}
+          onToggle={() => { if (!demoMode) enableDemoMode(); }}
+        />
+        <ToggleRow
+          label="Wavy screensaver background"
+          description="Use the squiggly rippling rings instead of the original perfect concentric circles on the screensaver."
+          checked={wavyBackgroundEnabled}
+          onToggle={toggleWavyBackground}
+        />
+        <ToggleRow
+          label="Reactive screensaver background"
+          description="Spawn a coloured ripple in the background when something happens at home — gold for on, blue for off, red for errors, amber for sensor jumps."
+          checked={reactiveBackgroundEnabled}
+          onToggle={toggleReactiveBackground}
+        />
+        {reactiveBackgroundEnabled && (
+          <div className="rounded-ha-2xl border border-surface-lower bg-surface-low/40 px-ha-4 py-ha-4 space-y-ha-4">
+            <ChoiceGroup
+              label="React to"
+              value={reactiveTriggerMode}
+              onChange={setReactiveTriggerMode}
+              options={[
+                { value: 'toggles-errors', label: 'Toggles & errors', caption: 'On/off changes plus devices going unavailable' },
+                { value: 'all', label: 'All changes', caption: 'Every change, including significant sensor jumps' },
+                { value: 'errors', label: 'Errors only', caption: 'Only when a device goes unavailable' },
+              ]}
+            />
+            <ChoiceGroup
+              label="Ripple intensity"
+              value={reactiveIntensity}
+              onChange={setReactiveIntensity}
+              options={[
+                { value: 'subtle', label: 'Subtle tint', caption: 'Faint coloured line, ambient' },
+                { value: 'bold', label: 'Bold bloom', caption: 'Bright, thicker ripple that pops' },
+              ]}
+            />
+          </div>
+        )}
+      </div>
+    </SettingsCard>
+  );
+
   // ── HA settings placeholder ───────────────────────────────────────────────
   if (navItem?.haPath) {
     return (
-      <SettingsShell panelMode={panelMode}>
+      <SettingsShell panelMode={panelMode} title={meta.title}>
         <div className="flex items-start gap-ha-4 p-ha-5 bg-fill-primary-quiet rounded-ha-2xl border border-ha-blue/15">
           <div className="w-10 h-10 rounded-ha-xl bg-ha-blue/10 flex items-center justify-center flex-shrink-0 mt-0.5">
             <Icon path={navItem.icon} size={20} className="text-ha-blue" />
@@ -522,126 +897,42 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
   }
 
   if (slug === 'home-center') {
+    const sectionSlug: Record<HomeCenterSection, SettingsSlug> = {
+      notifications: 'notifications',
+      updates: 'updates',
+      issues: 'repairs',
+      connectivity: 'connectivity',
+    };
     return (
-      <SettingsShell panelMode={panelMode}>
-        <SystemStatusPanel />
+      <SettingsShell panelMode={panelMode} title={meta.title}>
+        <SystemStatusPanel onNavigate={(target) => router.push(`/settings/${sectionSlug[target]}`)} />
+      </SettingsShell>
+    );
+  }
+
+  if (slug === 'notifications' || slug === 'updates' || slug === 'repairs' || slug === 'connectivity') {
+    const focus: HomeCenterSection =
+      slug === 'repairs' ? 'issues' : slug;
+    return (
+      <SettingsShell panelMode={panelMode} title={meta.title}>
+        <SystemStatusPanel focus={focus} />
       </SettingsShell>
     );
   }
 
   if (slug === 'dashboards') {
     return (
-      <SettingsShell panelMode={panelMode}>
-        <SettingsCard
-          title="Device cards"
-          description="Configure which entities appear on each device card in the dashboard."
-        >
-          <div className="space-y-ha-3">
-            <div className="flex items-start gap-ha-4 p-ha-4 rounded-ha-xl bg-surface-low">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-text-primary">Auto-configure entities</p>
-                <p className="text-xs text-text-secondary mt-0.5">
-                  Analyses all {devices.length} devices and automatically assigns entities to Primary, Secondary, or Hidden based on their domain and type.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={autoConfigureDevices}
-                className="shrink-0 px-ha-3 py-ha-2 rounded-ha-lg text-sm font-semibold bg-fill-primary-normal text-ha-blue hover:bg-fill-primary-quiet transition-colors"
-              >
-                {configureStatus === 'done' ? 'Done ✓' : 'Configure'}
-              </button>
-            </div>
-            <div className="flex items-start gap-ha-4 p-ha-4 rounded-ha-xl bg-surface-low">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-text-primary">Reset dashboard</p>
-                <p className="text-xs text-text-secondary mt-0.5">
-                  Clears all entity configuration. Each device will show only its primary entity card.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={resetDashboard}
-                className="shrink-0 px-ha-3 py-ha-2 rounded-ha-lg text-sm font-semibold text-text-secondary bg-surface-mid hover:bg-surface-lower transition-colors"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        </SettingsCard>
+      <SettingsShell panelMode={panelMode} title={meta.title}>
+        {renderDashboardsCards()}
       </SettingsShell>
     );
   }
 
   if (slug === 'theme-layout') {
     return (
-      <SettingsShell panelMode={panelMode}>
+      <SettingsShell panelMode={panelMode} title={meta.title}>
         <div className="space-y-ha-4">
-          <SettingsCard title="Immersive Mode" description="Expand dashboard content edge-to-edge for a cleaner desktop shell.">
-            <ToggleRow
-              label="Desktop immersive mode"
-              description="Keep content expanded and reduce surrounding chrome while moving through subviews."
-              checked={immersiveMode}
-              onToggle={() => setImmersiveMode(!immersiveMode)}
-            />
-          </SettingsCard>
-
-          <SettingsCard title="Color Mode" description="Switch the dashboard between light, dark, or device-following color modes.">
-            <ChoiceGroup<ColorMode>
-              label="Color mode"
-              value={mode}
-              onChange={setMode}
-              options={[
-                { value: 'light', label: 'Light', caption: 'Always bright' },
-                { value: 'dark', label: 'Dark', caption: 'Always dim' },
-                { value: 'system', label: 'System', caption: 'Follow device preference' },
-              ]}
-            />
-          </SettingsCard>
-
-          <SettingsCard title="Theme Appearance" description="Cycle between the visual treatments used during dashboard design reviews.">
-            <ChoiceGroup<Theme>
-              label="Theme"
-              value={theme}
-              onChange={setTheme}
-              options={THEMES.map((entry) => ({
-                value: entry,
-                label: themeLabels[entry],
-                caption: entry === 'glass' ? 'Layered and airy' : entry === 'eink' ? 'Paper-like contrast' : 'Ready to use',
-              }))}
-            />
-          </SettingsCard>
-
-          <SettingsCard title="Background" description="Set the dashboard backdrop without returning to the home screen.">
-            <ChoiceGroup<Background>
-              label="Background"
-              value={background}
-              onChange={setBackground}
-              options={[
-                { value: 'gradient', label: 'Gradient', caption: 'Atmospheric surfaces' },
-                { value: 'image', label: 'Image', caption: 'Large visual backdrop' },
-                { value: 'none', label: 'None', caption: 'Flat surfaces only' },
-              ]}
-            />
-          </SettingsCard>
-
-          <SettingsCard title="Screensaver" description="Preview the idle clock state from settings instead of from the dashboard itself.">
-            <ToggleRow
-              label="Screensaver preview"
-              description="Activate the full-screen clock now, or dismiss it if you are already previewing it."
-              checked={screensaverActive}
-              onToggle={screensaverActive ? dismissScreensaver : activateScreensaver}
-            />
-          </SettingsCard>
-
-          <SettingsCard title="Desktop Split View" description="Keep the workspace split shortcut available without surfacing it on the dashboard.">
-            <ToggleRow
-              label="Desktop split view"
-              description="Enable the split-workspace entry points used when comparing dashboards side by side."
-              checked={desktopSplitViewEnabled}
-              onToggle={toggleDesktopSplitView}
-            />
-          </SettingsCard>
+          {renderThemeCards()}
         </div>
       </SettingsShell>
     );
@@ -650,60 +941,9 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
   if (slug === 'task-bar') {
     return (
       <>
-        <SettingsShell panelMode={panelMode}>
+        <SettingsShell panelMode={panelMode} title={meta.title}>
           <div className="space-y-ha-4">
-            {taskBarActivityDefinitions.map((definition) => {
-              const prefix = simulationPrefixes[definition.type];
-              const count = getSimulatedEntities(prefix).length;
-
-              return (
-                <SettingsCard key={definition.type} title={definition.title} description={definition.description}>
-                  <div className="space-y-ha-4">
-                    <div className="flex items-start gap-ha-4">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
-                        <Icon path={definition.icon} size={22} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold text-text-primary">{definition.formatState(count)}</div>
-                        <div className="mt-1 text-sm text-text-secondary">
-                          {count > 0
-                            ? `${count} simulated ${count === 1 ? 'entity is' : 'entities are'} active for this task.`
-                            : 'No simulated entities are active right now.'}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-ha-2">
-                      {definition.singleToggle ? (
-                        <ActionButton
-                          label={count > 0 ? 'Clear activity' : 'Enable activity'}
-                          onClick={toggleReleaseSimulation}
-                          tone={count > 0 ? 'danger' : 'primary'}
-                        />
-                      ) : (
-                        <>
-                          <ActionButton
-                            label="Add activity"
-                            onClick={() => addSimulation(definition.type)}
-                            tone="primary"
-                          />
-                          <ActionButton
-                            label="Remove last"
-                            onClick={() => removeLastSimulation(definition.type)}
-                            tone="danger"
-                            disabled={count === 0}
-                          />
-                        </>
-                      )}
-                      <ActionButton
-                        label="Review list"
-                        onClick={() => openSimulationList(definition.reviewTitle, prefix)}
-                      />
-                    </div>
-                  </div>
-                </SettingsCard>
-              );
-            })}
+            {renderTaskBarCards()}
           </div>
         </SettingsShell>
 
@@ -723,85 +963,9 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
   if (slug === 'maintenance') {
     return (
       <>
-        <SettingsShell panelMode={panelMode}>
+        <SettingsShell panelMode={panelMode} title={meta.title}>
           <div className="space-y-ha-4">
-            <SettingsCard title="Connect My Data" description="Open the Home Assistant setup flow without leaving profile settings.">
-              <div className="space-y-ha-4">
-                <div className="rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-4">
-                  <div className="flex items-center gap-ha-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
-                      <Icon path={mdiHomeAssistant} size={20} />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-text-primary">
-                        {connected && !demoMode ? 'Live Home Assistant connected' : 'Connection setup ready'}
-                      </div>
-                      <div className="text-sm text-text-secondary">
-                        {demoMode ? 'Demo mode is active until you connect to a real instance.' : haUrl || 'Saved credentials appear here after a successful connection.'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-ha-2">
-                  <ActionButton
-                    label={connected && !demoMode ? 'Reconnect live data' : 'Open connection setup'}
-                    onClick={() => setConnectionSetupOpen(true)}
-                    tone="primary"
-                  />
-                  <ActionButton
-                    label="Use demo data"
-                    onClick={handleUseDemoData}
-                  />
-                </div>
-              </div>
-            </SettingsCard>
-
-            <SettingsCard title={demoMode ? 'Reload Demo Data' : 'Disconnect to Demo'} description="Refresh the sample home or step back out of the live connection without searching through the dashboard.">
-              <div className="space-y-ha-4">
-                <div className="rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-4">
-                  <div className="text-sm font-semibold text-text-primary">
-                    {demoMode ? 'Sample home is currently active' : 'Live connection is currently active'}
-                  </div>
-                  <div className="mt-1 text-sm text-text-secondary">
-                    {demoMode
-                      ? 'Reload the demo entities if you want a clean prototype state.'
-                      : 'Switch back to the bundled demo home when you want broader UI coverage.'}
-                  </div>
-                </div>
-
-                <ActionButton
-                  label={demoMode ? 'Reload demo home' : 'Disconnect and use demo'}
-                  onClick={handleClearCredentials}
-                  tone={demoMode ? 'default' : 'danger'}
-                />
-              </div>
-            </SettingsCard>
-
-            <SettingsCard title="Reset Layout" description="Restore the presentation defaults that used to be one tap from the dashboard.">
-              <div className="space-y-ha-4">
-                <div className="rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-4">
-                  <div className="text-sm font-semibold text-text-primary">Current dashboard preset</div>
-                  <div className="mt-1 text-sm text-text-secondary">
-                    {`${themeLabels[theme]} theme · ${mode === 'system' ? 'System mode' : `${formatLabel(mode)} mode`} · ${backgroundLabels[background]} background`}
-                  </div>
-                </div>
-
-                <ActionButton
-                  label="Restore dashboard defaults"
-                  onClick={resetLayoutToDefaults}
-                  tone="primary"
-                />
-              </div>
-            </SettingsCard>
-
-            <SettingsCard title="Devices Dashboard" description="Reset the card order, visibility, and column widths you've customised in the Devices dashboard back to their defaults.">
-              <ActionButton
-                label={devicesDashboardResetDone ? 'Reset complete' : 'Reset devices layout'}
-                onClick={resetDevicesDashboard}
-                tone={devicesDashboardResetDone ? 'default' : 'danger'}
-              />
-            </SettingsCard>
+            {renderMaintenanceCards()}
           </div>
         </SettingsShell>
 
@@ -818,30 +982,64 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
     );
   }
 
+  if (slug === 'developer') {
+    return (
+      <>
+        <SettingsShell panelMode={panelMode} title={meta.title}>
+          <div className="space-y-ha-8">
+            <div className="space-y-ha-4">
+              <SectionHeader title="Dashboards" description="Device card layout and entity configuration." icon={mdiViewDashboard} />
+              {renderDashboardsCards()}
+            </div>
+
+            <div className="space-y-ha-4">
+              <SectionHeader title="Theme and Display" description="Theme, color mode, background, immersive mode, and screensaver." icon={mdiPalette} />
+              {renderThemeCards()}
+            </div>
+
+            <div className="space-y-ha-4">
+              <SectionHeader title="Task Bar Activities" description="Release notes, media, timers, cameras, and printer mocks." icon={mdiUpdate} />
+              {renderTaskBarCards()}
+            </div>
+
+            <div className="space-y-ha-4">
+              <SectionHeader title="Maintenance" description="Connection mode, demo data, and layout reset." icon={mdiCog} />
+              {renderMaintenanceCards()}
+            </div>
+
+            <div className="space-y-ha-4">
+              <SectionHeader title="Developer Tools" description="Preview flags, mocks, and diagnostics." icon={mdiAlphaDBox} />
+              {renderDeveloperCards()}
+            </div>
+          </div>
+        </SettingsShell>
+
+        {simulationModal && (
+          <SimulationListModal
+            isOpen={true}
+            onClose={() => setSimulationModal(null)}
+            title={simulationModal.title}
+            items={getSimulatedEntities(simulationModal.prefix)}
+            onRemove={removeSimulationById}
+          />
+        )}
+
+        {connectionSetupOpen && (
+          <SetupScreen
+            onSave={handleSaveCredentials}
+            onUseDemo={handleUseDemoData}
+            error={connectionError}
+            connecting={connecting}
+            onClose={() => setConnectionSetupOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
-    <SettingsShell panelMode={panelMode}>
-      <SettingsCard title="Preview controls" description="These toggles are useful when shaping the prototype experience.">
-        <div className="space-y-ha-3">
-          <ToggleRow
-            label="Debug badges"
-            description="Expose small diagnostic hints on cards and settings rows."
-            checked={debugBadgesEnabled}
-            onToggle={() => setDebugBadgesEnabled((value) => !value)}
-          />
-          <ToggleRow
-            label="Mock latency"
-            description="Add a small artificial delay to make loading and response states easier to review."
-            checked={mockLatencyEnabled}
-            onToggle={() => setMockLatencyEnabled((value) => !value)}
-          />
-          <ToggleRow
-            label="Demo data mode"
-            description="Return to the bundled sample home for broader coverage during UI review."
-            checked={demoMode}
-            onToggle={() => { if (!demoMode) enableDemoMode(); }}
-          />
-        </div>
-      </SettingsCard>
+    <SettingsShell panelMode={panelMode} title={meta.title}>
+      {renderDeveloperCards()}
     </SettingsShell>
   );
 }

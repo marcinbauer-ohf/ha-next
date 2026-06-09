@@ -107,6 +107,7 @@ export function DeviceCardV2({ primary, secondary, selected, editMode, onLongPre
 
   return (
     <div
+      data-entity-id={primary.entityId}
       onPointerDown={handlePointerDown}
       onPointerUp={cancelLongPress}
       onPointerLeave={cancelLongPress}

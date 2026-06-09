@@ -5,7 +5,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 export const THEMES = ['default', 'glass', 'teenage', 'cyberpunk', 'material', 'eink', 'fallout'] as const;
 export type Theme = (typeof THEMES)[number];
 export type ColorMode = 'light' | 'dark' | 'system';
-export type Background = 'gradient' | 'image' | 'solid' | 'none';
+export type Background = 'gradient' | 'image' | 'solid' | 'none' | 'pulse';
 
 interface ThemeContextType {
   theme: Theme;

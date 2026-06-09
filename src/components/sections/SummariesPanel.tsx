@@ -194,7 +194,7 @@ function TipsCard({ onToggleImmersive, onToggleDarkMode, onToggleScreensaver }: 
   );
 }
 
-export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact?: boolean; size?: 'sm' | 'md' | 'lg'; variant?: 'compact' | 'full' }) {
+export function PeopleBadge({ compact = false, size = 'sm', variant, translucent = false }: { compact?: boolean; size?: 'sm' | 'md' | 'lg'; variant?: 'compact' | 'full'; translucent?: boolean }) {
   const { haUrl } = useHomeAssistant();
   const isLg = size === 'lg';
   const isMd = size === 'md';
@@ -215,7 +215,8 @@ export function PeopleBadge({ compact = false, size = 'sm', variant }: { compact
     // Mobile: stacked avatars + count
     return (
       <div className={clsx(
-        'flex items-center rounded-ha-pill whitespace-nowrap bg-surface-low flex-shrink-0 transition-all',
+        'flex items-center rounded-ha-pill whitespace-nowrap flex-shrink-0 transition-all',
+        translucent ? 'bg-surface-mid/65 border border-white/10 backdrop-blur-md' : 'bg-surface-low',
         isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-ha-2.5' : 'gap-ha-2 px-ha-2 py-ha-1'
       )}>
         <div className={clsx(

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef, useCallback, type CSSProperties } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
@@ -39,6 +39,7 @@ import {
   mdiThermometer,
   mdiAccount,
   mdiVideo,
+  mdiHomeVariant,
 } from '@mdi/js';
 
 const RELEASE_NOTES_PREFIX = 'update.home_assistant_release_notes_simulated';
@@ -223,6 +224,7 @@ interface StatusBarProps {
 
 export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: StatusBarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { callService, haUrl } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const { items: sidebarItems } = useSidebarItems();
@@ -256,6 +258,12 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   // Status pop-up state
   const [statusExpanded, setStatusExpanded] = useState(false);
   const statusContainerRef = useRef<HTMLDivElement>(null);
+
+  const goToSettings = useCallback((path: string) => {
+    setStatusExpanded(false);
+    router.push(path);
+  }, [router]);
+  const goToHomeCenter = useCallback(() => goToSettings('/settings/home-center'), [goToSettings]);
 
   // Footer scroll state
   const [showLeftGradient, setShowLeftGradient] = useState(false);
@@ -747,8 +755,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   };
 
   const activityWindowTransition = {
-    duration: 0.16,
-    ease: [0.2, 0.9, 0.2, 1] as const,
+    duration: 0.28,
+    ease: [0.22, 1, 0.36, 1] as const,
   };
 
   const activityMiniTransition = {
@@ -2425,54 +2433,26 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         {statusExpanded && (
           <motion.div
             key="status-popup"
-            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.97 }}
-            transition={{ duration: 0.16, ease: [0.2, 0.9, 0.2, 1] }}
+            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="absolute right-0 bottom-full mb-ha-2 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col origin-bottom-right"
             style={{ maxHeight: 'calc(100vh - 120px)' }}
           >
             <div className="overflow-y-auto p-ha-3 space-y-ha-3 custom-scrollbar">
                 
-                {/* Connection Section */}
-                <div className="bg-surface-low rounded-2xl p-ha-3">
-                    <div className="flex items-center gap-ha-3 mb-ha-3">
-                        <div className={`p-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                          <Icon path={connectionStatus === 'connected' ? mdiCheckCircle : mdiAlertCircle} size={24} />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-text-primary">Home Assistant</h4>
-                          <p className="text-xs text-text-secondary font-medium">
-                              {connectionStatus === 'connecting' ? 'Connecting...' :
-                               connectionStatus === 'connected' ? 'Connected securely' :
-                               connectionStatus === 'error' ? 'Connection Error' : 'Unknown Status'}
-                          </p>
-                        </div>
-                    </div>
-                      
-                    {/* Connection Details */}
-                    <div className="space-y-2 mt-2 pt-2 border-t border-surface-mid/50">
-                        {/* Remote Access */}
-                        <div className="flex items-center justify-between px-1">
-                          <div className="flex items-center gap-2">
-                            <Icon path={isRemoteConnected ? mdiCloudCheck : mdiCloudOff} size={16} className={isRemoteConnected ? "text-green-500" : "text-text-disabled"} />
-                            <span className="text-sm text-text-secondary">Remote Access</span>
-                          </div>
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRemoteConnected ? 'bg-green-500/10 text-green-500' : 'bg-surface-mid text-text-disabled'}`}>
-                             {isRemoteConnected ? 'Enabled' : 'Disabled'}
-                          </span>
-                        </div>
-                    </div>
-                </div>
-
                 {/* Notifications Section - Always shown */}
                 <div className="bg-surface-low rounded-2xl p-ha-3">
-                  <div className="flex items-center justify-between mb-ha-2 px-1">
-                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Notifications</h4>
-                    {activeNotifications.length > 0 && (
-                      <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
-                    )}
-                  </div>
+                  <button type="button" onClick={() => goToSettings('/settings/notifications')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Notifications</h4>
+                    <div className="flex items-center gap-ha-2">
+                      {activeNotifications.length > 0 && (
+                        <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
+                      )}
+                      <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
+                    </div>
+                  </button>
                   {activeNotifications.length > 0 ? (
                     <div className="space-y-2">
                       {activeNotifications.map(notif => (
@@ -2486,8 +2466,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
-                      <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
+                    <p className="text-xs text-text-disabled px-1 py-1">
                       No notifications
                     </p>
                   )}
@@ -2496,10 +2475,13 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                 {/* Active Updates Section */}
                 {(activeUpdates.length > 0) && (
                     <div className="bg-surface-low rounded-2xl p-ha-3">
-                        <div className="flex items-center justify-between mb-ha-2 px-1">
-                          <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Updates Available</h4>
-                          <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
-                        </div>
+                        <button type="button" onClick={() => goToSettings('/settings/updates')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+                          <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Updates Available</h4>
+                          <div className="flex items-center gap-ha-2">
+                            <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
+                            <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
+                          </div>
+                        </button>
                         <div className="space-y-2">
                             {activeUpdates.map(update => (
                                 <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-xl transition-colors cursor-pointer group">
@@ -2516,12 +2498,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                 
                 {/* Offline Devices Section - Always shown */}
                 <div className="bg-surface-low rounded-2xl p-ha-3">
-                  <div className="flex items-center justify-between mb-ha-2 px-1">
-                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Offline Devices</h4>
-                    {offlineDevices.length > 0 && (
-                      <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
-                    )}
-                  </div>
+                  <button type="button" onClick={() => goToSettings('/settings/repairs')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Offline Devices</h4>
+                    <div className="flex items-center gap-ha-2">
+                      {offlineDevices.length > 0 && (
+                        <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
+                      )}
+                      <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
+                    </div>
+                  </button>
                   {offlineDevices.length > 0 ? (
                     <div className="space-y-1">
                       {offlineDevices.map(device => (
@@ -2532,11 +2517,41 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
-                       <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
+                    <p className="text-xs text-text-disabled px-1 py-1">
                        All devices online
                     </p>
                   )}
+                </div>
+
+                {/* Connectivity Section */}
+                <div className="bg-surface-low rounded-2xl p-ha-3">
+                    <div className="flex items-center gap-ha-3 mb-ha-3">
+                        <div className={`p-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                          <Icon path={connectionStatus === 'connected' ? mdiCheckCircle : mdiAlertCircle} size={24} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-semibold text-text-primary">Home Assistant</h4>
+                          <p className="text-xs text-text-secondary font-medium">
+                              {connectionStatus === 'connecting' ? 'Connecting...' :
+                               connectionStatus === 'connected' ? 'Connected securely' :
+                               connectionStatus === 'error' ? 'Connection Error' : 'Unknown Status'}
+                          </p>
+                        </div>
+                    </div>
+
+                    {/* Connection Details */}
+                    <div className="space-y-2 mt-2 pt-2 border-t border-surface-mid/50">
+                        {/* Remote Access */}
+                        <div className="flex items-center justify-between px-1">
+                          <div className="flex items-center gap-2">
+                            <Icon path={isRemoteConnected ? mdiCloudCheck : mdiCloudOff} size={16} className={isRemoteConnected ? "text-green-500" : "text-text-disabled"} />
+                            <span className="text-sm text-text-secondary">Remote Access</span>
+                          </div>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRemoteConnected ? 'bg-green-500/10 text-green-500' : 'bg-surface-mid text-text-disabled'}`}>
+                             {isRemoteConnected ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Empty State / All Good */}
@@ -2546,6 +2561,16 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         <p className="text-xs text-text-secondary mt-1">No issues detected in your home environment.</p>
                     </div>
                 )}
+
+                {/* Home Center link */}
+                <button
+                  type="button"
+                  onClick={goToHomeCenter}
+                  className="w-full h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all"
+                >
+                  <Icon path={mdiHomeVariant} size={18} />
+                  Open Home Center
+                </button>
             </div>
           </motion.div>
         )}
@@ -2555,37 +2580,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
           className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50"
           onClick={() => setStatusExpanded(!statusExpanded)}
         >
-        {/* Updates indicator */}
-        <Tooltip content={pendingUpdates > 0 ? `Updates: ${pendingUpdates} update${pendingUpdates > 1 ? 's' : ''} available` : 'Updates: System is up to date'}>
-          <div className="relative">
-            <Icon
-              path={mdiUpdate}
-              size={20}
-              className="text-text-secondary"
-            />
-            {pendingUpdates > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-ha-blue rounded-full w-2 h-2" />
-            )}
-          </div>
-        </Tooltip>
-
-        {/* Remote access indicator */}
-        <Tooltip content={isRemoteConnected ? 'Remote Access: Available via internet' : 'Remote Access: Not exposed to internet'}>
-          <div className="relative">
-            <Icon
-              path={mdiWeb}
-              size={20}
-              className="text-text-secondary"
-            />
-            {isRemoteConnected && (
-              <span className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full w-2 h-2" />
-            )}
-            {!isRemoteConnected && (
-              <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2 h-2" />
-            )}
-          </div>
-        </Tooltip>
-
         {/* Notifications indicator */}
         <Tooltip content={notificationCount > 0 ? `Notifications: ${notificationCount} active` : 'Notifications: None'}>
           <div className="relative">
@@ -2600,7 +2594,21 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
           </div>
         </Tooltip>
 
-        {/* Offline devices indicator */}
+        {/* Updates indicator */}
+        <Tooltip content={pendingUpdates > 0 ? `Updates: ${pendingUpdates} update${pendingUpdates > 1 ? 's' : ''} available` : 'Updates: System is up to date'}>
+          <div className="relative">
+            <Icon
+              path={mdiUpdate}
+              size={20}
+              className="text-text-secondary"
+            />
+            {pendingUpdates > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-ha-blue rounded-full w-2 h-2" />
+            )}
+          </div>
+        </Tooltip>
+
+        {/* Issues (offline devices) indicator */}
         <Tooltip content={offlineCount > 0 ? `Offline: ${offlineCount} device${offlineCount > 1 ? 's' : ''} unavailable` : 'Devices: All online'}>
           <div className="relative">
             <Icon
@@ -2609,6 +2617,23 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
               className="text-text-secondary"
             />
             {offlineCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2 h-2" />
+            )}
+          </div>
+        </Tooltip>
+
+        {/* Connectivity (remote access) indicator */}
+        <Tooltip content={isRemoteConnected ? 'Remote Access: Available via internet' : 'Remote Access: Not exposed to internet'}>
+          <div className="relative">
+            <Icon
+              path={mdiWeb}
+              size={20}
+              className="text-text-secondary"
+            />
+            {isRemoteConnected && (
+              <span className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full w-2 h-2" />
+            )}
+            {!isRemoteConnected && (
               <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2 h-2" />
             )}
           </div>

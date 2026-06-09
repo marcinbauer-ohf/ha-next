@@ -1,12 +1,14 @@
 'use client';
 
 import {
+  mdiAccountCircle,
   mdiAccountGroup,
   mdiAccountKey,
   mdiAlphaDBox,
   mdiHomeVariant,
   mdiApi,
   mdiBackupRestore,
+  mdiBell,
   mdiCalendarClock,
   mdiChartLine,
   mdiChip,
@@ -36,11 +38,19 @@ import {
   mdiTextBox,
   mdiUpdate,
   mdiViewDashboard,
+  mdiWeb,
   mdiWrench,
 } from '@mdi/js';
 
 export type SettingsSlug =
   | 'home-center'
+  // Home Center sub-pages (routable, not shown in the settings sidebar)
+  | 'notifications'
+  | 'updates'
+  | 'repairs'
+  | 'connectivity'
+  // User profile (reached from the profile card, not shown in the sidebar)
+  | 'profile'
   // Prototype tools
   | 'dashboards'
   | 'theme-layout'
@@ -192,10 +202,26 @@ export const settingsNavSections: SettingsNavSection[] = [
   },
 ];
 
+// Home Center sub-pages. Routable (so /settings/<slug> resolves) but intentionally
+// kept out of settingsNavSections so they don't appear in the settings sidebar —
+// they are reached from the Home Center page's section links.
+export const hiddenSettingsLinks: SettingsNavLink[] = [
+  { slug: 'notifications', icon: mdiBell, label: 'Notifications', description: 'Active notifications from your home' },
+  { slug: 'updates', icon: mdiUpdate, label: 'Updates', description: 'Available updates for integrations and add-ons' },
+  { slug: 'repairs', icon: mdiDevices, label: 'Issues', description: 'Offline and unavailable devices' },
+  { slug: 'connectivity', icon: mdiWeb, label: 'Connectivity', description: 'Home Assistant and remote access status' },
+  { slug: 'profile', icon: mdiAccountCircle, label: 'Profile', description: 'Your account, language, and dashboard preferences', haPath: '/profile' },
+];
+
+export const allSettingsLinks: SettingsNavLink[] = [
+  ...settingsNavSections.flatMap(s => s.items),
+  ...hiddenSettingsLinks,
+];
+
 export function getSettingsHref(slug: SettingsSlug): string {
   return `/settings/${slug}`;
 }
 
 export function isSettingsSlug(value: string): value is SettingsSlug {
-  return settingsNavSections.flatMap(s => s.items).some(item => item.slug === value);
+  return allSettingsLinks.some(item => item.slug === value);
 }

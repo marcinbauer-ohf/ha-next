@@ -1,0 +1,174 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { clsx } from 'clsx';
+
+// ── Tuning ──────────────────────────────────────────────────────────────────
+const IDLE_HIDE_MS = 1400;      // fade the rail out this long after the last scroll
+const MIN_SECTIONS = 2;         // pointless to index a single section
+const ACTIVE_OFFSET = 24;       // px below the sticky header counts as "current"
+
+export interface ScrollIndexSection {
+  key: string;
+  title: string;
+}
+
+interface ScrollIndexRailProps {
+  /** The dashboard scroll container that holds the [data-section-key] anchors. */
+  scrollRef: RefObject<HTMLElement | null>;
+  /** Sections in render order — one tick per entry. */
+  sections: ScrollIndexSection[];
+  /** Disable while editing or in 3D view. */
+  enabled: boolean;
+}
+
+/**
+ * Apple-Contacts / Google-Photos style scroll index. A thin rail of ticks
+ * pinned to the right edge of the dashboard. It fades in while scrolling and
+ * fades out when idle. Touch-and-drag (or click) scrubs through sections; a
+ * floating bubble previews the section name under the finger.
+ */
+export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRailProps) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [visible, setVisible] = useState(false);
+  const [scrubbing, setScrubbing] = useState(false);
+
+  const count = sections.length;
+  const show = enabled && count >= MIN_SECTIONS;
+
+  // Briefly reveal the rail, then arm the idle timer to fade it out.
+  const flash = useCallback(() => {
+    setVisible(true);
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => setVisible(false), IDLE_HIDE_MS);
+  }, []);
+
+  // Scroll the given section anchor to just under the sticky header.
+  const jumpTo = useCallback((index: number, smooth: boolean) => {
+    const scroller = scrollRef.current;
+    const section = sections[index];
+    if (!scroller || !section) return;
+    const el = scroller.querySelector<HTMLElement>(`[data-section-key="${CSS.escape(section.key)}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  }, [scrollRef, sections]);
+
+  // Track the current section as the user scrolls normally, and keep the rail
+  // visible while scrolling.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || !show) return;
+
+    const onScroll = () => {
+      const top = scroller.getBoundingClientRect().top + ACTIVE_OFFSET;
+      let current = 0;
+      for (let i = 0; i < sections.length; i++) {
+        const el = scroller.querySelector<HTMLElement>(`[data-section-key="${CSS.escape(sections[i].key)}"]`);
+        if (el && el.getBoundingClientRect().top <= top) current = i;
+      }
+      setActiveIndex(current);
+      flash();
+    };
+
+    onScroll();
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => scroller.removeEventListener('scroll', onScroll);
+  }, [scrollRef, sections, show, flash]);
+
+  useEffect(() => () => { if (idleTimer.current) clearTimeout(idleTimer.current); }, []);
+
+  // Map a client Y position over the rail to a section index and jump there.
+  const scrubToY = useCallback((clientY: number) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const rect = rail.getBoundingClientRect();
+    const ratio = (clientY - rect.top) / rect.height;
+    const index = Math.max(0, Math.min(count - 1, Math.floor(ratio * count)));
+    setActiveIndex(index);
+    jumpTo(index, false);
+    setVisible(true);
+  }, [count, jumpTo]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setScrubbing(true);
+    scrubToY(e.clientY);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!scrubbing) return;
+    scrubToY(e.clientY);
+  };
+  const endScrub = (e: React.PointerEvent) => {
+    if (!scrubbing) return;
+    (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    setScrubbing(false);
+    flash();
+  };
+
+  if (!show) return null;
+
+  const railShown = visible || scrubbing;
+
+  return (
+    <div
+      className={clsx(
+        // Container ignores pointers (so the bubble never blocks cards); the
+        // rail itself stays grabbable even when faded, so a touch on the right
+        // edge can always start a scrub.
+        'pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 z-40 flex items-center pr-ha-1',
+        'transition-opacity duration-300',
+        railShown ? 'opacity-100' : 'opacity-30',
+      )}
+    >
+      {/* Preview bubble — sits left of the rail, aligned to the active tick. */}
+      <div
+        className={clsx(
+          'absolute right-full mr-ha-2 whitespace-nowrap rounded-ha-xl px-ha-3 py-1.5',
+          'bg-surface-default text-text-primary text-sm font-semibold shadow-lg',
+          'backdrop-blur-md transition-opacity duration-150',
+          scrubbing ? 'opacity-100' : 'opacity-0',
+        )}
+        style={{
+          top: count > 1 ? `${(activeIndex / (count - 1)) * 100}%` : '50%',
+          transform: 'translateY(-50%)',
+        }}
+      >
+        {sections[activeIndex]?.title}
+      </div>
+
+      <div
+        ref={railRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endScrub}
+        onPointerCancel={endScrub}
+        role="slider"
+        aria-label="Jump to section"
+        aria-valuemin={0}
+        aria-valuemax={count - 1}
+        aria-valuenow={activeIndex}
+        aria-valuetext={sections[activeIndex]?.title}
+        className="pointer-events-auto flex flex-col items-center gap-1 py-ha-2 px-ha-1 cursor-pointer touch-none select-none"
+      >
+        {sections.map((s, i) => {
+          const active = i === activeIndex;
+          return (
+            <span
+              key={s.key}
+              className={clsx(
+                'rounded-full transition-all duration-150',
+                active
+                  ? 'w-2 h-2 bg-ha-blue scale-110'
+                  : 'w-1.5 h-1.5 bg-text-tertiary/50',
+                scrubbing && active && 'scale-150',
+              )}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}

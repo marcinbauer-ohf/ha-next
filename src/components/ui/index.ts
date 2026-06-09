@@ -8,6 +8,7 @@ export { CircularProgress } from './CircularProgress';
 export { InfoSidebar } from './InfoSidebar';
 export { ListSection } from './ListSection';
 export { SectionLabel } from './SectionLabel';
+export { SearchField } from './SearchField';
 export { SegmentedControl } from './SegmentedControl';
 export { RollingNumericValue } from './RollingNumericValue';
 export { Toast, ToastContainer } from './Toast';

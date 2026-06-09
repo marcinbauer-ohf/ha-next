@@ -41,6 +41,8 @@ export interface SummaryCardProps {
   compact?: boolean;
   variant?: 'filled' | 'outlined';
   size?: 'sm' | 'md' | 'lg';
+  /** Transparent fill + backdrop blur — used over the screensaver's animated background. */
+  translucent?: boolean;
 }
 
 export interface DashboardSectionProps {

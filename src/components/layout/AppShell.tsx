@@ -3,16 +3,17 @@
 import { Suspense, useState, useEffect, useRef, ReactNode, CSSProperties, useCallback, useMemo } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar, EditingToolbar } from '@/components/layout';
-import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout } from '@/hooks';
+import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout, useTheme } from '@/hooks';
+import { PulseWallpaper } from '@/components/layout/PulseWallpaper';
 import { useSearchContext, useHeader, useEditMode, useToast } from '@/contexts';
-import { ConnectionToast } from '@/components/ui/ConnectionToast';
+import { mdiConnection, mdiCheckCircle, mdiAlertCircle } from '@mdi/js';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { InstallBanner } from '@/components/ui/InstallBanner';
 import { Preloader } from '@/components/ui/Preloader';
-import { AnimatePresence } from 'framer-motion';
-import type { ConnectionStatus } from '@/components/ui/ConnectionToast';
+import { AnimatePresence, motion } from 'framer-motion';
+type ConnectionStatus = 'connecting' | 'connected' | 'error' | null;
 import {
   buildSplitViewOptions,
   DesktopSplitHotspots,
@@ -41,12 +42,14 @@ export function AppShell({ children }: AppShellProps) {
 function AppShellContent({ children }: AppShellProps) {
   const { connecting, connected, error, configured, hydrated, saveCredentials, enableDemoMode } = useHomeAssistant();
   const { desktopSplitViewEnabled } = useFeatureFlags();
+  const { background } = useTheme();
+  const pulseWallpaper = background === 'pulse';
   const { immersiveMode, immersivePhase } = useImmersiveMode();
   const { contentStyle: immersiveContentStyle, contentTransitionClasses, isImmersiveFixed } = useDesktopImmersivePageLayout();
   const { toggleSearch } = useSearchContext();
   const { title, subtitle } = useHeader();
   const { isEditing, previewViewport } = useEditMode();
-  const { isToastVisible } = useToast();
+  const { isToastVisible, showToast, dismissToast } = useToast();
   const { items: sidebarItems } = useSidebarItems();
   const router = useRouter();
   const pathname = usePathname();
@@ -141,6 +144,46 @@ function AppShellContent({ children }: AppShellProps) {
       wasConnecting.current = false;
     }
   }, [connecting, connected, error, scheduleConnectionStatus, showPreloader]);
+
+  // Surface connection status through the shared toast component.
+  const connectionToastId = useRef<number | null>(null);
+  useEffect(() => {
+    if (connectionStatus === 'connecting') {
+      connectionToastId.current = showToast({
+        icon: mdiConnection,
+        iconColor: 'text-ha-blue',
+        title: 'Connecting to Home Assistant…',
+        duration: null,
+      });
+    } else if (connectionStatus === 'connected') {
+      connectionToastId.current = showToast({
+        icon: mdiCheckCircle,
+        iconColor: 'text-green-500',
+        title: 'Connected',
+        duration: 3000,
+      });
+    } else if (connectionStatus === 'error') {
+      connectionToastId.current = showToast({
+        icon: mdiAlertCircle,
+        iconColor: 'text-red-500',
+        title: 'Connection error',
+        subtitle: typeof error === 'string' ? error : undefined,
+        duration: null,
+        action: { label: 'Reload', onClick: () => window.location.reload() },
+      });
+    } else if (connectionToastId.current != null) {
+      dismissToast(connectionToastId.current);
+      connectionToastId.current = null;
+    }
+  }, [connectionStatus, error, showToast, dismissToast]);
+
+  // Dismiss any open toast when entering edit mode
+  useEffect(() => {
+    if (isEditing) {
+      connectionToastId.current = null;
+      dismissToast();
+    }
+  }, [isEditing, dismissToast]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -383,6 +426,10 @@ function AppShellContent({ children }: AppShellProps) {
 
   return (
     <div className="min-h-[100svh] lg:min-h-screen bg-surface-default" data-component="AppShell">
+      {/* Pulse wallpaper — animated ring background painted behind the whole
+          shell, rippling on live device toggles. */}
+      {pulseWallpaper && <PulseWallpaper />}
+
       {/* Preloader overlay — shown after login, fades out to reveal dashboard */}
       <AnimatePresence>
         {showPreloader && (
@@ -466,8 +513,31 @@ function AppShellContent({ children }: AppShellProps) {
             )}
           </div>
 
-          {/* Portal root — overlays portaled into here are clipped to the dashboard bounds */}
-          <div id="toast-glow-root" className="absolute inset-0 pointer-events-none" style={{ zIndex: 62 }} />
+          {/* Edit-mode glow — radial dark rising from the bottom center, clipped to
+              the dashboard <main> bounds by this container's overflow-hidden. */}
+          <AnimatePresence>
+            {isEditing && (
+              <motion.div
+                aria-hidden
+                className="absolute inset-x-0 bottom-0 pointer-events-none"
+                style={{
+                  height: '40vh',
+                  zIndex: 61,
+                  background:
+                    'radial-gradient(ellipse 80% 70% at 50% 100%, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.18) 55%, transparent 75%)',
+                  transformOrigin: '50% 100%',
+                }}
+                initial={{ scale: 0.15, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.4, opacity: 0 }}
+                transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Portal root — overlays portaled into here are clipped (overflow-hidden)
+              to the dashboard <main> bounds so the corner toast's glow can't bleed out. */}
+          <div id="toast-glow-root" className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 62 }} />
         </div>
 
         {/* Status bar row - Desktop only */}
@@ -494,8 +564,6 @@ function AppShellContent({ children }: AppShellProps) {
       {/* Install app banner - mobile browsers only */}
       <InstallBanner />
 
-      {/* Connection status toast */}
-      <ConnectionToast status={connectionStatus} />
 
       {/* Global search overlay */}
       <SearchOverlay />

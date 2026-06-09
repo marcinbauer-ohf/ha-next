@@ -395,6 +395,70 @@
   --ha-radius-pill: 8px;
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+   E-Ink: dithered scroll fades.
+   Everywhere else the scrollable-list edge fades are a smooth
+   surface-colour → transparent gradient (`pointer-events-none` +
+   `bg-gradient-to-t/-b` + `from-surface-* to-transparent`). On e-ink a smooth
+   gradient looks wrong — real e-paper can't render continuous tone, it
+   dithers. So in this theme we replace the gradient with a halftone dot field
+   in the surface colour, dissolved in discrete steps like an ordered-dither
+   print. Targets the shared Tailwind class signature, so no component markup
+   changes are needed. Applies in both light and dark e-ink modes (the dot ink
+   follows the surface var).
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-theme="eink"] .pointer-events-none.bg-gradient-to-t.to-transparent,
+[data-theme="eink"] .pointer-events-none.bg-gradient-to-b.to-transparent {
+  --ha-fade-ink: var(--ha-color-surface-lower);
+  background-color: transparent !important;
+  /* Halftone ink dots — ~50% coverage, fine grain to read as print. */
+  background-image: radial-gradient(var(--ha-fade-ink) 42%, transparent 45%) !important;
+  background-size: 2.5px 2.5px !important;
+  background-repeat: repeat !important;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+          mask-size: 100% 100%;
+}
+
+/* Most fades blend into surface-lower; some sit on the page surface. */
+[data-theme="eink"] .pointer-events-none.from-surface-default.to-transparent {
+  --ha-fade-ink: var(--ha-color-surface-default);
+}
+
+/* Top-edge fade (gradient points down): solid ink at the edge, dithering away
+   downward in stepped bands of decreasing dot opacity. */
+[data-theme="eink"] .pointer-events-none.bg-gradient-to-b.to-transparent {
+  -webkit-mask-image: linear-gradient(to bottom,
+    #000 0%, #000 25%,
+    rgba(0, 0, 0, 0.7) 25%, rgba(0, 0, 0, 0.7) 50%,
+    rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.4) 72%,
+    rgba(0, 0, 0, 0.18) 72%, rgba(0, 0, 0, 0.18) 88%,
+    transparent 88%);
+          mask-image: linear-gradient(to bottom,
+    #000 0%, #000 25%,
+    rgba(0, 0, 0, 0.7) 25%, rgba(0, 0, 0, 0.7) 50%,
+    rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.4) 72%,
+    rgba(0, 0, 0, 0.18) 72%, rgba(0, 0, 0, 0.18) 88%,
+    transparent 88%);
+}
+
+/* Bottom-edge fade (gradient points up): mirror of the above. */
+[data-theme="eink"] .pointer-events-none.bg-gradient-to-t.to-transparent {
+  -webkit-mask-image: linear-gradient(to top,
+    #000 0%, #000 25%,
+    rgba(0, 0, 0, 0.7) 25%, rgba(0, 0, 0, 0.7) 50%,
+    rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.4) 72%,
+    rgba(0, 0, 0, 0.18) 72%, rgba(0, 0, 0, 0.18) 88%,
+    transparent 88%);
+          mask-image: linear-gradient(to top,
+    #000 0%, #000 25%,
+    rgba(0, 0, 0, 0.7) 25%, rgba(0, 0, 0, 0.7) 50%,
+    rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.4) 72%,
+    rgba(0, 0, 0, 0.18) 72%, rgba(0, 0, 0, 0.18) 88%,
+    transparent 88%);
+}
+
 /* Fallout Theme - Dark Mode */
 [data-theme="fallout"][data-mode="dark"] {
   --ha-color-surface-default: #171a14;
@@ -1316,7 +1380,8 @@
    hidden. Desktop: inset a bit from the corner of the main content area. */
 .corner-toast {
   right: var(--spacing-edge, 12px);
-  width: min(21rem, calc(100% - 2 * var(--spacing-edge, 12px)));
+  /* Mobile: full width (edge-to-edge minus padding). Desktop: fixed compact width. */
+  width: calc(100% - 2 * var(--spacing-edge, 12px));
   /* Shown: sit a small gap above the full nav height (which already includes
      the safe-area inset). Hidden: drop to the screen's bottom safe edge. */
   bottom: calc(
@@ -1332,6 +1397,20 @@
     bottom: 1.5rem;
     width: 24rem;
   }
+}
+
+/* Ambient glow behind the corner toast — its right edge meets the dashboard
+   surface's right edge, which is inset from #dashboard-content-area by the edge
+   padding (pr-edge). So the glow touches the grey panel's edge without spilling
+   into the gutter beyond it. The toast itself stays inset above the glow. */
+.corner-toast-glow {
+  right: var(--spacing-edge, 12px);
+  width: min(80%, 38rem);
+  /* Round the bottom-right corner to match the dashboard surface (rounded-ha-3xl)
+     and clip the radial to it, so the glow follows the panel's corner instead of
+     showing a sharp 90° clip. */
+  overflow: hidden;
+  border-bottom-right-radius: var(--ha-radius-3xl, 24px);
 }
 
 body {
@@ -1470,4 +1549,90 @@ html {
 .ha-selected {
   outline: 2px solid var(--ha-color-blue);
   outline-offset: 2px;
+}
+
+/* Offscreen-change edge hint — a glowing bar that pulses then fades at the
+   top/bottom edge of the dashboard, aligned with the changed card's column.
+   Tappable: the surrounding button is a generous, transparent hit target that
+   scrolls the card back into view; the bar inside is the visible glow. */
+.ha-edge-hint-hit {
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  width: 96px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: background-color 150ms ease;
+}
+
+/* Offset the top hint below the sticky summary/filter header so it isn't
+   hidden behind it. --dashboard-sticky-top tracks that header's height. */
+.ha-edge-hint-hit--top { top: var(--dashboard-sticky-top, 0px); align-items: flex-start; }
+.ha-edge-hint-hit--bottom { bottom: 0; align-items: flex-end; }
+
+.ha-edge-hint {
+  display: block;
+  width: 72px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--hint-color, #22c55e);
+  box-shadow:
+    0 0 18px 3px var(--hint-color, #22c55e),
+    0 0 6px 1px var(--hint-color, #22c55e);
+  /* Nudge via margin, not transform/opacity — those are owned by the keyframe
+     animation and would override a hover transform. */
+  transition: margin 150ms ease;
+  will-change: opacity, transform;
+}
+
+/* Hover: freeze the fade and slide the bar a few px toward where a click
+   scrolls — top hint drifts up, bottom hint drifts down. */
+.ha-edge-hint-hit:hover .ha-edge-hint { animation-play-state: paused; }
+.ha-edge-hint-hit--top:hover .ha-edge-hint { margin-top: -4px; }
+.ha-edge-hint-hit--bottom:hover .ha-edge-hint { margin-bottom: -4px; }
+
+.ha-edge-hint--top { animation: ha-edge-hint-top 3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.ha-edge-hint--bottom { animation: ha-edge-hint-bottom 3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+@keyframes ha-edge-hint-top {
+  0%   { opacity: 0; transform: translateY(-7px) scaleX(0.4); }
+  16%  { opacity: 1; transform: translateY(0) scaleX(1); }
+  70%  { opacity: 1; transform: translateY(0) scaleX(1); }
+  100% { opacity: 0; transform: translateY(-5px) scaleX(0.85); }
+}
+
+@keyframes ha-edge-hint-bottom {
+  0%   { opacity: 0; transform: translateY(7px) scaleX(0.4); }
+  16%  { opacity: 1; transform: translateY(0) scaleX(1); }
+  70%  { opacity: 1; transform: translateY(0) scaleX(1); }
+  100% { opacity: 0; transform: translateY(5px) scaleX(0.85); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ha-edge-hint--top,
+  .ha-edge-hint--bottom {
+    animation-name: ha-edge-hint-fade;
+  }
+  @keyframes ha-edge-hint-fade {
+    0%, 80% { opacity: 1; transform: none; }
+    100%    { opacity: 0; transform: none; }
+  }
+}
+
+/* Card flash — pulses a glowing ring on the card a hint scrolled you to. */
+.ha-card-flash {
+  animation: ha-card-flash 1200ms ease-out;
+}
+
+@keyframes ha-card-flash {
+  0%   { box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
+  18%  {
+    box-shadow:
+      0 0 0 3px var(--flash-color, #38bdf8),
+      0 0 22px 5px var(--flash-color, #38bdf8);
+  }
+  100% { box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
 }

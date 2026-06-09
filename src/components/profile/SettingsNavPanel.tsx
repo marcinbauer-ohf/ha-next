@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Icon, SectionLabel } from '../ui';
+import { Icon, SectionLabel, SearchField } from '../ui';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useDevices } from '@/hooks';
 import {
@@ -15,7 +15,7 @@ import {
   type SettingsNavLink,
   type SettingsSlug,
 } from './settingsNavigation';
-import { mdiChevronRight, mdiMagnify, mdiClose } from '@mdi/js';
+import { mdiChevronRight } from '@mdi/js';
 
 interface SettingsNavPanelProps {
   activeSlug: SettingsSlug | null;
@@ -134,45 +134,37 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower' }:
 
   return (
     <div>
-      {/* Search — sticky at top */}
-      <div className="sticky top-0 z-10">
+      {/* Search — sticky at top. z-30 keeps it above the mobile bottom-sheet's own top fade (z-20). */}
+      <div className="sticky top-0 z-30">
         <div className={`${bg === 'surface-default' ? 'bg-surface-default' : 'bg-surface-lower'} pt-ha-1 pb-ha-3`}>
-          <div className="relative">
-            <Icon path={mdiMagnify} size={18} className="absolute left-ha-3 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search settings…"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full h-10 pl-9 pr-9 rounded-ha-xl bg-surface-low border border-surface-lower text-sm text-text-primary placeholder-text-tertiary outline-none focus:border-ha-blue/40 focus:ring-1 focus:ring-ha-blue/20 transition-colors"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-ha-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-secondary p-1"
-              >
-                <Icon path={mdiClose} size={14} />
-              </button>
-            )}
-          </div>
+          <SearchField
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search settings…"
+            onClear={() => setSearchQuery('')}
+          />
         </div>
         {/* Gradient fades nav items scrolling under the sticky search */}
         <div className={`h-6 bg-gradient-to-b ${bg === 'surface-default' ? 'from-surface-default' : 'from-surface-lower'} to-transparent pointer-events-none`} />
       </div>
 
-      {/* Profile card — below search, scrolls away */}
-      <div className="bg-surface-default rounded-ha-3xl p-ha-5 border border-surface-lower shadow-[0_18px_42px_-30px_rgba(15,23,42,0.32)] mb-ha-4">
-        <div className="flex items-center gap-ha-4">
-          <Avatar src={user.picture} initials={user.initials} size="lg" className="ring-4 ring-surface-mid shadow flex-shrink-0" />
-          <div>
-            <h2 className="text-base font-bold text-text-primary leading-tight">{user.name}</h2>
-            <p className="text-[11px] text-text-secondary font-medium px-ha-2 py-0.5 bg-surface-mid rounded-full inline-block mt-0.5">
-              Administrator
-            </p>
-          </div>
+      {/* Profile card — below search, scrolls away. Clickable like the nav items. */}
+      <button
+        type="button"
+        onClick={() => onSelect('profile')}
+        className={`w-full text-left flex items-center gap-ha-4 rounded-ha-3xl p-ha-5 border border-surface-lower shadow-[0_18px_42px_-30px_rgba(15,23,42,0.32)] mb-ha-4 transition-colors ${
+          activeSlug === 'profile' ? 'bg-surface-mid' : 'bg-surface-default hover:bg-surface-low active:bg-surface-mid'
+        }`}
+      >
+        <Avatar src={user.picture} initials={user.initials} size="lg" className="ring-4 ring-surface-mid shadow flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-bold text-text-primary leading-tight">{user.name}</h2>
+          <p className="text-[11px] text-text-secondary font-medium px-ha-2 py-0.5 bg-surface-mid rounded-full inline-block mt-0.5">
+            Administrator
+          </p>
         </div>
-      </div>
+        <Icon path={mdiChevronRight} size={20} className="text-text-disabled flex-shrink-0" />
+      </button>
 
       {/* Nav sections */}
       <div className="space-y-ha-5 pb-ha-5">

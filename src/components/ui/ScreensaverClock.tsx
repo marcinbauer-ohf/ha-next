@@ -6,9 +6,9 @@ import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { Tooltip } from './Tooltip';
 import { RollingDigit } from './RollingDigit';
-import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor } from '@/hooks';
 import {
-  mdiAlertCircle,
+  mdiDevices,
   mdiChevronRight,
   mdiBell,
   mdiCctv,
@@ -154,6 +154,9 @@ function buildScreensaverActivityCards(
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
   const liveSummaryItems = useLiveSummaryItems();
   const { haUrl } = useHomeAssistant();
+  const { wavyBackgroundEnabled, reactiveBackgroundEnabled, reactiveTriggerMode, reactiveIntensity } = useFeatureFlags();
+  // Only watch for events while the screensaver is actually on screen.
+  useHomeEventReactor(reactiveBackgroundEnabled && visible, reactiveTriggerMode);
   const [time, setTime] = useState({ hours: '', minutes: '', seconds: '', period: '', isAM: true });
   const use24HourClock = useMemo(() => systemPrefers24HourClock(), []);
   const [date, setDate] = useState('');
@@ -409,7 +412,11 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       }}
       onTransitionEnd={handleTransitionEnd}
     >
-      <RingShaderBackground />
+      <RingShaderBackground
+        wavy={wavyBackgroundEnabled}
+        reactive={reactiveBackgroundEnabled}
+        intensity={reactiveIntensity}
+      />
       {/* Build Info - Top */}
       <div className="absolute top-8 left-0 right-0 flex justify-center px-ha-6 pointer-events-none">
         <p className="text-[10px] lg:text-xs text-text-disabled opacity-40 font-mono text-center">
@@ -474,7 +481,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
 
       {/* Summary badges */}
       <div className="flex flex-wrap justify-center gap-ha-4 mt-12 max-w-4xl px-ha-6">
-        <PeopleBadge compact />
+        <PeopleBadge compact translucent />
         {liveSummaryItems.map((item) => (
           <SummaryCard
             key={item.title}
@@ -483,6 +490,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             state={item.state}
             color={item.color}
             compact
+            translucent
           />
         ))}
       </div>
@@ -501,9 +509,9 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             {activeActivityCards.map((activity) => (
               <div
                 key={activity.id}
-                className={`flex min-w-[150px] max-w-[220px] flex-[1_1_160px] items-start gap-ha-3 rounded-ha-2xl border px-ha-3 py-ha-3 ${activity.panelClassName}`}
+                className={`flex min-w-[150px] max-w-[220px] flex-[1_1_160px] items-start gap-ha-3 rounded-ha-2xl border border-white/10 bg-surface-mid/65 backdrop-blur-md px-ha-3 py-ha-3 ${activity.iconClassName}`}
               >
-                <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-ha-xl bg-surface-default/80 ${activity.iconClassName}`}>
+                <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-ha-xl bg-surface-lower/70 backdrop-blur-sm ${activity.iconClassName}`}>
                   <Icon path={activity.icon} size={20} />
                 </div>
 
@@ -568,8 +576,8 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             e.stopPropagation();
             setStatusPanelOpen((prev) => !prev);
           }}
-          className={`flex items-center gap-ha-4 rounded-ha-pill px-ha-4 py-ha-3 transition-colors ${
-            statusPanelOpen ? 'bg-surface-default' : 'bg-surface-low hover:bg-surface-mid'
+          className={`flex items-center gap-ha-4 rounded-ha-pill px-ha-4 py-ha-3 border border-white/10 backdrop-blur-md transition-colors ${
+            statusPanelOpen ? 'bg-surface-mid/75' : 'bg-surface-mid/65 hover:bg-surface-mid/80'
           }`}
         >
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />
@@ -594,7 +602,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
 
           {/* Issues */}
           <div className="relative">
-            <Icon path={mdiAlertCircle} size={22} className="text-text-secondary" />
+            <Icon path={mdiDevices} size={22} className="text-text-secondary" />
             {offlineCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2.5 h-2.5 animate-pulse" />
             )}

@@ -6,7 +6,8 @@ import { createPortal } from 'react-dom';
 import { Toast, ToastContainer, type ToastProps, type ToastPosition } from '@/components/ui/Toast';
 
 interface ToastOptions extends ToastProps {
-  duration?: number;
+  /** Auto-dismiss delay in ms. Pass null to keep it up until replaced/dismissed. */
+  duration?: number | null;
   position?: ToastPosition;
 }
 
@@ -15,12 +16,19 @@ interface ToastState extends ToastOptions {
 }
 
 interface ToastContextValue {
-  showToast: (opts: ToastOptions) => void;
+  /** Show a toast; returns its id so callers can dismiss that specific toast. */
+  showToast: (opts: ToastOptions) => number;
+  /** Dismiss the current toast. Pass an id to only dismiss if it's still showing. */
+  dismissToast: (id?: number) => void;
   /** True while any toast is on screen — used to freeze the mobile nav auto-hide. */
   isToastVisible: boolean;
 }
 
-const ToastContext = createContext<ToastContextValue>({ showToast: () => {}, isToastVisible: false });
+const ToastContext = createContext<ToastContextValue>({
+  showToast: () => 0,
+  dismissToast: () => {},
+  isToastVisible: false,
+});
 
 function ToastGlow({ show, toastId, position }: { show: boolean; toastId: number; position: ToastPosition }) {
   const [root, setRoot] = useState<HTMLElement | null>(null);
@@ -38,11 +46,12 @@ function ToastGlow({ show, toastId, position }: { show: boolean; toastId: number
       {show && (
         <motion.div
           key={`glow-${toastId}`}
-          className={`absolute bottom-0 pointer-events-none ${isCorner ? 'right-0 w-2/3' : 'inset-x-0'}`}
+          className={`absolute bottom-0 pointer-events-none ${isCorner ? 'corner-toast-glow' : 'inset-x-0'}`}
           style={{
-            height: '40vh',
+            // Corner glow is short + wide (squished, toast-shaped) rather than circular.
+            height: isCorner ? '15rem' : '40vh',
             background: isCorner
-              ? 'radial-gradient(ellipse 70% 70% at 100% 100%, rgba(24,188,242,0.16) 0%, rgba(24,188,242,0.05) 55%, transparent 75%)'
+              ? 'radial-gradient(ellipse 85% 50% at 100% 100%, rgba(24,188,242,0.22) 0%, rgba(24,188,242,0.08) 48%, transparent 76%)'
               : 'radial-gradient(ellipse 80% 70% at 50% 100%, rgba(24,188,242,0.14) 0%, rgba(24,188,242,0.05) 55%, transparent 75%)',
             transformOrigin: isCorner ? '100% 100%' : '50% 100%',
           }}
@@ -60,24 +69,27 @@ function ToastGlow({ show, toastId, position }: { show: boolean; toastId: number
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ToastState | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idRef = useRef(0);
 
   const showToast = useCallback((opts: ToastOptions) => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setToast({ ...opts, id: Date.now() });
-    // Actionable toasts stay until the user acts (or it's replaced) — don't
-    // auto-dismiss out from under a decision.
-    if (!opts.action) {
+    const id = ++idRef.current;
+    setToast({ ...opts, id });
+    // Actionable or duration:null toasts stay until acted on / replaced /
+    // explicitly dismissed — don't auto-dismiss out from under a decision.
+    if (!opts.action && opts.duration !== null) {
       timerRef.current = setTimeout(() => setToast(null), opts.duration ?? 4000);
     }
+    return id;
   }, []);
 
-  const dismiss = useCallback(() => {
+  const dismiss = useCallback((id?: number) => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    setToast(null);
+    setToast((prev) => (id != null && prev?.id !== id ? prev : null));
   }, []);
 
   return (
-    <ToastContext.Provider value={{ showToast, isToastVisible: !!toast }}>
+    <ToastContext.Provider value={{ showToast, dismissToast: dismiss, isToastVisible: !!toast }}>
       {children}
 
       {/* Radial glow — portaled into #toast-glow-root so it's clipped by the
@@ -94,6 +106,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               subtitle={toast.subtitle}
               compact={toast.position === 'bottom-right'}
               action={toast.action ? { ...toast.action, onClick: () => { toast.action!.onClick(); dismiss(); } } : undefined}
+              onClose={toast.position === 'bottom-right' ? () => dismiss() : undefined}
             />
           </ToastContainer>
         )}

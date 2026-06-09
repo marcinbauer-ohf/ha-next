@@ -21,7 +21,9 @@ const iconColorClasses = {
 };
 
 
-export function SummaryCard({ icon, title, state, color = 'default', compact = false, variant = 'filled', size = 'sm' }: SummaryCardProps) {
+export function SummaryCard({ icon, title, state, color = 'default', compact = false, variant = 'filled', size = 'sm', translucent = false }: SummaryCardProps) {
+  const translucentFill = 'bg-surface-mid/65 border border-white/10 backdrop-blur-md';
+
   if (compact) {
     const isOutlined = variant === 'outlined';
     const isLg = size === 'lg';
@@ -31,11 +33,11 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
       <div
         className={clsx(
           'flex items-center transition-colors',
-          isLg ? 'gap-ha-3 px-ha-5 py-ha-3 rounded-ha-2xl' : 
+          isLg ? 'gap-ha-3 px-ha-5 py-ha-3 rounded-ha-2xl' :
           isMd ? 'gap-ha-2 px-ha-4 py-ha-2.5 rounded-ha-xl' :
           'gap-ha-2 px-ha-3 py-ha-2 rounded-ha-pill',
           'whitespace-nowrap',
-          isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color]
+          translucent ? translucentFill : isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color]
         )}
       >
         <div className={clsx('flex-shrink-0', iconColorClasses[color])}>

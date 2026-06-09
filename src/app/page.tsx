@@ -31,10 +31,12 @@ import { ModalSheet } from '@/components/layout/ModalSheet';
 import { MobileSummaryRow } from '@/components/sections';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
 import { PullToRevealPanel } from '@/components/sections';
-import { useTheme, useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig } from '@/hooks';
+import { useTheme, useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags } from '@/hooks';
 import { usePullToRevealContext, useHeader, useEditMode, useToast } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
 import { HALoader } from '@/components/ui/HALoader';
+import { OffscreenChangeHints } from '@/components/ui/OffscreenChangeHints';
+import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import {
   entityDomain, friendlyName, entityLabel, stateLabel, isOn, TOGGLEABLE,
   domainIcon, SECTION_ORDER, SECTION_TITLES,
@@ -44,11 +46,14 @@ import type { HassDevice } from '@/hooks';
 // ── Section ───────────────────────────────────────────────────────────────────
 
 // Section only renders the sticky header; the grid is provided as children by the caller
-function Section({ title, count, href, children }: { title: string; count: number; href?: string; children: React.ReactNode }) {
+function Section({ sectionKey, title, count, href, children }: { sectionKey: string; title: string; count: number; href?: string; children: React.ReactNode }) {
   if (count === 0) return null;
 
   return (
-    <div>
+    <div
+      data-section-key={sectionKey}
+      style={{ scrollMarginTop: 'calc(var(--dashboard-sticky-top, 0px) + var(--ha-space-2))' }}
+    >
       <div className="py-ha-2 mb-ha-1">
         {href ? (
           <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
@@ -120,6 +125,7 @@ export default function DashboardPage() {
   const [dashboardView, setDashboardView] = useState<'list' | '3d'>('list');
   const { isRevealed } = usePullToRevealContext();
   const { isEditing, toggleEditMode, previewViewport } = useEditMode();
+  const { offscreenChangeHintsEnabled, scrollIndexEnabled } = useFeatureFlags();
 
   const gridCols = isEditing
     ? previewViewport === 'desktop' ? 'grid-cols-4'
@@ -228,7 +234,7 @@ export default function DashboardPage() {
       'Front Door Lock',
       'Garage Temperature Sensor',
     ];
-    const delay = 8000 + Math.random() * 12000; // 8–20s after load
+    const delay = 5000; // 5s after load
     const timer = setTimeout(() => {
       const name = candidates[Math.floor(Math.random() * candidates.length)];
       showToast({
@@ -678,7 +684,7 @@ export default function DashboardPage() {
                     };
 
                     return (
-                      <Section key={key} title={title} count={sectionDevices.length} href={key === '__none__' ? undefined : isArea ? `/room/${key}` : `/type/${key}`}>
+                      <Section key={key} sectionKey={key} title={title} count={sectionDevices.length} href={key === '__none__' ? undefined : isArea ? `/room/${key}` : `/type/${key}`}>
                         {isEditing ? (
                           <DndContext
                             sensors={dndSensors}
@@ -721,6 +727,17 @@ export default function DashboardPage() {
                 </div>
               )}
             </main>
+
+            <OffscreenChangeHints
+              scrollRef={scrollableRef}
+              enabled={offscreenChangeHintsEnabled && dashboardView === 'list' && !isEditing}
+            />
+
+            <ScrollIndexRail
+              scrollRef={scrollableRef}
+              sections={visibleSections.map(s => ({ key: s.key, title: s.title }))}
+              enabled={scrollIndexEnabled && dashboardView === 'list' && !isEditing}
+            />
           </div>
 
           {/* Entity detail / card edit — modal dialog */}

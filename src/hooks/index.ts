@@ -20,6 +20,8 @@ export { FeatureFlagsProvider, useFeatureFlags } from './useFeatureFlags';
 
 export { useIdleTimer } from './useIdleTimer';
 
+export { useHomeEventReactor, type ReactiveTriggerMode } from './useHomeEventReactor';
+
 export { useSidebarItems, type SidebarItem } from './useSidebarItems';
 
 export { ImmersiveModeProvider, useImmersiveMode } from './useImmersiveMode';
