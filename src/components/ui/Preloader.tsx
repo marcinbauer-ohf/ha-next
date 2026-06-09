@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useScreensaver } from '@/contexts';
 import { RingShaderBackground } from './RingShaderBackground';
+import { APP_BUILD } from '@/lib/version';
 
 // Dynamically import Lottie to avoid SSR issues
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
@@ -158,6 +159,16 @@ export function Preloader({ onFinish }: PreloaderProps) {
           className="w-[260px] h-auto preloader-brand-lockup"
         />
       </motion.div>
+
+      {/* Build version — fades in with the logo */}
+      <motion.p
+        className="absolute bottom-4 text-[10px] lg:text-xs text-text-disabled opacity-40 font-mono text-center pointer-events-none"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: showLogo ? 0.4 : 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+      >
+        {`Build ${APP_BUILD}`}
+      </motion.p>
     </motion.div>
   );
 }

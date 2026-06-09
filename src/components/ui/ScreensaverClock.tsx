@@ -23,6 +23,7 @@ import { SummaryCard } from '../cards/SummaryCard';
 import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
 import { RingShaderBackground } from './RingShaderBackground';
 import { SystemStatusPanel } from './SystemStatusPanel';
+import { APP_BUILD } from '@/lib/version';
 import {
   areActivityDataEqual,
   areScreensaverDataEqual,
@@ -207,7 +208,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       minute: '2-digit',
       hour12: false,
     });
-    return `Build 2026.2.11 • ${date} • ${time}`;
+    return `Build ${APP_BUILD} • ${date} • ${time}`;
   }, []);
 
   // Handle mount/unmount with animation

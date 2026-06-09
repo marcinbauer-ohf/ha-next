@@ -151,7 +151,7 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         aria-valuemax={count - 1}
         aria-valuenow={activeIndex}
         aria-valuetext={sections[activeIndex]?.title}
-        className="pointer-events-auto flex flex-col items-center gap-1 py-ha-2 px-ha-1 cursor-pointer touch-none select-none"
+        className="pointer-events-auto flex flex-col items-center gap-1 md:gap-1.5 lg:gap-2 py-ha-2 px-ha-1 md:px-ha-2 cursor-pointer touch-none select-none"
       >
         {sections.map((s, i) => {
           const active = i === activeIndex;
@@ -161,8 +161,8 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
               className={clsx(
                 'rounded-full transition-all duration-150',
                 active
-                  ? 'w-2 h-2 bg-ha-blue scale-110'
-                  : 'w-1.5 h-1.5 bg-text-tertiary/50',
+                  ? 'w-2 h-2 md:w-3 md:h-3 lg:w-3.5 lg:h-3.5 bg-ha-blue scale-110'
+                  : 'w-1.5 h-1.5 md:w-2 md:h-2 lg:w-2.5 lg:h-2.5 bg-text-tertiary/50',
                 scrubbing && active && 'scale-150',
               )}
             />
