@@ -19,12 +19,13 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { mdiHomeAssistant, mdiChevronRight, mdiViewGrid, mdiCube, mdiAutoFix, mdiClose, mdiAccessPointNetwork } from '@mdi/js';
+import { mdiHomeAssistant, mdiChevronRight, mdiViewGrid, mdiCube, mdiAutoFix, mdiClose, mdiAccessPointNetwork, mdiWifi, mdiBluetooth, mdiZigbee, mdiZWave, mdiGraphOutline, mdiHexagonMultiple } from '@mdi/js';
 import { clsx } from 'clsx';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 
 const DashboardFloorView = dynamic(() => import('@/components/sections/DashboardFloorView'), { ssr: false });
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
+import { DeferredCard } from '@/components/cards/DeferredCard';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { ModalSheet } from '@/components/layout/ModalSheet';
@@ -39,7 +40,9 @@ import { OffscreenChangeHints } from '@/components/ui/OffscreenChangeHints';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import {
   entityDomain, friendlyName, entityLabel, stateLabel, isOn, TOGGLEABLE,
-  domainIcon, SECTION_ORDER, SECTION_TITLES,
+  domainIcon, deviceThumbnail, SECTION_ORDER, SECTION_TITLES,
+  entityCategory, CATEGORY_ORDER, CATEGORY_TITLES,
+  AREA_ICON, domainTypeIcon, CATEGORY_ICONS, type DeviceCategory,
 } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -127,11 +130,13 @@ export default function DashboardPage() {
   const { isEditing, toggleEditMode, previewViewport } = useEditMode();
   const { offscreenChangeHintsEnabled, scrollIndexEnabled } = useFeatureFlags();
 
+  // Edit-mode grid must match the non-edit masonry column counts
+  // (useMasonryCols: desktop=3, tablet/mobile=2) so the layout doesn't reflow
+  // when entering/exiting edit mode.
   const gridCols = isEditing
-    ? previewViewport === 'desktop' ? 'grid-cols-4'
-    : previewViewport === 'tablet'  ? 'grid-cols-3'
+    ? previewViewport === 'desktop' ? 'grid-cols-3'
     :                                  'grid-cols-2'
-    : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
+    : 'grid-cols-2 lg:grid-cols-3';
 
   const [sectionOrders, setSectionOrders] = useState<Record<string, string[]>>(() => {
     if (typeof window === 'undefined') return {};
@@ -163,9 +168,10 @@ export default function DashboardPage() {
 
   const { devices, areas, areaReg, floors, loading } = useDevices();
   const [activeFloorId, setActiveFloorId] = useState<string | null>(null);
-  const [groupBy, setGroupBy] = useState<'area' | 'type'>(() => {
+  const [groupBy, setGroupBy] = useState<'area' | 'type' | 'category'>(() => {
     if (typeof window === 'undefined') return 'area';
-    return (localStorage.getItem('ha_group_by') as 'area' | 'type') ?? 'area';
+    const saved = localStorage.getItem('ha_group_by');
+    return saved === 'type' || saved === 'category' ? saved : 'area';
   });
   const { getConfig, setConfig } = useDeviceCardConfig();
 
@@ -223,24 +229,37 @@ export default function DashboardPage() {
 
   // Demo: surface a simulated "new device detected" event as a corner toast
   // (bottom-right of the dashboard). Random one-shot for now — placeholder until
-  // wired to real HA discovery / notification events.
+  // wired to real HA discovery / notification events. Mimics what a discovery
+  // payload carries: a product render, a manufacturer/model, and the transport
+  // (Wi-Fi / Bluetooth / Zigbee / Z-Wave / Thread / Matter) it was found over.
   useEffect(() => {
     if (loading) return;
-    const candidates = [
-      'Living Room Speaker',
-      'Hallway Motion Sensor',
-      'Kitchen Smart Plug',
-      'Bedroom Light Strip',
-      'Front Door Lock',
-      'Garage Temperature Sensor',
+    const discoveries = [
+      { name: 'Motion Sensor',      image: '/devices/motion_sensor.png',        manufacturer: 'Aqara',       model: 'P2',        protocol: 'Zigbee',    protocolIcon: mdiZigbee },
+      { name: 'Smart Plug',         image: '/devices/smart_plug_us.png',        manufacturer: 'TP-Link',     model: 'Tapo P110', protocol: 'Wi-Fi',     protocolIcon: mdiWifi },
+      { name: 'Door Lock',          image: '/devices/lock.png',                 manufacturer: 'Yale',        model: 'Assure 2',  protocol: 'Matter',    protocolIcon: mdiHexagonMultiple },
+      { name: 'Climate Sensor',     image: '/devices/temp_humidity_sensor.png', manufacturer: 'SwitchBot',   model: 'Meter',     protocol: 'Bluetooth', protocolIcon: mdiBluetooth },
+      { name: 'Light Strip',        image: '/devices/led_strip.png',            manufacturer: 'Govee',       model: 'H6199',     protocol: 'Wi-Fi',     protocolIcon: mdiWifi },
+      { name: 'Radiator Valve',     image: '/devices/radiator_valve.png',       manufacturer: 'tado°',       model: 'V3+',       protocol: 'Thread',    protocolIcon: mdiGraphOutline },
+      { name: 'Dome Camera',        image: '/devices/camera_dome.png',          manufacturer: 'Reolink',     model: 'E1 Pro',    protocol: 'Wi-Fi',     protocolIcon: mdiWifi },
+      { name: 'Contact Sensor',     image: '/devices/contact_sensor.png',       manufacturer: 'SONOFF',      model: 'SNZB-04',   protocol: 'Zigbee',    protocolIcon: mdiZigbee },
+      { name: 'Smart Bulb',         image: '/devices/bulb_e27.png',             manufacturer: 'Philips Hue', model: 'A60',       protocol: 'Zigbee',    protocolIcon: mdiZigbee },
+      { name: 'Wall Switch',        image: '/devices/wall_switch.png',          manufacturer: 'Inovelli',    model: 'Blue 2-1',  protocol: 'Z-Wave',    protocolIcon: mdiZWave },
     ];
     const delay = 5000; // 5s after load
     const timer = setTimeout(() => {
-      const name = candidates[Math.floor(Math.random() * candidates.length)];
+      const d = discoveries[Math.floor(Math.random() * discoveries.length)];
       showToast({
         icon: mdiAccessPointNetwork,
-        title: 'New device detected',
-        subtitle: name,
+        image: d.image,
+        protocolIcon: d.protocolIcon,
+        title: `New ${d.name}`,
+        subtitle: d.manufacturer,
+        details: [
+          { label: 'Model', value: d.model },
+          { icon: d.protocolIcon, value: d.protocol },
+          { label: 'Signal', value: 'Strong' },
+        ],
         position: 'bottom-right',
         action: { label: 'Set up', onClick: () => {} },
       });
@@ -315,7 +334,7 @@ export default function DashboardPage() {
   }, [devices, activeFloorId, floors, areaFloorMap]);
 
   const sections = useMemo(() => {
-    type Sec = { key: string; title: string; devices: HassDevice[]; isArea: boolean };
+    type Sec = { key: string; title: string; devices: HassDevice[]; kind: 'area' | 'type' | 'category' };
     const ordered: Sec[] = [];
 
     if (areas.size > 0 && groupBy === 'area') {
@@ -326,9 +345,20 @@ export default function DashboardPage() {
         byArea.get(key)!.push(device);
       }
       for (const [areaId, areaName] of areas) {
-        if (byArea.has(areaId)) ordered.push({ key: areaId, title: areaName, devices: byArea.get(areaId)!, isArea: true });
+        if (byArea.has(areaId)) ordered.push({ key: areaId, title: areaName, devices: byArea.get(areaId)!, kind: 'area' });
       }
-      if (byArea.has('__none__')) ordered.push({ key: '__none__', title: 'Other', devices: byArea.get('__none__')!, isArea: true });
+      if (byArea.has('__none__')) ordered.push({ key: '__none__', title: 'Other', devices: byArea.get('__none__')!, kind: 'area' });
+    } else if (groupBy === 'category') {
+      const byCat = new Map<string, HassDevice[]>();
+      for (const device of floorDevices) {
+        if (!device.primaryEntity) continue;
+        const cat = entityCategory(device.primaryEntity);
+        if (!byCat.has(cat)) byCat.set(cat, []);
+        byCat.get(cat)!.push(device);
+      }
+      for (const cat of CATEGORY_ORDER) {
+        if (byCat.has(cat)) ordered.push({ key: cat, title: CATEGORY_TITLES[cat], devices: byCat.get(cat)!, kind: 'category' });
+      }
     } else {
       const byDomain = new Map<string, HassDevice[]>();
       for (const device of floorDevices) {
@@ -339,12 +369,12 @@ export default function DashboardPage() {
       }
       for (const domain of SECTION_ORDER) {
         if (byDomain.has(domain)) {
-          ordered.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, devices: byDomain.get(domain)!, isArea: false });
+          ordered.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, devices: byDomain.get(domain)!, kind: 'type' });
           byDomain.delete(domain);
         }
       }
       for (const [domain, devs] of byDomain) {
-        ordered.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, devices: devs, isArea: false });
+        ordered.push({ key: domain, title: SECTION_TITLES[domain] ?? domain, devices: devs, kind: 'type' });
       }
     }
     return ordered;
@@ -503,10 +533,11 @@ export default function DashboardPage() {
                           segments={[
                             { value: 'area', label: 'Area' },
                             { value: 'type', label: 'Device' },
+                            { value: 'category', label: 'Category' },
                           ]}
                           value={groupBy}
                           onChange={v => {
-                            const next = v as 'area' | 'type';
+                            const next = v as 'area' | 'type' | 'category';
                             localStorage.setItem('ha_group_by', next);
                             setGroupBy(next);
                           }}
@@ -553,7 +584,7 @@ export default function DashboardPage() {
                   />
                 </div>
               ) : (
-                <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full space-y-ha-6">
+                <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full space-y-ha-6">
                   <ApplicationViewNotice />
 
                   {/* Onboarding banner — shown once on first connect */}
@@ -613,7 +644,7 @@ export default function DashboardPage() {
                     </p>
                   )}
 
-                  {visibleSections.map(({ key, title, devices: sectionDevices, isArea }) => {
+                  {visibleSections.map(({ key, title, devices: sectionDevices, kind }) => {
                     const orderedDevices = applyDeviceOrder(sectionDevices, sectionOrders[key]);
                     const orderedIds = orderedDevices.map(d => d.id);
                     const editGridClass = `grid gap-ha-3 items-start ${gridCols ?? 'grid-cols-2 lg:grid-cols-3'}`;
@@ -641,6 +672,7 @@ export default function DashboardPage() {
                           primary={{
                             entityId: primaryEntity.entity_id,
                             icon: domainIcon(primaryEntity),
+                            thumbnail: deviceThumbnail(primaryEntity),
                             name: device.name,
                             state: stateLabel(primaryEntity),
                             lastChanged: primaryEntity.last_changed,
@@ -684,7 +716,7 @@ export default function DashboardPage() {
                     };
 
                     return (
-                      <Section key={key} sectionKey={key} title={title} count={sectionDevices.length} href={key === '__none__' ? undefined : isArea ? `/room/${key}` : `/type/${key}`}>
+                      <Section key={key} sectionKey={key} title={title} count={sectionDevices.length} href={key === '__none__' ? undefined : kind === 'area' ? `/room/${key}` : kind === 'category' ? `/category/${key}` : `/type/${key}`}>
                         {isEditing ? (
                           <DndContext
                             sensors={dndSensors}
@@ -714,7 +746,7 @@ export default function DashboardPage() {
                               {colArrays.map((col, ci) => (
                                 <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
                                   {col.map(device => (
-                                    <div key={device.id}>{renderCard(device)}</div>
+                                    <DeferredCard key={device.id}>{renderCard(device)}</DeferredCard>
                                   ))}
                                 </div>
                               ))}
@@ -735,7 +767,13 @@ export default function DashboardPage() {
 
             <ScrollIndexRail
               scrollRef={scrollableRef}
-              sections={visibleSections.map(s => ({ key: s.key, title: s.title }))}
+              sections={visibleSections.map(s => ({
+                key: s.key,
+                title: s.title,
+                icon: s.kind === 'category' ? CATEGORY_ICONS[s.key as DeviceCategory]
+                  : s.kind === 'type' ? domainTypeIcon(s.key)
+                  : AREA_ICON,
+              }))}
               enabled={scrollIndexEnabled && dashboardView === 'list' && !isEditing}
             />
           </div>

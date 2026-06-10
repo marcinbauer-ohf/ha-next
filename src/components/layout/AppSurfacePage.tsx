@@ -13,7 +13,7 @@ interface AppSurfacePageProps {
 
 export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePageProps) {
   const { isRevealed } = usePullToRevealContext();
-  const { contentPaddingClasses, contentTransitionClasses, contentStyle } = useDesktopImmersivePageLayout();
+  const { contentPaddingClasses, contentTransitionClasses, contentStyle, isMobileImmersive, surfaceRoundingClass } = useDesktopImmersivePageLayout();
 
   return (
     <>
@@ -24,13 +24,13 @@ export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePag
         } ${contentPaddingClasses} ${contentTransitionClasses}`}
         style={contentStyle}
       >
-        <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl">
+        <div className={`h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
           <div
             className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide"
             data-scrollable="dashboard"
           >
             <main
-              className={`px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
+              className={`${isMobileImmersive ? 'px-ha-5' : 'px-ha-4'} pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
             >
               <ApplicationViewNotice />
               {children}

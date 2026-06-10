@@ -1,6 +1,7 @@
 'use client';
 
 import type { HassEntities } from '@/types';
+import { LOW_BATTERY_THRESHOLD } from '@/lib/homeCenter';
 
 const RELEASE_NOTES_PREFIX = 'update.home_assistant_release_notes_simulated';
 const SIMULATION_PREFIXES = [
@@ -83,6 +84,28 @@ export interface OfflineDeviceSummary {
   name: string;
 }
 
+export interface RepairSummary {
+  id: string;
+  title: string;
+  /** 'critical' surfaces red, anything else amber/orange. */
+  severity: 'critical' | 'warning';
+  description?: string;
+}
+
+export interface BatterySummary {
+  id: string;
+  name: string;
+  /** Battery percentage, 0–100. */
+  level: number;
+}
+
+export interface BackupSummary {
+  id: string;
+  name: string;
+  /** ISO timestamp of the most recent backup, if known. */
+  lastBackup: string | null;
+}
+
 export interface ActivityData {
   activeUpdates: UpdateSummary[];
   activeNotifications: NotificationSummary[];
@@ -92,6 +115,9 @@ export interface ActivityData {
   activeCameras: CameraSummary[];
   activePrinters: PrinterSummary[];
   offlineDevices: OfflineDeviceSummary[];
+  repairs: RepairSummary[];
+  lowBatteryDevices: BatterySummary[];
+  lastBackup: BackupSummary | null;
   user: PersonSummary | null;
   isRemoteConnected: boolean;
 }
@@ -411,6 +437,9 @@ export function selectActivityData(entities: HassEntities): ActivityData {
   const activeCameras: CameraSummary[] = [];
   const activePrinters: PrinterSummary[] = [];
   const offlineDevices: OfflineDeviceSummary[] = [];
+  const repairs: RepairSummary[] = [];
+  const lowBatteryDevices: BatterySummary[] = [];
+  let lastBackup: BackupSummary | null = null;
   let user: PersonSummary | null = null;
   let cloudConnected = false;
   let remoteUiConnected = false;
@@ -523,6 +552,45 @@ export function selectActivityData(entities: HassEntities): ActivityData {
       remoteUiConnected = true;
     }
 
+    // Repairs — issues Home Assistant suggests you fix. Modelled as `repairs.*`
+    // entities (active when state is 'on'/non-empty).
+    if (entityId.startsWith('repairs.') && entity.state !== 'off' && entity.state !== 'unavailable') {
+      const rawSeverity = String(entity.attributes.severity || 'warning').toLowerCase();
+      repairs.push({
+        id: entityId,
+        title: (entity.attributes.title as string | undefined)
+          || (entity.attributes.friendly_name as string | undefined)
+          || entityId,
+        severity: rawSeverity === 'critical' || rawSeverity === 'error' ? 'critical' : 'warning',
+        description: entity.attributes.description as string | undefined,
+      });
+    }
+
+    // Backups — the most recent backup status. Modelled as a single `backup.*` entity.
+    if (entityId.startsWith('backup.')) {
+      lastBackup = {
+        id: entityId,
+        name: (entity.attributes.friendly_name as string | undefined) || 'Backups',
+        lastBackup: (entity.attributes.last_backup as string | undefined)
+          || (entity.state && entity.state !== 'unknown' && entity.state !== 'unavailable' ? entity.state : null)
+          || entity.last_changed
+          || null,
+      };
+    }
+
+    // Low battery — any battery sensor reporting below the threshold.
+    const deviceClass = entity.attributes.device_class as string | undefined;
+    if (deviceClass === 'battery' || /_battery$/.test(entityId)) {
+      const level = Number(entity.state);
+      if (Number.isFinite(level) && level <= LOW_BATTERY_THRESHOLD) {
+        lowBatteryDevices.push({
+          id: entityId,
+          name: (entity.attributes.friendly_name as string | undefined) || entityId,
+          level: Math.round(level),
+        });
+      }
+    }
+
     if (
       entity.attributes.device_id !== undefined &&
       entity.attributes.device_id !== null &&
@@ -543,6 +611,9 @@ export function selectActivityData(entities: HassEntities): ActivityData {
   activeCameras.sort(compareByEntityId);
   activePrinters.sort(compareByEntityId);
   offlineDevices.sort(compareById);
+  repairs.sort(compareById);
+  // Lowest battery first — most urgent at the top.
+  lowBatteryDevices.sort((a, b) => a.level - b.level || a.id.localeCompare(b.id));
 
   return {
     activeUpdates,
@@ -553,9 +624,29 @@ export function selectActivityData(entities: HassEntities): ActivityData {
     activeCameras,
     activePrinters,
     offlineDevices,
+    repairs,
+    lowBatteryDevices,
+    lastBackup,
     user,
     isRemoteConnected: cloudConnected || remoteUiConnected,
   };
+}
+
+function areRepairSummariesEqual(previous: RepairSummary, next: RepairSummary): boolean {
+  return (
+    previous.id === next.id &&
+    previous.title === next.title &&
+    previous.severity === next.severity &&
+    previous.description === next.description
+  );
+}
+
+function areBatterySummariesEqual(previous: BatterySummary, next: BatterySummary): boolean {
+  return previous.id === next.id && previous.name === next.name && previous.level === next.level;
+}
+
+function areBackupSummariesEqual(previous: BackupSummary, next: BackupSummary): boolean {
+  return previous.id === next.id && previous.name === next.name && previous.lastBackup === next.lastBackup;
 }
 
 export function areActivityDataEqual(previous: ActivityData, next: ActivityData): boolean {
@@ -569,6 +660,9 @@ export function areActivityDataEqual(previous: ActivityData, next: ActivityData)
     areArraysEqual(previous.activeCameras, next.activeCameras, areCameraSummariesEqual) &&
     areArraysEqual(previous.activePrinters, next.activePrinters, arePrinterSummariesEqual) &&
     areArraysEqual(previous.offlineDevices, next.offlineDevices, areOfflineDevicesEqual) &&
+    areArraysEqual(previous.repairs, next.repairs, areRepairSummariesEqual) &&
+    areArraysEqual(previous.lowBatteryDevices, next.lowBatteryDevices, areBatterySummariesEqual) &&
+    areNullableValuesEqual(previous.lastBackup, next.lastBackup, areBackupSummariesEqual) &&
     areNullableValuesEqual(previous.user, next.user, arePersonSummariesEqual)
   );
 }

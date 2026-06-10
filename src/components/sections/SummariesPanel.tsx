@@ -379,7 +379,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
       )}
       style={containerStyle}
     >
-      <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full flex items-center gap-ha-2 overflow-hidden">
+      <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full flex items-center gap-ha-2 overflow-hidden">
         {/* Scrollable Container for Summaries */}
         <div className="flex-1 min-w-0 relative group">
           {/* Left Gradient */}
@@ -418,7 +418,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
 
       {/* Extra content (e.g. floor tabs) — same visual block, below chips */}
       {extraContent && (
-        <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full pt-ha-2">
+        <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full pt-ha-2">
           {extraContent}
         </div>
       )}

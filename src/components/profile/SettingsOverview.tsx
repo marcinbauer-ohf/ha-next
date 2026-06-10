@@ -164,11 +164,11 @@ export function SettingsOverview() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-ha-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
+                    <p className="text-[13px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
                       {activity.label}
                     </p>
                     {activity.count && (
-                      <span className={`rounded-ha-pill px-ha-2 py-0.5 text-[10px] font-semibold ${activity.badgeClassName}`}>
+                      <span className={`rounded-ha-pill px-ha-2 py-0.5 text-[13px] font-semibold ${activity.badgeClassName}`}>
                         {activity.count}
                       </span>
                     )}

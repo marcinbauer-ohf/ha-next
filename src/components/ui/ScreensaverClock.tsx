@@ -4,25 +4,27 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
 import { Avatar } from './Avatar';
-import { Tooltip } from './Tooltip';
 import { RollingDigit } from './RollingDigit';
-import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor, useHomeCenterPrefs } from '@/hooks';
+import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import {
   mdiDevices,
-  mdiChevronRight,
   mdiBell,
-  mdiCctv,
-  mdiNewspaperVariantOutline,
-  mdiPlayCircleOutline,
-  mdiPrinter3d,
+  mdiDoorbellVideo,
+  mdiPause,
+  mdiPlay,
   mdiTimerOutline,
   mdiUpdate,
   mdiWeb,
+  mdiWrench,
+  mdiBatteryAlertVariantOutline,
+  mdiBackupRestore,
 } from '@mdi/js';
+import { CircularProgress } from './CircularProgress';
+import { resolveEntityPictureUrl } from '@/lib/utils';
 import { SummaryCard } from '../cards/SummaryCard';
 import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
 import { RingShaderBackground } from './RingShaderBackground';
-import { SystemStatusPanel } from './SystemStatusPanel';
 import { APP_BUILD } from '@/lib/version';
 import {
   areActivityDataEqual,
@@ -36,16 +38,183 @@ interface ScreensaverClockProps {
   onDismiss: () => void;
 }
 
-interface ScreensaverActivityCard {
-  id: string;
-  icon: string;
-  label: string;
-  headline: string;
-  detail: string;
-  panelClassName: string;
-  iconClassName: string;
-  badgeClassName: string;
-  count?: number;
+function parseTimeToSeconds(time: string): number {
+  const parts = time.split(':').map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return Number(parts[0]) || 0;
+}
+
+// Corner count badge shared by activity pills (matches the dashboard StatusBar pills).
+function ActivityCountBadge({ count, variant = 'neutral' }: { count: number; variant?: 'neutral' | 'green' }) {
+  if (count <= 1) return null;
+  const cls =
+    variant === 'green'
+      ? 'bg-green-600 text-white border-surface-default'
+      : 'bg-surface-default text-text-primary border-surface-lower';
+  return (
+    <div className={`absolute -top-1 -right-1 ${cls} text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border shadow-sm z-10`}>
+      {count}
+    </div>
+  );
+}
+
+// Activity pills for the screensaver — identical styling to the main dashboard
+// StatusBar collapsed pills, but non-interactive (display only).
+function ScreensaverActivityPills({
+  activityData,
+  haUrl,
+}: {
+  activityData: ReturnType<typeof selectActivityData>;
+  haUrl: string | undefined;
+}) {
+  const picUrl = (picture?: string, fallback?: string) =>
+    resolveEntityPictureUrl(haUrl, picture) ?? fallback;
+
+  const pills: React.ReactNode[] = [];
+
+  if (activityData.activeReleaseNotes.length > 0) {
+    const note = activityData.activeReleaseNotes[0];
+    pills.push(
+      <div
+        key="release-notes"
+        className="relative flex items-center gap-ha-3 bg-green-500/12 border border-green-500/25 rounded-ha-pill px-ha-3 h-12"
+      >
+        <div className="relative">
+          <div className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
+            <Icon path={mdiUpdate} size={16} className="text-green-600" />
+          </div>
+          <ActivityCountBadge count={activityData.activeReleaseNotes.length} variant="green" />
+        </div>
+        <div className="flex flex-col min-w-0 max-w-[180px]">
+          <span className="text-sm font-bold text-green-600 truncate">What&apos;s New</span>
+          <span className="text-xs text-text-secondary truncate">{note.version}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (activityData.activePlayers.length > 0) {
+    const player = activityData.activePlayers[0];
+    const picture = picUrl(player.entityPicture);
+    pills.push(
+      <div
+        key="media"
+        className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12"
+      >
+        <div className="relative">
+          {picture ? (
+            <img src={picture} alt="" className="w-8 h-8 rounded-full object-cover border border-surface-low" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-fill-primary-normal flex items-center justify-center">
+              <Icon path={mdiPlay} size={16} className="text-ha-blue" />
+            </div>
+          )}
+          {player.state === 'playing' && (
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-ha-blue rounded-full border-2 border-surface-low flex items-center justify-center">
+              <span className="w-1 h-1 bg-white rounded-full animate-pulse" />
+            </span>
+          )}
+          <ActivityCountBadge count={activityData.activePlayers.length} />
+        </div>
+        <div className="flex flex-col min-w-0 max-w-[140px]">
+          <span className="text-sm font-medium text-text-primary truncate">
+            {player.mediaTitle || player.name}
+          </span>
+          <span className={`text-xs truncate ${player.state === 'paused' ? 'text-yellow-600' : 'text-text-secondary'}`}>
+            {player.mediaArtist || (player.state === 'playing' ? 'Playing' : 'Paused')}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (activityData.activeTimers.length > 0) {
+    const timer = activityData.activeTimers[0];
+    const remainingSec = parseTimeToSeconds(timer.remaining);
+    const progress = timer.durationSec > 0 ? remainingSec / timer.durationSec : 0;
+    const isActive = timer.state === 'active';
+    pills.push(
+      <div
+        key="timer"
+        className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 ${isActive ? 'bg-fill-primary-normal' : 'bg-yellow-95'}`}
+      >
+        <div className="relative">
+          <ActivityCountBadge count={activityData.activeTimers.length} />
+          <CircularProgress
+            progress={progress}
+            size={32}
+            strokeWidth={2.5}
+            className={isActive ? 'text-ha-blue' : 'text-yellow-600'}
+            trackClassName={isActive ? 'text-fill-primary-quiet' : 'text-yellow-200'}
+          >
+            <Icon path={isActive ? mdiTimerOutline : mdiPause} size={14} className={isActive ? 'text-ha-blue' : 'text-yellow-600'} />
+          </CircularProgress>
+        </div>
+        <div className="flex flex-col min-w-0 max-w-[140px]">
+          <span className="text-sm font-medium text-text-primary truncate">{timer.remaining}</span>
+          <span className="text-xs text-text-secondary truncate">{timer.name}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (activityData.activeCameras.length > 0) {
+    const camera = activityData.activeCameras[0];
+    pills.push(
+      <div
+        key="camera"
+        className="relative flex items-center gap-ha-3 bg-red-500/10 border border-red-500/20 rounded-ha-pill px-ha-3 h-12"
+      >
+        <div className="relative w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
+          <img src={picUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover animate-pulse" />
+          <div className="absolute inset-0 bg-red-500/10" />
+          <ActivityCountBadge count={activityData.activeCameras.length} />
+        </div>
+        <div className="flex flex-col min-w-0 max-w-[140px]">
+          <span className="text-sm font-bold text-red-500 truncate flex items-center gap-1">
+            <Icon path={mdiDoorbellVideo} size={14} />
+            {camera.name}
+          </span>
+          <span className="text-xs text-text-secondary truncate">{camera.event}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (activityData.activePrinters.length > 0) {
+    const printer = activityData.activePrinters[0];
+    pills.push(
+      <div
+        key="printer"
+        className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12"
+      >
+        <div className="relative">
+          <ActivityCountBadge count={activityData.activePrinters.length} />
+          <CircularProgress
+            progress={printer.progress / 100}
+            size={32}
+            strokeWidth={2.5}
+            className="text-ha-blue shrink-0"
+            trackClassName="text-fill-primary-quiet"
+          >
+            <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
+              <img src={picUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+            </div>
+          </CircularProgress>
+        </div>
+        <div className="flex flex-col min-w-0 max-w-[140px]">
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-medium text-text-primary truncate font-mono">{printer.progress}%</span>
+            <span className="text-[13px] text-text-disabled uppercase font-bold tracking-tighter">Printing</span>
+          </div>
+          <span className="text-xs text-text-secondary truncate">{printer.fileName}</span>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{pills}</>;
 }
 
 function systemPrefers24HourClock(): boolean {
@@ -59,97 +228,6 @@ function systemPrefers24HourClock(): boolean {
   } catch {
     return false;
   }
-}
-
-function buildScreensaverActivityCards(
-  activityData: ReturnType<typeof selectActivityData>
-): ScreensaverActivityCard[] {
-  const cards: ScreensaverActivityCard[] = [];
-
-  if (activityData.activeReleaseNotes.length > 0) {
-    const note = activityData.activeReleaseNotes[0];
-    cards.push({
-      id: 'release-notes',
-      icon: mdiNewspaperVariantOutline,
-      label: 'Release',
-      headline: note.name,
-      detail: `Version ${note.version}`,
-      panelClassName: 'bg-fill-primary-normal/45 border-fill-primary-quiet/80',
-      iconClassName: 'text-ha-blue',
-      badgeClassName: 'bg-fill-primary-normal text-ha-blue',
-      count: activityData.activeReleaseNotes.length > 1 ? activityData.activeReleaseNotes.length : undefined,
-    });
-  }
-
-  if (activityData.activePlayers.length > 0) {
-    const player = activityData.activePlayers[0];
-    const stateLabel = player.state === 'paused' ? 'Paused' : 'Playing';
-    const detailParts = [player.mediaArtist, player.name].filter(Boolean);
-
-    cards.push({
-      id: 'media',
-      icon: mdiPlayCircleOutline,
-      label: 'Media',
-      headline: player.mediaTitle || player.name,
-      detail: detailParts.length > 0 ? detailParts.join(' • ') : stateLabel,
-      panelClassName: 'bg-green-500/10 border-green-500/20',
-      iconClassName: 'text-green-600',
-      badgeClassName: 'bg-green-500/15 text-green-600',
-      count: activityData.activePlayers.length > 1 ? activityData.activePlayers.length : undefined,
-    });
-  }
-
-  if (activityData.activeTimers.length > 0) {
-    const timer = activityData.activeTimers[0];
-    cards.push({
-      id: 'timers',
-      icon: mdiTimerOutline,
-      label: 'Timer',
-      headline: timer.name,
-      detail: timer.state === 'paused' ? `Paused • ${timer.remaining}` : `${timer.remaining} remaining`,
-      panelClassName: 'bg-fill-primary-normal/45 border-fill-primary-quiet/80',
-      iconClassName: 'text-ha-blue',
-      badgeClassName: 'bg-fill-primary-normal text-ha-blue',
-      count: activityData.activeTimers.length > 1 ? activityData.activeTimers.length : undefined,
-    });
-  }
-
-  if (activityData.activeCameras.length > 0) {
-    const camera = activityData.activeCameras[0];
-    const eventLabel = camera.event || (camera.state === 'person' ? 'Person detected' : 'Motion detected');
-
-    cards.push({
-      id: 'cameras',
-      icon: mdiCctv,
-      label: 'Camera',
-      headline: camera.name,
-      detail: eventLabel,
-      panelClassName: 'bg-red-500/10 border-red-500/20',
-      iconClassName: 'text-red-500',
-      badgeClassName: 'bg-red-500/15 text-red-500',
-      count: activityData.activeCameras.length > 1 ? activityData.activeCameras.length : undefined,
-    });
-  }
-
-  if (activityData.activePrinters.length > 0) {
-    const printer = activityData.activePrinters[0];
-    const progress = `${Math.round(printer.progress)}% complete`;
-    const detail = printer.remainingTime ? `${progress} • ${printer.remainingTime} left` : progress;
-
-    cards.push({
-      id: 'printers',
-      icon: mdiPrinter3d,
-      label: 'Printer',
-      headline: printer.fileName || printer.name,
-      detail,
-      panelClassName: 'bg-surface-low border-surface-low/80',
-      iconClassName: 'text-text-primary',
-      badgeClassName: 'bg-surface-default text-text-primary',
-      count: activityData.activePrinters.length > 1 ? activityData.activePrinters.length : undefined,
-    });
-  }
-
-  return cards;
 }
 
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
@@ -168,7 +246,6 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const [dragDistance, setDragDistance] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
-  const [statusPanelOpen, setStatusPanelOpen] = useState(false);
   const router = useRouter();
   const dragStartY = useRef<number | null>(null);
   const activePointerId = useRef<number | null>(null);
@@ -176,14 +253,23 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const containerRef = useRef<HTMLDivElement>(null);
   const screensaverData = useHomeAssistantSelector(selectScreensaverData, areScreensaverDataEqual);
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
-  const pendingUpdates = screensaverData.pendingUpdates;
-  const notificationCount = screensaverData.notificationCount;
-  const isRemoteConnected = screensaverData.isRemoteConnected;
-  const offlineCount = screensaverData.offlineCount;
-  const activeActivityCards = useMemo(
-    () => buildScreensaverActivityCards(activityData),
-    [activityData]
-  );
+  const { visibleSections } = useHomeCenterPrefs();
+  // Status-pill indicators derive from the full activity data so they can cover
+  // every configurable Home Center section (repairs, battery, backups, …).
+  const notificationCount = activityData.activeNotifications.length;
+  const pendingUpdates = activityData.activeUpdates.length;
+  const offlineCount = activityData.offlineDevices.length;
+  const repairCount = activityData.repairs.length;
+  const hasCriticalRepair = activityData.repairs.some((r) => r.severity === 'critical');
+  const lowBatteryCount = activityData.lowBatteryDevices.length;
+  const backupAge = formatBackupAge(activityData.lastBackup?.lastBackup ?? null);
+  const isRemoteConnected = activityData.isRemoteConnected;
+  const hasActivities =
+    activityData.activeReleaseNotes.length > 0 ||
+    activityData.activePlayers.length > 0 ||
+    activityData.activeTimers.length > 0 ||
+    activityData.activeCameras.length > 0 ||
+    activityData.activePrinters.length > 0;
   const userAvatar = useMemo(() => {
     if (!screensaverData.user) {
       return { picture: undefined, name: 'User', initials: 'U' };
@@ -383,6 +469,51 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     return () => clearInterval(interval);
   }, [use24HourClock]);
 
+  // Status-pill indicator per configurable Home Center section.
+  const renderStatusIndicator = (id: HomeCenterSectionId) => {
+    let icon = mdiBell;
+    let dot: string | null = null;
+    let pulse = false;
+    switch (id) {
+      case 'notifications':
+        icon = mdiBell;
+        dot = notificationCount > 0 ? 'bg-yellow-500' : null;
+        break;
+      case 'updates':
+        icon = mdiUpdate;
+        dot = pendingUpdates > 0 ? 'bg-ha-blue' : null;
+        break;
+      case 'repairs':
+        icon = mdiWrench;
+        dot = repairCount > 0 ? (hasCriticalRepair ? 'bg-red-500' : 'bg-orange-500') : null;
+        pulse = hasCriticalRepair;
+        break;
+      case 'issues':
+        icon = mdiDevices;
+        dot = offlineCount > 0 ? 'bg-red-500' : null;
+        pulse = offlineCount > 0;
+        break;
+      case 'battery':
+        icon = mdiBatteryAlertVariantOutline;
+        dot = lowBatteryCount > 0 ? 'bg-amber-500' : null;
+        break;
+      case 'backups':
+        icon = mdiBackupRestore;
+        dot = backupAge.stale ? 'bg-orange-500' : null;
+        break;
+      case 'connectivity':
+        icon = mdiWeb;
+        dot = isRemoteConnected ? 'bg-green-500' : 'bg-red-500';
+        break;
+    }
+    return (
+      <div key={id} className="relative">
+        <Icon path={icon} size={22} className="text-text-secondary" />
+        {dot && <span className={`absolute -top-0.5 -right-0.5 ${dot} rounded-full w-2.5 h-2.5 ${pulse ? 'animate-pulse' : ''}`} />}
+      </div>
+    );
+  };
+
   if (!shouldRender) return null;
 
   // Calculate transform based on drag
@@ -403,10 +534,6 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         opacity: isDismissing ? 0 : isDragging ? 1 - dragProgress * 0.3 : undefined,
       }}
       onClick={() => {
-        if (statusPanelOpen) {
-          setStatusPanelOpen(false);
-          return;
-        }
         if (window.innerWidth >= 1024) {
           onDismiss();
         }
@@ -420,7 +547,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       />
       {/* Build Info - Top */}
       <div className="absolute top-8 left-0 right-0 flex justify-center px-ha-6 pointer-events-none">
-        <p className="text-[10px] lg:text-xs text-text-disabled opacity-40 font-mono text-center">
+        <p className="text-[13px] lg:text-xs text-text-disabled opacity-40 font-mono text-center">
           {buildInfo}
         </p>
       </div>
@@ -496,124 +623,39 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         ))}
       </div>
 
-      {activeActivityCards.length > 0 && (
+      {hasActivities && (
         <div className="w-full max-w-6xl px-ha-6 mt-8">
           <div className="flex items-center justify-center gap-ha-3 mb-ha-4">
             <span className="h-px w-8 bg-surface-lower" />
-            <p className="text-[10px] lg:text-xs font-semibold uppercase tracking-[0.22em] text-text-disabled">
+            <p className="text-[13px] lg:text-xs font-semibold uppercase tracking-[0.22em] text-text-disabled">
               Active Now
             </p>
             <span className="h-px w-8 bg-surface-lower" />
           </div>
 
           <div className="flex flex-wrap justify-center gap-ha-3">
-            {activeActivityCards.map((activity) => (
-              <div
-                key={activity.id}
-                className={`flex min-w-[150px] max-w-[220px] flex-[1_1_160px] items-start gap-ha-3 rounded-ha-2xl border border-white/10 bg-surface-mid/65 backdrop-blur-md px-ha-3 py-ha-3 ${activity.iconClassName}`}
-              >
-                <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-ha-xl bg-surface-lower/70 backdrop-blur-sm ${activity.iconClassName}`}>
-                  <Icon path={activity.icon} size={20} />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-ha-2">
-                    <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">
-                      {activity.label}
-                    </p>
-                    {activity.count && (
-                      <span className={`rounded-ha-pill px-ha-2 py-0.5 text-[10px] font-semibold ${activity.badgeClassName}`}>
-                        {activity.count}
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="mt-1 truncate text-sm font-semibold text-text-primary">
-                    {activity.headline}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-text-secondary">
-                    {activity.detail}
-                  </p>
-                </div>
-              </div>
-            ))}
+            <ScreensaverActivityPills activityData={activityData} haUrl={haUrl} />
           </div>
         </div>
       )}
 
-      {/* Status pill — clickable, opens detail panel */}
-      <div className={`relative ${activeActivityCards.length > 0 ? 'mt-6' : 'mt-8'}`}>
-        {/* Detail panel — appears above the pill */}
-        {statusPanelOpen && (
-          <div
-            className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-80 max-h-[55vh] overflow-y-auto scrollbar-hide bg-surface-default/95 backdrop-blur-md rounded-ha-3xl shadow-2xl border border-surface-lower z-10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-ha-5 pt-ha-4 pb-ha-3 border-b border-surface-lower sticky top-0 bg-surface-default/95 backdrop-blur-md rounded-t-ha-3xl z-10">
-              <span className="text-sm font-semibold text-text-primary">Home Center</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setStatusPanelOpen(false);
-                  onDismiss();
-                  router.push('/settings');
-                }}
-                className="flex items-center gap-0.5 text-xs font-medium text-ha-blue hover:text-ha-blue/80 transition-colors"
-              >
-                Open
-                <Icon path={mdiChevronRight} size={14} />
-              </button>
-            </div>
-            <div className="p-ha-5">
-              <SystemStatusPanel onNavigate={() => { setStatusPanelOpen(false); onDismiss(); router.push('/settings'); }} />
-            </div>
-          </div>
-        )}
-
+      {/* Status pill — clickable, opens Home Center settings */}
+      <div className={`relative ${hasActivities ? 'mt-6' : 'mt-8'}`}>
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            setStatusPanelOpen((prev) => !prev);
+            onDismiss();
+            router.push('/settings?section=home-center');
           }}
-          className={`flex items-center gap-ha-4 rounded-ha-pill px-ha-4 py-ha-3 border border-white/10 backdrop-blur-md transition-colors ${
-            statusPanelOpen ? 'bg-surface-mid/75' : 'bg-surface-mid/65 hover:bg-surface-mid/80'
-          }`}
+          className="flex items-center gap-ha-4 rounded-ha-pill px-ha-4 py-ha-3 border border-white/10 backdrop-blur-md transition-colors bg-surface-mid/65 hover:bg-surface-mid/80"
         >
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />
 
           <div className="w-px h-6 bg-surface-lower" />
 
-          {/* Notifications */}
-          <div className="relative">
-            <Icon path={mdiBell} size={22} className="text-text-secondary" />
-            {notificationCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-yellow-500 rounded-full w-2.5 h-2.5" />
-            )}
-          </div>
-
-          {/* Updates */}
-          <div className="relative">
-            <Icon path={mdiUpdate} size={22} className="text-text-secondary" />
-            {pendingUpdates > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-ha-blue rounded-full w-2.5 h-2.5" />
-            )}
-          </div>
-
-          {/* Issues */}
-          <div className="relative">
-            <Icon path={mdiDevices} size={22} className="text-text-secondary" />
-            {offlineCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2.5 h-2.5 animate-pulse" />
-            )}
-          </div>
-
-          {/* Connectivity */}
-          <div className="relative">
-            <Icon path={mdiWeb} size={22} className="text-text-secondary" />
-            <span className={`absolute -top-0.5 -right-0.5 rounded-full w-2.5 h-2.5 ${isRemoteConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-          </div>
+          {/* Status indicators — order and visibility follow Home Center prefs */}
+          {visibleSections.map(renderStatusIndicator)}
         </button>
       </div>
 

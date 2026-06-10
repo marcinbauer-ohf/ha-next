@@ -20,6 +20,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
   const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000).toISOString();
   const twentyFiveMinutesFromNow = new Date(now.getTime() + 25 * 60 * 1000).toISOString();
   const fortyTwoMinutesFromNow = new Date(now.getTime() + 42 * 60 * 1000).toISOString();
+  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
 
   return {
     'person.alex': createEntity(
@@ -362,6 +363,80 @@ export function createDemoEntities(now = new Date()): HassEntities {
         title: 'Front door left open',
         friendly_name: 'Front door left open',
         message: 'The front door has been open for 12 minutes.',
+      },
+      timestamp
+    ),
+    // ── Home Center: low battery sensors ──────────────────────────────────
+    'sensor.patio_motion_battery': createEntity(
+      'sensor.patio_motion_battery',
+      '12',
+      {
+        friendly_name: 'Patio Motion Battery',
+        device_class: 'battery',
+        unit_of_measurement: '%',
+      },
+      timestamp
+    ),
+    'sensor.front_door_lock_battery': createEntity(
+      'sensor.front_door_lock_battery',
+      '8',
+      {
+        friendly_name: 'Front Door Lock Battery',
+        device_class: 'battery',
+        unit_of_measurement: '%',
+      },
+      timestamp
+    ),
+    'sensor.bedroom_remote_battery': createEntity(
+      'sensor.bedroom_remote_battery',
+      '17',
+      {
+        friendly_name: 'Bedroom Remote Battery',
+        device_class: 'battery',
+        unit_of_measurement: '%',
+      },
+      timestamp
+    ),
+    'sensor.living_room_thermostat_battery': createEntity(
+      'sensor.living_room_thermostat_battery',
+      '94',
+      {
+        friendly_name: 'Living Room Thermostat Battery',
+        device_class: 'battery',
+        unit_of_measurement: '%',
+      },
+      timestamp
+    ),
+    // ── Home Center: repairs (issues HA suggests you fix) ─────────────────
+    'repairs.zwave_device_deprecated': createEntity(
+      'repairs.zwave_device_deprecated',
+      'on',
+      {
+        friendly_name: 'Z-Wave device no longer supported',
+        title: 'Z-Wave device no longer supported',
+        severity: 'warning',
+        description: 'The "Aeotec MultiSensor 6" uses a deprecated configuration. Re-add it to keep receiving updates.',
+      },
+      timestamp
+    ),
+    'repairs.mqtt_certificate_expiring': createEntity(
+      'repairs.mqtt_certificate_expiring',
+      'on',
+      {
+        friendly_name: 'MQTT broker certificate expiring',
+        title: 'MQTT broker certificate expiring',
+        severity: 'critical',
+        description: 'The certificate for your MQTT broker expires in 3 days. Renew it to avoid losing connection.',
+      },
+      timestamp
+    ),
+    // ── Home Center: backup status ────────────────────────────────────────
+    'backup.home_assistant': createEntity(
+      'backup.home_assistant',
+      'idle',
+      {
+        friendly_name: 'Home Assistant Backup',
+        last_backup: twoDaysAgo,
       },
       timestamp
     ),

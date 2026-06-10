@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { clsx } from 'clsx';
+import { Icon } from '@/components/ui/Icon';
 
 // ── Tuning ──────────────────────────────────────────────────────────────────
 const IDLE_HIDE_MS = 1400;      // fade the rail out this long after the last scroll
@@ -11,6 +12,8 @@ const ACTIVE_OFFSET = 24;       // px below the sticky header counts as "current
 export interface ScrollIndexSection {
   key: string;
   title: string;
+  /** Optional MDI icon path representing the section (area / type / category). */
+  icon?: string;
 }
 
 interface ScrollIndexRailProps {
@@ -132,15 +135,15 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         // edge can always start a scrub.
         'pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 z-40 flex items-center pr-ha-1',
         'transition-opacity duration-300',
-        // Touch devices keep a faint always-on rail; hover desktops stay hidden
-        // until the pointer is over the rail.
-        railShown ? 'opacity-100' : isHoverDevice ? 'opacity-0' : 'opacity-30',
+        // Touch devices keep a faint always-on rail; hover desktops stay very
+        // faintly visible at rest and reveal fully when the pointer nears the rail.
+        railShown ? 'opacity-100' : isHoverDevice ? 'opacity-20' : 'opacity-30',
       )}
     >
       {/* Preview bubble — sits left of the rail, aligned to the active tick. */}
       <div
         className={clsx(
-          'absolute right-full mr-ha-2 whitespace-nowrap rounded-ha-xl px-ha-3 py-1.5',
+          'absolute right-full mr-ha-2 flex items-center gap-ha-2 whitespace-nowrap rounded-ha-xl px-ha-3 py-1.5',
           'bg-surface-default text-text-primary text-sm font-semibold shadow-lg',
           'backdrop-blur-md transition-opacity duration-150',
           scrubbing ? 'opacity-100' : 'opacity-0',
@@ -150,6 +153,9 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
           transform: 'translateY(-50%)',
         }}
       >
+        {sections[activeIndex]?.icon && (
+          <Icon path={sections[activeIndex]!.icon!} size={16} className="text-ha-blue shrink-0" />
+        )}
         {sections[activeIndex]?.title}
       </div>
 
@@ -170,7 +176,7 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         aria-valuemax={count - 1}
         aria-valuenow={activeIndex}
         aria-valuetext={sections[activeIndex]?.title}
-        className="pointer-events-auto flex flex-col items-center gap-1 md:gap-1.5 lg:gap-2 py-ha-2 px-ha-1 md:px-ha-2 cursor-pointer touch-none select-none"
+        className="pointer-events-auto flex flex-col items-center gap-1 md:gap-1.5 lg:gap-2 py-ha-2 px-ha-1 md:px-ha-2 lg:px-4 cursor-pointer touch-none select-none"
       >
         {sections.map((s, i) => {
           const active = i === activeIndex;

@@ -732,7 +732,7 @@ export function DesktopSplitViewMenu({
         <div className="max-h-[min(56vh,460px)] overflow-y-auto py-ha-2">
           {groupedOptions.map((group) => (
             <div key={group.label} className="mb-ha-1 px-ha-2">
-              <div className="px-ha-3 py-ha-1 text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
+              <div className="px-ha-3 py-ha-1 text-[13px] font-medium uppercase tracking-wider text-text-tertiary">
                 {group.label}
               </div>
               {group.items.map((option) => (

@@ -513,23 +513,28 @@ function AppShellContent({ children }: AppShellProps) {
             )}
           </div>
 
-          {/* Edit-mode glow — radial dark rising from the bottom center, clipped to
-              the dashboard <main> bounds by this container's overflow-hidden. */}
+          {/* Edit-mode glow — radial dark rising from the bottom center. Inset to the
+              grey panel's edges + rounded bottom corners (.dashboard-bottom-glow) so it
+              stays inside the surface instead of spilling into the side gutters. */}
           <AnimatePresence>
             {isEditing && (
               <motion.div
                 aria-hidden
-                className="absolute inset-x-0 bottom-0 pointer-events-none"
+                className="dashboard-bottom-glow absolute bottom-0 pointer-events-none"
                 style={{
                   height: '40vh',
                   zIndex: 61,
+                  // Match the connected-toast glow's weight (ToastContext bottom-center
+                  // glow): same geometry, same low opacity falloff — just a dark tint.
                   background:
-                    'radial-gradient(ellipse 80% 70% at 50% 100%, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.18) 55%, transparent 75%)',
+                    'radial-gradient(ellipse 80% 70% at 50% 100%, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.05) 55%, transparent 75%)',
                   transformOrigin: '50% 100%',
                 }}
                 initial={{ scale: 0.15, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.4, opacity: 0 }}
+                // Exit: quick opacity fade in place (no shrink) so it clears with the
+                // 300ms chrome fade instead of lingering/retracting after it.
+                exit={{ opacity: 0, transition: { duration: 0.25, ease: 'easeOut' } }}
                 transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
               />
             )}

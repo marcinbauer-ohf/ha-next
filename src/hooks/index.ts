@@ -16,9 +16,13 @@ export {
 } from './useEntities';
 
 export { ThemeProvider, useTheme } from './useTheme';
+export { FontProvider, useFont, FONTS, type FontKey, type FontOption } from './useFont';
 export { FeatureFlagsProvider, useFeatureFlags } from './useFeatureFlags';
+export { HomeCenterPrefsProvider, useHomeCenterPrefs } from './useHomeCenterPrefs';
 
 export { useIdleTimer } from './useIdleTimer';
+
+export { useLongPress } from './useLongPress';
 
 export { useHomeEventReactor, type ReactiveTriggerMode } from './useHomeEventReactor';
 
@@ -30,8 +34,8 @@ export { useDesktopImmersivePageLayout } from './useDesktopImmersivePageLayout';
 export { usePullToReveal } from './usePullToReveal';
 
 export { useStandaloneMode } from './useStandaloneMode';
-export { useDevices } from './useDevices';
-export type { HassDevice } from './useDevices';
+export { useDevices, useDeviceStructure, useIntegrations } from './useDevices';
+export type { HassDevice, IntegrationSummary, IntegrationDevice, IntegrationStatus, IntegrationFlags } from './useDevices';
 export { useDeviceCardConfig } from './useDeviceCardConfig';
 export type { DeviceCardConfig, EntitySlot, EntitySection } from './useDeviceCardConfig';
 export { useDashboardLayout } from './useDashboardLayout';

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { SettingsNavPanel } from '@/components/profile';
 import { SettingsDetailPage } from '@/components/profile/SettingsDetailPage';
 import { useHeader } from '@/contexts';
-import { type SettingsSlug } from '@/components/profile/settingsNavigation';
+import { type SettingsSlug, isSettingsSlug } from '@/components/profile/settingsNavigation';
 
 function ScrollColumn({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -44,34 +44,55 @@ function ScrollColumn({ children, className = '' }: { children: React.ReactNode;
   );
 }
 
-export default function SettingsPage() {
+function SettingsWorkspace() {
   const { setHeader } = useHeader();
   const router = useRouter();
-  const [activeSlug, setActiveSlug] = useState<SettingsSlug>('home-center');
+  const searchParams = useSearchParams();
+  // Honour a `?section=<slug>` deep-link (e.g. the clock pop-up's "Open Home
+  // Center") so callers can open the two-column layout focused on a section.
+  const requestedSection = searchParams.get('section');
+  const [activeSlug, setActiveSlug] = useState<SettingsSlug>(
+    requestedSection && isSettingsSlug(requestedSection) ? requestedSection : 'home-center',
+  );
 
   useEffect(() => {
     setHeader({ title: 'Settings', subtitle: undefined });
   }, [setHeader]);
 
   return (
-    <AppSurfacePage scrollClassName="lg:h-full">
-      {/* Mobile: normal single-column scroll */}
-      <div className="lg:hidden max-w-2xl mx-auto">
+    <AppSurfacePage scrollClassName="xl:h-full">
+      {/* Narrow (< xl): single-column nav list; tapping opens the detail route.
+          The two-column split needs room for the content's own sidebar, so it
+          only kicks in at xl — below that, content gets the full width. */}
+      <div className="xl:hidden max-w-2xl mx-auto">
         <SettingsNavPanel
           activeSlug={null}
           onSelect={(slug) => router.push(`/settings/${slug}`)}
         />
       </div>
 
-      {/* Desktop: two independent scrolling columns with gradient masks */}
-      <div className="hidden lg:flex lg:h-full lg:gap-ha-6 max-w-[1240px] mx-auto w-full">
-        <ScrollColumn className="w-[300px] xl:w-[340px] shrink-0">
+      {/* Wide (≥ xl): two independent scrolling columns with gradient masks.
+          Widened to 1536px so content + an in-content sidebar both fit. */}
+      <div className="hidden xl:flex xl:h-full xl:gap-ha-6 max-w-[1536px] mx-auto w-full">
+        <ScrollColumn className="w-[340px] shrink-0">
           <SettingsNavPanel activeSlug={activeSlug} onSelect={setActiveSlug} />
         </ScrollColumn>
         <ScrollColumn className="flex-1 min-w-0">
-          <SettingsDetailPage slug={activeSlug} panelMode />
+          {/* Re-keyed per section so the pane fades/slides in instead of snapping. */}
+          <div key={activeSlug} className="ha-pane-in">
+            <SettingsDetailPage slug={activeSlug} panelMode />
+          </div>
         </ScrollColumn>
       </div>
     </AppSurfacePage>
+  );
+}
+
+export default function SettingsPage() {
+  // useSearchParams requires a Suspense boundary during static rendering.
+  return (
+    <Suspense fallback={null}>
+      <SettingsWorkspace />
+    </Suspense>
   );
 }

@@ -7,12 +7,14 @@
 export function SectionLabel({
   children,
   className = '',
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
-    <p className={`text-xs font-medium uppercase tracking-wider text-text-tertiary ${className}`}>
+    <p className={`text-xs font-medium uppercase tracking-wider text-text-tertiary ${className}`} style={style}>
       {children}
     </p>
   );

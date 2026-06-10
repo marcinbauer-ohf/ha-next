@@ -9,9 +9,10 @@ import { PullToRevealPanel } from '@/components/sections';
 import { DeviceSectionsView, type DeviceSection } from '@/components/sections';
 import { Icon } from '@/components/ui/Icon';
 import { HALoader } from '@/components/ui/HALoader';
+import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import { usePullToRevealContext, useHeader } from '@/contexts';
-import { useTheme, useDevices, useDesktopImmersivePageLayout } from '@/hooks';
-import { entityDomain, SECTION_ORDER, SECTION_TITLES } from '@/lib/homeassistant/entityHelpers';
+import { useTheme, useDevices, useDesktopImmersivePageLayout, useFeatureFlags } from '@/hooks';
+import { entityDomain, SECTION_ORDER, SECTION_TITLES, domainTypeIcon } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
 interface RoomPageProps {
@@ -46,7 +47,8 @@ export default function RoomPage({ params }: RoomPageProps) {
   const { setHeader } = useHeader();
   const { background } = useTheme();
   const { devices, areas, loading } = useDevices();
-  const { contentPaddingClasses, contentTransitionClasses, contentStyle } = useDesktopImmersivePageLayout();
+  const { scrollIndexEnabled } = useFeatureFlags();
+  const { contentPaddingClasses, contentTransitionClasses, contentStyle, surfaceRoundingClass } = useDesktopImmersivePageLayout();
 
   const scrollableRef = useRef<HTMLElement | null>(null);
   const [showTopGradient, setShowTopGradient] = useState(false);
@@ -96,7 +98,7 @@ export default function RoomPage({ params }: RoomPageProps) {
         style={contentStyle}
       >
         <div className="h-full flex">
-          <div className="flex-1 min-w-0 bg-surface-lower overflow-hidden rounded-ha-3xl relative">
+          <div className={`flex-1 min-w-0 bg-surface-lower overflow-hidden relative ${surfaceRoundingClass}`}>
             {background !== 'image' && background !== 'gradient' && (
               <>
                 <div className={clsx('absolute top-0 left-0 right-0 lg:left-14 lg:right-14 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300', showTopGradient ? 'opacity-100' : 'opacity-0')} />
@@ -137,6 +139,12 @@ export default function RoomPage({ params }: RoomPageProps) {
                 {!loading && deviceCount > 0 && <DeviceSectionsView sections={sections} />}
               </div>
             </main>
+
+            <ScrollIndexRail
+              scrollRef={scrollableRef}
+              sections={sections.map(s => ({ key: s.key, title: s.title, icon: domainTypeIcon(s.key) }))}
+              enabled={scrollIndexEnabled && !loading}
+            />
           </div>
         </div>
       </div>

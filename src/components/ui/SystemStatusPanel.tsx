@@ -1,7 +1,8 @@
 'use client';
 
-import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useHomeCenterPrefs } from '@/hooks';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
+import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { Icon } from './Icon';
 import { SectionLabel } from './SectionLabel';
 import {
@@ -10,6 +11,7 @@ import {
   mdiWeb,
   mdiCloudOutline,
   mdiCloudOffOutline,
+  mdiBackupRestore,
 } from '@mdi/js';
 
 function Section({
@@ -30,7 +32,7 @@ function Section({
   const toneBadge: Record<string, string> = {
     default: 'text-text-tertiary bg-surface-mid',
     primary: 'text-ha-blue bg-fill-primary-normal',
-    warning: 'text-yellow-600 bg-yellow-500/15',
+    warning: 'text-orange-600 bg-orange-500/15',
     danger: 'text-red-500 bg-red-500/10',
   };
 
@@ -39,7 +41,7 @@ function Section({
       <div className="flex items-center gap-ha-2 mb-ha-2">
         <SectionLabel className="flex-1">{label}</SectionLabel>
         {count > 0 && (
-          <span className={`text-[10px] font-semibold px-ha-2 py-0.5 rounded-full ${toneBadge[tone]}`}>{count}</span>
+          <span className={`text-[13px] font-semibold px-ha-2 py-0.5 rounded-full ${toneBadge[tone]}`}>{count}</span>
         )}
         {onNavigate && (
           <button type="button" onClick={onNavigate} className="text-text-disabled hover:text-text-secondary transition-colors -mr-1">
@@ -61,18 +63,38 @@ function Section({
   );
 }
 
-function Row({ primary, secondary }: { primary: string; secondary?: string }) {
+function Row({
+  primary,
+  secondary,
+  trailing,
+  dotClass,
+}: {
+  primary: string;
+  secondary?: string;
+  trailing?: string;
+  /** Coloured leading dot, e.g. for repair severity. */
+  dotClass?: string;
+}) {
   return (
     <div className="flex items-start gap-ha-3 px-ha-4 py-ha-3 border-b border-surface-low/40 last:border-0">
+      {dotClass && <span className={`mt-1.5 h-2 w-2 rounded-full flex-shrink-0 ${dotClass}`} />}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-text-primary truncate">{primary}</p>
-        {secondary && <p className="text-xs text-text-secondary mt-0.5">{secondary}</p>}
+        {secondary && <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{secondary}</p>}
       </div>
+      {trailing && <span className="text-sm font-semibold text-text-secondary tabular-nums flex-shrink-0">{trailing}</span>}
     </div>
   );
 }
 
+/** Legacy navigable subset — these sections deep-link to their own settings page. */
 export type HomeCenterSection = 'notifications' | 'updates' | 'issues' | 'connectivity';
+const NAVIGABLE: ReadonlySet<HomeCenterSectionId> = new Set<HomeCenterSectionId>([
+  'notifications',
+  'updates',
+  'issues',
+  'connectivity',
+]);
 
 export function SystemStatusPanel({
   onNavigate,
@@ -83,9 +105,18 @@ export function SystemStatusPanel({
   /** When set, renders only that section (full-page view). */
   focus?: HomeCenterSection;
 } = {}) {
-  const { connected, connecting, demoMode, haUrl } = useHomeAssistant();
+  const { connected, connecting, demoMode } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
-  const { activeNotifications, activeUpdates, offlineDevices, isRemoteConnected } = activityData;
+  const { visibleSections } = useHomeCenterPrefs();
+  const {
+    activeNotifications,
+    activeUpdates,
+    offlineDevices,
+    repairs,
+    lowBatteryDevices,
+    lastBackup,
+    isRemoteConnected,
+  } = activityData;
 
   const connStatus = demoMode ? 'Demo' : connecting ? 'Connecting' : connected ? 'Connected' : 'Offline';
   const connTone = demoMode ? 'warning' : connected ? 'default' : 'danger';
@@ -95,66 +126,117 @@ export function SystemStatusPanel({
     danger: 'text-red-500',
   };
 
-  const shows = (section: HomeCenterSection) => !focus || focus === section;
-  const navTo = (section: HomeCenterSection) =>
-    onNavigate ? () => onNavigate(section) : undefined;
+  const navTo = (section: HomeCenterSectionId) =>
+    onNavigate && NAVIGABLE.has(section) ? () => onNavigate(section as HomeCenterSection) : undefined;
 
-  return (
-    <div className="space-y-ha-4">
-      {/* Notifications */}
-      {shows('notifications') && (
-      <Section label="Notifications" tone={activeNotifications.length > 0 ? 'warning' : 'default'} count={activeNotifications.length} emptyLabel="No notifications" onNavigate={navTo('notifications')}>
-        {activeNotifications.map((n) => (
-          <Row key={n.id} primary={n.title} secondary={n.message} />
-        ))}
-      </Section>
-      )}
+  // When focused (single full-page view), show only that section in default order.
+  // Otherwise honour the user's configured order + enabled set.
+  const sections: HomeCenterSectionId[] = focus ? [focus] : visibleSections;
 
-      {/* Updates */}
-      {shows('updates') && (
-      <Section label="Updates" tone={activeUpdates.length > 0 ? 'primary' : 'default'} count={activeUpdates.length} emptyLabel="System up to date" onNavigate={navTo('updates')}>
-        {activeUpdates.map((u) => (
-          <Row key={u.id} primary={u.name} />
-        ))}
-      </Section>
-      )}
-
-      {/* Issues */}
-      {shows('issues') && (
-      <Section label="Issues" tone={offlineDevices.length > 0 ? 'danger' : 'default'} count={offlineDevices.length} emptyLabel="All devices reachable" onNavigate={navTo('issues')}>
-        {offlineDevices.map((d) => (
-          <Row key={d.id} primary={d.name} secondary="Unavailable" />
-        ))}
-      </Section>
-      )}
-
-      {/* Connectivity */}
-      {shows('connectivity') && (
-      <div>
-        <div className="flex items-center gap-ha-2 mb-ha-2">
-          <SectionLabel className="flex-1">Connectivity</SectionLabel>
-          {navTo('connectivity') && (
-            <button type="button" onClick={navTo('connectivity')} className="text-text-disabled hover:text-text-secondary transition-colors -mr-1">
-              <Icon path={mdiChevronRight} size={14} />
-            </button>
-          )}
-        </div>
-        <div className="rounded-ha-2xl border border-surface-lower bg-surface-default overflow-hidden">
-          <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3 border-b border-surface-low/40">
-            <Icon path={connected || demoMode ? mdiCloudOutline : mdiCloudOffOutline} size={15} className={connToneIcon[connTone]} />
-            <span className="flex-1 text-sm text-text-secondary">Home Assistant</span>
-            <span className={`text-sm font-medium ${connToneIcon[connTone]}`}>{connStatus}</span>
+  const renderSection = (id: HomeCenterSectionId) => {
+    switch (id) {
+      case 'notifications':
+        return (
+          <Section key={id} label="Notifications" tone={activeNotifications.length > 0 ? 'warning' : 'default'} count={activeNotifications.length} emptyLabel="No notifications" onNavigate={navTo('notifications')}>
+            {activeNotifications.map((n) => (
+              <Row key={n.id} primary={n.title} secondary={n.message} />
+            ))}
+          </Section>
+        );
+      case 'updates':
+        return (
+          <Section key={id} label="Updates" tone={activeUpdates.length > 0 ? 'primary' : 'default'} count={activeUpdates.length} emptyLabel="System up to date" onNavigate={navTo('updates')}>
+            {activeUpdates.map((u) => (
+              <Row key={u.id} primary={u.name} />
+            ))}
+          </Section>
+        );
+      case 'repairs': {
+        const hasCritical = repairs.some((r) => r.severity === 'critical');
+        return (
+          <Section key={id} label="Repairs" tone={hasCritical ? 'danger' : repairs.length > 0 ? 'warning' : 'default'} count={repairs.length} emptyLabel="Nothing needs fixing">
+            {repairs.map((r) => (
+              <Row
+                key={r.id}
+                primary={r.title}
+                secondary={r.description}
+                dotClass={r.severity === 'critical' ? 'bg-red-500' : 'bg-orange-500'}
+              />
+            ))}
+          </Section>
+        );
+      }
+      case 'issues':
+        return (
+          <Section key={id} label="Offline devices" tone={offlineDevices.length > 0 ? 'danger' : 'default'} count={offlineDevices.length} emptyLabel="All devices reachable" onNavigate={navTo('issues')}>
+            {offlineDevices.map((d) => (
+              <Row key={d.id} primary={d.name} secondary="Unavailable" />
+            ))}
+          </Section>
+        );
+      case 'battery':
+        return (
+          <Section key={id} label="Low battery" tone={lowBatteryDevices.length > 0 ? 'warning' : 'default'} count={lowBatteryDevices.length} emptyLabel="All batteries healthy">
+            {lowBatteryDevices.map((b) => (
+              <Row
+                key={b.id}
+                primary={b.name}
+                trailing={`${b.level}%`}
+                dotClass={b.level <= 10 ? 'bg-red-500' : 'bg-amber-500'}
+              />
+            ))}
+          </Section>
+        );
+      case 'backups': {
+        const { label, stale } = formatBackupAge(lastBackup?.lastBackup ?? null);
+        return (
+          <div key={id}>
+            <div className="flex items-center gap-ha-2 mb-ha-2">
+              <SectionLabel className="flex-1">Backups</SectionLabel>
+            </div>
+            <div className="rounded-ha-2xl border border-surface-lower bg-surface-default overflow-hidden">
+              <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3">
+                <Icon path={mdiBackupRestore} size={15} className={stale ? 'text-orange-500' : 'text-green-500'} />
+                <span className="flex-1 text-sm text-text-secondary">{lastBackup?.name ?? 'Backups'}</span>
+                <span className={`text-sm font-medium ${stale ? 'text-orange-600' : 'text-text-secondary'}`}>{label}</span>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3">
-            <Icon path={mdiWeb} size={15} className={isRemoteConnected ? 'text-green-500' : 'text-text-disabled'} />
-            <span className="flex-1 text-sm text-text-secondary">Remote access</span>
-            <span className={`text-sm font-medium ${isRemoteConnected ? 'text-green-500' : 'text-text-tertiary'}`}>
-              {isRemoteConnected ? 'Active' : 'Off'}
-            </span>
+        );
+      }
+      case 'connectivity': {
+        const navConn = navTo('connectivity');
+        return (
+          <div key={id}>
+            <div className="flex items-center gap-ha-2 mb-ha-2">
+              <SectionLabel className="flex-1">Connectivity</SectionLabel>
+              {navConn && (
+                <button type="button" onClick={navConn} className="text-text-disabled hover:text-text-secondary transition-colors -mr-1">
+                  <Icon path={mdiChevronRight} size={14} />
+                </button>
+              )}
+            </div>
+            <div className="rounded-ha-2xl border border-surface-lower bg-surface-default overflow-hidden">
+              <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3 border-b border-surface-low/40">
+                <Icon path={connected || demoMode ? mdiCloudOutline : mdiCloudOffOutline} size={15} className={connToneIcon[connTone]} />
+                <span className="flex-1 text-sm text-text-secondary">Home Assistant</span>
+                <span className={`text-sm font-medium ${connToneIcon[connTone]}`}>{connStatus}</span>
+              </div>
+              <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3">
+                <Icon path={mdiWeb} size={15} className={isRemoteConnected ? 'text-green-500' : 'text-text-disabled'} />
+                <span className="flex-1 text-sm text-text-secondary">Remote access</span>
+                <span className={`text-sm font-medium ${isRemoteConnected ? 'text-green-500' : 'text-text-tertiary'}`}>
+                  {isRemoteConnected ? 'Active' : 'Off'}
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-      )}
-    </div>
-  );
+        );
+      }
+      default:
+        return null;
+    }
+  };
+
+  return <div className="space-y-ha-4">{sections.map(renderSection)}</div>;
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { mdiChevronRight } from '@mdi/js';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
+import { DeferredCard } from '@/components/cards/DeferredCard';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { Icon } from '@/components/ui/Icon';
@@ -152,7 +153,11 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
           const colArrays: HassDevice[][] = Array.from({ length: masonryCols }, () => []);
           section.devices.forEach((d, i) => colArrays[i % masonryCols].push(d));
           return (
-            <div key={section.key}>
+            <div
+              key={section.key}
+              data-section-key={section.key}
+              style={{ scrollMarginTop: 'calc(var(--dashboard-sticky-top, 0px) + var(--ha-space-2))' }}
+            >
               <div className="py-ha-2 mb-ha-1">
                 {section.href ? (
                   <Link href={section.href} prefetch={false} className="flex items-center gap-1 group w-fit">
@@ -166,7 +171,9 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
               <div className="flex gap-ha-3 items-start">
                 {colArrays.map((col, ci) => (
                   <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
-                    {col.map(renderCard)}
+                    {col.map(device => (
+                      <DeferredCard key={device.id}>{renderCard(device)}</DeferredCard>
+                    ))}
                   </div>
                 ))}
               </div>

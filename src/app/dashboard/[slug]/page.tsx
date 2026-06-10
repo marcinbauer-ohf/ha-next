@@ -15,7 +15,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const { items } = useSidebarItems();
   const { isRevealed } = usePullToRevealContext();
   const { setHeader } = useHeader();
-  const { contentPaddingClasses, contentTransitionClasses, contentStyle } = useDesktopImmersivePageLayout();
+  const { contentPaddingClasses, contentTransitionClasses, contentStyle, surfaceRoundingClass } = useDesktopImmersivePageLayout();
 
   const dashboard = items.find(
     item => item.type === 'dashboard' && item.urlPath === `/dashboard/${slug}`
@@ -36,7 +36,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
         } ${contentPaddingClasses} ${contentTransitionClasses}`}
         style={contentStyle}
       >
-        <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl">
+        <div className={`h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
           <div
             className="h-full overflow-y-auto px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5"
             data-scrollable="dashboard"

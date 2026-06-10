@@ -9,7 +9,19 @@ export { InfoSidebar } from './InfoSidebar';
 export { ListSection } from './ListSection';
 export { SectionLabel } from './SectionLabel';
 export { SearchField } from './SearchField';
+export { DataListView } from './DataListView';
+export type {
+  DataListConfig,
+  DataListSortOption,
+  DataListGroupOption,
+  DataListFilterGroup,
+  DataListFilterChip,
+  DataListLayout,
+} from './DataListView';
 export { SegmentedControl } from './SegmentedControl';
 export { RollingNumericValue } from './RollingNumericValue';
 export { Toast, ToastContainer } from './Toast';
 export type { ToastProps } from './Toast';
+export { ConfirmDialog } from './ConfirmDialog';
+export { ContextMenu } from './ContextMenu';
+export type { ContextMenuAction } from './ContextMenu';

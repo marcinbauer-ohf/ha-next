@@ -4,15 +4,32 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  DndContext,
+  TouchSensor,
+  MouseSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  arrayMove,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Icon } from '../ui/Icon';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SearchField } from '../ui/SearchField';
 import { Avatar } from '../ui/Avatar';
 import { HALogo } from '../ui/HALogo';
 import { MdiIcon } from '../ui/MdiIcon';
 import { CircularProgress } from '../ui/CircularProgress';
-import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPress } from '@/hooks';
 import { SettingsNavPanel } from '@/components/profile';
-import { usePullToRevealContext, useSearchContext } from '@/contexts';
+import { usePullToRevealContext, useSearchContext, useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
   areActivityDataEqual,
@@ -44,6 +61,7 @@ import {
   mdiAlertCircle,
   mdiCloudCheck,
   mdiCloudOff,
+  mdiCheck,
 } from '@mdi/js';
 
 function parseTime(time: string): number {
@@ -71,6 +89,194 @@ function getAppPalette(id: string) {
     hash = id.charCodeAt(i) + ((hash << 5) - hash);
   }
   return appPalettes[Math.abs(hash) % appPalettes.length];
+}
+
+function arrangeWobble(arranging: boolean, pinned: boolean, isDragging: boolean, index: number) {
+  if (!arranging || pinned) return '';
+  if (isDragging) return 'ha-jiggle-frozen';
+  return index % 2 === 0 ? 'ha-jiggle' : 'ha-jiggle-alt';
+}
+
+function ArrangeDeleteBadge({ label, onDelete }: { label: string; onDelete: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={`Remove ${label}`}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onDelete();
+      }}
+      className="ha-arrange-badge absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-2 ring-surface-default"
+    >
+      <Icon path={mdiClose} size={14} />
+    </button>
+  );
+}
+
+interface MobileArrangeCardProps {
+  item: SidebarItem;
+  isActive: boolean;
+  arranging: boolean;
+  pinned?: boolean;
+  index: number;
+  onClose: () => void;
+  onEnterArrange: () => void;
+  onRequestDelete: (item: SidebarItem) => void;
+}
+
+function MobileDashboardCard({
+  item,
+  isActive,
+  arranging,
+  pinned = false,
+  index,
+  onClose,
+  onEnterArrange,
+  onRequestDelete,
+}: MobileArrangeCardProps) {
+  const longPress = useLongPress(onEnterArrange);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled: !arranging || pinned,
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 60 : undefined,
+    touchAction: arranging && !pinned ? 'none' : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative">
+      <div className={arrangeWobble(arranging, pinned, isDragging, index)}>
+        <Link
+          prefetch={false}
+          href={item.urlPath}
+          {...(arranging && !pinned ? { ...attributes, ...listeners } : {})}
+          {...(!arranging ? longPress.handlers : {})}
+          onClick={(e) => {
+            if (longPress.consume()) {
+              e.preventDefault();
+              return;
+            }
+            if (arranging) {
+              e.preventDefault();
+              return;
+            }
+            onClose();
+          }}
+          className={`-m-1 rounded-ha-xl p-1 flex flex-col group transition-colors select-none ${
+            isActive ? 'bg-surface-low/80' : 'hover:bg-surface-low/40'
+          }`}
+        >
+          <div
+            className={`w-full aspect-[3/4] rounded-ha-xl overflow-hidden transition-all ${
+              isActive ? 'bg-fill-primary-normal ring-2 ring-ha-blue/35' : 'bg-surface-lower'
+            }`}
+          >
+            <div className="p-ha-2 space-y-ha-1">
+              <div className={`h-2 rounded-full w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+              <div className={`h-2 rounded-full w-3/4 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+              <div className={`h-3 rounded-ha-lg w-full mt-ha-2 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+              <div className={`h-3 rounded-ha-lg w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+            </div>
+          </div>
+          <div className="flex items-center gap-ha-1 mt-ha-1">
+            {item.icon ? (
+              <MdiIcon
+                icon={item.icon}
+                size={24}
+                className={`flex-shrink-0 ${isActive ? 'text-ha-blue' : 'text-text-secondary'}`}
+              />
+            ) : (
+              <HALogo size={24} />
+            )}
+            <span className={`text-[13px] truncate ${isActive ? 'text-text-primary' : 'text-text-secondary'}`}>
+              {item.title}
+            </span>
+          </div>
+        </Link>
+      </div>
+      {arranging && !pinned && <ArrangeDeleteBadge label={item.title} onDelete={() => onRequestDelete(item)} />}
+    </div>
+  );
+}
+
+function MobileAppTile({
+  item,
+  isActive,
+  arranging,
+  index,
+  onClose,
+  onEnterArrange,
+  onRequestDelete,
+}: MobileArrangeCardProps) {
+  const longPress = useLongPress(onEnterArrange);
+  const palette = getAppPalette(item.id);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    disabled: !arranging,
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 60 : undefined,
+    touchAction: arranging ? 'none' : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative">
+      <div className={arrangeWobble(arranging, false, isDragging, index)}>
+        <Link
+          prefetch={false}
+          href={item.urlPath}
+          {...(arranging ? { ...attributes, ...listeners } : {})}
+          {...(!arranging ? longPress.handlers : {})}
+          onClick={(e) => {
+            if (longPress.consume()) {
+              e.preventDefault();
+              return;
+            }
+            if (arranging) {
+              e.preventDefault();
+              return;
+            }
+            onClose();
+          }}
+          className={`w-full rounded-ha-xl transition-colors flex flex-col items-center gap-1 p-ha-1.5 min-w-0 select-none ${
+            isActive ? 'bg-surface-low/80' : 'hover:bg-surface-low'
+          }`}
+          title={item.title}
+        >
+          <div
+            className={`w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors ha-app-icon-shell ${
+              isActive ? 'bg-ha-blue' : palette.bg
+            } ${
+              isActive
+                ? 'ha-app-icon-shell-active ring-2 ring-ha-blue/35 ring-offset-1 ring-offset-surface-default'
+                : ''
+            }`}
+          >
+            <MdiIcon
+              icon={item.icon || 'mdi:application'}
+              size={26}
+              className={`${isActive ? 'text-white' : palette.text} ha-app-icon-glyph`}
+            />
+          </div>
+          <span
+            className={`w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] leading-tight font-medium ${
+              isActive ? 'text-text-primary' : 'text-text-secondary'
+            }`}
+          >
+            {item.title}
+          </span>
+        </Link>
+      </div>
+      {arranging && <ArrangeDeleteBadge label={item.title} onDelete={() => onRequestDelete(item)} />}
+    </div>
+  );
 }
 
 export type ConnectionStatusType = 'connecting' | 'connected' | 'error' | null;
@@ -130,6 +336,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const { items } = useSidebarItems();
   const { isRevealed, close } = usePullToRevealContext();
   const { searchOpen, closeSearch } = useSearchContext();
+  const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, reorderVisible } =
+    useSidebarArrange();
+  const [pendingDelete, setPendingDelete] = useState<SidebarItem | null>(null);
+  const arrangeSensors = useSensors(
+    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 6 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } })
+  );
   // Assistant now handled via expandedWidgetId
 
   const [timerProgress, setTimerProgress] = useState<number>(0);
@@ -615,12 +828,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     setStatusExpanded(false);
     setExpandedWidgetId(null);
     setExpandedWidgetType(null);
+    exitArrange();
     setExpandedSurfaceTab((tab) => {
       if (tab === 'widget') return 'dashboards';
       if (tab === 'search' || tab === 'settings') return 'dashboard';
       return tab;
     });
-  }, []);
+  }, [exitArrange]);
 
   const openExpandedSurface = useCallback(
     (tab: BottomSurfaceTab) => {
@@ -929,14 +1143,58 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
 
   const offlineCount = offlineDevices.length;
 
-  const dashboards = useMemo(() => items.filter(item => !item.isApp), [items]);
-  const apps = useMemo(() => items.filter(item => item.isApp), [items]);
+  // Home is pinned first in its own cell; the rest carry the session arrange
+  // order + soft-hides. Soft-hidden items also drop out of search.
+  const homeItem = useMemo(() => items.find((item) => item && item.urlPath === '/'), [items]);
+  const dashboards = useMemo(
+    () => arrangeItems(items.filter((item) => item && !item.isApp && item.urlPath !== '/'), order, hiddenIds),
+    [items, order, hiddenIds]
+  );
+  const apps = useMemo(
+    () => arrangeItems(items.filter((item) => item && item.isApp), order, hiddenIds),
+    [items, order, hiddenIds]
+  );
+  const searchDashboards = useMemo(
+    () => (homeItem ? [homeItem, ...dashboards] : dashboards),
+    [homeItem, dashboards]
+  );
+
+  const allVisibleArrangeIds = useMemo(
+    () => [...dashboards, ...apps].map((item) => item.id),
+    [dashboards, apps]
+  );
+  const dashboardIds = useMemo(() => dashboards.map((item) => item.id), [dashboards]);
+  const appIds = useMemo(() => apps.map((item) => item.id), [apps]);
+
+  const handleDashboardDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = dashboardIds.indexOf(active.id as string);
+      const newIndex = dashboardIds.indexOf(over.id as string);
+      if (oldIndex < 0 || newIndex < 0) return;
+      reorderVisible(allVisibleArrangeIds, dashboardIds, arrayMove(dashboardIds, oldIndex, newIndex));
+    },
+    [dashboardIds, allVisibleArrangeIds, reorderVisible]
+  );
+
+  const handleAppDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = appIds.indexOf(active.id as string);
+      const newIndex = appIds.indexOf(over.id as string);
+      if (oldIndex < 0 || newIndex < 0) return;
+      reorderVisible(allVisibleArrangeIds, appIds, arrayMove(appIds, oldIndex, newIndex));
+    },
+    [appIds, allVisibleArrangeIds, reorderVisible]
+  );
 
   const dashboardSearchResults = useMemo<SearchResultItem[]>(() => {
     if (!expandedSearchQuery.trim()) return [];
     const query = expandedSearchQuery.trim().toLowerCase();
 
-    const matchingDashboards = dashboards
+    const matchingDashboards = searchDashboards
       .filter(item => item.title.toLowerCase().includes(query))
       .map(item => ({
         id: item.id,
@@ -966,11 +1224,11 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     }));
 
     return [...matchingDashboards, ...matchingApps, ...matchingEntityResults];
-  }, [apps, dashboards, expandedSearchQuery, matchingEntities]);
+  }, [apps, searchDashboards, expandedSearchQuery, matchingEntities]);
 
   const dashboardSearchSuggestions = useMemo<SearchResultItem[]>(() => {
     return [
-      ...dashboards.slice(0, 4).map(item => ({
+      ...searchDashboards.slice(0, 4).map(item => ({
         id: `dashboard-${item.id}`,
         type: 'dashboard' as const,
         name: item.title,
@@ -987,7 +1245,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         href: item.urlPath,
       })),
     ];
-  }, [apps, dashboards]);
+  }, [apps, searchDashboards]);
 
 
   const expandedSearchItems = expandedSearchQuery.trim()
@@ -1000,93 +1258,81 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       return (
         <div className="space-y-ha-4">
           <div>
-            <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-3">Dashboards</div>
-            <div className="grid grid-cols-3 gap-ha-3">
-              {dashboards.map((dashboard) => {
-                const isActive = isNavItemActive(pathname, dashboard.urlPath);
-
-                return (
-                  <Link prefetch={false}
-                    key={dashboard.id}
-                    href={dashboard.urlPath}
-                    onClick={closeExpandedSurface}
-                    className={`-m-1 rounded-ha-xl p-1 flex flex-col group transition-colors ${
-                      isActive ? 'bg-surface-low/80' : 'hover:bg-surface-low/40'
-                    }`}
-                  >
-                    <div className={`w-full aspect-[3/4] rounded-ha-xl overflow-hidden transition-all ${
-                      isActive
-                        ? 'bg-fill-primary-normal ring-2 ring-ha-blue/35'
-                        : 'bg-surface-lower'
-                    }`}>
-                      <div className="p-ha-2 space-y-ha-1">
-                        <div className={`h-2 rounded-full w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
-                        <div className={`h-2 rounded-full w-3/4 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
-                        <div className={`h-3 rounded-ha-lg w-full mt-ha-2 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
-                        <div className={`h-3 rounded-ha-lg w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-ha-1 mt-ha-1">
-                      {dashboard.icon ? (
-                        <MdiIcon
-                          icon={dashboard.icon}
-                          size={24}
-                          className={`flex-shrink-0 ${isActive ? 'text-ha-blue' : 'text-text-secondary'}`}
-                        />
-                      ) : (
-                        <HALogo size={24} />
-                      )}
-                      <span className={`text-[10px] truncate ${isActive ? 'text-text-primary' : 'text-text-secondary'}`}>
-                        {dashboard.title}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="flex items-center justify-between mb-ha-3">
+              <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider">Dashboards</div>
+              {arranging && (
+                <button
+                  type="button"
+                  onClick={exitArrange}
+                  className="flex items-center gap-1 h-7 pl-ha-2 pr-ha-3 rounded-full bg-ha-blue text-white text-[11px] font-bold uppercase tracking-wider active:scale-95 transition-transform"
+                >
+                  <Icon path={mdiCheck} size={14} />
+                  Done
+                </button>
+              )}
             </div>
+            <DndContext
+              sensors={arrangeSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDashboardDragEnd}
+            >
+              <div className="grid grid-cols-3 gap-ha-3">
+                {homeItem && (
+                  <MobileDashboardCard
+                    item={homeItem}
+                    index={-1}
+                    isActive={isNavItemActive(pathname, homeItem.urlPath)}
+                    arranging={arranging}
+                    pinned
+                    onClose={closeExpandedSurface}
+                    onEnterArrange={enterArrange}
+                    onRequestDelete={setPendingDelete}
+                  />
+                )}
+                <SortableContext items={dashboardIds} strategy={rectSortingStrategy}>
+                  {dashboards.map((dashboard, index) => (
+                    <MobileDashboardCard
+                      key={dashboard.id}
+                      item={dashboard}
+                      index={index}
+                      isActive={isNavItemActive(pathname, dashboard.urlPath)}
+                      arranging={arranging}
+                      onClose={closeExpandedSurface}
+                      onEnterArrange={enterArrange}
+                      onRequestDelete={setPendingDelete}
+                    />
+                  ))}
+                </SortableContext>
+              </div>
+            </DndContext>
           </div>
 
           <div className="h-px bg-border-default" />
 
           <div>
             <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
-            <div className="grid grid-cols-5 gap-x-ha-2 gap-y-ha-1.5">
-              {apps.map((app) => {
-                const isActive = isNavItemActive(pathname, app.urlPath);
-                const palette = getAppPalette(app.id);
-
-                return (
-                  <Link prefetch={false}
-                    key={app.id}
-                    href={app.urlPath}
-                    onClick={closeExpandedSurface}
-                    className={`w-full rounded-ha-xl transition-colors flex flex-col items-center gap-1 p-ha-1.5 min-w-0 ${
-                      isActive ? 'bg-surface-low/80' : 'hover:bg-surface-low'
-                    }`}
-                    title={app.title}
-                  >
-                    <div
-                      className={`w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors ha-app-icon-shell ${
-                        isActive ? 'bg-ha-blue' : palette.bg
-                      } ${isActive ? 'ha-app-icon-shell-active ring-2 ring-ha-blue/35 ring-offset-1 ring-offset-surface-default' : ''}`}
-                    >
-                      <MdiIcon
-                        icon={app.icon || 'mdi:application'}
-                        size={26}
-                        className={`${isActive ? 'text-white' : palette.text} ha-app-icon-glyph`}
-                      />
-                    </div>
-                    <span
-                      className={`w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-[11px] leading-tight font-medium ${
-                        isActive ? 'text-text-primary' : 'text-text-secondary'
-                      }`}
-                    >
-                      {app.title}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
+            <DndContext
+              sensors={arrangeSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleAppDragEnd}
+            >
+              <SortableContext items={appIds} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-5 gap-x-ha-2 gap-y-ha-1.5">
+                  {apps.map((app, index) => (
+                    <MobileAppTile
+                      key={app.id}
+                      item={app}
+                      index={index}
+                      isActive={isNavItemActive(pathname, app.urlPath)}
+                      arranging={arranging}
+                      onClose={closeExpandedSurface}
+                      onEnterArrange={enterArrange}
+                      onRequestDelete={setPendingDelete}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
         </div>
       );
@@ -1115,7 +1361,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
 
           {!showSearchEmptyState && (
             <div className="space-y-ha-2">
-              <p className="text-[12px] font-bold text-text-tertiary uppercase tracking-wider px-ha-2">
+              <p className="text-[13px] font-bold text-text-tertiary uppercase tracking-wider px-ha-2">
                 {expandedSearchQuery.trim() ? 'Results' : 'Suggestions'}
               </p>
               <div className="bg-surface-low rounded-ha-2xl border border-surface-low/80 overflow-hidden">
@@ -1180,9 +1426,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         return (
           <div className="space-y-ha-4 pb-ha-2">
             <div className="bg-surface-low rounded-ha-xl border border-green-500/20 p-ha-4">
-              <div className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-ha-3">What&apos;s New</div>
+              <div className="text-[13px] font-bold text-green-600 uppercase tracking-widest mb-ha-3">What&apos;s New</div>
               <div className="rounded-ha-xl bg-green-500/10 border border-green-500/20 p-ha-3 mb-ha-4">
-                <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1">{activeRelease.version}</p>
+                <p className="text-[13px] font-bold text-green-600 uppercase tracking-widest mb-1">{activeRelease.version}</p>
                 <h4 className="text-sm font-bold text-text-primary mb-1">{activeRelease.name}</h4>
                 <p className="text-xs text-text-secondary">{activeRelease.summary}</p>
               </div>
@@ -1226,7 +1472,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             <div className="bg-surface-low rounded-ha-xl border border-surface-mid overflow-hidden">
               <div className="bg-surface-mid/60 p-ha-3 flex items-center gap-2 border-b border-surface-low">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest">Live Feed</span>
+                <span className="text-[13px] font-bold text-text-primary uppercase tracking-widest">Live Feed</span>
               </div>
               <div className="w-full aspect-video bg-black relative">
                 <img src={getEntityPictureUrl(activeCamera.entityPicture, '/camera_doorbell.png')} alt={activeCamera.name} className="w-full h-full object-cover" />
@@ -1248,7 +1494,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         return (
           <div className="space-y-ha-4 pb-ha-2">
             <div className="bg-surface-low rounded-ha-xl border border-surface-mid p-ha-4">
-              <div className="text-[10px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3">3D Printing</div>
+              <div className="text-[13px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3">3D Printing</div>
               <div className="w-full aspect-square rounded-ha-xl overflow-hidden mb-ha-4 border border-surface-mid">
                 <img src={getEntityPictureUrl(activePrinter.entityPicture, '/printer_3d.png')} alt={activePrinter.name} className="w-full h-full object-cover" />
               </div>
@@ -1263,7 +1509,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               </div>
               <div className="flex items-center justify-between p-ha-3 bg-surface-mid/60 rounded-ha-xl">
                 <div className="flex flex-col">
-                  <span className="text-[9px] font-bold text-text-disabled uppercase">Time Left</span>
+                  <span className="text-[13px] font-bold text-text-disabled uppercase">Time Left</span>
                   <span className="text-sm font-mono font-bold text-text-primary">{activePrinter.remainingTime}</span>
                 </div>
                 <button className="h-10 px-4 bg-red-500/10 text-red-500 rounded-ha-lg font-bold text-xs uppercase transition-colors hover:bg-red-500 hover:text-white">
@@ -1279,7 +1525,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         return (
           <div className="space-y-ha-4 pb-ha-2">
             <div className="bg-surface-low rounded-ha-xl border border-surface-mid p-ha-4">
-              <div className="text-[10px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3">Now Playing</div>
+              <div className="text-[13px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3">Now Playing</div>
               <div className="w-full aspect-square rounded-ha-xl overflow-hidden mb-ha-5 border border-surface-mid">
                 <img
                   src={getEntityPictureUrl(activeMedia.entityPicture)}
@@ -1312,7 +1558,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         return (
           <div className="space-y-ha-4 pb-ha-2">
             <div className="bg-surface-low rounded-ha-xl border border-surface-mid p-ha-4 flex flex-col items-center">
-              <div className="text-[10px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3 self-start">Timer</div>
+              <div className="text-[13px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3 self-start">Timer</div>
               <div className="relative mb-ha-5">
                 <CircularProgress
                   progress={displayedTimerProgress}
@@ -1503,6 +1749,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   };
 
   return (
+    <>
     <nav
       ref={navRef}
       className={`lg:hidden fixed inset-x-0 bottom-0 z-50 ${editModeFade ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
@@ -1638,7 +1885,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                   >
                     <Icon path={mdiUpdate} size={16} className="text-green-600" />
                     {activeReleaseCount > 1 && (
-                      <span className="absolute -top-1 -right-1 bg-green-600 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
+                      <span className="absolute -top-1 -right-1 bg-green-600 text-white text-[13px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
                         {activeReleaseCount}
                       </span>
                     )}
@@ -1689,7 +1936,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                     </div>
                     {/* Count badge - always on top */}
                     {activeCameraCount > 1 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[13px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
                         {activeCameraCount}
                       </span>
                     )}
@@ -1745,7 +1992,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                     </CircularProgress>
                     {/* Count badge - always on top */}
                     {activePrinterCount > 1 && (
-                      <span className="absolute -top-1 -right-1 bg-ha-blue text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
+                      <span className="absolute -top-1 -right-1 bg-ha-blue text-white text-[13px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
                         {activePrinterCount}
                       </span>
                     )}
@@ -1795,7 +2042,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                     </div>
                     {/* Count badge - always on top */}
                     {activeMediaCount > 1 && (
-                      <span className="absolute -top-1 -right-1 bg-ha-blue text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
+                      <span className="absolute -top-1 -right-1 bg-ha-blue text-white text-[13px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
                         {activeMediaCount}
                       </span>
                     )}
@@ -1856,7 +2103,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                     </CircularProgress>
                     {/* Count badge - always on top */}
                     {activeTimerCount > 1 && (
-                      <span className="absolute -top-1 -right-1 bg-ha-blue text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center ring-1 ring-surface-default">
+                      <span className="absolute -top-1 -right-1 bg-ha-blue text-white text-[13px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center ring-1 ring-surface-default">
                         {activeTimerCount}
                       </span>
                     )}
@@ -2121,5 +2368,20 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       })()}
 
     </nav>
+
+    <ConfirmDialog
+      open={!!pendingDelete}
+      title={pendingDelete ? `Remove ${pendingDelete.title}?` : ''}
+      message="This only hides it here for now — your Home Assistant configuration isn't changed."
+      confirmLabel="Remove"
+      cancelLabel="Keep"
+      destructive
+      onCancel={() => setPendingDelete(null)}
+      onConfirm={() => {
+        if (pendingDelete) hideItem(pendingDelete.id);
+        setPendingDelete(null);
+      }}
+    />
+    </>
   );
 }

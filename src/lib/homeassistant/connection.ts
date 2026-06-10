@@ -7,7 +7,7 @@ import {
   ERR_CANNOT_CONNECT,
   ERR_INVALID_AUTH,
 } from 'home-assistant-js-websocket';
-import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint } from './types';
+import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest } from './types';
 
 let connection: Connection | null = null;
 let entitySubscription: (() => void) | null = null;
@@ -50,6 +50,11 @@ export function disconnect(): void {
 
 export function getConnection(): Connection | null {
   return connection;
+}
+
+/** The running Home Assistant version, reported during the auth handshake. Null until connected. */
+export function getHaVersion(): string | null {
+  return connection?.haVersion ?? null;
 }
 
 export async function waitForConnection(
@@ -149,6 +154,26 @@ export async function getDeviceRegistry(): Promise<DeviceRegistryEntry[]> {
   if (!conn) return [];
   try {
     return await conn.sendMessagePromise<DeviceRegistryEntry[]>({ type: 'config/device_registry/list' }) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getConfigEntries(): Promise<ConfigEntry[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  try {
+    return await conn.sendMessagePromise<ConfigEntry[]>({ type: 'config_entries/get' }) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getIntegrationManifests(): Promise<IntegrationManifest[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  try {
+    return await conn.sendMessagePromise<IntegrationManifest[]>({ type: 'manifest/list' }) ?? [];
   } catch {
     return [];
   }

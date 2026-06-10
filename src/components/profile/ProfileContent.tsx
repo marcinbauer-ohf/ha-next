@@ -81,10 +81,6 @@ function DebugToggle({ checked, onToggle }: { checked: boolean; onToggle: () => 
   );
 }
 
-function formatThemeName(value: string) {
-  return value.replace(/-/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
-}
-
 const SIM_DEFS: Array<{ type: Exclude<SimulationType, 'release'>; label: string }> = [
   { type: 'media', label: 'Media' },
   { type: 'timer', label: 'Timer' },
@@ -93,8 +89,8 @@ const SIM_DEFS: Array<{ type: Exclude<SimulationType, 'release'>; label: string 
 ];
 
 export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
-  const { haUrl, connected, demoMode, setMockEntity, enableDemoMode } = useHomeAssistant();
-  const { theme, mode, setTheme, setMode, setBackground } = useTheme();
+  const { haUrl, demoMode, setMockEntity, enableDemoMode } = useHomeAssistant();
+  const { mode, setTheme, setMode, setBackground } = useTheme();
   const { immersiveMode, toggleImmersiveMode } = useImmersiveMode();
   const { desktopSplitViewEnabled, toggleDesktopSplitView } = useFeatureFlags();
   const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
@@ -113,14 +109,8 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
   }, [primaryPerson, haUrl]);
 
   const itemSummaries = React.useMemo<Partial<Record<SettingsNavLink['slug'], string>>>(() => ({
-    dashboards: 'Device card layout and entity configuration',
-    'theme-layout': `${formatThemeName(theme)} · ${mode === 'system' ? 'System mode' : `${formatThemeName(mode)} mode`} · ${immersiveMode ? 'Immersive on' : 'Immersive off'}`,
-    'task-bar': simulationEntities.length > 0
-      ? `${simulationEntities.length} simulated ${simulationEntities.length === 1 ? 'activity' : 'activities'} active`
-      : 'No simulated activities',
-    maintenance: demoMode ? 'Demo home active · Layout tools ready' : connected ? 'Live Home Assistant connected' : 'Connection setup available',
     developer: demoMode ? 'Mock data and preview tools ready' : 'Feature flags and connection diagnostics',
-  }), [connected, demoMode, immersiveMode, mode, simulationEntities.length, theme]);
+  }), [demoMode]);
 
   const getSimCount = useCallback((prefix: string) =>
     simulationEntities.filter((e) => e.id.startsWith(prefix)).length,
@@ -227,7 +217,7 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
                     label={
                       <span className="flex items-center gap-ha-2">
                         Desktop split view
-                        <span className="text-[10px] font-normal text-text-tertiary">(experimental)</span>
+                        <span className="text-[13px] font-normal text-text-tertiary">(experimental)</span>
                         <Tooltip content="Opens two dashboard panels side by side for quick comparison" placement="right">
                           <Icon path={mdiInformationOutline} size={13} className="text-text-tertiary cursor-default" />
                         </Tooltip>

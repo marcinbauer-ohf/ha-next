@@ -1357,6 +1357,18 @@
     ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Monaco,
     Consolas, monospace;
 
+  /* Type scale — nudged up a bit, with a hard 13px floor (text-xs).
+     Headings (lg/xl/2xl/3xl) get a slightly larger bump. Line-heights keep
+     Tailwind's defaults. Arbitrary text-[<13px] classes are swept to 13px
+     so nothing renders below the floor. */
+  --text-xs: 0.8125rem;   /* 13px (floor) — was 12px */
+  --text-sm: 0.9375rem;   /* 15px — was 14px */
+  --text-base: 1.0625rem; /* 17px — was 16px */
+  --text-lg: 1.1875rem;   /* 19px — was 18px */
+  --text-xl: 1.375rem;    /* 22px — was 20px */
+  --text-2xl: 1.625rem;   /* 26px — was 24px */
+  --text-3xl: 2rem;       /* 32px — was 30px */
+
   /* Yellow colors */
   --color-yellow-200: #fef08a;
   --color-yellow-500: var(--ha-color-yellow-500);
@@ -1410,6 +1422,19 @@
      and clip the radial to it, so the glow follows the panel's corner instead of
      showing a sharp 90° clip. */
   overflow: hidden;
+  border-bottom-right-radius: var(--ha-radius-3xl, 24px);
+}
+
+/* Ambient bottom glow inside the dashboard surface — used by the bottom-center
+   toast and the edit-mode glow. Inset to the surface's left/right edges (edge
+   padding, same as the grey panel) and clipped with rounded bottom corners, so the
+   radial stays inside the panel instead of bleeding into the gutter or spilling past
+   the panel's rounded corners. */
+.dashboard-bottom-glow {
+  left: var(--spacing-edge, 12px);
+  right: var(--spacing-edge, 12px);
+  overflow: hidden;
+  border-bottom-left-radius: var(--ha-radius-3xl, 24px);
   border-bottom-right-radius: var(--ha-radius-3xl, 24px);
 }
 
@@ -1635,4 +1660,67 @@ html {
       0 0 22px 5px var(--flash-color, #38bdf8);
   }
   100% { box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
+}
+
+/* Settings detail pane — soft fade + slide when column-2 content changes
+   (switching a settings item, or drilling into / out of a detail row). The
+   element is re-keyed so the animation replays on each change. */
+.ha-pane-in {
+  animation: ha-pane-in 240ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ha-pane-in {
+  from { opacity: 0; transform: translateX(10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+/* Going back out of a detail reads better sliding the opposite way. */
+.ha-pane-in--back {
+  animation-name: ha-pane-in-back;
+}
+@keyframes ha-pane-in-back {
+  from { opacity: 0; transform: translateX(-10px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-pane-in,
+  .ha-pane-in--back { animation: none; }
+}
+
+/* ── Sidebar arrange ("jiggle") mode ──────────────────────────────────────
+   iOS-style wobble applied to a child wrapper so it never fights the
+   dnd-kit drag transform that lives on the parent sortable node. Two phases
+   (even children offset) keep the row from looking mechanically in-sync. */
+@keyframes ha-jiggle {
+  0%   { transform: rotate(-2.6deg) translateY(-0.4px); }
+  50%  { transform: rotate(2.6deg) translateY(0.4px); }
+  100% { transform: rotate(-2.6deg) translateY(-0.4px); }
+}
+@keyframes ha-jiggle-alt {
+  0%   { transform: rotate(2.4deg) translateY(0.4px); }
+  50%  { transform: rotate(-2.4deg) translateY(-0.4px); }
+  100% { transform: rotate(2.4deg) translateY(0.4px); }
+}
+.ha-jiggle {
+  animation: ha-jiggle 0.3s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+.ha-jiggle-alt {
+  animation: ha-jiggle-alt 0.32s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+/* Suppress the wobble on the item actively being dragged. */
+.ha-jiggle-frozen { animation: none !important; transform: none; }
+
+/* Soft-delete badge that rides the top-right corner of an arrangeable item. */
+.ha-arrange-badge {
+  animation: ha-arrange-badge-in 0.18s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ha-arrange-badge-in {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The wobble is the explicit signal that arrange mode is active, so it keeps
+     running here — just the one-shot badge pop is dropped. */
+  .ha-arrange-badge { animation: none; }
 }

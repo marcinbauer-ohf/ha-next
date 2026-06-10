@@ -14,6 +14,16 @@ export interface ToastProps {
   action?: { label: string; onClick: () => void };
   /** When provided, the compact (corner) toast shows a dismiss (✕) button. */
   onClose?: () => void;
+  /** Optional preview render (e.g. a discovered-device thumbnail) for the leading tile. */
+  image?: string;
+  /** Optional small protocol/connectivity icon badged onto the preview tile. */
+  protocolIcon?: string;
+  /**
+   * Optional structured metadata rendered as a labelled chip row beneath the
+   * header (compact/corner toast only). Use this instead of overloading the
+   * subtitle when there are several distinct facts to show.
+   */
+  details?: Array<{ label?: string; value: string; icon?: string }>;
 }
 
 const SPRING_CONTAINER = { type: 'spring' as const, stiffness: 420, damping: 32, mass: 0.75 };
@@ -24,15 +34,28 @@ const FADE             = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const }
 // Use a value that shows just the icon pill cleanly.
 const ICON_ONLY_WIDTH = 68;
 
-export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, action, onClose, compact }: ToastProps & { compact?: boolean }) {
+export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, action, onClose, compact, image, protocolIcon, details }: ToastProps & { compact?: boolean }) {
+  const [imgError, setImgError] = useState(false);
+  const showImage = !!image && !imgError;
   // Compact card — used by the corner toast. Same pill on every breakpoint
   // (the default mobile variant expands to full width, which is wrong here).
   if (compact) {
     return (
       <div className="w-full px-ha-4 py-ha-3 rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50">
         <div className="flex items-center gap-ha-3">
-          <div className="shrink-0 w-10 h-10 rounded-ha-xl bg-surface-mid flex items-center justify-center">
-            <Icon path={icon} size={20} className={iconColor} />
+          <div className="shrink-0 relative w-11 h-11">
+            <div className="w-full h-full rounded-ha-xl bg-surface-mid flex items-center justify-center overflow-hidden">
+              {showImage ? (
+                <img src={image} alt="" onError={() => setImgError(true)} className="w-full h-full object-contain p-0.5" />
+              ) : (
+                <Icon path={icon} size={20} className={iconColor} />
+              )}
+            </div>
+            {protocolIcon && (
+              <span className="absolute -bottom-1 -right-1 w-[18px] h-[18px] rounded-full bg-surface-default border border-surface-low flex items-center justify-center shadow-sm">
+                <Icon path={protocolIcon} size={11} className="text-ha-blue" />
+              </span>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <motion.p
@@ -78,6 +101,26 @@ export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, actio
             </motion.button>
           )}
         </div>
+
+        {details && details.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...FADE, delay: 0.3 }}
+            className="mt-3 flex flex-wrap gap-1.5"
+          >
+            {details.map((d, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 rounded-ha-pill bg-surface-mid px-2 py-1 text-[11px] leading-none"
+              >
+                {d.icon && <Icon path={d.icon} size={12} className="text-text-tertiary" />}
+                {d.label && <span className="text-text-tertiary">{d.label}</span>}
+                <span className="font-semibold text-text-primary">{d.value}</span>
+              </span>
+            ))}
+          </motion.div>
+        )}
       </div>
     );
   }

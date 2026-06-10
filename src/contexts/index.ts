@@ -1,9 +1,11 @@
 export { PullToRevealProvider, usePullToRevealContext, ENABLE_PULL_TO_REVEAL } from './PullToRevealContext';
 export { SidebarItemsProvider, useSidebarItemsContext } from './SidebarItemsContext';
 export type { SidebarItem } from './SidebarItemsContext';
+export { SidebarArrangeProvider, useSidebarArrange, arrangeItems } from './SidebarArrangeContext';
 export { SearchProvider, useSearchContext } from './SearchContext';
 export { AssistantProvider, useAssistantContext } from './AssistantContext';
 export { HeaderProvider, useHeader } from './HeaderContext';
+export { AddContextProvider, useAddContext } from './AddContext';
 export { ScreensaverProvider, useScreensaver } from './ScreensaverContext';
 export { EditModeProvider, useEditMode } from './EditModeContext';
 export { ToastProvider, useToast } from './ToastContext';

@@ -64,7 +64,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 function PropTag({ name, value }: { name: string; value: string }) {
   return (
-    <span className="inline-flex gap-1 text-[10px] font-mono bg-surface-mid rounded px-1.5 py-0.5">
+    <span className="inline-flex gap-1 text-[13px] font-mono bg-surface-mid rounded px-1.5 py-0.5">
       <span className="text-text-tertiary">{name}=</span>
       <span className="text-text-primary">&quot;{value}&quot;</span>
     </span>
@@ -106,6 +106,84 @@ const TEXT_TOKENS = [
   { name: 'text-disabled', cls: 'text-text-disabled' },
 ];
 
+// ── Device thumbnails ────────────────────────────────────────────────────────
+// Product renders shown on device cards, mapped by deviceThumbnail() off
+// domain + device_class + name keyword. Files live in /public/devices.
+
+const DEVICE_THUMBS: { group: string; items: { file: string; label: string }[] }[] = [
+  {
+    group: 'Lighting & switches',
+    items: [
+      { file: 'bulb_e27', label: 'Bulb E27' },
+      { file: 'bulb_gu10', label: 'Bulb GU10' },
+      { file: 'led_strip', label: 'LED strip' },
+      { file: 'dimmer', label: 'Dimmer' },
+      { file: 'wall_switch', label: 'Wall switch' },
+      { file: 'smart_plug_us', label: 'Smart plug US' },
+      { file: 'smart_plug_eu', label: 'Smart plug EU' },
+      { file: 'power_strip', label: 'Power strip' },
+      { file: 'relay_module', label: 'Relay module' },
+    ],
+  },
+  {
+    group: 'Climate',
+    items: [
+      { file: 'thermostat', label: 'Thermostat' },
+      { file: 'ac_controller', label: 'AC controller' },
+      { file: 'radiator_valve', label: 'Radiator valve (TRV)' },
+      { file: 'ceiling_fan', label: 'Ceiling fan' },
+      { file: 'air_purifier', label: 'Air purifier' },
+    ],
+  },
+  {
+    group: 'Security & sensors',
+    items: [
+      { file: 'camera_dome', label: 'Dome camera' },
+      { file: 'camera_bullet', label: 'Bullet camera' },
+      { file: 'doorbell', label: 'Video doorbell' },
+      { file: 'lock', label: 'Deadbolt lock' },
+      { file: 'keypad', label: 'Security keypad' },
+      { file: 'siren', label: 'Siren' },
+      { file: 'motion_sensor', label: 'Motion sensor' },
+      { file: 'contact_sensor', label: 'Contact sensor' },
+      { file: 'glass_break', label: 'Glass-break sensor' },
+      { file: 'vibration_sensor', label: 'Vibration sensor' },
+      { file: 'smoke_detector', label: 'Smoke / CO detector' },
+      { file: 'leak_sensor', label: 'Leak sensor' },
+      { file: 'temp_humidity_sensor', label: 'Temp / humidity' },
+      { file: 'air_quality', label: 'Air quality' },
+      { file: 'lux_sensor', label: 'Lux sensor' },
+      { file: 'soil_sensor', label: 'Soil moisture' },
+      { file: 'energy_meter', label: 'Energy meter' },
+    ],
+  },
+  {
+    group: 'Appliances & infrastructure (new)',
+    items: [
+      { file: 'robot_vacuum', label: 'Robot vacuum' },
+      { file: 'washing_machine', label: 'Washing machine' },
+      { file: 'dishwasher', label: 'Dishwasher' },
+      { file: 'fridge', label: 'Fridge' },
+      { file: 'water_valve', label: 'Water valve' },
+      { file: 'irrigation_controller', label: 'Irrigation controller' },
+      { file: 'ev_charger', label: 'EV charger' },
+      { file: 'inverter', label: 'Solar inverter' },
+      { file: 'ups', label: 'UPS' },
+      { file: 'printer_3d', label: '3D printer' },
+      { file: 'wifi_router', label: 'Wi-Fi / mesh router' },
+      { file: 'hub', label: 'Hub / bridge' },
+      { file: 'zigbee_coordinator', label: 'Zigbee coordinator' },
+      { file: 'zwave_controller', label: 'Z-Wave controller' },
+      { file: 'button', label: 'Smart button' },
+      { file: 'nfc_tag', label: 'NFC / RFID tag' },
+      { file: 'tracker', label: 'Locator / tracker' },
+      { file: 'smartwatch', label: 'Smartwatch' },
+      { file: 'laptop', label: 'Laptop' },
+      { file: 'wall_tablet', label: 'Wall tablet' },
+    ],
+  },
+];
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function DesignSystemPage() {
@@ -137,7 +215,7 @@ export default function DesignSystemPage() {
             {SURFACE_TOKENS.map(t => (
               <div key={t.name} className="space-y-ha-1">
                 <div className={`w-16 h-10 rounded-ha-lg ${t.cls}`} />
-                <p className="text-[10px] font-mono text-text-tertiary">{t.name}</p>
+                <p className="text-[13px] font-mono text-text-tertiary">{t.name}</p>
               </div>
             ))}
           </Row>
@@ -145,7 +223,7 @@ export default function DesignSystemPage() {
             {FILL_TOKENS.map(t => (
               <div key={t.name} className="space-y-ha-1">
                 <div className={`w-16 h-10 rounded-ha-lg ${t.cls}`} />
-                <p className="text-[10px] font-mono text-text-tertiary">{t.name}</p>
+                <p className="text-[13px] font-mono text-text-tertiary">{t.name}</p>
               </div>
             ))}
           </Row>
@@ -153,7 +231,7 @@ export default function DesignSystemPage() {
             {BRAND_TOKENS.map(t => (
               <div key={t.name} className="space-y-ha-1">
                 <div className={`w-16 h-10 rounded-ha-lg ${t.cls}`} />
-                <p className="text-[10px] font-mono text-text-tertiary">{t.name}</p>
+                <p className="text-[13px] font-mono text-text-tertiary">{t.name}</p>
               </div>
             ))}
           </Row>
@@ -174,11 +252,11 @@ export default function DesignSystemPage() {
               { label: 'text-base font-medium', cls: 'text-base font-medium', sample: 'Body Base' },
               { label: 'text-sm', cls: 'text-sm', sample: 'Body SM — secondary text, descriptions' },
               { label: 'text-xs', cls: 'text-xs text-text-secondary', sample: 'Caption XS — labels, captions, metadata' },
-              { label: 'text-[10px] font-mono', cls: 'text-[10px] font-mono text-text-tertiary', sample: 'MONO 10 — token labels, code badges' },
+              { label: 'text-[13px] font-mono', cls: 'text-[13px] font-mono text-text-tertiary', sample: 'MONO 10 — token labels, code badges' },
             ].map(r => (
               <div key={r.label} className="flex items-baseline gap-ha-4">
                 <span className={`flex-1 text-text-primary ${r.cls}`}>{r.sample}</span>
-                <code className="text-[10px] font-mono text-text-tertiary shrink-0">{r.label}</code>
+                <code className="text-[13px] font-mono text-text-tertiary shrink-0">{r.label}</code>
               </div>
             ))}
           </div>
@@ -190,8 +268,8 @@ export default function DesignSystemPage() {
             {[1,2,3,4,5,6,7,8].map(n => (
               <div key={n} className="flex flex-col items-center gap-ha-1">
                 <div className="bg-ha-blue rounded" style={{ width: n * 4, height: n * 4 }} />
-                <span className="text-[10px] font-mono text-text-tertiary">ha-{n}</span>
-                <span className="text-[10px] text-text-disabled">{n * 4}px</span>
+                <span className="text-[13px] font-mono text-text-tertiary">ha-{n}</span>
+                <span className="text-[13px] text-text-disabled">{n * 4}px</span>
               </div>
             ))}
           </div>
@@ -210,7 +288,7 @@ export default function DesignSystemPage() {
             ].map(r => (
               <div key={r.name} className="flex flex-col items-center gap-ha-1">
                 <div className={`w-12 h-12 bg-fill-primary-normal ${r.cls}`} />
-                <span className="text-[10px] font-mono text-text-tertiary">{r.name}</span>
+                <span className="text-[13px] font-mono text-text-tertiary">{r.name}</span>
               </div>
             ))}
           </div>
@@ -280,7 +358,7 @@ export default function DesignSystemPage() {
               {[0, 0.25, 0.5, 0.75, 1].map(p => (
                 <div key={p} className="flex flex-col gap-ha-1 items-center">
                   <CircularProgress progress={p} size={48} strokeWidth={4}>
-                    <span className="text-[10px] font-mono text-text-secondary">{Math.round(p * 100)}%</span>
+                    <span className="text-[13px] font-mono text-text-secondary">{Math.round(p * 100)}%</span>
                   </CircularProgress>
                   <PropTag name="progress" value={String(p)} />
                 </div>
@@ -531,7 +609,7 @@ export default function DesignSystemPage() {
               {[12, 16, 20, 24, 32, 40, 48].map(sz => (
                 <div key={sz} className="flex flex-col gap-ha-1 items-center">
                   <Icon path={mdiHomeAutomation} size={sz} className="text-ha-blue" />
-                  <span className="text-[10px] font-mono text-text-tertiary">{sz}</span>
+                  <span className="text-[13px] font-mono text-text-tertiary">{sz}</span>
                 </div>
               ))}
             </Row>
@@ -546,7 +624,7 @@ export default function DesignSystemPage() {
               ].map(([cls, path]) => (
                 <div key={cls as string} className="flex flex-col gap-ha-1 items-center">
                   <Icon path={path as string} size={24} className={cls as string} />
-                  <span className="text-[10px] font-mono text-text-tertiary">{(cls as string).replace('text-', '')}</span>
+                  <span className="text-[13px] font-mono text-text-tertiary">{(cls as string).replace('text-', '')}</span>
                 </div>
               ))}
             </Row>
@@ -659,6 +737,30 @@ export default function DesignSystemPage() {
                 <PropTag name="position" value="bottom-right" />
               </div>
             </Row>
+          </div>
+        </Section>
+
+        {/* ── Device thumbnails ─────────────────────────────────────────────── */}
+        <Section title="Device thumbnails">
+          <div className="bg-surface-default rounded-ha-2xl p-ha-5 border border-surface-lower space-y-ha-5">
+            <p className="text-xs text-text-secondary">
+              Product renders shown top-left of each device card, mapped by <span className="font-mono">deviceThumbnail()</span> off
+              domain · device_class · name keyword. Files in <span className="font-mono">/public/devices</span>.
+            </p>
+            {DEVICE_THUMBS.map(({ group, items }) => (
+              <Row key={group} label={group}>
+                {items.map(({ file, label }) => (
+                  <div key={file} className="flex flex-col items-center gap-ha-1 w-[88px]">
+                    <div className="size-[72px] rounded-ha-xl bg-surface-mid flex items-center justify-center overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`/devices/${file}.png`} alt={label} className="size-full object-contain" />
+                    </div>
+                    <span className="text-[11px] text-text-secondary text-center leading-tight">{label}</span>
+                    <span className="text-[10px] font-mono text-text-tertiary text-center leading-tight">{file}</span>
+                  </div>
+                ))}
+              </Row>
+            ))}
           </div>
         </Section>
 

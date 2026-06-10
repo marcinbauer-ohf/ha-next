@@ -46,7 +46,7 @@ function ToastGlow({ show, toastId, position }: { show: boolean; toastId: number
       {show && (
         <motion.div
           key={`glow-${toastId}`}
-          className={`absolute bottom-0 pointer-events-none ${isCorner ? 'corner-toast-glow' : 'inset-x-0'}`}
+          className={`absolute bottom-0 pointer-events-none ${isCorner ? 'corner-toast-glow' : 'dashboard-bottom-glow'}`}
           style={{
             // Corner glow is short + wide (squished, toast-shaped) rather than circular.
             height: isCorner ? '15rem' : '40vh',
@@ -104,6 +104,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               iconColor={toast.iconColor}
               title={toast.title}
               subtitle={toast.subtitle}
+              image={toast.image}
+              protocolIcon={toast.protocolIcon}
+              details={toast.details}
               compact={toast.position === 'bottom-right'}
               action={toast.action ? { ...toast.action, onClick: () => { toast.action!.onClick(); dismiss(); } } : undefined}
               onClose={toast.position === 'bottom-right' ? () => dismiss() : undefined}

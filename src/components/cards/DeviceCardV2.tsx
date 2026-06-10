@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState, memo } from 'react';
 import { clsx } from 'clsx';
 import { mdiPower, mdiAlertCircleOutline, mdiPencil } from '@mdi/js';
 import { Icon } from '../ui/Icon';
@@ -17,6 +17,8 @@ export interface DeviceCardV2Entity {
   lastChanged?: string;
   active?: boolean;
   entityPicture?: string;
+  /** Product-type thumbnail (e.g. /devices/motion_sensor.png) shown in place of the icon */
+  thumbnail?: string | null;
   toggleable?: boolean;
   /** true for press-only entities (button, script) — renders action button instead of pill switch */
   pressable?: boolean;
@@ -89,12 +91,18 @@ function ActionButton({ onPress }: { onPress: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DeviceCardV2({ primary, secondary, selected, editMode, onLongPress, className, areaName }: DeviceCardV2Props) {
+function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongPress, className, areaName }: DeviceCardV2Props) {
   const hasPicture = !!primary.entityPicture;
   const rawState = primary.state.toLowerCase();
   const isUnavailable = rawState === 'unavailable' || rawState === 'unknown';
   const hasSecondary = secondary && secondary.length > 0;
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Thumbnail PNGs are dropped in by hand; revert to the mdi icon if one is
+  // missing. Reset the error flag when the thumbnail changes by adjusting state
+  // during render (the React-sanctioned alternative to a setState-in-effect).
+  const [thumb, setThumb] = useState<{ src?: string | null; ok: boolean }>({ src: primary.thumbnail, ok: true });
+  if (thumb.src !== primary.thumbnail) setThumb({ src: primary.thumbnail, ok: true });
+  const showThumb = !!primary.thumbnail && thumb.ok && thumb.src === primary.thumbnail;
 
   const handlePointerDown = useCallback(() => {
     if (!onLongPress) return;
@@ -145,11 +153,11 @@ export function DeviceCardV2({ primary, secondary, selected, editMode, onLongPre
           <Icon path={mdiAlertCircleOutline} size={24} className="text-amber-500/70 flex-shrink-0" />
           <p className="text-sm font-semibold text-text-secondary leading-tight truncate text-center max-w-full">{primary.name}</p>
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-500/80 bg-amber-500/10 px-2 py-0.5 rounded-full">
+            <span className="text-[13px] font-bold uppercase tracking-[0.12em] text-amber-500/80 bg-amber-500/10 px-2 py-0.5 rounded-full">
               Unavailable
             </span>
             {formatUnavailableDuration(primary.lastChanged) && (
-              <span className="text-[10px] text-text-disabled">
+              <span className="text-[13px] text-text-disabled">
                 {formatUnavailableDuration(primary.lastChanged)}
               </span>
             )}
@@ -160,7 +168,7 @@ export function DeviceCardV2({ primary, secondary, selected, editMode, onLongPre
           className={clsx(
             'flex flex-col justify-between px-3 pt-3 pb-3 relative overflow-hidden transition-colors',
             hasSecondary ? 'rounded-t-ha-2xl' : 'rounded-ha-2xl',
-            'min-h-[108px]',
+            'min-h-[148px] md:min-h-[136px]',
             editMode
               ? 'bg-surface-default hover:bg-surface-low'
               : primary.active && primary.toggleable
@@ -174,9 +182,29 @@ export function DeviceCardV2({ primary, secondary, selected, editMode, onLongPre
               className="absolute inset-0 w-full h-full object-cover opacity-20" />
           )}
 
-          {/* Top row: icon + control */}
-          <div className="relative flex items-center justify-between">
-            <Icon path={primary.icon} size={20} className="text-text-tertiary" />
+          {/* Product thumbnail — a left-anchored background graphic sitting BEHIND
+              the name/state (which render on top). Faded toward the bottom with a
+              gradient mask so the text stays legible on any card background (incl.
+              the green "on" tint). The card keeps its size. */}
+          {showThumb && (
+            <img
+              src={primary.thumbnail!}
+              alt=""
+              aria-hidden
+              onError={() => setThumb((t) => ({ ...t, ok: false }))}
+              className="pointer-events-none select-none absolute left-2 top-2 h-[38%] md:h-[52%] w-auto object-contain object-left"
+              style={{
+                WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 42%, transparent 92%)',
+                maskImage: 'linear-gradient(to bottom, #000 0%, #000 42%, transparent 92%)',
+              }}
+            />
+          )}
+
+          {/* Top row: icon (hidden when the product thumbnail is shown) + control */}
+          <div className={clsx('relative flex items-center', showThumb ? 'justify-end' : 'justify-between')}>
+            {!showThumb && (
+              <Icon path={primary.icon} size={20} className="text-text-tertiary" />
+            )}
             {primary.toggleable && primary.onToggle ? (
               <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
             ) : (
@@ -200,10 +228,10 @@ export function DeviceCardV2({ primary, secondary, selected, editMode, onLongPre
             <EntityMiniSparkline entityId={primary.entityId} />
           )}
 
-          {/* Bottom: name + state */}
+          {/* Bottom: name + state — render on top of the background thumbnail */}
           <div className="relative">
             {areaName && (
-              <p className="text-[10px] font-medium text-text-tertiary leading-none truncate mb-0.5">{areaName}</p>
+              <p className="text-[13px] font-medium text-text-tertiary leading-none truncate mb-0.5">{areaName}</p>
             )}
             <p className="text-sm font-semibold text-text-primary leading-tight truncate">{primary.name}</p>
             {primary.toggleable ? (
@@ -271,3 +299,50 @@ export function DeviceCardV2({ primary, secondary, selected, editMode, onLongPre
     </div>
   );
 }
+
+// The dashboard rebuilds the device tree and re-runs renderCard for every device
+// on each entity-store update, handing each card fresh inline prop objects. Without
+// memoization all 20-50 cards re-render every update even when their own entity did
+// not change. Compare the meaningful display fields (not object/function identity):
+// onToggle/onClick closures only capture state that is also a compared field, so a
+// skipped render can never leave a stale closure behind.
+function entityFieldsEqual(a?: DeviceCardV2Entity, b?: DeviceCardV2Entity): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.entityId === b.entityId &&
+    a.state === b.state &&
+    a.active === b.active &&
+    a.icon === b.icon &&
+    a.name === b.name &&
+    a.unit === b.unit &&
+    a.size === b.size &&
+    a.entityPicture === b.entityPicture &&
+    a.thumbnail === b.thumbnail &&
+    a.toggleable === b.toggleable &&
+    a.pressable === b.pressable &&
+    a.lastChanged === b.lastChanged
+  );
+}
+
+function propsEqual(prev: DeviceCardV2Props, next: DeviceCardV2Props): boolean {
+  if (
+    prev.selected !== next.selected ||
+    prev.editMode !== next.editMode ||
+    prev.areaName !== next.areaName ||
+    prev.className !== next.className ||
+    !!prev.onLongPress !== !!next.onLongPress
+  ) {
+    return false;
+  }
+  if (!entityFieldsEqual(prev.primary, next.primary)) return false;
+  const ps = prev.secondary ?? [];
+  const ns = next.secondary ?? [];
+  if (ps.length !== ns.length) return false;
+  for (let i = 0; i < ps.length; i += 1) {
+    if (!entityFieldsEqual(ps[i], ns[i])) return false;
+  }
+  return true;
+}
+
+export const DeviceCardV2 = memo(DeviceCardV2Component, propsEqual);

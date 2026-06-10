@@ -7,8 +7,9 @@ import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { CircularProgress } from '../ui/CircularProgress';
 import { Tooltip } from '../ui/Tooltip';
-import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useHomeCenterPrefs } from '@/hooks';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
+import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import {
   mdiMicrophone,
   mdiPlay,
@@ -40,6 +41,9 @@ import {
   mdiAccount,
   mdiVideo,
   mdiHomeVariant,
+  mdiWrench,
+  mdiBatteryAlertVariantOutline,
+  mdiBackupRestore,
 } from '@mdi/js';
 
 const RELEASE_NOTES_PREFIX = 'update.home_assistant_release_notes_simulated';
@@ -225,9 +229,10 @@ interface StatusBarProps {
 export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: StatusBarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { callService, haUrl } = useHomeAssistant();
+  const { callService, haUrl, demoMode, connected, connecting } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const { items: sidebarItems } = useSidebarItems();
+  const { visibleSections } = useHomeCenterPrefs();
   const [currentTime, setCurrentTime] = useState({ hours: '', minutes: '' });
   const [timerDisplays, setTimerDisplays] = useState<Record<string, string>>({});
   const [timerProgress, setTimerProgress] = useState<Record<string, number>>({});
@@ -263,7 +268,9 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     setStatusExpanded(false);
     router.push(path);
   }, [router]);
-  const goToHomeCenter = useCallback(() => goToSettings('/settings/home-center'), [goToSettings]);
+  // Open the full two-column settings layout focused on Home Center
+  // (rather than the cramped single-section detail route).
+  const goToHomeCenter = useCallback(() => goToSettings('/settings?section=home-center'), [goToSettings]);
 
   // Footer scroll state
   const [showLeftGradient, setShowLeftGradient] = useState(false);
@@ -810,11 +817,28 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const activeNotifications = activityData.activeNotifications;
   const isRemoteConnected = activityData.isRemoteConnected;
   const offlineDevices = activityData.offlineDevices;
+  const repairs = activityData.repairs;
+  const lowBatteryDevices = activityData.lowBatteryDevices;
+  const lastBackup = activityData.lastBackup;
 
   // Calculated counts for display
   const pendingUpdates = activeUpdates.length;
   const notificationCount = activeNotifications.length;
   const offlineCount = offlineDevices.length;
+  const repairCount = repairs.length;
+  const hasCriticalRepair = repairs.some((r) => r.severity === 'critical');
+  const lowBatteryCount = lowBatteryDevices.length;
+  const backupAge = formatBackupAge(lastBackup?.lastBackup ?? null);
+
+  // Connection status — mirror SystemStatusPanel (Home Center settings) so the
+  // dashboard pop-up never falls through to "Unknown Status" in demo mode.
+  const connStatus = demoMode ? 'Demo' : connecting ? 'Connecting' : connected ? 'Connected' : 'Offline';
+  const connTone: 'default' | 'warning' | 'danger' = demoMode ? 'warning' : connected ? 'default' : 'danger';
+  const connToneClasses: Record<typeof connTone, { text: string; badge: string }> = {
+    default: { text: 'text-green-500', badge: 'bg-green-500/10 text-green-500' },
+    warning: { text: 'text-yellow-500', badge: 'bg-yellow-500/10 text-yellow-500' },
+    danger: { text: 'text-red-500', badge: 'bg-red-500/10 text-red-500' },
+  };
 
   // Get current user's avatar (for immersive mode)
   const userAvatar = useMemo(() => {
@@ -840,6 +864,242 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     const remaining = visibleReleaseNotes.filter((note) => note.entity_id !== entityId);
     setExpandedWidgetId(remaining[0]?.entity_id ?? null);
   }, [visibleReleaseNotes]);
+
+  // ── Home Center status indicators (collapsed pill) ──────────────────────
+  // Rendered in the user's configured order, only for enabled sections.
+  const renderPillIndicator = (id: HomeCenterSectionId) => {
+    let icon = mdiBell;
+    let tooltip = '';
+    let dot: string | null = null;
+    let pulse = false;
+    switch (id) {
+      case 'notifications':
+        icon = mdiBell;
+        tooltip = notificationCount > 0 ? `Notifications: ${notificationCount} active` : 'Notifications: None';
+        dot = notificationCount > 0 ? 'bg-yellow-500' : null;
+        break;
+      case 'updates':
+        icon = mdiUpdate;
+        tooltip = pendingUpdates > 0 ? `Updates: ${pendingUpdates} update${pendingUpdates > 1 ? 's' : ''} available` : 'Updates: System is up to date';
+        dot = pendingUpdates > 0 ? 'bg-ha-blue' : null;
+        break;
+      case 'repairs':
+        icon = mdiWrench;
+        tooltip = repairCount > 0 ? `Repairs: ${repairCount} suggested` : 'Repairs: None';
+        dot = repairCount > 0 ? (hasCriticalRepair ? 'bg-red-500' : 'bg-orange-500') : null;
+        pulse = hasCriticalRepair;
+        break;
+      case 'issues':
+        icon = mdiDevices;
+        tooltip = offlineCount > 0 ? `Offline: ${offlineCount} device${offlineCount > 1 ? 's' : ''} unavailable` : 'Devices: All online';
+        dot = offlineCount > 0 ? 'bg-red-500' : null;
+        pulse = offlineCount > 0;
+        break;
+      case 'battery':
+        icon = mdiBatteryAlertVariantOutline;
+        tooltip = lowBatteryCount > 0 ? `Low battery: ${lowBatteryCount} device${lowBatteryCount > 1 ? 's' : ''}` : 'Batteries: Healthy';
+        dot = lowBatteryCount > 0 ? 'bg-amber-500' : null;
+        break;
+      case 'backups':
+        icon = mdiBackupRestore;
+        tooltip = backupAge.label;
+        dot = backupAge.stale ? 'bg-orange-500' : null;
+        break;
+      case 'connectivity':
+        icon = mdiWeb;
+        tooltip = isRemoteConnected ? 'Remote Access: Available via internet' : 'Remote Access: Not exposed to internet';
+        dot = isRemoteConnected ? 'bg-green-500' : 'bg-red-500';
+        break;
+    }
+    return (
+      <Tooltip key={id} content={tooltip}>
+        <div className="relative">
+          <Icon path={icon} size={20} className="text-text-secondary" />
+          {dot && <span className={`absolute -top-0.5 -right-0.5 ${dot} rounded-full w-2 h-2 ${pulse ? 'animate-pulse' : ''}`} />}
+        </div>
+      </Tooltip>
+    );
+  };
+
+  // ── Home Center status sections (expanded pop-up) ───────────────────────
+  const renderPopupSection = (id: HomeCenterSectionId) => {
+    switch (id) {
+      case 'notifications':
+        return (
+          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+            <button type="button" onClick={() => goToSettings('/settings/notifications')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Notifications</h4>
+              <div className="flex items-center gap-ha-2">
+                {activeNotifications.length > 0 && (
+                  <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
+                )}
+                <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
+              </div>
+            </button>
+            {activeNotifications.length > 0 ? (
+              <div className="space-y-2">
+                {activeNotifications.map(notif => (
+                  <div key={notif.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
+                    <Icon path={mdiBell} size={18} className="text-yellow-500 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-text-primary leading-tight">{notif.title}</p>
+                      {notif.message && <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-snug">{notif.message}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-text-disabled px-1 py-1">No notifications</p>
+            )}
+          </div>
+        );
+      case 'updates':
+        return (
+          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+            <button type="button" onClick={() => goToSettings('/settings/updates')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Updates Available</h4>
+              <div className="flex items-center gap-ha-2">
+                {activeUpdates.length > 0 && (
+                  <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
+                )}
+                <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
+              </div>
+            </button>
+            {activeUpdates.length > 0 ? (
+              <div className="space-y-2">
+                {activeUpdates.map(update => (
+                  <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-xl transition-colors cursor-pointer group">
+                    <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-110 transition-transform">
+                      {update.picture ? <img src={getEntityPictureUrl(update.picture)} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
+                    </div>
+                    <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
+                    <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-text-disabled px-1 py-1">System is up to date</p>
+            )}
+          </div>
+        );
+      case 'repairs':
+        return (
+          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+            <div className="w-full flex items-center justify-between mb-ha-2 px-1">
+              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Repairs</h4>
+              {repairCount > 0 && (
+                <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${hasCriticalRepair ? 'bg-red-500' : 'bg-orange-500'}`}>{repairCount}</span>
+              )}
+            </div>
+            {repairCount > 0 ? (
+              <div className="space-y-2">
+                {repairs.map(r => (
+                  <div key={r.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
+                    <Icon path={mdiWrench} size={18} className={`${r.severity === 'critical' ? 'text-red-500' : 'text-orange-500'} shrink-0 mt-0.5`} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-text-primary leading-tight">{r.title}</p>
+                      {r.description && <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-snug">{r.description}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-text-disabled px-1 py-1">Nothing needs fixing</p>
+            )}
+          </div>
+        );
+      case 'issues':
+        return (
+          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+            <button type="button" onClick={() => goToSettings('/settings/repairs')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Offline Devices</h4>
+              <div className="flex items-center gap-ha-2">
+                {offlineDevices.length > 0 && (
+                  <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
+                )}
+                <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
+              </div>
+            </button>
+            {offlineDevices.length > 0 ? (
+              <div className="space-y-1">
+                {offlineDevices.map(device => (
+                  <div key={device.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-mid/50 transition-colors">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
+                    <span className="text-sm truncate font-medium">{device.name}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-text-disabled px-1 py-1">All devices online</p>
+            )}
+          </div>
+        );
+      case 'battery':
+        return (
+          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+            <div className="w-full flex items-center justify-between mb-ha-2 px-1">
+              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Low Battery</h4>
+              {lowBatteryCount > 0 && (
+                <span className="text-xs font-bold text-white bg-amber-500 px-1.5 py-0.5 rounded-md">{lowBatteryCount}</span>
+              )}
+            </div>
+            {lowBatteryCount > 0 ? (
+              <div className="space-y-1">
+                {lowBatteryDevices.map(b => (
+                  <div key={b.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg hover:bg-surface-mid/50 transition-colors">
+                    <Icon path={mdiBatteryAlertVariantOutline} size={16} className={`shrink-0 ${b.level <= 10 ? 'text-red-500' : 'text-amber-500'}`} />
+                    <span className="text-sm truncate font-medium text-text-primary flex-1">{b.name}</span>
+                    <span className={`text-sm font-semibold tabular-nums ${b.level <= 10 ? 'text-red-500' : 'text-text-secondary'}`}>{b.level}%</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-text-disabled px-1 py-1">All batteries healthy</p>
+            )}
+          </div>
+        );
+      case 'backups':
+        return (
+          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+            <div className="w-full flex items-center justify-between mb-ha-2 px-1">
+              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Backups</h4>
+            </div>
+            <div className="flex items-center gap-ha-2 p-ha-2 rounded-lg hover:bg-surface-mid/50 transition-colors">
+              <Icon path={mdiBackupRestore} size={16} className={`shrink-0 ${backupAge.stale ? 'text-orange-500' : 'text-green-500'}`} />
+              <span className="text-sm truncate font-medium text-text-primary flex-1">{lastBackup?.name ?? 'Backups'}</span>
+              <span className={`text-sm font-medium ${backupAge.stale ? 'text-orange-500' : 'text-text-secondary'}`}>{backupAge.label}</span>
+            </div>
+          </div>
+        );
+      case 'connectivity':
+        return (
+          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+            <div className="flex items-center gap-ha-3 mb-ha-3">
+              <div className={`p-2 rounded-full ${connToneClasses[connTone].badge}`}>
+                <Icon path={connected || demoMode ? mdiCheckCircle : mdiAlertCircle} size={24} />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-text-primary">Home Assistant</h4>
+                <p className={`text-xs font-medium ${connToneClasses[connTone].text}`}>{connStatus}</p>
+              </div>
+            </div>
+            <div className="space-y-2 mt-2 pt-2 border-t border-surface-mid/50">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <Icon path={isRemoteConnected ? mdiCloudCheck : mdiCloudOff} size={16} className={isRemoteConnected ? "text-green-500" : "text-text-disabled"} />
+                  <span className="text-sm text-text-secondary">Remote Access</span>
+                </div>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRemoteConnected ? 'bg-green-500/10 text-green-500' : 'bg-surface-mid text-text-disabled'}`}>
+                  {isRemoteConnected ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <>
@@ -883,7 +1143,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     </div>
                     {chatLastSubmittedQuery?.contextKey === chatContextKey && (
                       <div className="w-full rounded-ha-xl bg-ha-blue/10 border border-ha-blue/20 px-ha-3 py-ha-2 text-left">
-                        <p className="text-[10px] font-bold text-ha-blue uppercase tracking-widest">Last question</p>
+                        <p className="text-[13px] font-bold text-ha-blue uppercase tracking-widest">Last question</p>
                         <p className="text-xs text-text-primary mt-1 truncate">{chatLastSubmittedQuery.query}</p>
                       </div>
                     )}
@@ -1008,7 +1268,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                 >
                   <div className="p-ha-4 flex flex-col gap-ha-3">
                     <div className="w-full rounded-ha-xl bg-green-500/10 border border-green-500/20 p-ha-3">
-                      <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1">{releaseNote.version}</p>
+                      <p className="text-[13px] font-bold text-green-600 uppercase tracking-widest mb-1">{releaseNote.version}</p>
                       <h3 className="text-sm font-bold text-text-primary">{releaseNote.name}</h3>
                       <p className="text-xs text-text-secondary mt-1">{releaseNote.summary}</p>
                     </div>
@@ -1050,7 +1310,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         </div>
 
                         <div className="w-full rounded-ha-xl bg-green-500/10 border border-green-500/20 p-ha-3">
-                          <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1">{releaseNote.version}</p>
+                          <p className="text-[13px] font-bold text-green-600 uppercase tracking-widest mb-1">{releaseNote.version}</p>
                           <h3 className="text-sm font-bold text-text-primary">{releaseNote.name}</h3>
                           <p className="text-xs text-text-secondary mt-1">{releaseNote.summary}</p>
                         </div>
@@ -1176,7 +1436,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           <Icon path={mdiUpdate} size={16} className="text-green-600" />
                         </div>
                         {visibleReleaseNotes.length > 1 && (
-                          <div className="absolute -top-1 -right-1 bg-green-600 text-white text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-default shadow-sm z-10">
+                          <div className="absolute -top-1 -right-1 bg-green-600 text-white text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-default shadow-sm z-10">
                             {visibleReleaseNotes.length}
                           </div>
                         )}
@@ -1482,7 +1742,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         </span>
                       )}
                       {activePlayers.length > 1 && (
-                        <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                        <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
                           {activePlayers.length}
                         </div>
                       )}
@@ -1584,7 +1844,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           <span className="text-3xl font-bold font-mono text-text-primary tracking-tighter">
                             {timerDisplays[timer.entity_id] || timer.remaining}
                           </span>
-                          <span className="text-[10px] font-bold text-text-disabled uppercase tracking-widest mt-1">
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-widest mt-1">
                             {timer.state}
                           </span>
                         </div>
@@ -1647,7 +1907,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           <span className="text-3xl font-bold font-mono text-text-primary tracking-tighter">
                             {timerDisplays[timer.entity_id] || timer.remaining}
                           </span>
-                          <span className="text-[10px] font-bold text-text-disabled uppercase tracking-widest mt-1">
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-widest mt-1">
                             {timer.state}
                           </span>
                         </div>
@@ -1776,7 +2036,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="relative">
                     {activeTimers.length > 1 && (
-                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
                         {activeTimers.length}
                       </div>
                     )}
@@ -1873,7 +2133,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     <>
                       <div className="w-full aspect-video bg-black relative">
                         <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-mono border border-white/10">
+                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[13px] text-white font-mono border border-white/10">
                           LIVE • 2026-02-12 23:38:00
                         </div>
                       </div>
@@ -1884,7 +2144,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           </div>
                           <div>
                             <h4 className="text-sm font-bold text-text-primary">{camera.name}</h4>
-                            <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{camera.event}</p>
+                            <p className="text-[13px] font-bold text-red-500 uppercase tracking-tight">{camera.event}</p>
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-ha-3">
@@ -1927,7 +2187,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     </div>
                     <div className="w-full aspect-video bg-black relative">
                       <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[10px] text-white font-mono border border-white/10">
+                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[13px] text-white font-mono border border-white/10">
                         LIVE • 2026-02-12 23:38:00
                       </div>
                     </div>
@@ -1938,7 +2198,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         </div>
                         <div>
                           <h4 className="text-sm font-bold text-text-primary">{camera.name}</h4>
-                          <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{camera.event}</p>
+                          <p className="text-[13px] font-bold text-red-500 uppercase tracking-tight">{camera.event}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-ha-3">
@@ -2056,7 +2316,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       />
                       <div className="absolute inset-0 bg-red-500/10" />
                       {activeCameras.length > 1 && (
-                        <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                        <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
                           {activeCameras.length}
                         </div>
                       )}
@@ -2151,7 +2411,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
                         <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
                           <Icon path={mdiLayers} size={14} className="text-ha-blue" />
-                          <span className="text-[10px] font-bold text-white font-mono">Layer 142/208</span>
+                          <span className="text-[13px] font-bold text-white font-mono">Layer 142/208</span>
                         </div>
                       </div>
 
@@ -2172,19 +2432,19 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
                         <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
                           <Icon path={mdiThermometer} size={18} className="text-red-500" />
-                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
                           <span className="text-sm font-bold text-text-primary font-mono">215°C</span>
                         </div>
                         <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
                           <Icon path={mdiThermometer} size={18} className="text-ha-blue" />
-                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
                           <span className="text-sm font-bold text-text-primary font-mono">60°C</span>
                         </div>
                       </div>
 
                       <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
                         <div className="flex flex-col pl-1">
-                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
                           <span className="text-sm font-mono font-bold text-text-primary">{printer.remainingTime}</span>
                         </div>
                         <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
@@ -2224,7 +2484,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
                         <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
                           <Icon path={mdiLayers} size={14} className="text-ha-blue" />
-                          <span className="text-[10px] font-bold text-white font-mono">Layer 142/208</span>
+                          <span className="text-[13px] font-bold text-white font-mono">Layer 142/208</span>
                         </div>
                       </div>
 
@@ -2245,19 +2505,19 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
                         <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
                           <Icon path={mdiThermometer} size={18} className="text-red-500" />
-                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
                           <span className="text-sm font-bold text-text-primary font-mono">215°C</span>
                         </div>
                         <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
                           <Icon path={mdiThermometer} size={18} className="text-ha-blue" />
-                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
                           <span className="text-sm font-bold text-text-primary font-mono">60°C</span>
                         </div>
                       </div>
 
                       <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
                         <div className="flex flex-col pl-1">
-                          <span className="text-[9px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
                           <span className="text-sm font-mono font-bold text-text-primary">{printer.remainingTime}</span>
                         </div>
                         <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
@@ -2371,7 +2631,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="relative">
                     {activePrinters.length > 1 && (
-                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[10px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
                         {activePrinters.length}
                       </div>
                     )}
@@ -2392,14 +2652,14 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         <span className="text-sm font-medium text-text-primary truncate font-mono">
                           {printer.progress}%
                         </span>
-                        <span className="text-[9px] text-text-disabled uppercase font-bold tracking-tighter">
+                        <span className="text-[13px] text-text-disabled uppercase font-bold tracking-tighter">
                           Printing
                         </span>
                       </div>
                       <span className="text-xs text-text-secondary truncate">{printer.fileName}</span>
                     </div>
                     <div className="hidden xl:flex flex-col items-end ml-1 pl-2 border-l border-surface-mid">
-                      <span className="text-[9px] text-text-disabled font-bold leading-none mb-0.5 uppercase">Left</span>
+                      <span className="text-[13px] text-text-disabled font-bold leading-none mb-0.5 uppercase">Left</span>
                       <span className="text-xs font-mono text-text-secondary">{printer.remainingTime}</span>
                     </div>
                   </div>
@@ -2441,126 +2701,9 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             style={{ maxHeight: 'calc(100vh - 120px)' }}
           >
             <div className="overflow-y-auto p-ha-3 space-y-ha-3 custom-scrollbar">
-                
-                {/* Notifications Section - Always shown */}
-                <div className="bg-surface-low rounded-2xl p-ha-3">
-                  <button type="button" onClick={() => goToSettings('/settings/notifications')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
-                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Notifications</h4>
-                    <div className="flex items-center gap-ha-2">
-                      {activeNotifications.length > 0 && (
-                        <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
-                      )}
-                      <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
-                    </div>
-                  </button>
-                  {activeNotifications.length > 0 ? (
-                    <div className="space-y-2">
-                      {activeNotifications.map(notif => (
-                        <div key={notif.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
-                          <Icon path={mdiBell} size={18} className="text-yellow-500 shrink-0 mt-0.5" />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-text-primary leading-tight">{notif.title}</p>
-                            {notif.message && <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-snug">{notif.message}</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-text-disabled px-1 py-1">
-                      No notifications
-                    </p>
-                  )}
-                </div>
 
-                {/* Active Updates Section */}
-                {(activeUpdates.length > 0) && (
-                    <div className="bg-surface-low rounded-2xl p-ha-3">
-                        <button type="button" onClick={() => goToSettings('/settings/updates')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
-                          <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Updates Available</h4>
-                          <div className="flex items-center gap-ha-2">
-                            <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
-                            <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
-                          </div>
-                        </button>
-                        <div className="space-y-2">
-                            {activeUpdates.map(update => (
-                                <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-xl transition-colors cursor-pointer group">
-                                    <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-110 transition-transform">
-                                        {update.picture ? <img src={getEntityPictureUrl(update.picture)} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
-                                    </div>
-                                    <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
-                                    <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                
-                {/* Offline Devices Section - Always shown */}
-                <div className="bg-surface-low rounded-2xl p-ha-3">
-                  <button type="button" onClick={() => goToSettings('/settings/repairs')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
-                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Offline Devices</h4>
-                    <div className="flex items-center gap-ha-2">
-                      {offlineDevices.length > 0 && (
-                        <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
-                      )}
-                      <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
-                    </div>
-                  </button>
-                  {offlineDevices.length > 0 ? (
-                    <div className="space-y-1">
-                      {offlineDevices.map(device => (
-                        <div key={device.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-mid/50 transition-colors">
-                          <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
-                          <span className="text-sm truncate font-medium">{device.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-text-disabled px-1 py-1">
-                       All devices online
-                    </p>
-                  )}
-                </div>
-
-                {/* Connectivity Section */}
-                <div className="bg-surface-low rounded-2xl p-ha-3">
-                    <div className="flex items-center gap-ha-3 mb-ha-3">
-                        <div className={`p-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                          <Icon path={connectionStatus === 'connected' ? mdiCheckCircle : mdiAlertCircle} size={24} />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-text-primary">Home Assistant</h4>
-                          <p className="text-xs text-text-secondary font-medium">
-                              {connectionStatus === 'connecting' ? 'Connecting...' :
-                               connectionStatus === 'connected' ? 'Connected securely' :
-                               connectionStatus === 'error' ? 'Connection Error' : 'Unknown Status'}
-                          </p>
-                        </div>
-                    </div>
-
-                    {/* Connection Details */}
-                    <div className="space-y-2 mt-2 pt-2 border-t border-surface-mid/50">
-                        {/* Remote Access */}
-                        <div className="flex items-center justify-between px-1">
-                          <div className="flex items-center gap-2">
-                            <Icon path={isRemoteConnected ? mdiCloudCheck : mdiCloudOff} size={16} className={isRemoteConnected ? "text-green-500" : "text-text-disabled"} />
-                            <span className="text-sm text-text-secondary">Remote Access</span>
-                          </div>
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRemoteConnected ? 'bg-green-500/10 text-green-500' : 'bg-surface-mid text-text-disabled'}`}>
-                             {isRemoteConnected ? 'Enabled' : 'Disabled'}
-                          </span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Empty State / All Good */}
-                {activeUpdates.length === 0 && activeNotifications.length === 0 && offlineDevices.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-6 text-center opacity-80">
-                        <p className="text-sm font-medium text-text-primary">All systems nominal</p>
-                        <p className="text-xs text-text-secondary mt-1">No issues detected in your home environment.</p>
-                    </div>
-                )}
+                {/* Status sections — order and visibility follow Home Center prefs */}
+                {visibleSections.map(renderPopupSection)}
 
                 {/* Home Center link */}
                 <button
@@ -2580,64 +2723,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
           className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50"
           onClick={() => setStatusExpanded(!statusExpanded)}
         >
-        {/* Notifications indicator */}
-        <Tooltip content={notificationCount > 0 ? `Notifications: ${notificationCount} active` : 'Notifications: None'}>
-          <div className="relative">
-            <Icon
-              path={mdiBell}
-              size={20}
-              className="text-text-secondary"
-            />
-            {notificationCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-yellow-500 rounded-full w-2 h-2" />
-            )}
-          </div>
-        </Tooltip>
-
-        {/* Updates indicator */}
-        <Tooltip content={pendingUpdates > 0 ? `Updates: ${pendingUpdates} update${pendingUpdates > 1 ? 's' : ''} available` : 'Updates: System is up to date'}>
-          <div className="relative">
-            <Icon
-              path={mdiUpdate}
-              size={20}
-              className="text-text-secondary"
-            />
-            {pendingUpdates > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-ha-blue rounded-full w-2 h-2" />
-            )}
-          </div>
-        </Tooltip>
-
-        {/* Issues (offline devices) indicator */}
-        <Tooltip content={offlineCount > 0 ? `Offline: ${offlineCount} device${offlineCount > 1 ? 's' : ''} unavailable` : 'Devices: All online'}>
-          <div className="relative">
-            <Icon
-              path={mdiDevices}
-              size={20}
-              className="text-text-secondary"
-            />
-            {offlineCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2 h-2" />
-            )}
-          </div>
-        </Tooltip>
-
-        {/* Connectivity (remote access) indicator */}
-        <Tooltip content={isRemoteConnected ? 'Remote Access: Available via internet' : 'Remote Access: Not exposed to internet'}>
-          <div className="relative">
-            <Icon
-              path={mdiWeb}
-              size={20}
-              className="text-text-secondary"
-            />
-            {isRemoteConnected && (
-              <span className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full w-2 h-2" />
-            )}
-            {!isRemoteConnected && (
-              <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2 h-2" />
-            )}
-          </div>
-        </Tooltip>
+        {/* Status indicators — order and visibility follow Home Center prefs */}
+        {visibleSections.map(renderPillIndicator)}
 
           {/* Time with stacked AM/PM */}
           <div className="flex items-center gap-ha-1">
@@ -2648,7 +2735,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             </span>
             <div className="flex items-center gap-ha-1">
               {!use24HourClock && (
-                <div className="flex flex-col text-[9px] font-medium leading-tight">
+                <div className="flex flex-col text-[13px] font-medium leading-tight">
                   <span className={isAM ? 'text-text-primary' : 'text-text-disabled'}>AM</span>
                   <span className={!isAM ? 'text-text-primary' : 'text-text-disabled'}>PM</span>
                 </div>

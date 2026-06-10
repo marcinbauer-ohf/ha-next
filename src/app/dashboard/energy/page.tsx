@@ -97,7 +97,7 @@ export default function EnergyDashboardPage() {
   const { background } = useTheme();
   const scrollableRef = useRef<HTMLElement | null>(null);
   const { setHeader } = useHeader();
-  const { contentPaddingClasses, contentTransitionClasses, contentStyle } = useDesktopImmersivePageLayout();
+  const { contentPaddingClasses, contentTransitionClasses, contentStyle, surfaceRoundingClass } = useDesktopImmersivePageLayout();
 
   useEffect(() => {
     setHeader({ title: 'Energy', icon: mdiFlash });
@@ -142,7 +142,7 @@ export default function EnergyDashboardPage() {
         } ${contentPaddingClasses} ${contentTransitionClasses}`}
         style={contentStyle}
       >
-        <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl relative">
+        <div className={`h-full bg-surface-lower overflow-hidden relative ${surfaceRoundingClass}`}>
           {/* Top scroll gradient - absolute to container */}
           {showTopGradient && background !== 'image' && background !== 'gradient' && (
             <div className="absolute top-0 left-0 right-0 lg:left-14 lg:right-ha-5 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />

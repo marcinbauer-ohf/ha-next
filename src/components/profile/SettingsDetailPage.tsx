@@ -1,14 +1,17 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { Icon } from '../ui/Icon';
+import { SectionLabel } from '../ui';
 import { SimulationListModal } from '@/components/ui/SimulationListModal';
 import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
-import { useHeader, useScreensaver } from '@/contexts';
-import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useDevices, useDeviceCardConfig } from '@/hooks';
+import { useHeader, useScreensaver, useAddContext } from '@/contexts';
+import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFont, useDeviceStructure, useDeviceCardConfig, useIntegrations } from '@/hooks';
+import { IntegrationsTable, IntegrationDetailView } from './IntegrationsPanel';
+import { HomeCenterSectionsModal } from './HomeCenterSectionEditor';
 import { TOGGLEABLE } from '@/lib/homeassistant/entityHelpers';
 import type { EntitySlot, EntitySection } from '@/hooks/useDeviceCardConfig';
 import { THEMES, type Background, type ColorMode, type Theme } from '@/hooks/useTheme';
@@ -17,16 +20,15 @@ import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType 
 import { type SettingsSlug, allSettingsLinks } from './settingsNavigation';
 import {
   mdiAlphaDBox,
-  mdiCog,
   mdiCctv,
+  mdiChevronLeft,
+  mdiCog,
   mdiHomeAssistant,
   mdiOpenInNew,
-  mdiPalette,
   mdiPlay,
   mdiPrinter3d,
   mdiTimerOutline,
   mdiUpdate,
-  mdiViewDashboard,
 } from '@mdi/js';
 
 interface SettingsDetailPageProps {
@@ -46,18 +48,69 @@ function SettingsShell({
   children,
   panelMode,
   title,
+  titleAction,
+  onBack,
 }: {
   children: React.ReactNode;
   panelMode?: boolean;
   title?: string;
+  /** Optional control rendered at the end of the title row (panel mode), e.g. a cog. */
+  titleAction?: React.ReactNode;
+  /** When set (panel mode), the title becomes a back affordance: chevron + title. */
+  onBack?: () => void;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
+
+  // Publish the pinned title's height as `--settings-header-h` so a list's own
+  // sticky search (DataListView) can pin directly *below* the title instead of
+  // sliding up over it. Measured (not hard-coded) because the live font switcher
+  // changes the title's line height. Falls back to 0 when there's no title.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const titleEl = titleRef.current;
+    if (!titleEl) {
+      root.style.setProperty('--settings-header-h', '0px');
+      return;
+    }
+    const apply = () => root.style.setProperty('--settings-header-h', `${titleEl.offsetHeight}px`);
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(titleEl);
+    return () => observer.disconnect();
+  }, [title, onBack, titleAction, panelMode]);
+
   if (panelMode) {
     return (
-      <div className="space-y-ha-6">
-        {title && (
-          <h1 className="text-3xl font-bold tracking-tight text-text-primary px-ha-1">{title}</h1>
+      // `pt-ha-1` aligns the content column's top with the nav column's sticky search field.
+      <div ref={rootRef} className="pt-ha-1">
+        {(onBack || title) && (
+          // Sticky title — stays pinned while content scrolls under it. A list's
+          // own sticky search stacks just beneath via `--settings-header-h`.
+          <div className="sticky top-0 z-20">
+            <div ref={titleRef} className="flex items-center justify-between gap-ha-3 bg-surface-lower pb-ha-3">
+              {onBack ? (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="group flex items-center gap-ha-2 -ml-ha-1 text-left"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary transition-colors group-hover:bg-surface-low group-hover:text-text-primary">
+                    <Icon path={mdiChevronLeft} size={22} />
+                  </span>
+                  <h1 className="text-3xl font-bold tracking-tight text-text-primary">{title}</h1>
+                </button>
+              ) : (
+                <h1 className="text-3xl font-bold tracking-tight text-text-primary px-ha-1">{title}</h1>
+              )}
+              {titleAction}
+            </div>
+            {/* Fades content scrolling under the title (hidden behind a list's search when one pins below). */}
+            <div className="h-6 bg-gradient-to-b from-surface-lower to-transparent pointer-events-none -mb-6" />
+          </div>
         )}
-        {children}
+        <div className="space-y-ha-6">{children}</div>
       </div>
     );
   }
@@ -71,29 +124,6 @@ function SettingsShell({
   );
 }
 
-function SectionHeader({
-  title,
-  description,
-  icon,
-}: {
-  title: string;
-  description?: string;
-  icon?: string;
-}) {
-  return (
-    <div className="flex items-start gap-ha-3 px-ha-1 pt-ha-2">
-      {icon && (
-        <div className="flex h-9 w-9 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary shrink-0">
-          <Icon path={icon} size={20} />
-        </div>
-      )}
-      <div className="min-w-0">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">{title}</h2>
-        {description && <p className="mt-ha-1 text-sm text-text-secondary">{description}</p>}
-      </div>
-    </div>
-  );
-}
 
 function SettingsCard({
   title,
@@ -287,37 +317,9 @@ const taskBarActivityDefinitions: Array<{
 ];
 
 const settingsMeta: Partial<Record<SettingsSlug, SettingsMeta>> = {
-  dashboards: {
-    title: 'Dashboards',
-    description: 'Choose where the app should land, how room pages behave, and which dashboard surfaces stay pinned for quick access.',
-    icon: mdiViewDashboard,
-    eyebrow: 'Navigation',
-    accentClassName: 'border-green-500/20',
-  },
-  'theme-layout': {
-    title: 'Theme and Layout',
-    description: 'Move dashboard presentation controls into one focused settings surface for appearance, immersive mode, and screensaver preview.',
-    icon: mdiPalette,
-    eyebrow: 'Prototype Debugging Tools',
-    accentClassName: 'border-indigo-500/20',
-  },
-  'task-bar': {
-    title: 'Task Bar Activities',
-    description: 'Manage the simulated release notes, media, timers, cameras, and printer jobs that help debug the activity bar.',
-    icon: mdiUpdate,
-    eyebrow: 'Prototype Debugging Tools',
-    accentClassName: 'border-emerald-500/20',
-  },
-  maintenance: {
-    title: 'Maintenance',
-    description: 'Keep connection setup, demo mode, and shell reset actions close at hand without leaving them on the dashboard.',
-    icon: mdiCog,
-    eyebrow: 'Prototype Debugging Tools',
-    accentClassName: 'border-amber-500/20',
-  },
   developer: {
-    title: 'Developer Tools',
-    description: 'Toggle preview-only diagnostics, inspect mocked integrations, and keep the prototype friendly for rapid iteration.',
+    title: 'Prototype & Debug Tools',
+    description: 'Dashboards, theme, task bar, maintenance, and developer flags — every preview-only tool on one page.',
     icon: mdiAlphaDBox,
     eyebrow: 'Preview',
     accentClassName: 'border-orange-500/20',
@@ -327,8 +329,18 @@ const settingsMeta: Partial<Record<SettingsSlug, SettingsMeta>> = {
 export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps) {
   const router = useRouter();
   const { setHeader } = useHeader();
+  const { setContextSlug } = useAddContext();
+
+  // Tell the top-bar "+" which section is open so it can hoist that section's
+  // "Add …" action to the top. Covers both the two-column /settings page and
+  // the /settings/[slug] detail route, since both render this component.
+  useEffect(() => {
+    setContextSlug(slug);
+    return () => setContextSlug(null);
+  }, [slug, setContextSlug]);
   const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, pulseWallpaperReactive, togglePulseWallpaperReactive } = useFeatureFlags();
   const { theme, mode, background, setTheme, setMode, setBackground } = useTheme();
+  const { font, fonts, setFont } = useFont();
   const {
     clearCredentials,
     connected,
@@ -345,9 +357,27 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
   const simulationEntities = useHomeAssistantSelector(selectSimulationEntities, areSimulationEntitiesEqual);
 
   // Device card configuration
-  const { devices } = useDevices();
+  const { devices } = useDeviceStructure();
   const { setConfig } = useDeviceCardConfig();
   const [configureStatus, setConfigureStatus] = useState<'idle' | 'done'>('idle');
+
+  // Home Center "Customize sections" modal (opened from the cog by the title).
+  const [sectionsEditorOpen, setSectionsEditorOpen] = useState(false);
+
+  // Master-detail drill-down within column 2. `detailId` is the selected row's id
+  // (e.g. an integration platform key); null means we're showing the table.
+  const { integrations } = useIntegrations();
+  const [detailId, setDetailId] = useState<string | null>(null);
+  // Reset the drill-down whenever the settings section changes — adjusted during
+  // render (React's recommended pattern) rather than in an effect.
+  const [drillSlug, setDrillSlug] = useState(slug);
+  if (slug !== drillSlug) {
+    setDrillSlug(slug);
+    setDetailId(null);
+  }
+  const activeIntegration = slug === 'integrations' && detailId
+    ? integrations.find((i) => i.id === detailId) ?? null
+    : null;
 
   const autoConfigureDevices = useCallback(() => {
     const HIDDEN_DOMAINS = new Set(['update', 'button', 'event', 'number', 'select', 'text', 'scene', 'input_number', 'input_select', 'input_text', 'input_button']);
@@ -512,13 +542,26 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
 
   useEffect(() => {
     if (panelMode) return;
+    // Drilled into a detail row → header shows the row, back clears the drill.
+    if (activeIntegration) {
+      setHeader({
+        title: activeIntegration.name,
+        subtitle: 'Integrations',
+        icon: activeIntegration.icon,
+        onBack: () => setDetailId(null),
+      });
+      return;
+    }
     setHeader({
       title: meta.title,
       subtitle: 'Settings',
       icon: meta.icon,
       onBack: () => router.push('/settings'),
+      // On the full-page Home Center route the title lives in the top bar, so the
+      // "Customize sections" cog rides there instead of next to an in-content title.
+      primaryAction: slug === 'home-center' ? { icon: mdiCog, onClick: () => setSectionsEditorOpen(true) } : undefined,
     });
-  }, [meta.icon, meta.title, panelMode, router, setHeader]);
+  }, [activeIntegration, meta.icon, meta.title, panelMode, router, setHeader, slug]);
 
   const connectionLabel = demoMode
     ? 'Demo data'
@@ -604,6 +647,19 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
             value: entry,
             label: themeLabels[entry],
             caption: entry === 'glass' ? 'Layered and airy' : entry === 'eink' ? 'Paper-like contrast' : 'Ready to use',
+          }))}
+        />
+      </SettingsCard>
+
+      <SettingsCard title="Typeface" description="Swap the base UI font live. Every option is SIL OFL licensed — free to ship in Home Assistant with no licensing strings. Themed faces (Cyberpunk, Material, etc.) keep their own type. Shortcut: ⌘/Ctrl+Shift+F cycles fonts.">
+        <ChoiceGroup<string>
+          label="Font"
+          value={font}
+          onChange={setFont}
+          options={fonts.map((entry) => ({
+            value: entry.key,
+            label: entry.label,
+            caption: entry.caption,
           }))}
         />
       </SettingsCard>
@@ -871,6 +927,29 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
     </SettingsCard>
   );
 
+  // ── Integrations (master-detail drill-down example) ───────────────────────
+  // Sits before the haPath placeholder so this real table replaces the stub.
+  if (slug === 'integrations') {
+    // Re-key on drill so the pane animates: detail slides in from the right,
+    // the list slides back in from the left when you go back.
+    if (activeIntegration) {
+      return (
+        <div key={`detail:${activeIntegration.id}`} className="ha-pane-in">
+          <SettingsShell panelMode={panelMode} title={activeIntegration.name} onBack={() => setDetailId(null)}>
+            <IntegrationDetailView integration={activeIntegration} />
+          </SettingsShell>
+        </div>
+      );
+    }
+    return (
+      <div key="list" className="ha-pane-in ha-pane-in--back">
+        <SettingsShell panelMode={panelMode} title={meta.title}>
+          <IntegrationsTable integrations={integrations} onSelect={setDetailId} />
+        </SettingsShell>
+      </div>
+    );
+  }
+
   // ── HA settings placeholder ───────────────────────────────────────────────
   if (navItem?.haPath) {
     return (
@@ -882,7 +961,7 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-text-primary mb-ha-1">{navItem.label}</p>
             <p className="text-sm text-text-secondary mb-ha-4">{navItem.description}</p>
-            <p className="text-[11px] text-text-tertiary mb-ha-3">
+            <p className="text-[13px] text-text-tertiary mb-ha-3">
               In production this page connects to Home Assistant at:
             </p>
             <div className="flex items-center gap-ha-2 px-ha-3 py-ha-2 bg-surface-low rounded-ha-xl border border-surface-lower inline-flex w-fit">
@@ -904,9 +983,26 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
       connectivity: 'connectivity',
     };
     return (
-      <SettingsShell panelMode={panelMode} title={meta.title}>
-        <SystemStatusPanel onNavigate={(target) => router.push(`/settings/${sectionSlug[target]}`)} />
-      </SettingsShell>
+      <>
+        <SettingsShell
+          panelMode={panelMode}
+          title={meta.title}
+          titleAction={
+            <button
+              type="button"
+              onClick={() => setSectionsEditorOpen(true)}
+              aria-label="Customize sections"
+              title="Customize sections"
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+            >
+              <Icon path={mdiCog} size={20} />
+            </button>
+          }
+        >
+          <SystemStatusPanel onNavigate={(target) => router.push(`/settings/${sectionSlug[target]}`)} />
+        </SettingsShell>
+        <HomeCenterSectionsModal open={sectionsEditorOpen} onClose={() => setSectionsEditorOpen(false)} />
+      </>
     );
   }
 
@@ -920,95 +1016,33 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
     );
   }
 
-  if (slug === 'dashboards') {
-    return (
-      <SettingsShell panelMode={panelMode} title={meta.title}>
-        {renderDashboardsCards()}
-      </SettingsShell>
-    );
-  }
-
-  if (slug === 'theme-layout') {
-    return (
-      <SettingsShell panelMode={panelMode} title={meta.title}>
-        <div className="space-y-ha-4">
-          {renderThemeCards()}
-        </div>
-      </SettingsShell>
-    );
-  }
-
-  if (slug === 'task-bar') {
-    return (
-      <>
-        <SettingsShell panelMode={panelMode} title={meta.title}>
-          <div className="space-y-ha-4">
-            {renderTaskBarCards()}
-          </div>
-        </SettingsShell>
-
-        {simulationModal && (
-          <SimulationListModal
-            isOpen={true}
-            onClose={() => setSimulationModal(null)}
-            title={simulationModal.title}
-            items={getSimulatedEntities(simulationModal.prefix)}
-            onRemove={removeSimulationById}
-          />
-        )}
-      </>
-    );
-  }
-
-  if (slug === 'maintenance') {
-    return (
-      <>
-        <SettingsShell panelMode={panelMode} title={meta.title}>
-          <div className="space-y-ha-4">
-            {renderMaintenanceCards()}
-          </div>
-        </SettingsShell>
-
-        {connectionSetupOpen && (
-          <SetupScreen
-            onSave={handleSaveCredentials}
-            onUseDemo={handleUseDemoData}
-            error={connectionError}
-            connecting={connecting}
-            onClose={() => setConnectionSetupOpen(false)}
-          />
-        )}
-      </>
-    );
-  }
-
   if (slug === 'developer') {
     return (
       <>
         <SettingsShell panelMode={panelMode} title={meta.title}>
           <div className="space-y-ha-8">
             <div className="space-y-ha-4">
-              <SectionHeader title="Dashboards" description="Device card layout and entity configuration." icon={mdiViewDashboard} />
+              <SectionLabel className="px-ha-1">Dashboards</SectionLabel>
               {renderDashboardsCards()}
             </div>
 
             <div className="space-y-ha-4">
-              <SectionHeader title="Theme and Display" description="Theme, color mode, background, immersive mode, and screensaver." icon={mdiPalette} />
+              <SectionLabel className="px-ha-1">Theme and Display</SectionLabel>
               {renderThemeCards()}
             </div>
 
             <div className="space-y-ha-4">
-              <SectionHeader title="Task Bar Activities" description="Release notes, media, timers, cameras, and printer mocks." icon={mdiUpdate} />
+              <SectionLabel className="px-ha-1">Task Bar Activities</SectionLabel>
               {renderTaskBarCards()}
             </div>
 
             <div className="space-y-ha-4">
-              <SectionHeader title="Maintenance" description="Connection mode, demo data, and layout reset." icon={mdiCog} />
+              <SectionLabel className="px-ha-1">Maintenance</SectionLabel>
               {renderMaintenanceCards()}
             </div>
 
             <div className="space-y-ha-4">
-              <SectionHeader title="Developer Tools" description="Preview flags, mocks, and diagnostics." icon={mdiAlphaDBox} />
+              <SectionLabel className="px-ha-1">Developer Tools</SectionLabel>
               {renderDeveloperCards()}
             </div>
           </div>

@@ -243,7 +243,7 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
             {/* Time label: "NOW" at rest, timestamp on hover */}
             {(isNumeric || isBoolean) && (
               <span className={clsx(
-                'text-[10px] font-semibold uppercase tracking-wider transition-colors',
+                'text-[13px] font-semibold uppercase tracking-wider transition-colors',
                 entity.entityPicture
                   ? 'text-white/60'
                   : hoveredIndex !== null ? 'text-text-secondary' : 'text-ha-blue',

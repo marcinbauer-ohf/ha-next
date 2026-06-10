@@ -26,7 +26,6 @@ import {
   mdiMessageText,
   mdiMicrophone,
   mdiNetwork,
-  mdiPalette,
   mdiPuzzle,
   mdiRestart,
   mdiRobot,
@@ -51,11 +50,7 @@ export type SettingsSlug =
   | 'connectivity'
   // User profile (reached from the profile card, not shown in the sidebar)
   | 'profile'
-  // Prototype tools
-  | 'dashboards'
-  | 'theme-layout'
-  | 'task-bar'
-  | 'maintenance'
+  // Prototype & debug tools (single consolidated page)
   | 'developer'
   // My Home
   | 'areas'
@@ -104,6 +99,12 @@ export interface SettingsNavLink {
   label: string;
   description: string;
   haPath?: string;
+  /**
+   * Singular noun for the "Add …" action in the top-bar + menu, e.g. 'Area'.
+   * Only set on sections where creating a new item makes sense; absence means
+   * the section is not offered in the Add menu.
+   */
+  addLabel?: string;
 }
 
 export interface SettingsNavSection {
@@ -111,46 +112,68 @@ export interface SettingsNavSection {
   items: SettingsNavLink[];
 }
 
+// Colored icon-tile accent per category, keyed by section title (top single-item
+// section is ''). Explicit hues — not theme-aware, so they won't adapt to
+// eink/fallout etc.; revisit if those themes need their own palette.
+export const categoryAccents: Record<string, string> = {
+  '': '#18bcf2', // Home Center
+  'My Home': '#2aa361',
+  Devices: '#18bcf2',
+  Automation: '#8b5cf6',
+  'Voice & AI': '#14b8a6',
+  Energy: '#eab308',
+  System: '#64748b',
+  'Developer Tools': '#6366f1',
+  'Dashboards & Tags': '#ec4899',
+  'Prototype Debugging Tools': '#f97316',
+};
+
 export const settingsNavSections: SettingsNavSection[] = [
   {
     title: '',
     items: [
-      { slug: 'home-center', icon: mdiHomeVariant, label: 'Home Center', description: 'Status, notifications, updates and connectivity' },
+      { slug: 'home-center', icon: mdiHomeVariant, label: 'Home Center', description: 'Notifications, updates, repairs, backups and connectivity' },
+    ],
+  },
+  {
+    title: 'Prototype Debugging Tools',
+    items: [
+      { slug: 'developer', icon: mdiAlphaDBox, label: 'Prototype & Debug Tools', description: 'Dashboards, theme, task bar, maintenance, and developer flags' },
     ],
   },
   {
     title: 'My Home',
     items: [
-      { slug: 'areas', icon: mdiMap, label: 'Areas', description: 'Rooms and spaces in your home', haPath: '/config/areas' },
-      { slug: 'zones', icon: mdiMapMarker, label: 'Zones', description: 'Geographic zones for presence detection', haPath: '/config/zones' },
-      { slug: 'floors', icon: mdiLayers, label: 'Floors', description: 'Organize areas across floors', haPath: '/config/areas' },
-      { slug: 'people', icon: mdiAccountGroup, label: 'People', description: 'Household members and presence tracking', haPath: '/config/people' },
-      { slug: 'users', icon: mdiAccountKey, label: 'Users', description: 'User accounts and permissions', haPath: '/config/users' },
+      { slug: 'areas', icon: mdiMap, label: 'Areas', description: 'Rooms and spaces in your home', haPath: '/config/areas', addLabel: 'Area' },
+      { slug: 'zones', icon: mdiMapMarker, label: 'Zones', description: 'Geographic zones for presence detection', haPath: '/config/zones', addLabel: 'Zone' },
+      { slug: 'floors', icon: mdiLayers, label: 'Floors', description: 'Organize areas across floors', haPath: '/config/areas', addLabel: 'Floor' },
+      { slug: 'people', icon: mdiAccountGroup, label: 'People', description: 'Household members and presence tracking', haPath: '/config/people', addLabel: 'Person' },
+      { slug: 'users', icon: mdiAccountKey, label: 'Users', description: 'User accounts and permissions', haPath: '/config/users', addLabel: 'User' },
     ],
   },
   {
     title: 'Devices',
     items: [
-      { slug: 'integrations', icon: mdiPuzzle, label: 'Integrations', description: 'Connected services and platforms', haPath: '/config/integrations' },
-      { slug: 'devices', icon: mdiDevices, label: 'Devices', description: 'All registered devices', haPath: '/config/devices' },
+      { slug: 'integrations', icon: mdiPuzzle, label: 'Integrations', description: 'Connected services and platforms', haPath: '/config/integrations', addLabel: 'Integration' },
+      { slug: 'devices', icon: mdiDevices, label: 'Devices', description: 'All registered devices', haPath: '/config/devices', addLabel: 'Device' },
       { slug: 'entities', icon: mdiShape, label: 'Entities', description: 'Individual data points and controls', haPath: '/config/entities' },
-      { slug: 'helpers', icon: mdiWrench, label: 'Helpers', description: 'Virtual entities and input helpers', haPath: '/config/helpers' },
+      { slug: 'helpers', icon: mdiWrench, label: 'Helpers', description: 'Virtual entities and input helpers', haPath: '/config/helpers', addLabel: 'Helper' },
     ],
   },
   {
     title: 'Automation',
     items: [
-      { slug: 'automations', icon: mdiRobot, label: 'Automations', description: 'Rules that control your home automatically', haPath: '/config/automation' },
-      { slug: 'scenes', icon: mdiLightbulbGroup, label: 'Scenes', description: 'Saved device states applied at once', haPath: '/config/scene' },
-      { slug: 'scripts', icon: mdiScriptText, label: 'Scripts', description: 'Reusable sequences of actions', haPath: '/config/script' },
-      { slug: 'blueprints', icon: mdiSitemap, label: 'Blueprints', description: 'Community automation templates', haPath: '/config/blueprint' },
+      { slug: 'automations', icon: mdiRobot, label: 'Automations', description: 'Rules that control your home automatically', haPath: '/config/automation', addLabel: 'Automation' },
+      { slug: 'scenes', icon: mdiLightbulbGroup, label: 'Scenes', description: 'Saved device states applied at once', haPath: '/config/scene', addLabel: 'Scene' },
+      { slug: 'scripts', icon: mdiScriptText, label: 'Scripts', description: 'Reusable sequences of actions', haPath: '/config/script', addLabel: 'Script' },
+      { slug: 'blueprints', icon: mdiSitemap, label: 'Blueprints', description: 'Community automation templates', haPath: '/config/blueprint', addLabel: 'Blueprint' },
     ],
   },
   {
     title: 'Voice & AI',
     items: [
-      { slug: 'voice-assistants', icon: mdiMicrophone, label: 'Voice Assistants', description: 'Assist pipelines and wake words', haPath: '/config/voice-assistants' },
-      { slug: 'conversation-agents', icon: mdiMessageText, label: 'Conversation Agents', description: 'AI agents and conversation config', haPath: '/config/voice-assistants' },
+      { slug: 'voice-assistants', icon: mdiMicrophone, label: 'Voice Assistants', description: 'Assist pipelines and wake words', haPath: '/config/voice-assistants', addLabel: 'Voice Assistant' },
+      { slug: 'conversation-agents', icon: mdiMessageText, label: 'Conversation Agents', description: 'AI agents and conversation config', haPath: '/config/voice-assistants', addLabel: 'Conversation Agent' },
     ],
   },
   {
@@ -168,7 +191,7 @@ export const settingsNavSections: SettingsNavSection[] = [
       { slug: 'system-storage', icon: mdiHarddisk, label: 'Storage', description: 'Disk usage and storage management', haPath: '/config/system/storage' },
       { slug: 'system-logs', icon: mdiTextBox, label: 'Logs', description: 'System logs and debug information', haPath: '/config/system/logs' },
       { slug: 'system-info', icon: mdiChip, label: 'System Info', description: 'Hardware, OS, and version details', haPath: '/config/system/info' },
-      { slug: 'backups', icon: mdiBackupRestore, label: 'Backups', description: 'Create, restore, and manage backups', haPath: '/config/backup' },
+      { slug: 'backups', icon: mdiBackupRestore, label: 'Backups', description: 'Create, restore, and manage backups', haPath: '/config/backup', addLabel: 'Backup' },
       { slug: 'restart', icon: mdiRestart, label: 'Restart / Shutdown', description: 'Restart or shut down Home Assistant', haPath: '/config/system/general' },
     ],
   },
@@ -186,18 +209,8 @@ export const settingsNavSections: SettingsNavSection[] = [
   {
     title: 'Dashboards & Tags',
     items: [
-      { slug: 'manage-dashboards', icon: mdiViewDashboard, label: 'Dashboards', description: 'Create and manage Lovelace dashboards', haPath: '/config/lovelace/dashboards' },
-      { slug: 'tags', icon: mdiTag, label: 'Tags', description: 'NFC tags and QR codes for automations', haPath: '/config/tags' },
-    ],
-  },
-  {
-    title: 'Prototype Debugging Tools',
-    items: [
-      { slug: 'dashboards', icon: mdiViewDashboard, label: 'Dashboards', description: 'Device card layout and entity configuration' },
-      { slug: 'theme-layout', icon: mdiPalette, label: 'Theme and Display', description: 'Theme, color mode, background, immersive mode, and screensaver' },
-      { slug: 'task-bar', icon: mdiUpdate, label: 'Task Bar Activities', description: 'Release notes, media, timers, cameras, and printer mocks' },
-      { slug: 'maintenance', icon: mdiCog, label: 'Maintenance', description: 'Connection mode, demo data, and layout reset' },
-      { slug: 'developer', icon: mdiAlphaDBox, label: 'Developer Tools', description: 'Preview flags, mocks, and diagnostics' },
+      { slug: 'manage-dashboards', icon: mdiViewDashboard, label: 'Dashboards', description: 'Create and manage Lovelace dashboards', haPath: '/config/lovelace/dashboards', addLabel: 'Dashboard' },
+      { slug: 'tags', icon: mdiTag, label: 'Tags', description: 'NFC tags and QR codes for automations', haPath: '/config/tags', addLabel: 'Tag' },
     ],
   },
 ];
@@ -217,6 +230,26 @@ export const allSettingsLinks: SettingsNavLink[] = [
   ...settingsNavSections.flatMap(s => s.items),
   ...hiddenSettingsLinks,
 ];
+
+// Items offered in the top-bar "+" (AddMenu), derived from the settings nav so
+// the two stay in sync. Preserves settings order; carries the section's accent
+// hue for the icon tile.
+export interface AddableSettingsItem {
+  slug: SettingsSlug;
+  /** "Add <label>" — singular noun. */
+  label: string;
+  icon: string;
+  accent: string;
+}
+
+export const addableSettingsItems: AddableSettingsItem[] = settingsNavSections.flatMap(
+  (section) => {
+    const accent = categoryAccents[section.title] ?? '#64748b';
+    return section.items
+      .filter((item) => item.addLabel)
+      .map((item) => ({ slug: item.slug, label: item.addLabel!, icon: item.icon, accent }));
+  },
+);
 
 export function getSettingsHref(slug: SettingsSlug): string {
   return `/settings/${slug}`;

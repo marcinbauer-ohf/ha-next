@@ -162,7 +162,7 @@ export function Preloader({ onFinish }: PreloaderProps) {
 
       {/* Build version — fades in with the logo */}
       <motion.p
-        className="absolute bottom-4 text-[10px] lg:text-xs text-text-disabled opacity-40 font-mono text-center pointer-events-none"
+        className="absolute bottom-4 text-[13px] lg:text-xs text-text-disabled opacity-40 font-mono text-center pointer-events-none"
         initial={{ opacity: 0 }}
         animate={{ opacity: showLogo ? 0.4 : 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}

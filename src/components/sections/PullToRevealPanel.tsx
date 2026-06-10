@@ -414,7 +414,7 @@ export function PullToRevealPanel() {
                             ) : (
                               <HALogo size={24} />
                             )}
-                            <span className="text-[10px] text-text-secondary truncate">{dashboard.title}</span>
+                            <span className="text-[13px] text-text-secondary truncate">{dashboard.title}</span>
                           </div>
                         </Link>
                       ))}
@@ -455,7 +455,7 @@ export function PullToRevealPanel() {
                             </div>
                             <span
                               className={clsx(
-                                'w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-[11px] leading-tight font-medium',
+                                'w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] leading-tight font-medium',
                                 isActive ? 'text-text-primary' : 'text-text-secondary'
                               )}
                             >

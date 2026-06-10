@@ -187,7 +187,7 @@ export function SearchOverlay() {
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-base text-text-primary placeholder-text-tertiary outline-none"
           />
-          <kbd className="hidden lg:flex items-center text-[11px] text-text-tertiary bg-surface-lower px-ha-1.5 py-0.5 rounded-ha-md font-medium">
+          <kbd className="hidden lg:flex items-center text-[13px] text-text-tertiary bg-surface-lower px-ha-1.5 py-0.5 rounded-ha-md font-medium">
             ESC
           </kbd>
         </div>
@@ -240,7 +240,7 @@ export function SearchOverlay() {
                       <div className="text-xs text-text-secondary truncate">{item.subtitle}</div>
                     </div>
                     {isSelected && (
-                      <kbd className="hidden lg:flex items-center text-[11px] text-text-tertiary bg-surface-lower px-ha-1.5 py-0.5 rounded-ha-md">
+                      <kbd className="hidden lg:flex items-center text-[13px] text-text-tertiary bg-surface-lower px-ha-1.5 py-0.5 rounded-ha-md">
                         <Icon path={mdiKeyboardReturn} size={12} />
                       </kbd>
                     )}
@@ -261,7 +261,7 @@ export function SearchOverlay() {
         </div>
 
         {/* Footer hints */}
-        <div className="hidden lg:flex items-center gap-ha-4 px-ha-4 py-ha-2 border-t border-surface-lower text-[11px] text-text-tertiary">
+        <div className="hidden lg:flex items-center gap-ha-4 px-ha-4 py-ha-2 border-t border-surface-lower text-[13px] text-text-tertiary">
           <span className="flex items-center gap-ha-1">
             <Icon path={mdiArrowUpDown} size={12} />
             Navigate
@@ -271,7 +271,7 @@ export function SearchOverlay() {
             Open
           </span>
           <span className="flex items-center gap-ha-1">
-            <kbd className="bg-surface-lower px-1 py-0.5 rounded text-[10px] font-medium">ESC</kbd>
+            <kbd className="bg-surface-lower px-1 py-0.5 rounded text-[13px] font-medium">ESC</kbd>
             Close
           </span>
         </div>

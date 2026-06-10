@@ -1,18 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { MdiIcon } from './MdiIcon';
-
-const ITEMS = [
-  { key: 'device', label: 'Device', icon: 'mdi:devices', colorClass: 'bg-ha-blue/10 text-ha-blue' },
-  { key: 'integration', label: 'Integration', icon: 'mdi:puzzle-outline', colorClass: 'bg-purple-500/10 text-purple-500' },
-  { key: 'dashboard', label: 'Dashboard', icon: 'mdi:view-dashboard-outline', colorClass: 'bg-teal-500/10 text-teal-500' },
-  { key: 'automation', label: 'Automation', icon: 'mdi:robot-happy-outline', colorClass: 'bg-orange-500/10 text-orange-500' },
-  { key: 'scene', label: 'Scene', icon: 'mdi:palette-outline', colorClass: 'bg-pink-500/10 text-pink-500' },
-  { key: 'script', label: 'Script', icon: 'mdi:script-text-outline', colorClass: 'bg-green-500/10 text-green-500' },
-];
+import { Icon } from './Icon';
+import { useAddContext } from '@/contexts';
+import { addableSettingsItems, type AddableSettingsItem } from '@/components/profile/settingsNavigation';
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +15,8 @@ interface Props {
 }
 
 export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
+  const router = useRouter();
+  const { contextSlug } = useAddContext();
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
@@ -29,7 +25,42 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
     }
   }, [isOpen, anchorRef]);
 
+  // Hoist the current settings section's item to the top (e.g. viewing Areas →
+  // "Add Area" first); the rest stay in settings order.
+  const items = useMemo(() => {
+    if (!contextSlug) return addableSettingsItems;
+    const hit = addableSettingsItems.find((i) => i.slug === contextSlug);
+    if (!hit) return addableSettingsItems;
+    return [hit, ...addableSettingsItems.filter((i) => i.slug !== contextSlug)];
+  }, [contextSlug]);
+
+  const hasContextItem = !!contextSlug && addableSettingsItems.some((i) => i.slug === contextSlug);
+
+  const handleSelect = (item: AddableSettingsItem) => {
+    onClose();
+    router.push(`/settings/${item.slug}`);
+  };
+
   if (typeof document === 'undefined') return null;
+
+  const renderRow = (item: AddableSettingsItem, _index: number, size: 'sm' | 'lg') => {
+    const tile = size === 'lg' ? 'w-10 h-10' : 'w-9 h-9';
+    return (
+      <button
+        key={item.slug}
+        onClick={() => handleSelect(item)}
+        className="w-full flex items-center gap-ha-3 px-ha-3 py-ha-3 rounded-ha-xl transition-colors text-left hover:bg-surface-low active:bg-surface-low"
+      >
+        <div
+          className={`${tile} rounded-ha-lg flex items-center justify-center flex-shrink-0`}
+          style={{ backgroundColor: `${item.accent}24`, color: item.accent }}
+        >
+          <Icon path={item.icon} size={size === 'lg' ? 22 : 20} />
+        </div>
+        <p className="text-sm font-medium text-text-primary">Add {item.label}</p>
+      </button>
+    );
+  };
 
   return createPortal(
     <AnimatePresence>
@@ -59,25 +90,21 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: -6 }}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              className="hidden lg:block fixed z-[200] w-60 bg-surface-default rounded-ha-2xl shadow-2xl border border-surface-low/80 overflow-hidden"
+              className="hidden lg:block fixed z-[200] w-64 bg-surface-default rounded-ha-2xl shadow-2xl border border-surface-low/80 overflow-hidden"
               style={{
                 top: anchorRect.bottom + 8,
                 right: typeof window !== 'undefined' ? window.innerWidth - anchorRect.right : 16,
                 transformOrigin: 'top right',
               }}
             >
-              <div className="p-ha-2">
-                {ITEMS.map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={onClose}
-                    className="w-full flex items-center gap-ha-3 px-ha-3 py-ha-3 rounded-ha-xl hover:bg-surface-low transition-colors text-left"
-                  >
-                    <div className={`w-9 h-9 rounded-ha-lg flex items-center justify-center flex-shrink-0 ${item.colorClass}`}>
-                      <MdiIcon icon={item.icon} size={20} />
-                    </div>
-                    <p className="text-sm font-medium text-text-primary">{item.label}</p>
-                  </button>
+              <div className="p-ha-2 max-h-[min(70vh,560px)] overflow-y-auto scrollbar-hide">
+                {items.map((item, i) => (
+                  <div key={item.slug}>
+                    {renderRow(item, i, 'sm')}
+                    {hasContextItem && i === 0 && (
+                      <div className="my-ha-1 mx-ha-3 border-t border-surface-low/30" />
+                    )}
+                  </div>
                 ))}
               </div>
             </motion.div>
@@ -98,18 +125,14 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
             </div>
             <div className="px-ha-4 pt-ha-2 pb-ha-3">
               <h3 className="text-base font-semibold text-text-primary mb-ha-3 px-ha-1">Add</h3>
-              <div className="space-y-ha-1">
-                {ITEMS.map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={onClose}
-                    className="w-full flex items-center gap-ha-3 px-ha-3 py-ha-3 rounded-ha-xl hover:bg-surface-low active:bg-surface-low transition-colors text-left"
-                  >
-                    <div className={`w-10 h-10 rounded-ha-xl flex items-center justify-center flex-shrink-0 ${item.colorClass}`}>
-                      <MdiIcon icon={item.icon} size={22} />
-                    </div>
-                    <p className="text-sm font-medium text-text-primary">{item.label}</p>
-                  </button>
+              <div className="space-y-ha-1 max-h-[60vh] overflow-y-auto scrollbar-hide">
+                {items.map((item, i) => (
+                  <div key={item.slug}>
+                    {renderRow(item, i, 'lg')}
+                    {hasContextItem && i === 0 && (
+                      <div className="my-ha-1 mx-ha-3 border-t border-surface-low/30" />
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

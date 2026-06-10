@@ -15,7 +15,7 @@ export default function PanelPage({ params }: PanelPageProps) {
   const { items } = useSidebarItems();
   const { isRevealed } = usePullToRevealContext();
   const { setHeader } = useHeader();
-  const { contentPaddingClasses, contentTransitionClasses, contentStyle } = useDesktopImmersivePageLayout();
+  const { contentPaddingClasses, contentTransitionClasses, contentStyle, surfaceRoundingClass } = useDesktopImmersivePageLayout();
 
   // Find the panel info
   const panel = items.find(
@@ -43,7 +43,7 @@ export default function PanelPage({ params }: PanelPageProps) {
         } ${contentPaddingClasses} ${contentTransitionClasses}`}
         style={contentStyle}
       >
-        <div className="h-full bg-surface-lower overflow-hidden rounded-ha-3xl">
+        <div className={`h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
           <div className="h-full overflow-y-auto px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5" data-scrollable="dashboard">
             <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
               <ApplicationViewNotice />

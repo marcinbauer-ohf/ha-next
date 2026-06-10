@@ -22,9 +22,11 @@ import {
   getDeviceRegistry as getDeviceRegistryAction,
   getAreaRegistry as getAreaRegistryAction,
   getFloorRegistry as getFloorRegistryAction,
+  getConfigEntries as getConfigEntriesAction,
+  getIntegrationManifests as getIntegrationManifestsAction,
   getEntityHistory as getEntityHistoryAction,
 } from '@/lib/homeassistant';
-import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint } from '@/lib/homeassistant';
+import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 
@@ -49,6 +51,8 @@ interface HomeAssistantContextValue {
   getDeviceRegistry: () => Promise<DeviceRegistryEntry[]>;
   getAreaRegistry: () => Promise<AreaRegistryEntry[]>;
   getFloorRegistry: () => Promise<FloorRegistryEntry[]>;
+  getConfigEntries: () => Promise<ConfigEntry[]>;
+  getIntegrationManifests: () => Promise<IntegrationManifest[]>;
   getEntityHistory: (entityId: string, hoursBack?: number) => Promise<HistoryPoint[]>;
   reconnect: () => Promise<void>;
   saveCredentials: (url: string, token: string) => Promise<void>;
@@ -121,6 +125,15 @@ function getEntityStoreSnapshot(): HassEntities {
   return mergedEntitiesStore;
 }
 
+/**
+ * Read the current entity store without subscribing. Use from hooks that need
+ * the latest entities at a specific moment (a click handler, or a memo keyed on
+ * a cheaper signal) but must NOT re-render on every entity-store tick.
+ */
+export function peekEntities(): HassEntities {
+  return mergedEntitiesStore;
+}
+
 function getEmptyEntityStoreSnapshot(): HassEntities {
   return EMPTY_ENTITIES;
 }
@@ -167,13 +180,22 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
 
       // A live instance pushes a state_changed event per entity — many per
       // second. Propagating each one to React individually re-runs every store
-      // selector (some O(all entities)) and re-renders the shell on every tick,
-      // which freezes navigation app-wide. Coalesce all updates that arrive
-      // within a frame into a single notification (~60Hz ceiling).
-      let frameHandle = 0;
+      // selector (some O(all entities)), rebuilds the device tree and re-renders
+      // the whole dashboard on every tick, which freezes navigation app-wide.
+      //
+      // A plain RAF coalesce (~60Hz) still rebuilds the dashboard up to 60×/sec —
+      // each rebuild can exceed a frame, so frames back up and taps lag. A home
+      // dashboard does not need 60fps state; throttle to ~6-7Hz instead. Leading
+      // edge fires immediately so a tap (toggle round-trip) feels instant, then
+      // at most one update per THROTTLE_MS, with the latest state flushed at the
+      // trailing edge.
+      const THROTTLE_MS = 150;
       let pendingEntities: HassEntities | null = null;
+      let lastFlush = 0;
+      let timer: ReturnType<typeof setTimeout> | 0 = 0;
       const flushPendingEntities = () => {
-        frameHandle = 0;
+        timer = 0;
+        lastFlush = performance.now();
         if (pendingEntities) {
           setLiveEntities(pendingEntities);
           pendingEntities = null;
@@ -181,8 +203,12 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
       };
       subscribeToEntities((newEntities: HAEntities) => {
         pendingEntities = newEntities as unknown as HassEntities;
-        if (frameHandle === 0) {
-          frameHandle = requestAnimationFrame(flushPendingEntities);
+        const elapsed = performance.now() - lastFlush;
+        if (elapsed >= THROTTLE_MS) {
+          if (timer) { clearTimeout(timer); timer = 0; }
+          flushPendingEntities();
+        } else if (!timer) {
+          timer = setTimeout(flushPendingEntities, THROTTLE_MS - elapsed);
         }
       });
     } catch (err) {
@@ -266,6 +292,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const getDeviceRegistry = useCallback(() => getDeviceRegistryAction(), []);
   const getAreaRegistry = useCallback(() => getAreaRegistryAction(), []);
   const getFloorRegistry = useCallback(() => getFloorRegistryAction(), []);
+  const getConfigEntries = useCallback(() => getConfigEntriesAction(), []);
+  const getIntegrationManifests = useCallback(() => getIntegrationManifestsAction(), []);
   const getEntityHistory = useCallback((entityId: string, hoursBack?: number) => getEntityHistoryAction(entityId, hoursBack), []);
 
   const setMockEntity = useCallback((entityId: string, entity: HassEntity | null) => {
@@ -303,6 +331,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getDeviceRegistry,
     getAreaRegistry,
     getFloorRegistry,
+    getConfigEntries,
+    getIntegrationManifests,
     getEntityHistory,
     reconnect,
     saveCredentials,
@@ -323,6 +353,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getDeviceRegistry,
     getAreaRegistry,
     getFloorRegistry,
+    getConfigEntries,
+    getIntegrationManifests,
     getEntityHistory,
     reconnect,
     saveCredentials,
