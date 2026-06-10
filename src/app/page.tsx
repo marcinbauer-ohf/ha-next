@@ -501,8 +501,8 @@ export default function DashboardPage() {
                         <SegmentedControl
                           className="shrink-0 ml-auto"
                           segments={[
-                            { value: 'area', label: 'Room' },
-                            { value: 'type', label: 'Type' },
+                            { value: 'area', label: 'Area' },
+                            { value: 'type', label: 'Device' },
                           ]}
                           value={groupBy}
                           onChange={v => {

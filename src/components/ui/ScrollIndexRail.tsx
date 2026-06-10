@@ -34,9 +34,20 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
   const [activeIndex, setActiveIndex] = useState(0);
   const [visible, setVisible] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
+  const [isHoverDevice, setIsHoverDevice] = useState(false);
 
   const count = sections.length;
   const show = enabled && count >= MIN_SECTIONS;
+
+  // Desktop (fine pointer + hover) reveals on proximity hover instead of on
+  // scroll, so it never flashes on an unrelated scroll/mouse move.
+  useEffect(() => {
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
+    const update = () => setIsHoverDevice(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   // Briefly reveal the rail, then arm the idle timer to fade it out.
   const flash = useCallback(() => {
@@ -69,13 +80,14 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         if (el && el.getBoundingClientRect().top <= top) current = i;
       }
       setActiveIndex(current);
-      flash();
+      // On hover-capable desktops the rail reveals on hover, not on scroll.
+      if (!isHoverDevice) flash();
     };
 
     onScroll();
     scroller.addEventListener('scroll', onScroll, { passive: true });
     return () => scroller.removeEventListener('scroll', onScroll);
-  }, [scrollRef, sections, show, flash]);
+  }, [scrollRef, sections, show, flash, isHoverDevice]);
 
   useEffect(() => () => { if (idleTimer.current) clearTimeout(idleTimer.current); }, []);
 
@@ -120,7 +132,9 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         // edge can always start a scrub.
         'pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 z-40 flex items-center pr-ha-1',
         'transition-opacity duration-300',
-        railShown ? 'opacity-100' : 'opacity-30',
+        // Touch devices keep a faint always-on rail; hover desktops stay hidden
+        // until the pointer is over the rail.
+        railShown ? 'opacity-100' : isHoverDevice ? 'opacity-0' : 'opacity-30',
       )}
     >
       {/* Preview bubble — sits left of the rail, aligned to the active tick. */}
@@ -145,6 +159,11 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         onPointerMove={onPointerMove}
         onPointerUp={endScrub}
         onPointerCancel={endScrub}
+        onMouseEnter={isHoverDevice ? () => {
+          if (idleTimer.current) clearTimeout(idleTimer.current);
+          setVisible(true);
+        } : undefined}
+        onMouseLeave={isHoverDevice ? () => setVisible(false) : undefined}
         role="slider"
         aria-label="Jump to section"
         aria-valuemin={0}
@@ -159,11 +178,11 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
             <span
               key={s.key}
               className={clsx(
-                'rounded-full transition-all duration-150',
-                active
-                  ? 'w-2 h-2 md:w-3 md:h-3 lg:w-3.5 lg:h-3.5 bg-ha-blue scale-110'
-                  : 'w-1.5 h-1.5 md:w-2 md:h-2 lg:w-2.5 lg:h-2.5 bg-text-tertiary/50',
-                scrubbing && active && 'scale-150',
+                // Uniform size for every dot — only the colour marks the active
+                // section, never a size change.
+                'rounded-full transition-colors duration-150',
+                'w-1.5 h-1.5 md:w-2.5 md:h-2.5 lg:w-3 lg:h-3',
+                active ? 'bg-ha-blue' : 'bg-text-tertiary/50',
               )}
             />
           );
