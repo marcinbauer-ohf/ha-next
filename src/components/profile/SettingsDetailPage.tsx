@@ -930,11 +930,18 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
   // ── Integrations (master-detail drill-down example) ───────────────────────
   // Sits before the haPath placeholder so this real table replaces the stub.
   if (slug === 'integrations') {
+    // Full-page route: AppSurfacePage's root is `flex-1 min-h-0` and must be a
+    // direct flex child of the AppShell column to get a bounded height (and thus
+    // an inner scroll). This animation wrapper sits between them, so it has to
+    // forward that flex sizing or the scroll container collapses and the page
+    // can't scroll. In panelMode the wrapper lives inside a ScrollColumn and
+    // needs no sizing.
+    const paneFill = panelMode ? '' : 'flex flex-col flex-1 min-h-0';
     // Re-key on drill so the pane animates: detail slides in from the right,
     // the list slides back in from the left when you go back.
     if (activeIntegration) {
       return (
-        <div key={`detail:${activeIntegration.id}`} className="ha-pane-in">
+        <div key={`detail:${activeIntegration.id}`} className={`ha-pane-in ${paneFill}`}>
           <SettingsShell panelMode={panelMode} title={activeIntegration.name} onBack={() => setDetailId(null)}>
             <IntegrationDetailView integration={activeIntegration} />
           </SettingsShell>
@@ -942,7 +949,7 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
       );
     }
     return (
-      <div key="list" className="ha-pane-in ha-pane-in--back">
+      <div key="list" className={`ha-pane-in ha-pane-in--back ${paneFill}`}>
         <SettingsShell panelMode={panelMode} title={meta.title}>
           <IntegrationsTable integrations={integrations} onSelect={setDetailId} />
         </SettingsShell>
@@ -976,10 +983,16 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
   }
 
   if (slug === 'home-center') {
+    // Each Home Center section deep-links to its settings home. Device-health
+    // sections point at Devices/Entities (where you triage them); notifications,
+    // updates, repairs and connectivity have their own status pages.
     const sectionSlug: Record<HomeCenterSection, SettingsSlug> = {
       notifications: 'notifications',
       updates: 'updates',
-      issues: 'repairs',
+      repairs: 'repairs',
+      issues: 'devices',
+      battery: 'entities',
+      backups: 'backups',
       connectivity: 'connectivity',
     };
     return (
@@ -1007,11 +1020,9 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
   }
 
   if (slug === 'notifications' || slug === 'updates' || slug === 'repairs' || slug === 'connectivity') {
-    const focus: HomeCenterSection =
-      slug === 'repairs' ? 'issues' : slug;
     return (
       <SettingsShell panelMode={panelMode} title={meta.title}>
-        <SystemStatusPanel focus={focus} />
+        <SystemStatusPanel focus={slug} />
       </SettingsShell>
     );
   }

@@ -96,7 +96,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
     const config = getConfig(device.id);
     const primarySlot = config.slots.find(s => s.section === 'primary');
     const secondarySlots = config.slots.filter(s => s.section === 'secondary');
-    const displaySlots = config.slots.length === 0
+    const displaySlots: { entity_id: string; size: 'sm' | 'lg'; chart?: boolean }[] = config.slots.length === 0
       ? [{ entity_id: device.primaryEntity.entity_id, size: 'lg' as const }]
       : [
           ...(primarySlot ? [{ entity_id: primarySlot.entity_id, size: 'lg' as const }] : []),
@@ -134,6 +134,8 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
             name: entityLabel(e, device.name),
             state: stateLabel(e),
             active: isOn(e),
+            unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
+            chart: slot.chart,
             size: slot.size,
             toggleable: isToggleable,
             pressable: isPressable,
@@ -182,7 +184,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
         })}
       </div>
 
-      <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel}>
+      <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel} maxWidth={640} transitionKey={panelMode}>
         {selectedDevice && panelMode === 'entity' && allPanelEntities.length > 0 && (
           <EntityDetailPanel
             initialEntityId={selectedEntityId ?? allPanelEntities[0].entityId}

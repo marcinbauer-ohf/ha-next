@@ -26,6 +26,8 @@ export interface HassServices {
 export interface EntityRegistryEntry {
   entity_id: string;
   device_id: string | null;
+  /** Entity-level area override. When set, takes precedence over the device's area. */
+  area_id: string | null;
   name: string | null;
   original_name: string | null;
   platform: string;

@@ -87,14 +87,8 @@ function Row({
   );
 }
 
-/** Legacy navigable subset — these sections deep-link to their own settings page. */
-export type HomeCenterSection = 'notifications' | 'updates' | 'issues' | 'connectivity';
-const NAVIGABLE: ReadonlySet<HomeCenterSectionId> = new Set<HomeCenterSectionId>([
-  'notifications',
-  'updates',
-  'issues',
-  'connectivity',
-]);
+/** Every Home Center section deep-links to a settings destination. */
+export type HomeCenterSection = HomeCenterSectionId;
 
 export function SystemStatusPanel({
   onNavigate,
@@ -127,7 +121,7 @@ export function SystemStatusPanel({
   };
 
   const navTo = (section: HomeCenterSectionId) =>
-    onNavigate && NAVIGABLE.has(section) ? () => onNavigate(section as HomeCenterSection) : undefined;
+    onNavigate ? () => onNavigate(section) : undefined;
 
   // When focused (single full-page view), show only that section in default order.
   // Otherwise honour the user's configured order + enabled set.
@@ -154,7 +148,7 @@ export function SystemStatusPanel({
       case 'repairs': {
         const hasCritical = repairs.some((r) => r.severity === 'critical');
         return (
-          <Section key={id} label="Repairs" tone={hasCritical ? 'danger' : repairs.length > 0 ? 'warning' : 'default'} count={repairs.length} emptyLabel="Nothing needs fixing">
+          <Section key={id} label="Repairs" tone={hasCritical ? 'danger' : repairs.length > 0 ? 'warning' : 'default'} count={repairs.length} emptyLabel="Nothing needs fixing" onNavigate={navTo('repairs')}>
             {repairs.map((r) => (
               <Row
                 key={r.id}
@@ -176,7 +170,7 @@ export function SystemStatusPanel({
         );
       case 'battery':
         return (
-          <Section key={id} label="Low battery" tone={lowBatteryDevices.length > 0 ? 'warning' : 'default'} count={lowBatteryDevices.length} emptyLabel="All batteries healthy">
+          <Section key={id} label="Low battery" tone={lowBatteryDevices.length > 0 ? 'warning' : 'default'} count={lowBatteryDevices.length} emptyLabel="All batteries healthy" onNavigate={navTo('battery')}>
             {lowBatteryDevices.map((b) => (
               <Row
                 key={b.id}
@@ -189,10 +183,16 @@ export function SystemStatusPanel({
         );
       case 'backups': {
         const { label, stale } = formatBackupAge(lastBackup?.lastBackup ?? null);
+        const navBackups = navTo('backups');
         return (
           <div key={id}>
             <div className="flex items-center gap-ha-2 mb-ha-2">
               <SectionLabel className="flex-1">Backups</SectionLabel>
+              {navBackups && (
+                <button type="button" onClick={navBackups} className="text-text-disabled hover:text-text-secondary transition-colors -mr-1">
+                  <Icon path={mdiChevronRight} size={14} />
+                </button>
+              )}
             </div>
             <div className="rounded-ha-2xl border border-surface-lower bg-surface-default overflow-hidden">
               <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3">

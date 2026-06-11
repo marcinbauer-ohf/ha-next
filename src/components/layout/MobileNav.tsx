@@ -29,6 +29,7 @@ import { MdiIcon } from '../ui/MdiIcon';
 import { CircularProgress } from '../ui/CircularProgress';
 import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPress } from '@/hooks';
 import { SettingsNavPanel } from '@/components/profile';
+import { isSettingsSlug, type SettingsSlug } from '@/components/profile/settingsNavigation';
 import { usePullToRevealContext, useSearchContext, useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
@@ -361,7 +362,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const [expandedWidgetId, setExpandedWidgetId] = useState<string | null>(null);
   const [expandedWidgetType, setExpandedWidgetType] = useState<WidgetSurfaceType | null>(null);
   // For multi-activity list picker
-  const [activityListType, setActivityListType] = useState<'release' | 'media' | 'timer' | 'camera' | 'printer' | null>(null);
+  const [activityListType, setActivityListType] = useState<'release' | 'media' | 'timer' | 'camera' | 'printer' | 'all' | null>(null);
   const [dismissedReleaseNotes, setDismissedReleaseNotes] = useState<Record<string, string>>({});
   const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(null);
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
@@ -390,6 +391,16 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const isDashboardSubView = pathSegments[0] === 'dashboard' && pathSegments.length > 1;
   const isRoomSubView = pathSegments[0] === 'room' && pathSegments.length > 1;
   const showHomeBackButton = isDashboardSubView || isRoomSubView;
+  // The settings sub-page the user is currently on, so the bottom-sheet settings
+  // list can highlight it and scroll it into view when the navbar opens.
+  const currentSettingsSlug = useMemo<SettingsSlug | null>(() => {
+    if (pathname === '/profile') return 'profile';
+    if (pathname.startsWith('/settings/')) {
+      const slug = pathname.split('/')[2];
+      return slug && isSettingsSlug(slug) ? slug : null;
+    }
+    return null;
+  }, [pathname]);
   const isBottomSurfaceEngaged = statusExpanded || isBottomSheetDragging;
   const sheetOpenProgress = isBottomSheetDragging ? bottomSheetDragProgress : (statusExpanded ? 1 : 0);
   const isSheetVisible = sheetOpenProgress > 0.001;
@@ -856,12 +867,14 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       if (tab === 'search') setExpandedSearchQuery('');
       setStatusExpanded(true);
       requestAnimationFrame(() => {
+        // Settings scrolls to the active sub-page instead of resetting to top.
+        if (tab === 'settings' && currentSettingsSlug) return;
         if (expandedSurfaceScrollRef.current) {
           expandedSurfaceScrollRef.current.scrollTop = 0;
         }
       });
     },
-    [close, closeExpandedSurface, closeSearch, expandedSurfaceTab, isRevealed, searchOpen, statusExpanded]
+    [close, closeExpandedSurface, closeSearch, currentSettingsSlug, expandedSurfaceTab, isRevealed, searchOpen, statusExpanded]
   );
 
   const openWidgetSurface = useCallback(
@@ -1094,6 +1107,27 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const showTimerWidget = !!activeTimer;
   const showCameraWidget = !!activeCamera;
   const showPrinterWidget = !!activePrinter;
+
+  // Live activities are capped in the mobile navbar. Types past the cap collapse
+  // into a "+N" overflow pill that opens the combined Active Now sheet. Order here
+  // mirrors the render order below so the first-N kept are the ones shown.
+  const MAX_VISIBLE_ACTIVITIES = 3;
+  const activeWidgetTypes = useMemo<WidgetSurfaceType[]>(
+    () =>
+      (
+        [
+          showReleaseWidget ? 'release' : null,
+          showCameraWidget ? 'camera' : null,
+          showPrinterWidget ? 'printer' : null,
+          showMediaWidget ? 'media' : null,
+          showTimerWidget ? 'timer' : null,
+        ] as Array<WidgetSurfaceType | null>
+      ).filter((t): t is WidgetSurfaceType => t !== null),
+    [showReleaseWidget, showCameraWidget, showPrinterWidget, showMediaWidget, showTimerWidget]
+  );
+  const visibleActivityTypes = activeWidgetTypes.slice(0, MAX_VISIBLE_ACTIVITIES);
+  const activityOverflowCount = activeWidgetTypes.length - visibleActivityTypes.length;
+  const hasActivityOverflow = activityOverflowCount > 0;
 
   // Handle media widget fade in/out
   // Visibility handles by render logic above
@@ -1619,7 +1653,8 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       return (
         <div className="pb-8">
           <SettingsNavPanel
-            activeSlug={null}
+            activeSlug={currentSettingsSlug}
+            autoScrollActiveIntoView
             bg="surface-default"
             onSelect={(slug) => {
               closeExpandedSurface();
@@ -1855,7 +1890,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             <div className="flex items-center gap-2 flex-shrink-0">
               <AnimatePresence initial={false} mode="popLayout">
               {/* Release notes - always first */}
-              {showReleaseWidget && (
+              {visibleActivityTypes.includes('release') && (
                 <motion.div
                   key="release-widget"
                   layout="position"
@@ -1899,7 +1934,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               )}
 
               {/* Camera - show when alert */}
-              {showCameraWidget && (
+              {visibleActivityTypes.includes('camera') && (
                 <motion.div
                   key="camera-widget"
                   layout="position"
@@ -1951,7 +1986,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               )}
 
               {/* Printer - show when active */}
-              {showPrinterWidget && (
+              {visibleActivityTypes.includes('printer') && (
                 <motion.div
                   key="printer-widget"
                   layout="position"
@@ -2005,7 +2040,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               )}
 
               {/* Media player - only show when playing/paused */}
-              {showMediaWidget && (
+              {visibleActivityTypes.includes('media') && (
                 <motion.div
                   key="media-widget"
                   layout="position"
@@ -2059,7 +2094,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               )}
 
               {/* Timer - only show when active */}
-              {showTimerWidget && (
+              {visibleActivityTypes.includes('timer') && (
                 <motion.div
                   key="timer-widget"
                   layout="position"
@@ -2116,6 +2151,28 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                       />
                     </span>
                   </motion.button>
+                </motion.div>
+              )}
+
+              {/* Overflow: types past the cap collapse into a "+N" pill → Active Now sheet */}
+              {hasActivityOverflow && (
+                <motion.div
+                  key="activity-overflow"
+                  layout="position"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={activityWidgetTransition}
+                  className="relative"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActivityListType('all')}
+                    aria-label={`Show ${activityOverflowCount} more ${activityOverflowCount === 1 ? 'activity' : 'activities'}`}
+                    className="flex items-center justify-center rounded-full w-10 h-10 bg-surface-low border border-surface-lower text-text-secondary text-sm font-bold active:scale-95 transition-transform"
+                  >
+                    +{activityOverflowCount}
+                  </button>
                 </motion.div>
               )}
               </AnimatePresence>
@@ -2262,14 +2319,36 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         </div>
       </div>
 
-      {/* Activity List Bottom Sheet - for selecting from multiple active items */}
+      {/* Activity List Bottom Sheet — single-type picker, or the combined "Active Now"
+          list opened from the navbar overflow pill. */}
       {activityListType && (() => {
-        const items = activityListType === 'release' ? visibleReleaseNotes
-          : activityListType === 'media' ? allActiveMedia
-          : activityListType === 'timer' ? allActiveTimers
-          : activityListType === 'camera' ? allActiveCameras
-          : allActivePrinters;
-        const title = activityListType === 'release' ? "What's New"
+        type SheetItem = { type: WidgetSurfaceType; entityId: string; name: string; subtitle: string };
+        const releaseItems: SheetItem[] = visibleReleaseNotes.map((n) => ({ type: 'release', entityId: n.entityId, name: n.name, subtitle: n.version }));
+        const cameraItems: SheetItem[] = allActiveCameras.map((c) => ({ type: 'camera', entityId: c.entityId, name: c.name, subtitle: c.event ?? '' }));
+        const printerItems: SheetItem[] = allActivePrinters.map((p) => ({ type: 'printer', entityId: p.entityId, name: p.name, subtitle: `${p.progress}% complete` }));
+        const mediaItems: SheetItem[] = allActiveMedia.map((m) => ({ type: 'media', entityId: m.entityId, name: m.name, subtitle: m.state }));
+        const timerItems: SheetItem[] = allActiveTimers.map((t) => ({ type: 'timer', entityId: t.entityId, name: t.name, subtitle: t.remaining }));
+        const byType: Record<WidgetSurfaceType, SheetItem[]> = {
+          release: releaseItems, camera: cameraItems, printer: printerItems, media: mediaItems, timer: timerItems,
+        };
+        const items: SheetItem[] = activityListType === 'all'
+          ? [...releaseItems, ...cameraItems, ...printerItems, ...mediaItems, ...timerItems]
+          : byType[activityListType];
+        const selectedIdFor = (type: WidgetSurfaceType) =>
+          type === 'release' ? selectedReleaseId
+          : type === 'media' ? selectedMediaId
+          : type === 'timer' ? selectedTimerId
+          : type === 'camera' ? selectedCameraId
+          : selectedPrinterId;
+        const ACTIVITY_META: Record<WidgetSurfaceType, { icon: string; iconBg: string; iconColor: string }> = {
+          release: { icon: mdiUpdate, iconBg: 'bg-green-500/10', iconColor: 'text-green-600' },
+          camera: { icon: mdiDoorbellVideo, iconBg: 'bg-red-500/10', iconColor: 'text-red-500' },
+          printer: { icon: mdiPrinter3d, iconBg: 'bg-fill-primary-normal', iconColor: 'text-ha-blue' },
+          media: { icon: mdiPlay, iconBg: 'bg-fill-primary-normal', iconColor: 'text-ha-blue' },
+          timer: { icon: mdiTimerOutline, iconBg: 'bg-fill-primary-normal', iconColor: 'text-ha-blue' },
+        };
+        const title = activityListType === 'all' ? 'Active Now'
+          : activityListType === 'release' ? "What's New"
           : activityListType === 'media' ? 'Active Media Players'
           : activityListType === 'timer' ? 'Active Timers'
           : activityListType === 'camera' ? 'Active Cameras'
@@ -2314,47 +2393,28 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                   className="relative h-full overflow-y-auto p-ha-4 space-y-ha-2 pb-8"
                 >
                   {items.map((item) => {
-                    const isSelected = activityListType === 'release' ? selectedReleaseId === item.entityId
-                      : activityListType === 'media' ? selectedMediaId === item.entityId
-                      : activityListType === 'timer' ? selectedTimerId === item.entityId
-                      : activityListType === 'camera' ? selectedCameraId === item.entityId
-                      : selectedPrinterId === item.entityId;
+                    const meta = ACTIVITY_META[item.type];
+                    const isSelected = selectedIdFor(item.type) === item.entityId;
                     return (
                       <button
-                        key={item.entityId}
+                        key={`${item.type}-${item.entityId}`}
                         onClick={() => {
-                          openWidgetSurface(activityListType, item.entityId);
+                          openWidgetSurface(item.type, item.entityId);
                         }}
                         className={`w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl border transition-all text-left ${
                           isSelected
-                            ? activityListType === 'release'
+                            ? item.type === 'release'
                               ? 'bg-green-500/10 border-green-500/30'
                               : 'bg-fill-primary-normal border-ha-blue/30'
                             : 'bg-surface-low border-surface-lower hover:bg-surface-mid'
                         }`}
                       >
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          activityListType === 'camera'
-                            ? 'bg-red-500/10'
-                            : activityListType === 'release'
-                              ? 'bg-green-500/10'
-                              : 'bg-fill-primary-normal'
-                        }`}>
-                          <Icon
-                            path={activityListType === 'release' ? mdiUpdate : activityListType === 'media' ? mdiPlay : activityListType === 'timer' ? mdiTimerOutline : activityListType === 'camera' ? mdiDoorbellVideo : mdiPrinter3d}
-                            size={18}
-                            className={activityListType === 'camera' ? 'text-red-500' : activityListType === 'release' ? 'text-green-600' : 'text-ha-blue'}
-                          />
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${meta.iconBg}`}>
+                          <Icon path={meta.icon} size={18} className={meta.iconColor} />
                         </div>
                         <div className="flex flex-col min-w-0 flex-1">
                           <span className="text-sm font-semibold text-text-primary truncate">{item.name}</span>
-                          <span className="text-xs text-text-secondary truncate">
-                            {activityListType === 'release' ? (item as typeof visibleReleaseNotes[0]).version
-                              : activityListType === 'timer' ? (item as typeof allActiveTimers[0]).remaining
-                              : activityListType === 'printer' ? `${(item as typeof allActivePrinters[0]).progress}% complete`
-                              : activityListType === 'camera' ? (item as typeof allActiveCameras[0]).event
-                              : (item as typeof allActiveMedia[0]).state}
-                          </span>
+                          <span className="text-xs text-text-secondary truncate">{item.subtitle}</span>
                         </div>
                         <Icon path={mdiChevronRight} size={18} className="text-text-disabled flex-shrink-0" />
                       </button>

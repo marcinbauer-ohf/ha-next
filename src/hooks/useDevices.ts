@@ -12,6 +12,7 @@ import {
   mdiZigbee,
 } from '@mdi/js';
 import { useHomeAssistant, useHomeAssistantEntities, useHomeAssistantSelector, peekEntities } from './useHomeAssistant';
+import { DEMO_AREAS, DEMO_FLOORS, demoAreaForEntity } from '@/lib/homeassistant/demoEntities';
 import type { EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, ConfigEntry, IntegrationManifest } from '@/lib/homeassistant/types';
 import type { HassEntities, HassEntity } from '@/types';
 
@@ -53,10 +54,15 @@ function buildFromRegistry(
   allEntities: HassEntities,
 ): HassDevice[] {
   const entityToDevice = new Map<string, string>();
+  // Entity-level area overrides (config/entity_registry/list includes area_id).
+  // Used to give a device an area when the device itself has none — common when
+  // the user assigns the area on the entity rather than the device.
+  const entityArea = new Map<string, string>();
   for (const e of entityReg) {
     if (e.device_id && !e.disabled_by && !e.hidden_by) {
       entityToDevice.set(e.entity_id, e.device_id);
     }
+    if (e.area_id) entityArea.set(e.entity_id, e.area_id);
   }
 
   const deviceEntities = new Map<string, HassEntity[]>();
@@ -73,12 +79,18 @@ function buildFromRegistry(
       const sorted = (deviceEntities.get(d.id) ?? []).sort(
         (a, b) => domainRank(a.entity_id) - domainRank(b.entity_id),
       );
+      // Prefer the device's own area; otherwise inherit from an entity that has
+      // one (primary entity first), so devices placed only at the entity level
+      // still show their area on the dashboard.
+      const areaId = d.area_id
+        ?? sorted.map((e) => entityArea.get(e.entity_id)).find(Boolean)
+        ?? undefined;
       return {
         id: d.id,
         name: d.name_by_user ?? d.name ?? friendlyName(sorted[0]) ?? d.id,
         manufacturer: d.manufacturer ?? undefined,
         model: d.model ?? undefined,
-        areaId: d.area_id ?? undefined,
+        areaId,
         entities: sorted,
         primaryEntity: sorted[0],
       };
@@ -93,16 +105,23 @@ const SINGLE_DOMAINS = new Set([
   'lock', 'cover', 'vacuum', 'binary_sensor',
 ]);
 
-function buildFromEntities(allEntities: HassEntities): HassDevice[] {
+// withDemoAreas: entity-built devices only carry demo area ids when running on
+// demo data (not connected) — a live fallback must not inherit the sample layout.
+function buildFromEntities(allEntities: HassEntities, withDemoAreas: boolean): HassDevice[] {
   const devices: HassDevice[] = [];
   const sensors: HassEntity[] = [];
 
   for (const entity of Object.values(allEntities)) {
     const domain = entity.entity_id.split('.')[0];
+    // Diagnostics stay out of the dashboard: standalone battery sensors feed
+    // the Home Center, and demo data can opt entities out explicitly.
+    if (entity.attributes.dashboard_hidden === true) continue;
+    if (domain === 'sensor' && entity.attributes.device_class === 'battery') continue;
     if (SINGLE_DOMAINS.has(domain)) {
       devices.push({
         id: entity.entity_id,
         name: friendlyName(entity),
+        areaId: withDemoAreas ? demoAreaForEntity(entity.entity_id) : undefined,
         entities: [entity],
         primaryEntity: entity,
       });
@@ -133,6 +152,7 @@ function buildFromEntities(allEntities: HassEntities): HassDevice[] {
     devices.push({
       id: 'sensor.' + key,
       name: group.length === 1 ? friendlyName(group[0]) : toTitle(key),
+      areaId: withDemoAreas ? sorted.map((e) => demoAreaForEntity(e.entity_id)).find(Boolean) : undefined,
       entities: sorted,
       primaryEntity: sorted[0],
     });
@@ -265,7 +285,7 @@ function buildDevicesCached(
 
   const devices = connected && entityReg.length > 0 && deviceReg.length > 0
     ? buildFromRegistry(entityReg, deviceReg, allEntities)
-    : buildFromEntities(allEntities);
+    : buildFromEntities(allEntities, !connected);
 
   devicesCache = { connected, entityReg, deviceReg, allEntities, devices };
   return devices;
@@ -274,10 +294,10 @@ function buildDevicesCached(
 // ── Hook ──────────────────────────────────────────────────────────────────
 
 export function useDevices(): { devices: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; loading: boolean } {
-  const { connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry } = useHomeAssistant();
+  const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry } = useHomeAssistant();
   const allEntities = useHomeAssistantEntities();
 
-  const { entityReg, deviceReg, areaReg, floorReg, loading: regLoading } = useSyncExternalStore(
+  const { entityReg, deviceReg, areaReg: liveAreaReg, floorReg, loading: regLoading } = useSyncExternalStore(
     subscribeToRegistry,
     getRegistrySnapshot,
     getServerRegistrySnapshot,
@@ -290,6 +310,12 @@ export function useDevices(): { devices: HassDevice[]; areas: Map<string, string
     }
     loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry });
   }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry]);
+
+  // Demo mode has no live registries — substitute the sample home's layout so
+  // area grouping, floor tabs, and room pages work on demo data.
+  const useDemoLayout = demoMode && !connected;
+  const areaReg = useDemoLayout ? DEMO_AREAS : liveAreaReg;
+  const floorRegEffective = useDemoLayout ? DEMO_FLOORS : floorReg;
 
   const devices = useMemo<HassDevice[]>(
     () => buildDevicesCached(connected, entityReg, deviceReg, allEntities),
@@ -304,8 +330,8 @@ export function useDevices(): { devices: HassDevice[]; areas: Map<string, string
 
   // floors sorted by level
   const floors = useMemo<FloorRegistryEntry[]>(
-    () => [...floorReg].sort((a, b) => (a.level ?? 0) - (b.level ?? 0)),
-    [floorReg],
+    () => [...floorRegEffective].sort((a, b) => (a.level ?? 0) - (b.level ?? 0)),
+    [floorRegEffective],
   );
 
   return {
@@ -633,13 +659,17 @@ export function useIntegrations(): { integrations: IntegrationSummary[]; loading
 // live HA feed, freezing navigation. The entity count is a cheap signal that
 // changes only when entities appear/disappear, not when a value updates.
 export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; loading: boolean } {
-  const { connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry } = useHomeAssistant();
+  const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry } = useHomeAssistant();
 
-  const { entityReg, deviceReg, areaReg, floorReg, loading: regLoading } = useSyncExternalStore(
+  const { entityReg, deviceReg, areaReg: liveAreaReg, floorReg, loading: regLoading } = useSyncExternalStore(
     subscribeToRegistry,
     getRegistrySnapshot,
     getServerRegistrySnapshot,
   );
+
+  const useDemoLayout = demoMode && !connected;
+  const areaReg = useDemoLayout ? DEMO_AREAS : liveAreaReg;
+  const floorRegEffective = useDemoLayout ? DEMO_FLOORS : floorReg;
 
   // Cheap structural signal — re-derive devices only when the entity set changes.
   const entityCount = useHomeAssistantSelector((e) => Object.keys(e).length);
@@ -665,8 +695,8 @@ export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string
   );
 
   const floors = useMemo<FloorRegistryEntry[]>(
-    () => [...floorReg].sort((a, b) => (a.level ?? 0) - (b.level ?? 0)),
-    [floorReg],
+    () => [...floorRegEffective].sort((a, b) => (a.level ?? 0) - (b.level ?? 0)),
+    [floorRegEffective],
   );
 
   return {

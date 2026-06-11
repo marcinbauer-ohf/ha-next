@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, SearchField } from '../ui';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useDeviceStructure } from '@/hooks';
@@ -33,6 +33,8 @@ interface SettingsNavPanelProps {
   onSelect: (slug: SettingsSlug) => void;
   /** Background color token for sticky search gradient — match the container. Default: surface-lower (desktop page) */
   bg?: 'surface-lower' | 'surface-default';
+  /** Scroll the active item into view on mount/active change (mobile bottom-sheet). */
+  autoScrollActiveIntoView?: boolean;
 }
 
 function NavItem({
@@ -52,6 +54,7 @@ function NavItem({
     <button
       type="button"
       onClick={onSelect}
+      data-settings-slug={item.slug}
       className={`w-full flex items-center gap-ha-3 px-ha-4 text-left transition-colors border-b border-surface-low/40 last:border-0 py-ha-3 ${
         subtitle ? 'min-h-[60px]' : ''
       } ${
@@ -82,7 +85,8 @@ function NavItem({
   );
 }
 
-export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower' }: SettingsNavPanelProps) {
+export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', autoScrollActiveIntoView = false }: SettingsNavPanelProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const { haUrl, connected, demoMode, callService } = useHomeAssistant();
   const { devices } = useDeviceStructure();
   const primaryPerson = useHomeAssistantSelector(selectPrimaryPerson, arePrimaryPeopleEqual);
@@ -127,6 +131,23 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower' }:
     developer: demoMode ? 'Demo data active' : '',
   }), [connected, demoMode, devices.length]);
 
+  // When opened from the mobile bottom-sheet, bring the active item into view.
+  // Runs once on the next frame (handles tab-switch where the sheet is already
+  // open) and again after the sheet's open animation settles (~0.5s).
+  useEffect(() => {
+    if (!autoScrollActiveIntoView || !activeSlug) return;
+    const scrollToActive = () => {
+      const node = rootRef.current?.querySelector<HTMLElement>(`[data-settings-slug="${activeSlug}"]`);
+      node?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    };
+    const raf = requestAnimationFrame(scrollToActive);
+    const timer = setTimeout(scrollToActive, 520);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [autoScrollActiveIntoView, activeSlug]);
+
   const visibleSections = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return settingsNavSections;
@@ -143,7 +164,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower' }:
   }, [searchQuery]);
 
   return (
-    <div>
+    <div ref={rootRef}>
       {/* Search — sticky at top. z-30 keeps it above the mobile bottom-sheet's own top fade (z-20). */}
       <div className="sticky top-0 z-30">
         <div className={`${bg === 'surface-default' ? 'bg-surface-default' : 'bg-surface-lower'} pt-ha-1 pb-ha-3`}>
@@ -162,6 +183,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower' }:
       <button
         type="button"
         onClick={() => onSelect('profile')}
+        data-settings-slug="profile"
         className={`w-full text-left flex items-center gap-ha-4 rounded-ha-3xl p-ha-5 border border-surface-lower shadow-[0_18px_42px_-30px_rgba(15,23,42,0.32)] mb-ha-4 transition-colors ${
           activeSlug === 'profile' ? 'bg-surface-mid' : 'bg-surface-default hover:bg-surface-low active:bg-surface-mid'
         }`}

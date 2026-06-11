@@ -38,6 +38,9 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
   const [visible, setVisible] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   const [isHoverDevice, setIsHoverDevice] = useState(false);
+  // Desktop: hovering a dot shows the same preview bubble used while
+  // scrubbing, aligned to that dot.
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const count = sections.length;
   const show = enabled && count >= MIN_SECTIONS;
@@ -110,6 +113,7 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setScrubbing(true);
+    setHoverIndex(null);
     scrubToY(e.clientY);
   };
   const onPointerMove = (e: React.PointerEvent) => {
@@ -126,6 +130,9 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
   if (!show) return null;
 
   const railShown = visible || scrubbing;
+  // The bubble follows the scrub position, or the hovered dot on desktop.
+  const bubbleIndex = scrubbing ? activeIndex : hoverIndex ?? activeIndex;
+  const bubbleShown = scrubbing || hoverIndex !== null;
 
   return (
     <div
@@ -140,23 +147,24 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         railShown ? 'opacity-100' : isHoverDevice ? 'opacity-20' : 'opacity-30',
       )}
     >
-      {/* Preview bubble — sits left of the rail, aligned to the active tick. */}
+      {/* Preview bubble — sits left of the rail, aligned to the scrubbed or
+          hovered tick. */}
       <div
         className={clsx(
           'absolute right-full mr-ha-2 flex items-center gap-ha-2 whitespace-nowrap rounded-ha-xl px-ha-3 py-1.5',
           'bg-surface-default text-text-primary text-sm font-semibold shadow-lg',
           'backdrop-blur-md transition-opacity duration-150',
-          scrubbing ? 'opacity-100' : 'opacity-0',
+          bubbleShown ? 'opacity-100' : 'opacity-0',
         )}
         style={{
-          top: count > 1 ? `${(activeIndex / (count - 1)) * 100}%` : '50%',
+          top: count > 1 ? `${(bubbleIndex / (count - 1)) * 100}%` : '50%',
           transform: 'translateY(-50%)',
         }}
       >
-        {sections[activeIndex]?.icon && (
-          <Icon path={sections[activeIndex]!.icon!} size={16} className="text-ha-blue shrink-0" />
+        {sections[bubbleIndex]?.icon && (
+          <Icon path={sections[bubbleIndex]!.icon!} size={16} className="text-ha-blue shrink-0" />
         )}
-        {sections[activeIndex]?.title}
+        {sections[bubbleIndex]?.title}
       </div>
 
       <div
@@ -176,21 +184,29 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         aria-valuemax={count - 1}
         aria-valuenow={activeIndex}
         aria-valuetext={sections[activeIndex]?.title}
-        className="pointer-events-auto flex flex-col items-center gap-1 md:gap-1.5 lg:gap-2 py-ha-2 px-ha-1 md:px-ha-2 lg:px-4 cursor-pointer touch-none select-none"
+        className="pointer-events-auto flex flex-col items-center gap-1 md:gap-1.5 lg:gap-2 py-ha-2 px-ha-1 md:px-ha-2 lg:px-2 cursor-pointer touch-none select-none"
       >
         {sections.map((s, i) => {
           const active = i === activeIndex;
           return (
             <span
               key={s.key}
-              className={clsx(
-                // Uniform size for every dot — only the colour marks the active
-                // section, never a size change.
-                'rounded-full transition-colors duration-150',
-                'w-1.5 h-1.5 md:w-2.5 md:h-2.5 lg:w-3 lg:h-3',
-                active ? 'bg-ha-blue' : 'bg-text-tertiary/50',
-              )}
-            />
+              // Padding + negative margin enlarges the hover target without
+              // changing the rail layout.
+              className="p-1 -m-1 flex items-center justify-center"
+              onMouseEnter={isHoverDevice ? () => setHoverIndex(i) : undefined}
+              onMouseLeave={isHoverDevice ? () => setHoverIndex(null) : undefined}
+            >
+              <span
+                className={clsx(
+                  // Uniform size for every dot — only the colour marks the active
+                  // section, never a size change.
+                  'rounded-full transition-colors duration-150',
+                  'w-1.5 h-1.5 md:w-2.5 md:h-2.5 lg:w-3 lg:h-3',
+                  active ? 'bg-ha-blue' : 'bg-text-tertiary/50',
+                )}
+              />
+            </span>
           );
         })}
       </div>

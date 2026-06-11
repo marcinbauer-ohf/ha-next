@@ -48,7 +48,7 @@ function AppShellContent({ children }: AppShellProps) {
   const { contentStyle: immersiveContentStyle, contentTransitionClasses, isImmersiveFixed } = useDesktopImmersivePageLayout();
   const { toggleSearch } = useSearchContext();
   const { title, subtitle } = useHeader();
-  const { isEditing, previewViewport } = useEditMode();
+  const { isEditing, previewViewport, previewOrientation } = useEditMode();
   const { isToastVisible, showToast, dismissToast } = useToast();
   const { items: sidebarItems } = useSidebarItems();
   const router = useRouter();
@@ -457,10 +457,9 @@ function AppShellContent({ children }: AppShellProps) {
           className={`h-16 bg-transparent lg:bg-transparent px-edge lg:pr-edge overflow-hidden flex-shrink-0 relative z-10 pointer-events-auto ${desktopTopBarStateClass}`}
           style={mobileTopBarStyle}
         >
-            {/* Mobile translucent backdrop — blurs app background, fades into content */}
+            {/* Mobile backdrop — solid surface so the bar matches the surrounding UI */}
           <div
-            className="lg:hidden absolute inset-0 pointer-events-none backdrop-blur-md"
-            style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 80%, transparent), color-mix(in srgb, var(--ha-color-surface-lower) 30%, transparent))' }}
+            className="lg:hidden absolute inset-0 pointer-events-none bg-surface-default"
             aria-hidden
           />
           <div className="relative z-[1] h-full">
@@ -475,7 +474,10 @@ function AppShellContent({ children }: AppShellProps) {
             style={
               isLgScreen && isEditing && previewViewport !== 'desktop'
                 ? {
-                    maxWidth: previewViewport === 'tablet' ? 768 : 390,
+                    // iPad / iPhone CSS widths per orientation
+                    maxWidth: previewViewport === 'tablet'
+                      ? (previewOrientation === 'landscape' ? 1024 : 768)
+                      : (previewOrientation === 'landscape' ? 844 : 390),
                     marginLeft: 'auto',
                     marginRight: 'auto',
                   }

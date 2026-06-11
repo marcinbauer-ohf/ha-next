@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { mdiClose, mdiPencilOutline, mdiPower, mdiChartAreaspline, mdiInformationOutline } from '@mdi/js';
+import { mdiClose, mdiPencilOutline, mdiPower, mdiInformation, mdiInformationOutline } from '@mdi/js';
 import { clsx } from 'clsx';
-import { Icon, ListSection, RollingNumericValue, SegmentedControl, HALoader } from '../ui';
+import { Icon, ListSection, RollingNumericValue, SegmentedControl, HALoader, ToggleSwitch } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { HistoryPoint } from '@/lib/homeassistant/types';
@@ -57,6 +57,63 @@ function applyAggregation(
     }));
 }
 
+// Vertical time-axis ticks across the chart's [startMs, endMs] domain. Grid
+// granularity follows the selected span — hourly for ≤24h, daily for 7d — so
+// each tick marks a real time boundary (local time). Only a readable subset
+// gets a text label; the rest are bare gridlines.
+interface TimeTick { f: number; label: string; labeled: boolean }
+
+function buildTimeTicks(startMs: number, endMs: number, hours: number): TimeTick[] {
+  const span = endMs - startMs || 1;
+  const kind: 'min15' | 'hour' | 'day' = hours <= 1 ? 'min15' : hours <= 24 ? 'hour' : 'day';
+  const hhmm = (d: Date) => d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+  const labelFor = (d: Date): string | null => {
+    if (kind === 'day') return d.toLocaleDateString(undefined, { weekday: 'short' });
+    // Hourly grid over 24h would crowd labels — keep ticks, label every 6h.
+    if (hours > 6 && hours <= 24) return d.getHours() % 6 === 0 ? hhmm(d) : null;
+    return hhmm(d);
+  };
+
+  const advance = (d: Date) => {
+    if (kind === 'day') d.setDate(d.getDate() + 1);
+    else if (kind === 'hour') d.setHours(d.getHours() + 1);
+    else d.setMinutes(d.getMinutes() + 15);
+  };
+
+  const cursor = new Date(startMs);
+  if (kind === 'day') cursor.setHours(0, 0, 0, 0);
+  else if (kind === 'hour') cursor.setMinutes(0, 0, 0);
+  else { cursor.setSeconds(0, 0); cursor.setMinutes(Math.floor(cursor.getMinutes() / 15) * 15); }
+  while (cursor.getTime() < startMs) advance(cursor);
+
+  const ticks: TimeTick[] = [];
+  let guard = 0;
+  while (cursor.getTime() <= endMs && guard++ < 800) {
+    const label = labelFor(cursor);
+    ticks.push({ f: (cursor.getTime() - startMs) / span, label: label ?? '', labeled: label !== null });
+    advance(cursor);
+  }
+  return ticks;
+}
+
+// Real time axis for the chart: map each point's timestamp onto [start, now]
+// so the curve and the ticks share one domain. Kept at module scope so the
+// `Date.now()` read stays out of the component's render body.
+function computeChartAxis(
+  historyData: { value: number; ts: number | null }[],
+  hours: number,
+): { xFractions: number[]; ticks: TimeTick[] } {
+  const endMs = Date.now();
+  const startMs = endMs - hours * 3600_000;
+  const span = endMs - startMs || 1;
+  const xFractions = historyData.map(d => {
+    const tMs = d.ts ? d.ts * 1000 : endMs;
+    return Math.max(0, Math.min(1, (tMs - startMs) / span));
+  });
+  return { xFractions, ticks: buildTimeTicks(startMs, endMs, hours) };
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface PanelEntity {
@@ -93,7 +150,7 @@ export interface EntityDetailPanelProps {
 
 // ── Detail body — history fetch + render ─────────────────────────────────────
 
-function formatHoverTime(tsSeconds: number): string {
+export function formatHoverTime(tsSeconds: number): string {
   const d = new Date(tsSeconds * 1000);
   const diffH = (Date.now() - d.getTime()) / 3_600_000;
   if (diffH < 0.5) return 'Just now';
@@ -164,6 +221,8 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
   const historyData = applyAggregation(rawHistoryData, aggregation, hours);
   const numericPoints = historyData.map(d => d.value);
 
+  const { xFractions, ticks: timeTicks } = computeChartAxis(historyData, hours);
+
   const sparklineId = `edp-${entity.entityId.replace(/\./g, '-')}`;
   const rawNumeric = parseFloat(entity.state);
   const isNumeric = !isNaN(rawNumeric);
@@ -196,20 +255,7 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
       {entity.toggleable ? (
         <>
           {entity.onToggle ? (
-            <button
-              className={clsx(
-                'w-16 h-16 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95',
-                entity.entityPicture
-                  ? 'bg-black/30 text-white hover:bg-black/40'
-                  : entity.active
-                    ? 'bg-green-500/20 text-green-500 shadow-[0_0_24px_rgba(34,197,94,0.3)]'
-                    : 'bg-surface-low text-text-secondary',
-              )}
-              onClick={entity.onToggle}
-              aria-label={entity.active ? 'Turn off' : 'Turn on'}
-            >
-              <Icon path={entity.icon} size={28} />
-            </button>
+            <ToggleSwitch on={entity.active} onToggle={entity.onToggle} size="lg" />
           ) : (
             <div className={clsx(
               'w-16 h-16 rounded-full flex items-center justify-center',
@@ -254,20 +300,50 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
           </div>
 
           {/* Sparkline — always reserves height to prevent layout jump */}
-          <div className="w-full flex items-center" style={{ height: 56 }}>
-            {isHistoryLoading ? (
-              <HALoader size="sm" />
-            ) : hasChart ? (
-              <div className="w-full opacity-80">
-                <Sparkline
-                  points={numericPoints}
-                  on={entity.active ?? false}
-                  gradientId={sparklineId}
-                  stepped={isBoolean}
-                  onHover={setHoveredIndex}
+          <div className="w-full">
+            <div className="relative w-full flex items-center h-14 lg:h-24">
+              {/* Time-axis gridlines — one per hour (≤24h) or per day (7d) */}
+              {hasChart && !isHistoryLoading && timeTicks.map((t, i) => (
+                <div
+                  key={i}
+                  aria-hidden
+                  className={clsx('absolute top-0 bottom-0 w-px', t.labeled ? 'bg-surface-lower' : 'bg-surface-lower/50')}
+                  style={{ left: `${t.f * 100}%` }}
                 />
+              ))}
+              {isHistoryLoading ? (
+                <HALoader size="sm" />
+              ) : hasChart ? (
+                <div className="w-full h-full opacity-80 relative">
+                  <Sparkline
+                    points={numericPoints}
+                    on={entity.active ?? false}
+                    gradientId={sparklineId}
+                    stepped={isBoolean}
+                    onHover={setHoveredIndex}
+                    xFractions={xFractions}
+                    fillHeight
+                  />
+                </div>
+              ) : null}
+            </div>
+            {/* Time-axis labels */}
+            {hasChart && !isHistoryLoading && timeTicks.some(t => t.labeled) && (
+              <div className="relative w-full h-4 mt-1">
+                {timeTicks.filter(t => t.labeled).map((t, i) => {
+                  const tx = t.f < 0.04 ? '0%' : t.f > 0.96 ? '-100%' : '-50%';
+                  return (
+                    <span
+                      key={i}
+                      className="absolute top-0 text-[10px] leading-none text-text-tertiary whitespace-nowrap tabular-nums"
+                      style={{ left: `${t.f * 100}%`, transform: `translateX(${tx})` }}
+                    >
+                      {t.label}
+                    </span>
+                  );
+                })}
               </div>
-            ) : null}
+            )}
           </div>
 
           {/* Graph controls */}
@@ -378,44 +454,28 @@ export function EntityDetailPanel({
             <p className="text-xs text-text-tertiary truncate mt-0.5">{deviceMeta.areaName}</p>
           )}
         </div>
-        {/* Tab toggle */}
-        <div className="inline-flex items-center bg-surface-low rounded-ha-lg p-[3px] gap-[2px] shrink-0">
-          <button
-            onClick={() => setTab('stats')}
-            className={clsx(
-              'flex items-center justify-center w-8 h-7 rounded-[7px] transition-all duration-150',
-              tab === 'stats' ? 'bg-surface-default text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary',
-            )}
-            title="Stats"
-          >
-            <Icon path={mdiChartAreaspline} size={15} />
-          </button>
-          <button
-            onClick={() => setTab('info')}
-            className={clsx(
-              'flex items-center justify-center w-8 h-7 rounded-[7px] transition-all duration-150',
-              tab === 'info' ? 'bg-surface-default text-text-primary shadow-sm' : 'text-text-secondary hover:text-text-primary',
-            )}
-            title="Device info"
-          >
-            <Icon path={mdiInformationOutline} size={15} />
-          </button>
-        </div>
         <div className="flex items-center gap-1 shrink-0">
+          <button
+            className="p-1.5 rounded-ha-lg text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+            onClick={() => setTab(tab === 'info' ? 'stats' : 'info')}
+            title={tab === 'info' ? 'Back to stats' : 'Device info'}
+          >
+            <Icon path={tab === 'info' ? mdiInformation : mdiInformationOutline} size={24} />
+          </button>
           {onEditCard && (
             <button
               className="p-1.5 rounded-ha-lg text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
               onClick={onEditCard}
               title="Edit card"
             >
-              <Icon path={mdiPencilOutline} size={18} />
+              <Icon path={mdiPencilOutline} size={24} />
             </button>
           )}
           <button
             className="p-1.5 rounded-ha-lg text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
             onClick={onClose}
           >
-            <Icon path={mdiClose} size={20} />
+            <Icon path={mdiClose} size={24} />
           </button>
         </div>
       </div>
@@ -449,20 +509,7 @@ export function EntityDetailPanel({
                       {entity.name}
                     </span>
                     {entity.toggleable && entity.onToggle ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); entity.onToggle!(); }}
-                        className={clsx(
-                          'flex items-center shrink-0 w-11 h-[26px] rounded-full px-[4px] transition-colors',
-                          entity.active ? 'bg-green-500' : 'bg-surface-mid hover:bg-surface-lower',
-                        )}
-                        role="switch"
-                        aria-checked={entity.active}
-                      >
-                        <div className={clsx(
-                          'w-[18px] h-[18px] rounded-full bg-white shadow-sm transition-transform duration-200',
-                          entity.active ? 'translate-x-[18px]' : 'translate-x-0',
-                        )} />
-                      </button>
+                      <ToggleSwitch on={entity.active} onToggle={entity.onToggle} />
                     ) : entity.pressable && entity.onToggle ? (
                       <button
                         onClick={(e) => { e.stopPropagation(); entity.onToggle!(); }}

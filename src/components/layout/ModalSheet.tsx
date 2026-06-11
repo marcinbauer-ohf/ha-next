@@ -9,6 +9,8 @@ interface ModalSheetProps {
   children: React.ReactNode;
   /** Max width of the desktop modal card (default 560px) */
   maxWidth?: number;
+  /** When this changes while open, the content crossfades (e.g. detail ↔ edit) */
+  transitionKey?: string;
 }
 
 const SPRING = { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.9 };
@@ -18,8 +20,24 @@ const SHEET_SPRING = { type: 'spring' as const, stiffness: 380, damping: 36, mas
  * Desktop: centered floating card with scrim.
  * Mobile: bottom sheet that springs up.
  */
-export function ModalSheet({ open, onClose, children, maxWidth = 560 }: ModalSheetProps) {
+export function ModalSheet({ open, onClose, children, maxWidth = 560, transitionKey }: ModalSheetProps) {
   if (typeof document === 'undefined') return null;
+
+  // Crossfade content when transitionKey changes (panel switch inside the open dialog)
+  const content = transitionKey !== undefined ? (
+    <AnimatePresence mode="popLayout" initial={false}>
+      <motion.div
+        key={transitionKey}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
+        className="flex flex-col min-h-0"
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  ) : children;
 
   return createPortal(
     <AnimatePresence>
@@ -32,7 +50,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560 }: ModalShe
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-black/45"
             onClick={onClose}
           />
 
@@ -47,7 +65,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560 }: ModalShe
             style={{ maxWidth, maxHeight: '85vh' }}
           >
             <div className="overflow-y-auto scrollbar-hide flex-1 flex flex-col">
-              {children}
+              {content}
             </div>
           </motion.div>
 
@@ -65,7 +83,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560 }: ModalShe
               <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
             </div>
             <div className="overflow-y-auto scrollbar-hide" style={{ maxHeight: 'calc(82dvh - 20px)' }}>
-              {children}
+              {content}
             </div>
           </motion.div>
         </div>

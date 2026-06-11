@@ -119,7 +119,7 @@ export function deviceThumbnail(entity: HassEntity): string | null {
   if (has('washing machine', 'washer')) return img('washing_machine');
   if (has('dishwasher')) return img('dishwasher');
   if (has('fridge', 'refrigerator', 'freezer')) return img('fridge');
-  if (has('air purifier', 'purifier')) return img('air_purifier');
+  if (has('air purifier', 'purifier', 'humidifier', 'dehumidifier')) return img('air_purifier');
   if (has('3d printer', 'octoprint') || hasWord('printer')) return img('printer_3d');
   if (hasWord('ups') || has('uninterruptible', 'battery backup')) return img('ups');
   if (has('inverter', 'solar')) return img('inverter');
@@ -129,15 +129,25 @@ export function deviceThumbnail(entity: HassEntity): string | null {
   if (has('router', 'mesh', 'access point')) return img('wifi_router');
   if (has('zigbee')) return img('zigbee_coordinator');
   if (has('z-wave', 'zwave')) return img('zwave_controller');
-  if (has('hub', 'bridge', 'gateway', 'coordinator')) return img('hub');
+  // Guard media_player: "Nest Hub" / "HomePod hub" are displays/speakers, not network hubs.
+  if (domain !== 'media_player' && has('hub', 'bridge', 'gateway', 'coordinator')) return img('hub');
   if (has('nfc', 'rfid') || domain === 'tag') return img('nfc_tag');
   if (has('locator', 'tracker', 'airtag', 'tile')) return img('tracker');
   if (has('smartwatch', 'wearable') || hasWord('watch')) return img('smartwatch');
+  // Phones — the HA companion app surfaces as device_tracker + battery/etc.
+  // sensors named after the phone. Checked after tablet/watch so "Pixel Tablet"
+  // and "Galaxy Watch" still match those.
+  if (has('iphone', 'smartphone', 'pixel', 'oneplus') || hasWord('phone')) return img('smartphone');
   if (has('irrigation', 'sprinkler')) return img('irrigation_controller');
+  if (has('doorbell', 'door bell')) return img('doorbell');
 
   switch (domain) {
     case 'vacuum':
+    case 'lawn_mower':
       return img('robot_vacuum');
+
+    case 'humidifier':
+      return img('air_purifier');
 
     case 'valve':
       return img('water_valve');
@@ -177,6 +187,13 @@ export function deviceThumbnail(entity: HassEntity): string | null {
       if (has('bullet', 'outdoor')) return img('camera_bullet');
       return img('camera_dome');
 
+    case 'media_player':
+      if (has('apple tv', 'appletv', 'shield', 'chromecast', 'google tv', 'roku', 'fire tv', 'firetv', 'streamer', 'set-top', 'set top')) return img('streaming_box');
+      if (has('nest hub', 'echo show', 'smart display', 'smart clock') || hasWord('display')) return img('smart_display');
+      if (dc === 'tv' || has('television', 'webos', 'bravia', 'android tv', 'samsung tv', 'lg tv') || hasWord('tv')) return img('tv');
+      if (dc === 'receiver' || has('soundbar', 'sound bar', 'beam', 'arc', 'home theater', 'home theatre', 'av receiver', 'avr')) return img('soundbar');
+      return img('speaker');
+
     case 'alarm_control_panel':
       return img('keypad');
 
@@ -184,7 +201,7 @@ export function deviceThumbnail(entity: HassEntity): string | null {
       return img('siren');
 
     case 'binary_sensor':
-      if (dc === 'vibration' || has('vibration', 'vibrate')) return img('vibration_sensor');
+      if (dc === 'vibration' || dc === 'tamper' || has('vibration', 'vibrate', 'tamper')) return img('vibration_sensor');
       if (dc === 'sound' || has('glass break', 'glass-break', 'glassbreak')) return img('glass_break');
       if (dc === 'motion' || dc === 'occupancy' || dc === 'presence') return img('motion_sensor');
       if (dc === 'door' || dc === 'window' || dc === 'garage_door' || dc === 'opening') return img('contact_sensor');
@@ -193,7 +210,7 @@ export function deviceThumbnail(entity: HassEntity): string | null {
       return null;
 
     case 'sensor':
-      if (dc === 'pm25' || dc === 'pm10' || dc === 'aqi' || has('air quality', 'pm2.5', 'pm25')) return img('air_quality');
+      if (dc === 'pm25' || dc === 'pm10' || dc === 'pm1' || dc === 'aqi' || dc === 'carbon_dioxide' || dc === 'carbon_monoxide' || dc === 'volatile_organic_compounds' || dc === 'volatile_organic_compounds_parts' || dc === 'nitrogen_dioxide' || dc === 'nitrogen_monoxide' || dc === 'ozone' || dc === 'sulphur_dioxide' || dc === 'formaldehyde' || has('air quality', 'pm2.5', 'pm25', 'co2', 'voc')) return img('air_quality');
       if (dc === 'illuminance' || has('lux', 'illuminance', 'light level')) return img('lux_sensor');
       if (dc === 'power' || dc === 'energy' || dc === 'current' || dc === 'voltage' || has('clamp', 'ct clamp', 'energy meter')) return img('energy_meter');
       if (dc === 'moisture' || has('soil')) return img('soil_sensor');

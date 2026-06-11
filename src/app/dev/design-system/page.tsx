@@ -178,6 +178,7 @@ const DEVICE_THUMBS: { group: string; items: { file: string; label: string }[] }
       { file: 'nfc_tag', label: 'NFC / RFID tag' },
       { file: 'tracker', label: 'Locator / tracker' },
       { file: 'smartwatch', label: 'Smartwatch' },
+      { file: 'smartphone', label: 'Smartphone' },
       { file: 'laptop', label: 'Laptop' },
       { file: 'wall_tablet', label: 'Wall tablet' },
     ],

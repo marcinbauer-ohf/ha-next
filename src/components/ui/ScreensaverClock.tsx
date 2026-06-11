@@ -508,8 +508,8 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     }
     return (
       <div key={id} className="relative">
-        <Icon path={icon} size={22} className="text-text-secondary" />
-        {dot && <span className={`absolute -top-0.5 -right-0.5 ${dot} rounded-full w-2.5 h-2.5 ${pulse ? 'animate-pulse' : ''}`} />}
+        <Icon path={icon} size={20} className="text-text-secondary" />
+        {dot && <span className={`absolute -top-0.5 -right-0.5 ${dot} rounded-full w-2 h-2 ${pulse ? 'animate-pulse' : ''}`} />}
       </div>
     );
   };
@@ -648,7 +648,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             onDismiss();
             router.push('/settings?section=home-center');
           }}
-          className="flex items-center gap-ha-4 rounded-ha-pill px-ha-4 py-ha-3 border border-white/10 backdrop-blur-md transition-colors bg-surface-mid/65 hover:bg-surface-mid/80"
+          className="flex items-center gap-ha-3 rounded-ha-pill px-ha-4 py-ha-3 border border-white/10 backdrop-blur-md transition-colors bg-surface-mid/65 hover:bg-surface-mid/80"
         >
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />
 

@@ -15,7 +15,7 @@ rather than a dedicated one. See the keyword block at the top of
 
 | filename                     | matches (domain · device_class / keyword)                 |
 |------------------------------|-----------------------------------------------------------|
-| `air_quality.png`            | sensor · pm25/pm10/aqi                                    |
+| `air_quality.png`            | sensor · pm1/pm25/pm10/aqi/co2/voc/nox/o3/formaldehyde     |
 | `ceiling_fan.png`            | fan                                                       |
 | `contact_sensor.png`         | binary_sensor · door/window/garage_door/opening          |
 | `energy_meter.png`           | sensor · power/energy/current/voltage / "clamp"          |
@@ -42,16 +42,16 @@ rather than a dedicated one. See the keyword block at the top of
 | `smoke_detector.png`         | binary_sensor · smoke/gas/carbon_monoxide                |
 | `soil_sensor.png`            | sensor · moisture / "soil"                                |
 | `temp_humidity_sensor.png`   | sensor · temperature/humidity                            |
-| `vibration_sensor.png`       | binary_sensor · vibration                                |
-| `doorbell.png`               | camera · "doorbell"/"bell"                                |
+| `vibration_sensor.png`       | binary_sensor · vibration/tamper                         |
+| `doorbell.png`               | camera · "doorbell"/"bell" · keyword "doorbell" any domain |
 | `leak_sensor.png`            | binary_sensor · moisture                                 |
-| `robot_vacuum.png`           | vacuum                                                   |
+| `robot_vacuum.png`           | vacuum / lawn_mower                                      |
 | `water_valve.png`            | valve                                                    |
 | `button.png`                 | button / event                                           |
 | `washing_machine.png`        | keyword "washing machine"/"washer"                       |
 | `dishwasher.png`             | keyword "dishwasher"                                     |
 | `fridge.png`                 | keyword "fridge"/"refrigerator"/"freezer"                |
-| `air_purifier.png`           | keyword "air purifier"/"purifier"                        |
+| `air_purifier.png`           | humidifier domain · keyword "purifier"/"humidifier"      |
 | `printer_3d.png`             | keyword "3d printer"/"octoprint"/"printer"               |
 | `ups.png`                    | keyword "ups"/"uninterruptible"/"battery backup"         |
 | `inverter.png`               | keyword "inverter"/"solar"                               |
@@ -65,7 +65,13 @@ rather than a dedicated one. See the keyword block at the top of
 | `nfc_tag.png`                | tag domain / keyword "nfc"/"rfid"                        |
 | `tracker.png`                | keyword "locator"/"tracker"/"airtag"/"tile"              |
 | `smartwatch.png`             | keyword "smartwatch"/"watch"/"wearable"                  |
+| `smartphone.png`             | keyword "phone"/"iphone"/"smartphone"/"pixel"/"oneplus"  |
 | `irrigation_controller.png`  | keyword "irrigation"/"sprinkler"                         |
+| `speaker.png`                | media_player (default — Sonos, HomePod, Echo)            |
+| `smart_display.png`          | media_player · "nest hub"/"echo show"/"display"          |
+| `tv.png`                     | media_player · tv / "television"/"webos"/"tv"            |
+| `streaming_box.png`          | media_player · "apple tv"/"chromecast"/"roku"/"fire tv"  |
+| `soundbar.png`               | media_player · receiver / "soundbar"/"beam"/"arc"        |
 
 Missing file → the card silently falls back to the mdi domain icon (img
 `onError` in `DeviceCardV2`). Add a new mapping by extending `deviceThumbnail()`.

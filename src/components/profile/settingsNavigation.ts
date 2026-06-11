@@ -43,7 +43,8 @@ import {
 
 export type SettingsSlug =
   | 'home-center'
-  // Home Center sub-pages (routable, not shown in the settings sidebar)
+  // Notifications lives in the System group; updates/repairs/connectivity stay
+  // routable but hidden from the sidebar (reached from Home Center).
   | 'notifications'
   | 'updates'
   | 'repairs'
@@ -191,6 +192,7 @@ export const settingsNavSections: SettingsNavSection[] = [
       { slug: 'system-storage', icon: mdiHarddisk, label: 'Storage', description: 'Disk usage and storage management', haPath: '/config/system/storage' },
       { slug: 'system-logs', icon: mdiTextBox, label: 'Logs', description: 'System logs and debug information', haPath: '/config/system/logs' },
       { slug: 'system-info', icon: mdiChip, label: 'System Info', description: 'Hardware, OS, and version details', haPath: '/config/system/info' },
+      { slug: 'notifications', icon: mdiBell, label: 'Notifications', description: 'Active notifications from your home' },
       { slug: 'backups', icon: mdiBackupRestore, label: 'Backups', description: 'Create, restore, and manage backups', haPath: '/config/backup', addLabel: 'Backup' },
       { slug: 'restart', icon: mdiRestart, label: 'Restart / Shutdown', description: 'Restart or shut down Home Assistant', haPath: '/config/system/general' },
     ],
@@ -219,9 +221,8 @@ export const settingsNavSections: SettingsNavSection[] = [
 // kept out of settingsNavSections so they don't appear in the settings sidebar —
 // they are reached from the Home Center page's section links.
 export const hiddenSettingsLinks: SettingsNavLink[] = [
-  { slug: 'notifications', icon: mdiBell, label: 'Notifications', description: 'Active notifications from your home' },
   { slug: 'updates', icon: mdiUpdate, label: 'Updates', description: 'Available updates for integrations and add-ons' },
-  { slug: 'repairs', icon: mdiDevices, label: 'Issues', description: 'Offline and unavailable devices' },
+  { slug: 'repairs', icon: mdiWrench, label: 'Repairs', description: 'Suggested fixes for your setup' },
   { slug: 'connectivity', icon: mdiWeb, label: 'Connectivity', description: 'Home Assistant and remote access status' },
   { slug: 'profile', icon: mdiAccountCircle, label: 'Profile', description: 'Your account, language, and dashboard preferences', haPath: '/profile' },
 ];

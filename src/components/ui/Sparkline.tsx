@@ -11,9 +11,28 @@ interface SparklineProps {
   stepped?: boolean;
   /** Called with nearest data-point index on hover, null on leave */
   onHover?: (index: number | null) => void;
+  /** Stretch to fill parent height instead of fixed intrinsic height */
+  fillHeight?: boolean;
+  /** Mark the latest value with a small dot at the end of the line */
+  endDot?: boolean;
+  /**
+   * Keep the stroke at its given px width regardless of how the svg is
+   * stretched — needed when rendering far below the intrinsic viewBox size,
+   * where the scaled stroke would thin out to subpixel.
+   */
+  crisp?: boolean;
+  /**
+   * Per-point horizontal position as a fraction (0..1) of the width — use to
+   * place points on a real time axis instead of evenly by index. Must be the
+   * same length as `points` and monotonically increasing.
+   */
+  xFractions?: number[];
 }
 
-export function Sparkline({ points, on, gradientId, small, stepped, onHover }: SparklineProps) {
+export function Sparkline({ points, on, gradientId, small, stepped, onHover, fillHeight, endDot, crisp, xFractions }: SparklineProps) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [cursorX, setCursorX] = useState<number | null>(null);
+
   if (points.length < 3) return null;
 
   const W = 280;
@@ -23,8 +42,9 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover }: S
   const max = Math.max(...points);
   const range = max - min || 1;
 
+  const useTimeAxis = !!xFractions && xFractions.length === points.length;
   const coords = points.map((v, i) => ({
-    x: (i / (points.length - 1)) * W,
+    x: (useTimeAxis ? xFractions![i] : i / (points.length - 1)) * W,
     y: H - pad - ((v - min) / range) * (H - pad * 2),
   }));
 
@@ -47,17 +67,19 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover }: S
   const stroke = `rgba(${r},${on ? 0.85 : 0.45})`;
   const fillTop = `rgba(${r},0.12)`;
 
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [cursorX, setCursorX] = useState<number | null>(null);
-
   function handleMouseMove(e: React.MouseEvent<SVGRectElement>) {
     if (!svgRef.current || !onHover) return;
     const rect = svgRef.current.getBoundingClientRect();
     const relX = ((e.clientX - rect.left) / rect.width) * W;
-    const idx = Math.round((relX / W) * (points.length - 1));
-    const clamped = Math.max(0, Math.min(points.length - 1, idx));
-    setCursorX(coords[clamped].x);
-    onHover(clamped);
+    // Nearest point by x — works for both index- and time-spaced axes.
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < coords.length; i++) {
+      const dist = Math.abs(coords[i].x - relX);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+    setCursorX(coords[best].x);
+    onHover(best);
   }
 
   function handleMouseLeave() {
@@ -65,15 +87,15 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover }: S
     onHover?.(null);
   }
 
-  return (
+  const svg = (
     <svg
       ref={svgRef}
       width={W}
       height={H}
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
-      className="w-full"
-      style={{ height: H }}
+      className={fillHeight ? 'block w-full h-full' : 'block w-full'}
+      style={fillHeight ? undefined : { height: H }}
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -82,7 +104,7 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover }: S
         </linearGradient>
       </defs>
       <path d={area} fill={`url(#${gradientId})`} />
-      <path d={line} stroke={stroke} strokeWidth={small ? '1' : '1.5'} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={line} stroke={stroke} strokeWidth={small ? '1' : '1.5'} fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect={crisp ? 'non-scaling-stroke' : undefined} />
 
       {/* Hover cursor */}
       {cursorX !== null && (
@@ -98,5 +120,21 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover }: S
         />
       )}
     </svg>
+  );
+
+  if (!endDot) return svg;
+
+  // HTML dot positioned by percentage — a <circle> would stretch into an
+  // ellipse under preserveAspectRatio="none"
+  const last = coords[coords.length - 1];
+  return (
+    <div className={fillHeight ? 'relative w-full h-full' : 'relative w-full'} style={fillHeight ? undefined : { height: H }}>
+      {svg}
+      <div
+        aria-hidden
+        className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+        style={{ left: `${(last.x / W) * 100}%`, top: `${(last.y / H) * 100}%`, backgroundColor: stroke }}
+      />
+    </div>
   );
 }

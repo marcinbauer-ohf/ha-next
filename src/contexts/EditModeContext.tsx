@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
 export type PreviewViewport = 'desktop' | 'tablet' | 'mobile';
+export type PreviewOrientation = 'portrait' | 'landscape';
 
 interface EditModeContextValue {
   isEditing: boolean;
@@ -10,6 +11,8 @@ interface EditModeContextValue {
   exitEditMode: () => void;
   previewViewport: PreviewViewport;
   setPreviewViewport: (v: PreviewViewport) => void;
+  previewOrientation: PreviewOrientation;
+  togglePreviewOrientation: () => void;
 }
 
 const EditModeContext = createContext<EditModeContextValue>({
@@ -18,11 +21,14 @@ const EditModeContext = createContext<EditModeContextValue>({
   exitEditMode: () => {},
   previewViewport: 'desktop',
   setPreviewViewport: () => {},
+  previewOrientation: 'portrait',
+  togglePreviewOrientation: () => {},
 });
 
 export function EditModeProvider({ children }: { children: ReactNode }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [previewViewport, setPreviewViewport] = useState<PreviewViewport>(() => {
+  const [previewOrientation, setPreviewOrientation] = useState<PreviewOrientation>('portrait');
+  const [previewViewport, setPreviewViewportState] = useState<PreviewViewport>(() => {
     if (typeof window === 'undefined') return 'desktop';
     if (window.innerWidth >= 1024) return 'desktop';
     if (window.innerWidth >= 768) return 'tablet';
@@ -36,14 +42,25 @@ export function EditModeProvider({ children }: { children: ReactNode }) {
     return 'mobile';
   };
 
+  // Switching to a different device always starts in portrait; a second tap
+  // on the already-active device flips orientation (handled by the toolbar).
+  const setPreviewViewport = (v: PreviewViewport) => {
+    setPreviewViewportState(v);
+    setPreviewOrientation('portrait');
+  };
+
+  const togglePreviewOrientation = () =>
+    setPreviewOrientation(o => (o === 'portrait' ? 'landscape' : 'portrait'));
+
   const toggleEditMode = () => setIsEditing(v => !v);
   const exitEditMode = () => {
     setIsEditing(false);
-    setPreviewViewport(screenViewport());
+    setPreviewViewportState(screenViewport());
+    setPreviewOrientation('portrait');
   };
 
   return (
-    <EditModeContext.Provider value={{ isEditing, toggleEditMode, exitEditMode, previewViewport, setPreviewViewport }}>
+    <EditModeContext.Provider value={{ isEditing, toggleEditMode, exitEditMode, previewViewport, setPreviewViewport, previewOrientation, togglePreviewOrientation }}>
       {children}
     </EditModeContext.Provider>
   );

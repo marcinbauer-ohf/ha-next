@@ -44,6 +44,7 @@ import {
   mdiWrench,
   mdiBatteryAlertVariantOutline,
   mdiBackupRestore,
+  mdiMenu,
 } from '@mdi/js';
 
 const RELEASE_NOTES_PREFIX = 'update.home_assistant_release_notes_simulated';
@@ -927,7 +928,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       case 'notifications':
         return (
           <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
-            <button type="button" onClick={() => goToSettings('/settings/notifications')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+            <button type="button" onClick={() => goToSettings('/settings?section=notifications')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
               <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Notifications</h4>
               <div className="flex items-center gap-ha-2">
                 {activeNotifications.length > 0 && (
@@ -956,7 +957,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       case 'updates':
         return (
           <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
-            <button type="button" onClick={() => goToSettings('/settings/updates')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+            <button type="button" onClick={() => goToSettings('/settings?section=updates')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
               <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Updates Available</h4>
               <div className="flex items-center gap-ha-2">
                 {activeUpdates.length > 0 && (
@@ -1011,7 +1012,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       case 'issues':
         return (
           <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
-            <button type="button" onClick={() => goToSettings('/settings/repairs')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+            <button type="button" onClick={() => goToSettings('/settings?section=repairs')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
               <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Offline Devices</h4>
               <div className="flex items-center gap-ha-2">
                 {offlineDevices.length > 0 && (
@@ -1111,13 +1112,20 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     <footer className={`hidden lg:flex items-center justify-between pr-edge pt-ha-2 pb-edge col-span-full z-50 transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : 'opacity-100'}`} data-component="StatusBar">
       {/* Left side widgets */}
       <div className="flex items-center flex-1 min-w-0 mr-4 gap-ha-5">
-        {/* User profile avatar - Fixed */}
+        {/* User profile avatar — same hamburger-behind-avatar composition as
+            the mobile nav settings item */}
         <button
           onClick={onProfileToggle}
-          className="p-ha-1 rounded-full transition-all flex-shrink-0 hover:ring-2 hover:ring-surface-lower"
+          aria-label="Open settings"
+          className="pl-ha-4 pr-ha-1 py-ha-1 flex items-center justify-center flex-shrink-0 transition-opacity opacity-90 hover:opacity-100"
           style={{ marginLeft: '8px' }}
         >
-          <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />
+          <div className="relative flex items-center justify-center">
+            <Icon path={mdiMenu} size={28} className="absolute -left-3 text-text-secondary z-0" />
+            <div className="relative z-10 rounded-full ring-[3px] ring-surface-low bg-surface-low">
+              <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" />
+            </div>
+          </div>
         </button>
         
         {/* Voice input widget - Fixed */}
@@ -2700,20 +2708,22 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             className="absolute right-0 bottom-full mb-ha-2 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col origin-bottom-right"
             style={{ maxHeight: 'calc(100vh - 120px)' }}
           >
-            <div className="overflow-y-auto p-ha-3 space-y-ha-3 custom-scrollbar">
-
+            <div className="flex-1 min-h-0 overflow-y-auto p-ha-3 space-y-ha-3 custom-scrollbar">
                 {/* Status sections — order and visibility follow Home Center prefs */}
                 {visibleSections.map(renderPopupSection)}
+            </div>
 
-                {/* Home Center link */}
-                <button
-                  type="button"
-                  onClick={goToHomeCenter}
-                  className="w-full h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all"
-                >
-                  <Icon path={mdiHomeVariant} size={18} />
-                  Open Home Center
-                </button>
+            {/* Home Center link — pinned footer so the CTA stays reachable no matter
+                how many status sections push the list past the popup's max height. */}
+            <div className="shrink-0 border-t border-surface-low p-ha-3">
+              <button
+                type="button"
+                onClick={goToHomeCenter}
+                className="w-full h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all"
+              >
+                <Icon path={mdiHomeVariant} size={18} />
+                Open Home Center
+              </button>
             </div>
           </motion.div>
         )}

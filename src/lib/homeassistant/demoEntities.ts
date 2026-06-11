@@ -1,4 +1,56 @@
 import type { HassEntities, HassEntity } from '@/types';
+import type { AreaRegistryEntry, FloorRegistryEntry } from './types';
+
+// ── Demo home layout ────────────────────────────────────────────────────────
+// Demo mode has no registries (those come from a live HA connection), so the
+// sample home ships its own floors/areas plus an entity→area map. useDevices
+// substitutes these when running on demo data so the dashboard can demonstrate
+// area grouping, floor tabs, and room pages without a real instance.
+
+export const DEMO_FLOORS: FloorRegistryEntry[] = [
+  { floor_id: 'ground_floor', name: 'Ground Floor', level: 0 },
+  { floor_id: 'upstairs', name: 'Upstairs', level: 1 },
+];
+
+export const DEMO_AREAS: AreaRegistryEntry[] = [
+  { area_id: 'living_room', name: 'Living Room', floor_id: 'ground_floor' },
+  { area_id: 'kitchen', name: 'Kitchen', floor_id: 'ground_floor' },
+  { area_id: 'outside', name: 'Outside', floor_id: 'ground_floor' },
+  { area_id: 'office', name: 'Office', floor_id: 'upstairs' },
+  { area_id: 'bedroom', name: 'Bedroom', floor_id: 'upstairs' },
+];
+
+const DEMO_ENTITY_AREAS: Record<string, string> = {
+  'light.living_room_main': 'living_room',
+  'media_player.simulated': 'living_room',
+  'climate.home': 'living_room',
+  'vacuum.downstairs': 'living_room',
+
+  'light.kitchen_pendants': 'kitchen',
+  'switch.coffee_station': 'kitchen',
+  'cover.kitchen_blinds': 'kitchen',
+  'sensor.washer_status': 'kitchen',
+
+  'light.office_desk': 'office',
+  'media_player.simulated_office': 'office',
+  'sensor.printer_simulated': 'office',
+  'switch.grow_light': 'office',
+
+  'light.bedroom_lamp': 'bedroom',
+  'climate.bedroom': 'bedroom',
+  'media_player.simulated_display': 'bedroom',
+
+  'lock.front_door': 'outside',
+  'binary_sensor.camera_simulated': 'outside',
+  'binary_sensor.camera_simulated_garage': 'outside',
+  'sensor.outdoor_temperature': 'outside',
+  'sensor.outdoor_humidity': 'outside',
+  'sensor.pool_controller': 'outside',
+};
+
+export function demoAreaForEntity(entityId: string): string | undefined {
+  return DEMO_ENTITY_AREAS[entityId];
+}
 
 function createEntity(
   entityId: string,
@@ -62,6 +114,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
       {
         friendly_name: 'Energy Today',
         unit_of_measurement: 'kWh',
+        dashboard_hidden: true,
       },
       timestamp
     ),
@@ -90,6 +143,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
       'on',
       {
         friendly_name: 'Remote UI',
+        dashboard_hidden: true,
       },
       timestamp
     ),
@@ -131,10 +185,10 @@ export function createDemoEntities(now = new Date()): HassEntities {
       'media_player.simulated',
       'playing',
       {
-        friendly_name: 'Living Room Speaker',
-        media_title: 'Late Night Coding',
-        media_artist: 'Demo Playlist',
-        entity_picture: '/ha-logo-source.png',
+        friendly_name: 'Living Room TV',
+        device_class: 'tv',
+        media_title: 'Planet Earth III',
+        media_artist: 'BBC Earth',
       },
       timestamp
     ),
@@ -145,7 +199,14 @@ export function createDemoEntities(now = new Date()): HassEntities {
         friendly_name: 'Office Speaker',
         media_title: 'Design Review',
         media_artist: 'Lo-fi Session',
-        entity_picture: '/ha-logo-source.png',
+      },
+      timestamp
+    ),
+    'media_player.simulated_display': createEntity(
+      'media_player.simulated_display',
+      'idle',
+      {
+        friendly_name: 'Bedroom Smart Display',
       },
       timestamp
     ),
@@ -199,18 +260,6 @@ export function createDemoEntities(now = new Date()): HassEntities {
         progress: 63,
         file_name: 'case_mount.stl',
         time_remaining: '00:42:00',
-        entity_picture: '/printer_3d.png',
-      },
-      timestamp
-    ),
-    'sensor.printer_simulated_mini': createEntity(
-      'sensor.printer_simulated_mini',
-      'printing',
-      {
-        friendly_name: 'Bambu A1 Mini',
-        progress: 21,
-        file_name: 'plant_clip.3mf',
-        time_remaining: '00:18:00',
         entity_picture: '/printer_3d.png',
       },
       timestamp
@@ -275,7 +324,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
       'climate.home',
       'heat',
       {
-        friendly_name: 'Whole Home Climate',
+        friendly_name: 'Thermostat',
         current_temperature: 22.3,
         temperature: 22,
         hvac_mode: 'heat',
@@ -314,7 +363,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
       'vacuum.downstairs',
       'docked',
       {
-        friendly_name: 'Downstairs Vacuum',
+        friendly_name: 'Robot Vacuum',
       },
       timestamp
     ),
@@ -327,22 +376,13 @@ export function createDemoEntities(now = new Date()): HassEntities {
       },
       timestamp
     ),
-    'binary_sensor.garden_gate': createEntity(
-      'binary_sensor.garden_gate',
-      'unknown',
-      {
-        friendly_name: 'Garden Gate Sensor',
-        device_id: 'garden-gate-01',
-      },
-      timestamp
-    ),
     'persistent_notification.demo_ready': createEntity(
       'persistent_notification.demo_ready',
       'notifying',
       {
         title: 'Demo mode enabled',
         friendly_name: 'Demo mode enabled',
-        message: 'You are browsing with a richer local sample home.',
+        message: 'You are browsing a sample home. Connect your own Home Assistant instance to see your real devices here.',
       },
       timestamp
     ),
@@ -444,7 +484,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
       'sensor.washer_status',
       'running',
       {
-        friendly_name: 'Washer Status',
+        friendly_name: 'Washer',
       },
       timestamp
     ),
@@ -453,6 +493,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
       '06:45',
       {
         friendly_name: 'Next Alarm',
+        dashboard_hidden: true,
       },
       timestamp
     ),

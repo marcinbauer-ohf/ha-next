@@ -1724,3 +1724,16 @@ html {
      running here — just the one-shot badge pop is dropped. */
   .ha-arrange-badge { animation: none; }
 }
+
+/* One-shot enter animation when the dashboard view re-keys (floor or grouping
+   switch). Opacity + transform only — cheap to composite on low-end devices. */
+.ha-view-enter {
+  animation: ha-view-enter 0.2s ease-out both;
+}
+@keyframes ha-view-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-view-enter { animation: none; }
+}

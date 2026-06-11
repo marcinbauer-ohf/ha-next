@@ -9,11 +9,12 @@ export interface EntitySlot {
   /** Only used for secondary entities on the dashboard card */
   size: 'sm' | 'lg';
   section: EntitySection;
+  /** Inline history sparkline on the secondary row (numeric sensors only). Default on; false hides it. */
+  chart?: boolean;
 }
 
 export interface DeviceCardConfig {
   slots: EntitySlot[];
-  showGraph?: boolean;
 }
 
 const STORAGE_KEY = 'ha_device_card_configs';
