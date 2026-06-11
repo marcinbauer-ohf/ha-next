@@ -31,7 +31,9 @@ interface SparklineProps {
 
 export function Sparkline({ points, on, gradientId, small, stepped, onHover, fillHeight, endDot, crisp, xFractions }: SparklineProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [cursorX, setCursorX] = useState<number | null>(null);
+  // Index of the data point under the cursor; drives both the crosshair line
+  // and the marker dot that rides the line as the pointer moves.
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   if (points.length < 3) return null;
 
@@ -78,14 +80,16 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, fil
       const dist = Math.abs(coords[i].x - relX);
       if (dist < bestDist) { bestDist = dist; best = i; }
     }
-    setCursorX(coords[best].x);
+    setHoverIdx(best);
     onHover(best);
   }
 
   function handleMouseLeave() {
-    setCursorX(null);
+    setHoverIdx(null);
     onHover?.(null);
   }
+
+  const hoverPt = hoverIdx !== null ? coords[hoverIdx] : null;
 
   const svg = (
     <svg
@@ -106,9 +110,9 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, fil
       <path d={area} fill={`url(#${gradientId})`} />
       <path d={line} stroke={stroke} strokeWidth={small ? '1' : '1.5'} fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect={crisp ? 'non-scaling-stroke' : undefined} />
 
-      {/* Hover cursor */}
-      {cursorX !== null && (
-        <line x1={cursorX} y1={0} x2={cursorX} y2={H}
+      {/* Hover crosshair — vertical line tracking the nearest point */}
+      {hoverPt && (
+        <line x1={hoverPt.x} y1={0} x2={hoverPt.x} y2={H}
           stroke={stroke} strokeWidth="1" strokeDasharray="3 2" />
       )}
 
@@ -122,19 +126,31 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, fil
     </svg>
   );
 
-  if (!endDot) return svg;
+  // Overlay layer is needed for the end dot and/or the moving hover dot. HTML
+  // dots positioned by percentage — a <circle> would stretch into an ellipse
+  // under preserveAspectRatio="none".
+  if (!endDot && !onHover) return svg;
 
-  // HTML dot positioned by percentage — a <circle> would stretch into an
-  // ellipse under preserveAspectRatio="none"
   const last = coords[coords.length - 1];
   return (
     <div className={fillHeight ? 'relative w-full h-full' : 'relative w-full'} style={fillHeight ? undefined : { height: H }}>
       {svg}
-      <div
-        aria-hidden
-        className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-        style={{ left: `${(last.x / W) * 100}%`, top: `${(last.y / H) * 100}%`, backgroundColor: stroke }}
-      />
+      {/* Latest-value dot — hidden while hovering so the moving dot reads clearly */}
+      {endDot && !hoverPt && (
+        <div
+          aria-hidden
+          className="absolute w-1.5 h-1.5 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+          style={{ left: `${(last.x / W) * 100}%`, top: `${(last.y / H) * 100}%`, backgroundColor: stroke }}
+        />
+      )}
+      {/* Hover dot — rides the line, sitting on the point under the cursor */}
+      {hoverPt && (
+        <div
+          aria-hidden
+          className="absolute w-2.5 h-2.5 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none ring-2 ring-surface-default"
+          style={{ left: `${(hoverPt.x / W) * 100}%`, top: `${(hoverPt.y / H) * 100}%`, backgroundColor: stroke }}
+        />
+      )}
     </div>
   );
 }

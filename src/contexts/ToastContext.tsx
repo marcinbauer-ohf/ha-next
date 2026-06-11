@@ -4,11 +4,17 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { Toast, ToastContainer, type ToastProps, type ToastPosition } from '@/components/ui/Toast';
+import { emitStatusPulse } from '@/lib/statusPulseBus';
+import type { HomeCenterSectionId } from '@/lib/homeCenter';
 
 interface ToastOptions extends ToastProps {
   /** Auto-dismiss delay in ms. Pass null to keep it up until replaced/dismissed. */
   duration?: number | null;
   position?: ToastPosition;
+  /** Home Center section this toast relates to (connectivity, updates, …).
+      When set, the status-bar clock widget pulses to point at where the
+      same information lives. */
+  statusSection?: HomeCenterSectionId;
 }
 
 interface ToastState extends ToastOptions {
@@ -75,6 +81,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     if (timerRef.current) clearTimeout(timerRef.current);
     const id = ++idRef.current;
     setToast({ ...opts, id });
+    if (opts.statusSection) emitStatusPulse(opts.statusSection);
     // Actionable or duration:null toasts stay until acted on / replaced /
     // explicitly dismissed — don't auto-dismiss out from under a decision.
     if (!opts.action && opts.duration !== null) {

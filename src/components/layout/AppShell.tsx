@@ -154,6 +154,7 @@ function AppShellContent({ children }: AppShellProps) {
         iconColor: 'text-ha-blue',
         title: 'Connecting to Home Assistant…',
         duration: null,
+        statusSection: 'connectivity',
       });
     } else if (connectionStatus === 'connected') {
       connectionToastId.current = showToast({
@@ -161,6 +162,7 @@ function AppShellContent({ children }: AppShellProps) {
         iconColor: 'text-green-500',
         title: 'Connected',
         duration: 3000,
+        statusSection: 'connectivity',
       });
     } else if (connectionStatus === 'error') {
       connectionToastId.current = showToast({
@@ -170,6 +172,7 @@ function AppShellContent({ children }: AppShellProps) {
         subtitle: typeof error === 'string' ? error : undefined,
         duration: null,
         action: { label: 'Reload', onClick: () => window.location.reload() },
+        statusSection: 'connectivity',
       });
     } else if (connectionToastId.current != null) {
       dismissToast(connectionToastId.current);

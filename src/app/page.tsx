@@ -590,8 +590,8 @@ export default function DashboardPage() {
                   // text-tertiary-based fill reads as a raised fold on both
                   // light and dark themes (surface-mid is darker than the
                   // surface-lower container in dark mode, so it won't work here)
-                  'bg-gradient-to-br from-text-tertiary/50 via-text-tertiary/25 to-transparent',
-                  'hover:from-text-tertiary/70 hover:via-text-tertiary/40',
+                  'bg-gradient-to-br from-text-tertiary/25 via-text-tertiary/10 to-transparent',
+                  'hover:from-text-tertiary/45 hover:via-text-tertiary/20',
                   immersiveMode ? 'w-10 h-10' : 'w-8 h-8 hover:w-10 hover:h-10',
                 )}
                 style={{ clipPath: 'polygon(0 0, 100% 0, 0 100%)' }}

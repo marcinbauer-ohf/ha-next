@@ -718,6 +718,17 @@ export default function DesignSystemPage() {
                 With action
               </button>
             </Row>
+            <Row label="status pulse">
+              <div className="flex flex-col gap-ha-1 items-start">
+                <button
+                  onClick={() => showToast({ icon: mdiCheckCircle, iconColor: 'text-green-500', title: 'Connected', subtitle: 'Pulses the clock widget', statusSection: 'connectivity' })}
+                  className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+                >
+                  Connectivity toast
+                </button>
+                <PropTag name="statusSection" value="connectivity" />
+              </div>
+            </Row>
             <Row label="position">
               <div className="flex flex-col gap-ha-1 items-start">
                 <button

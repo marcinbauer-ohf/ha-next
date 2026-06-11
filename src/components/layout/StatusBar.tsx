@@ -10,6 +10,7 @@ import { Tooltip } from '../ui/Tooltip';
 import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useHomeCenterPrefs } from '@/hooks';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
+import { subscribeStatusPulse } from '@/lib/statusPulseBus';
 import {
   mdiMicrophone,
   mdiPlay,
@@ -235,6 +236,24 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const { items: sidebarItems } = useSidebarItems();
   const { visibleSections } = useHomeCenterPrefs();
   const [currentTime, setCurrentTime] = useState({ hours: '', minutes: '' });
+  // Pulse the clock pill when a toast about one of its sections appears.
+  const [statusPulsing, setStatusPulsing] = useState(false);
+  const statusPulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeStatusPulse((section) => {
+      if (!visibleSections.includes(section)) return;
+      if (statusPulseTimer.current) clearTimeout(statusPulseTimer.current);
+      // Drop the class for a frame so back-to-back pulses restart the animation.
+      setStatusPulsing(false);
+      requestAnimationFrame(() => setStatusPulsing(true));
+      statusPulseTimer.current = setTimeout(() => setStatusPulsing(false), 2000);
+    });
+    return () => {
+      unsubscribe();
+      if (statusPulseTimer.current) clearTimeout(statusPulseTimer.current);
+    };
+  }, [visibleSections]);
   const [timerDisplays, setTimerDisplays] = useState<Record<string, string>>({});
   const [timerProgress, setTimerProgress] = useState<Record<string, number>>({});
   const use24HourClock = useMemo(() => systemPrefers24HourClock(), []);
@@ -2730,7 +2749,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         </AnimatePresence>
 
         <button
-          className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50"
+          className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50 ${statusPulsing ? 'ha-status-pulse' : ''}`}
           onClick={() => setStatusExpanded(!statusExpanded)}
         >
         {/* Status indicators — order and visibility follow Home Center prefs */}

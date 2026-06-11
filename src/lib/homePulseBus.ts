@@ -29,4 +29,5 @@ export const PULSE_COLORS = {
   off: [0.5, 0.66, 0.85] as PulseColor,   // cool slate-blue — turned off / inactive
   error: [1.0, 0.3, 0.3] as PulseColor,   // red — went unavailable / unknown
   alert: [1.0, 0.62, 0.25] as PulseColor, // amber — significant sensor jump
+  link: [0.3, 0.82, 0.55] as PulseColor,  // green — connection heartbeat (instance reachable)
 } as const;

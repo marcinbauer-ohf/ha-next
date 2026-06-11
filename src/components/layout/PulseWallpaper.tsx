@@ -1,11 +1,19 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { RingShaderBackground } from '@/components/ui/RingShaderBackground';
-import { useFeatureFlags, useHomeEventReactor } from '@/hooks';
+import { useFeatureFlags, useHomeEventReactor, useHomeAssistant } from '@/hooks';
+import { PULSE_COLORS } from '@/lib/homePulseBus';
 
 /**
  * The "Pulse" dashboard wallpaper: an animated ring background painted behind
- * the whole shell that ripples in response to live device toggles/errors.
+ * the whole shell.
+ *
+ * The steady ambient rings are tinted by Home Assistant connection health —
+ * green while the instance is reachable, red if the link drops — so the
+ * always-on pulse itself reads as a connection monitor. (The faster coloured
+ * ripples that fly out on device toggles/errors are separate and stay keyed to
+ * their event, gated by the `pulseWallpaperReactive` flag.)
  *
  * Kept as its own component (mounted only when the pulse background is active)
  * so its live entity subscription — via useHomeEventReactor — doesn't re-render
@@ -13,7 +21,28 @@ import { useFeatureFlags, useHomeEventReactor } from '@/hooks';
  */
 export function PulseWallpaper() {
   const { wavyBackgroundEnabled, pulseWallpaperReactive } = useFeatureFlags();
+  const { connected, connecting, demoMode } = useHomeAssistant();
   useHomeEventReactor(pulseWallpaperReactive, 'toggles-errors');
+
+  // Below lg (1024px) the dashboard shows the pull-to-reveal drag handle at the
+  // bottom, so the rings rise from the bottom edge to meet it; desktop keeps the
+  // classic centred origin.
+  const [fromBottom, setFromBottom] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const update = () => setFromBottom(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  const center: [number, number] = fromBottom ? [0.5, 0.0] : [0.5, 0.5];
+  const reach = fromBottom ? 1.7 : 1.1;
+
+  // Tint the steady rings by link health. While connecting (transient) keep the
+  // neutral default so a brief reconnect doesn't flash red. Demo counts healthy.
+  const tint = connecting && !demoMode ? null
+    : connected || demoMode ? PULSE_COLORS.link
+    : PULSE_COLORS.error;
 
   return (
     <div className="fixed inset-0 z-0 pointer-events-none" aria-hidden>
@@ -21,6 +50,9 @@ export function PulseWallpaper() {
         wavy={wavyBackgroundEnabled}
         reactive={pulseWallpaperReactive}
         intensity="subtle"
+        tint={tint}
+        center={center}
+        reach={reach}
       />
     </div>
   );

@@ -19,6 +19,12 @@ const INTENSITY = {
 } as const;
 export type PulseIntensity = keyof typeof INTENSITY;
 
+// Ring origin + reach are uniforms now (see Props.center / Props.reach) so the
+// same WebGL context can shift between centre (desktop) and bottom (mobile)
+// without recompiling. Defaults below keep the original centred look.
+const DEFAULT_CENTER: [number, number] = [0.5, 0.5];
+const DEFAULT_REACH = 1.1;
+
 const VERT = `
   attribute vec2 a_position;
   void main() {
@@ -38,6 +44,8 @@ const FRAG = `
   uniform vec3 u_color;
   uniform float u_alpha;
   uniform float u_wave;
+  uniform vec2 u_center;  // ring origin in UV (x:0..1, y:0=bottom..1=top)
+  uniform float u_reach;  // ring radius at full phase (UV-height units)
 
   // Reactive event pulses: each is a coloured ring expanding from centre.
   uniform int u_pulseCount;
@@ -54,7 +62,7 @@ const FRAG = `
   void main() {
     vec2 uv = gl_FragCoord.xy / u_resolution;
     float aspect = u_resolution.x / u_resolution.y;
-    vec2 p = (uv - 0.5) * vec2(aspect, 1.0);
+    vec2 p = (uv - u_center) * vec2(aspect, 1.0);
     float dist = length(p);
     float angle = atan(p.y, p.x);
 
@@ -65,7 +73,7 @@ const FRAG = `
     for (int i = 0; i < 22; i++) {
       float offset = float(i) / 22.0;
       float phase = fract(u_time * 0.02 + offset);
-      float radius = phase * 1.1;
+      float radius = phase * u_reach;
       // Wobble ramps from 0 at spawn (perfect circle) to full at the edge.
       float wave = (sin(angle * 5.0 + u_time * 0.6 + offset * 6.28)
                   + sin(angle * 9.0 - u_time * 0.4)) * 0.5 * 0.05 * phase * u_wave;
@@ -81,7 +89,7 @@ const FRAG = `
     for (int i = 0; i < ${MAX_PULSES}; i++) {
       if (i >= u_pulseCount) break;
       float phase = u_pulsePhase[i];
-      float radius = phase * 1.1;
+      float radius = phase * u_reach;
       float wave = wobble(angle, phase);
       float fade = (1.0 - phase) * smoothstep(0.0, 0.06, phase);
       float cov = smoothstep(px * u_pulseWidth, 0.0, abs(dist - radius + wave))
@@ -109,9 +117,18 @@ interface Props {
   reactive?: boolean;
   /** Visual prominence of reactive ripples. */
   intensity?: PulseIntensity;
+  /**
+   * Tint the steady ambient rings (normalised RGB 0..1). When null/undefined the
+   * rings use the neutral theme colour (white on dark, black on light).
+   */
+  tint?: [number, number, number] | null;
+  /** Ring origin in UV (x:0..1, y:0=bottom…1=top). Default centred [0.5, 0.5]. */
+  center?: [number, number];
+  /** Ring radius at full phase, UV-height units. Default 1.1 (covers from centre). */
+  reach?: number;
 }
 
-export function RingShaderBackground({ resolvedMode, wavy = false, reactive = false, intensity = 'subtle' }: Props) {
+export function RingShaderBackground({ resolvedMode, wavy = false, reactive = false, intensity = 'subtle', tint = null, center = DEFAULT_CENTER, reach = DEFAULT_REACH }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modeRef = useRef<'light' | 'dark'>(resolvedMode ?? getMode());
   useEffect(() => { modeRef.current = resolvedMode ?? getMode(); }, [resolvedMode]);
@@ -120,6 +137,16 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
   useEffect(() => { wavyRef.current = wavy; }, [wavy]);
   const intensityRef = useRef<PulseIntensity>(intensity);
   useEffect(() => { intensityRef.current = intensity; }, [intensity]);
+  // Ambient-ring tint, read live so connection-state changes recolour smoothly
+  // without rebuilding the WebGL context.
+  const tintRef = useRef<[number, number, number] | null>(tint);
+  useEffect(() => { tintRef.current = tint; }, [tint]);
+  // Origin + reach, read live so the centre can shift (desktop↔mobile) without
+  // tearing down the context.
+  const centerRef = useRef<[number, number]>(center);
+  useEffect(() => { centerRef.current = center; }, [center]);
+  const reachRef = useRef<number>(reach);
+  useEffect(() => { reachRef.current = reach; }, [reach]);
 
   // Active event ripples, fed by the home-pulse bus while reactive.
   const pulsesRef = useRef<ActivePulse[]>([]);
@@ -143,7 +170,7 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
     const gl = canvas.getContext('webgl') as WebGLRenderingContext | null
       ?? canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
 
-    if (!gl) return startCanvas2DFallback(canvas, modeRef, wavyRef, pulsesRef, intensityRef);
+    if (!gl) return startCanvas2DFallback(canvas, modeRef, wavyRef, pulsesRef, intensityRef, tintRef, centerRef);
 
     // Compile shaders
     const vert = compileShader(gl, gl.VERTEX_SHADER, VERT);
@@ -176,6 +203,8 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
     const uColor = gl.getUniformLocation(program, 'u_color');
     const uAlpha = gl.getUniformLocation(program, 'u_alpha');
     const uWave = gl.getUniformLocation(program, 'u_wave');
+    const uCenter = gl.getUniformLocation(program, 'u_center');
+    const uReach = gl.getUniformLocation(program, 'u_reach');
     const uPulseCount = gl.getUniformLocation(program, 'u_pulseCount');
     const uPulsePhase = gl.getUniformLocation(program, 'u_pulsePhase');
     const uPulseColor = gl.getUniformLocation(program, 'u_pulseColor');
@@ -212,9 +241,12 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
       const isDark = (modeRef.current ?? getMode()) === 'dark';
       gl.uniform1f(uTime, t);
       gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.uniform3fv(uColor, isDark ? COLOR_DARK : COLOR_LIGHT);
-      gl.uniform1f(uAlpha, isDark ? 0.07 : 0.12);
+      gl.uniform3fv(uColor, tintRef.current ?? (isDark ? COLOR_DARK : COLOR_LIGHT));
+      // A coloured tint reads faintly at the neutral alpha, so lift it a touch.
+      gl.uniform1f(uAlpha, tintRef.current ? (isDark ? 0.16 : 0.18) : (isDark ? 0.07 : 0.12));
       gl.uniform1f(uWave, wavyRef.current ? 1.0 : 0.0);
+      gl.uniform2f(uCenter, centerRef.current[0], centerRef.current[1]);
+      gl.uniform1f(uReach, reachRef.current);
 
       // Age out expired pulses (compact in place) and upload the live ones.
       const pulses = pulsesRef.current;
@@ -284,7 +316,9 @@ function startCanvas2DFallback(
   modeRef: React.MutableRefObject<'light' | 'dark'>,
   wavyRef: React.MutableRefObject<boolean>,
   pulsesRef: React.MutableRefObject<ActivePulse[]>,
-  intensityRef: React.MutableRefObject<PulseIntensity>
+  intensityRef: React.MutableRefObject<PulseIntensity>,
+  tintRef: React.MutableRefObject<[number, number, number] | null>,
+  centerRef: React.MutableRefObject<[number, number]>
 ): (() => void) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return () => {};
@@ -309,12 +343,17 @@ function startCanvas2DFallback(
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
-    const maxR = Math.sqrt(cx * cx + cy * cy) * 1.1;
+    const cx = canvas.width * centerRef.current[0];
+    const cy = canvas.height * (1 - centerRef.current[1]); // UV y is bottom-up; canvas y is top-down
+    // Farthest corner from the (possibly off-centre) origin, so rings always
+    // sweep the whole surface regardless of where the centre sits.
+    const maxR = Math.hypot(Math.max(cx, canvas.width - cx), Math.max(cy, canvas.height - cy)) * 1.1;
     const isDark = (modeRef.current ?? getMode()) === 'dark';
-    const baseAlpha = isDark ? 0.07 : 0.12;
-    const ringRgb = isDark ? '255,255,255' : '0,0,0';
+    const tintRgb = tintRef.current;
+    const baseAlpha = tintRgb ? (isDark ? 0.16 : 0.18) : (isDark ? 0.07 : 0.12);
+    const ringRgb = tintRgb
+      ? `${Math.round(tintRgb[0] * 255)},${Math.round(tintRgb[1] * 255)},${Math.round(tintRgb[2] * 255)}`
+      : isDark ? '255,255,255' : '0,0,0';
     const dpr = window.devicePixelRatio || 1;
 
     const SEGMENTS = 96;

@@ -57,7 +57,7 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
         >
           <Icon path={item.icon} size={size === 'lg' ? 22 : 20} />
         </div>
-        <p className="text-sm font-medium text-text-primary">Add {item.label}</p>
+        <p className="text-sm font-medium text-text-primary">{item.label}</p>
       </button>
     );
   };
