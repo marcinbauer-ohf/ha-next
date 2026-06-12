@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { RingShaderBackground } from '@/components/ui/RingShaderBackground';
+import { RingShaderBackground, useRingOrigin } from '@/components/ui/RingShaderBackground';
 import { useFeatureFlags, useHomeEventReactor, useHomeAssistant } from '@/hooks';
 import { PULSE_COLORS } from '@/lib/homePulseBus';
 
@@ -24,19 +23,8 @@ export function PulseWallpaper() {
   const { connected, connecting, demoMode } = useHomeAssistant();
   useHomeEventReactor(pulseWallpaperReactive, 'toggles-errors');
 
-  // Below lg (1024px) the dashboard shows the pull-to-reveal drag handle at the
-  // bottom, so the rings rise from the bottom edge to meet it; desktop keeps the
-  // classic centred origin.
-  const [fromBottom, setFromBottom] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1023px)');
-    const update = () => setFromBottom(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
-  const center: [number, number] = fromBottom ? [0.5, 0.0] : [0.5, 0.5];
-  const reach = fromBottom ? 1.7 : 1.1;
+  // Shared origin: bottom edge below lg, centred on desktop (useRingOrigin).
+  const { center, reach } = useRingOrigin();
 
   // Tint the steady rings by link health. While connecting (transient) keep the
   // neutral default so a brief reconnect doesn't flash red. Demo counts healthy.

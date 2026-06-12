@@ -19,10 +19,11 @@ export type {
   DataListLayout,
 } from './DataListView';
 export { SegmentedControl } from './SegmentedControl';
+export { Dropdown } from './Dropdown';
 export { ToggleSwitch } from './ToggleSwitch';
 export { RollingNumericValue } from './RollingNumericValue';
-export { Toast, ToastContainer } from './Toast';
-export type { ToastProps } from './Toast';
+export { Toast, ToastStack } from './Toast';
+export type { ToastProps, ToastStackItem } from './Toast';
 export { ConfirmDialog } from './ConfirmDialog';
 export { TipStack } from './TipStack';
 export type { TipStackTip, TipStackAction } from './TipStack';

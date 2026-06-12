@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { subscribeHomePulse, type PulseColor } from '@/lib/homePulseBus';
 
 // How long an event ripple takes to travel centre → edge. Much faster than the
@@ -126,6 +126,26 @@ interface Props {
   center?: [number, number];
   /** Ring radius at full phase, UV-height units. Default 1.1 (covers from centre). */
   reach?: number;
+}
+
+/**
+ * Shared ring origin: below lg (1024px) the rings rise from the bottom edge of
+ * the screen (meeting the mobile nav / pull-to-reveal handle); desktop keeps
+ * the classic centred origin. Used by the wallpaper, preloader and screensaver
+ * so all ring surfaces agree.
+ */
+export function useRingOrigin(): { center: [number, number]; reach: number } {
+  const [fromBottom, setFromBottom] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const update = () => setFromBottom(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return fromBottom
+    ? { center: [0.5, 0.0], reach: 1.7 }
+    : { center: [0.5, 0.5], reach: 1.1 };
 }
 
 export function RingShaderBackground({ resolvedMode, wavy = false, reactive = false, intensity = 'subtle', tint = null, center = DEFAULT_CENTER, reach = DEFAULT_REACH }: Props) {

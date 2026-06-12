@@ -3,14 +3,13 @@
 import { Suspense, useState, useEffect, useRef, ReactNode, CSSProperties, useCallback, useMemo } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar, EditingToolbar } from '@/components/layout';
-import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout, useTheme } from '@/hooks';
+import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout, useTheme, useStandaloneMode } from '@/hooks';
 import { PulseWallpaper } from '@/components/layout/PulseWallpaper';
 import { useSearchContext, useHeader, useEditMode, useToast } from '@/contexts';
-import { mdiConnection, mdiCheckCircle, mdiAlertCircle } from '@mdi/js';
+import { mdiConnection, mdiCheckCircle, mdiAlertCircle, mdiCellphoneArrowDown } from '@mdi/js';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
 import { SetupScreen } from '@/components/ui/SetupScreen';
-import { InstallBanner } from '@/components/ui/InstallBanner';
 import { Preloader } from '@/components/ui/Preloader';
 import { AnimatePresence, motion } from 'framer-motion';
 type ConnectionStatus = 'connecting' | 'connected' | 'error' | null;
@@ -145,9 +144,14 @@ function AppShellContent({ children }: AppShellProps) {
     }
   }, [connecting, connected, error, scheduleConnectionStatus, showPreloader]);
 
-  // Surface connection status through the shared toast component.
+  // Surface connection status through the shared toast component. Each status
+  // change replaces the previous connection toast instead of stacking on it.
   const connectionToastId = useRef<number | null>(null);
   useEffect(() => {
+    if (connectionToastId.current != null) {
+      dismissToast(connectionToastId.current);
+      connectionToastId.current = null;
+    }
     if (connectionStatus === 'connecting') {
       connectionToastId.current = showToast({
         icon: mdiConnection,
@@ -174,11 +178,29 @@ function AppShellContent({ children }: AppShellProps) {
         action: { label: 'Reload', onClick: () => window.location.reload() },
         statusSection: 'connectivity',
       });
-    } else if (connectionToastId.current != null) {
-      dismissToast(connectionToastId.current);
-      connectionToastId.current = null;
     }
   }, [connectionStatus, error, showToast, dismissToast]);
+
+  // Mobile browsers (not standalone/PWA): suggest installing to the home
+  // screen via a persistent toast. Dismissing it (✕) is remembered.
+  const { isStandalone, hydrated: standaloneHydrated } = useStandaloneMode();
+  const installPromptShown = useRef(false);
+  useEffect(() => {
+    if (showPreloader || !standaloneHydrated || isStandalone || installPromptShown.current) return;
+    if (localStorage.getItem('ha_install_banner_dismissed') === 'true') return;
+    if (window.matchMedia('(min-width: 1024px)').matches) return;
+    const timer = setTimeout(() => {
+      installPromptShown.current = true;
+      showToast({
+        icon: mdiCellphoneArrowDown,
+        title: 'Add to homescreen',
+        subtitle: 'Share → Add to Home Screen for the full experience',
+        duration: null,
+        onClose: () => localStorage.setItem('ha_install_banner_dismissed', 'true'),
+      });
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [showPreloader, standaloneHydrated, isStandalone, showToast]);
 
   // Dismiss any open toast when entering edit mode
   useEffect(() => {
@@ -233,9 +255,7 @@ function AppShellContent({ children }: AppShellProps) {
   } as CSSProperties), [mobileTopBarHideProgress]);
   const layoutStyle = useMemo(() => ({
     '--mobile-ui-hidden-padding': `${mobileHiddenPaddingProgress}`,
-    // Consumed by the corner toast to ride the mobile nav's auto-hide.
-    '--mobile-nav-hidden': `${mobileTopBarHideProgress}`,
-  } as CSSProperties), [mobileHiddenPaddingProgress, mobileTopBarHideProgress]);
+  } as CSSProperties), [mobileHiddenPaddingProgress]);
 
   const handleWorkspaceSplitStart = useCallback((side: SplitSide, anchor: SplitMenuAnchor) => {
     if (!desktopSplitViewEnabled) return;
@@ -570,10 +590,6 @@ function AppShellContent({ children }: AppShellProps) {
 
       {/* Editing toolbar - replaces MobileNav on mobile, floats on desktop */}
       <EditingToolbar />
-
-      {/* Install app banner - mobile browsers only */}
-      <InstallBanner />
-
 
       {/* Global search overlay */}
       <SearchOverlay />

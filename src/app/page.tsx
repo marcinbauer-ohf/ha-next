@@ -322,11 +322,12 @@ export default function DashboardPage() {
     setHeader({ title: 'Home' });
   }, [setHeader]);
 
-  // Demo: surface a simulated "new device detected" event as a corner toast
-  // (bottom-right of the dashboard). Random one-shot for now — placeholder until
-  // wired to real HA discovery / notification events. Mimics what a discovery
-  // payload carries: a product render, a manufacturer/model, and the transport
-  // (Wi-Fi / Bluetooth / Zigbee / Z-Wave / Thread / Matter) it was found over.
+  // Demo: surface simulated "new device detected" events as toasts — a few of
+  // them, staggered, so the toast stacking (newest in front, older peeking
+  // below) is visible. Placeholder until wired to real HA discovery /
+  // notification events. Mimics what a discovery payload carries: a product
+  // render, a manufacturer/model, and the transport (Wi-Fi / Bluetooth /
+  // Zigbee / Z-Wave / Thread / Matter) it was found over.
   useEffect(() => {
     if (loading) return;
     const discoveries = [
@@ -341,25 +342,21 @@ export default function DashboardPage() {
       { name: 'Smart Bulb',         image: '/devices/bulb_e27.png',             manufacturer: 'Philips Hue', model: 'A60',       protocol: 'Zigbee',    protocolIcon: mdiZigbee },
       { name: 'Wall Switch',        image: '/devices/wall_switch.png',          manufacturer: 'Inovelli',    model: 'Blue 2-1',  protocol: 'Z-Wave',    protocolIcon: mdiZWave },
     ];
-    const delay = 5000; // 5s after load
-    const timer = setTimeout(() => {
-      const d = discoveries[Math.floor(Math.random() * discoveries.length)];
-      showToast({
-        icon: mdiAccessPointNetwork,
-        image: d.image,
-        protocolIcon: d.protocolIcon,
-        title: `New ${d.name}`,
-        subtitle: d.manufacturer,
-        details: [
-          { label: 'Model', value: d.model },
-          { icon: d.protocolIcon, value: d.protocol },
-          { label: 'Signal', value: 'Strong' },
-        ],
-        position: 'bottom-right',
-        action: { label: 'Set up', onClick: () => {} },
-      });
-    }, delay);
-    return () => clearTimeout(timer);
+    // Pick 3 distinct devices and announce them 3s apart, starting 5s after load.
+    const picked = [...discoveries].sort(() => Math.random() - 0.5).slice(0, 3);
+    const timers = picked.map((d, i) =>
+      setTimeout(() => {
+        showToast({
+          icon: mdiAccessPointNetwork,
+          image: d.image,
+          protocolIcon: d.protocolIcon,
+          title: `New ${d.name}`,
+          subtitle: `${d.model} • ${d.protocol} • Strong`,
+          action: { label: 'Set up', onClick: () => {} },
+        });
+      }, 5000 + i * 3000)
+    );
+    return () => timers.forEach(clearTimeout);
   }, [loading, showToast]);
 
   // Dashboard entrance animation
@@ -622,11 +619,11 @@ export default function DashboardPage() {
               )}
               data-scrollable="dashboard"
             >
-              {/* Sticky header: summary badges + optional floor tabs */}
-              <div ref={stickyHeaderRef} className={clsx('z-[60]', dashboardView !== '3d' && 'sticky top-0')}>
-                <MobileSummaryRow
+              {/* Summary chips scroll away; the filters block below them stays pinned */}
+              <MobileSummaryRow
                   fullBleed={isMobileImmersive}
-                  noSticky
+                  noSticky={dashboardView === '3d'}
+                  extraRef={stickyHeaderRef}
                   extraContent={
                     <div className="flex items-center gap-ha-2 min-w-0">
                       {/* Floors — scrollable when many, takes remaining width on the left */}
@@ -691,7 +688,6 @@ export default function DashboardPage() {
                     </div>
                   }
                 />
-              </div>
 
               {dashboardView === '3d' ? (
                 <div className="flex-1 min-h-0">

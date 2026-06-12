@@ -165,9 +165,11 @@ export function createDemoEntities(now = new Date()): HassEntities {
       },
       timestamp
     ),
+    // Default demo shows two activities (Media + Timer). Release/Camera/Printer
+    // start inactive — each is still toggleable from dev settings.
     'update.home_assistant_release_notes_simulated': createEntity(
       'update.home_assistant_release_notes_simulated',
-      'on',
+      'off',
       {
         friendly_name: 'Home Assistant 2026.2.1',
         latest_version: '2026.2.1',
@@ -234,7 +236,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
     ),
     'binary_sensor.camera_simulated': createEntity(
       'binary_sensor.camera_simulated',
-      'on',
+      'off',
       {
         friendly_name: 'Front Door Camera',
         event_type: 'Person detected',
@@ -244,7 +246,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
     ),
     'binary_sensor.camera_simulated_garage': createEntity(
       'binary_sensor.camera_simulated_garage',
-      'on',
+      'off',
       {
         friendly_name: 'Garage Camera',
         event_type: 'Motion detected',
@@ -254,7 +256,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
     ),
     'sensor.printer_simulated': createEntity(
       'sensor.printer_simulated',
-      'printing',
+      'idle',
       {
         friendly_name: 'Voron 2.4',
         progress: 63,

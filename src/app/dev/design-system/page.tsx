@@ -729,24 +729,18 @@ export default function DesignSystemPage() {
                 <PropTag name="statusSection" value="connectivity" />
               </div>
             </Row>
-            <Row label="position">
+            <Row label="stacking">
               <div className="flex flex-col gap-ha-1 items-start">
                 <button
-                  onClick={() => showToast({ icon: mdiCheckCircle, iconColor: 'text-green-500', title: 'Bottom center', subtitle: 'Default position', position: 'bottom-center' })}
+                  onClick={() => {
+                    showToast({ icon: mdiCheckCircle, iconColor: 'text-green-500', title: 'First toast', subtitle: 'Waits behind, pops forward', duration: 8000 });
+                    showToast({ icon: mdiAutoFix, title: 'Second toast', subtitle: 'Newest shows in front', duration: 4000 });
+                  }}
                   className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
                 >
-                  bottom-center
+                  Show two stacked
                 </button>
-                <PropTag name="position" value="bottom-center (default)" />
-              </div>
-              <div className="flex flex-col gap-ha-1 items-start">
-                <button
-                  onClick={() => showToast({ icon: mdiCheckCircle, iconColor: 'text-ha-blue', title: 'Bottom right', subtitle: 'Slides in from edge', position: 'bottom-right' })}
-                  className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
-                >
-                  bottom-right
-                </button>
-                <PropTag name="position" value="bottom-right" />
+                <PropTag name="stack" value="newest in front, older peek below" />
               </div>
             </Row>
           </div>

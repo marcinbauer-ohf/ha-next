@@ -1400,21 +1400,17 @@
 }
 
 /* Corner toast (bottom-right) — positioned relative to the dashboard <main>.
-   Mobile: bottom offset tracks the mobile nav's auto-hide so the toast rides
-   the top edge of the bottom nav when shown and drops to the screen edge when
-   hidden. Desktop: inset a bit from the corner of the main content area. */
+   Mobile: always sits just above the nav's current height. The nav's auto-hide
+   only collapses its bottom tab row — the "Ask your home" top row stays — and
+   --mobile-nav-height (offsetHeight, includes the safe-area inset) shrinks to
+   match, so anchoring to it keeps the toast above the bar in either state
+   instead of slipping under the still-visible top row. Desktop: inset from the
+   corner of the main content area. */
 .corner-toast {
   right: var(--spacing-edge, 12px);
   /* Mobile: full width (edge-to-edge minus padding). Desktop: fixed compact width. */
   width: calc(100% - 2 * var(--spacing-edge, 12px));
-  /* Shown: sit a small gap above the full nav height (which already includes
-     the safe-area inset). Hidden: drop to the screen's bottom safe edge. */
-  bottom: calc(
-    (1 - var(--mobile-nav-hidden, 0)) *
-      (var(--mobile-nav-height, 6rem) + var(--ha-space-2, 0.5rem)) +
-      var(--mobile-nav-hidden, 0) *
-      (var(--ha-space-3, 0.75rem) + env(safe-area-inset-bottom, 0px))
-  );
+  bottom: calc(var(--mobile-nav-height, 6rem) + var(--ha-space-2, 0.5rem));
 }
 @media (min-width: 1024px) {
   .corner-toast {
@@ -1696,6 +1692,19 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .ha-pane-in,
   .ha-pane-in--back { animation: none; }
+}
+
+/* Dropdown menu open — quick fade + slide-down from the trigger. */
+.ha-dropdown-in {
+  animation: ha-dropdown-in 130ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transform-origin: top;
+}
+@keyframes ha-dropdown-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-dropdown-in { animation: none; }
 }
 
 /* ── Sidebar arrange ("jiggle") mode ──────────────────────────────────────

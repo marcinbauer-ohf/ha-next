@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { mdiClose, mdiPencilOutline, mdiPower, mdiInformation, mdiInformationOutline } from '@mdi/js';
 import { clsx } from 'clsx';
-import { Icon, ListSection, RollingNumericValue, SegmentedControl, HALoader, ToggleSwitch } from '../ui';
+import { Icon, ListSection, RollingNumericValue, SegmentedControl, Dropdown, HALoader, ToggleSwitch } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { HistoryPoint } from '@/lib/homeassistant/types';
@@ -346,20 +346,31 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
             )}
           </div>
 
-          {/* Graph controls */}
-          <div className="w-full flex items-center justify-between gap-2 pt-1">
+          {/* Graph controls — stack on mobile so neither group is cramped. The
+              aggregation picker is a full SegmentedControl on mobile (room to
+              stack) and a compact Dropdown on desktop (saves the inline width). */}
+          <div className="w-full flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 pt-1">
             <SegmentedControl
               segments={TIME_SPANS.map(t => ({ value: t.value, label: t.label }))}
               value={timeSpan}
               onChange={v => setTimeSpan(v as TimeSpan)}
               className="text-xs"
             />
-            <SegmentedControl
-              segments={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
-              value={aggregation}
-              onChange={v => setAggregation(v as Aggregation)}
-              className="text-xs"
-            />
+            <div className="lg:hidden">
+              <SegmentedControl
+                segments={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
+                value={aggregation}
+                onChange={v => setAggregation(v as Aggregation)}
+                className="text-xs"
+              />
+            </div>
+            <div className="hidden lg:block">
+              <Dropdown
+                options={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
+                value={aggregation}
+                onChange={v => setAggregation(v as Aggregation)}
+              />
+            </div>
           </div>
         </>
       )}

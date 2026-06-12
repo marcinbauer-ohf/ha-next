@@ -27,7 +27,8 @@ import { Avatar } from '../ui/Avatar';
 import { HALogo } from '../ui/HALogo';
 import { MdiIcon } from '../ui/MdiIcon';
 import { CircularProgress } from '../ui/CircularProgress';
-import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPress } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPress, useHomeCenterPrefs } from '@/hooks';
+import { HomeCenterPillIndicators, HomeCenterStatusSections, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
 import { SettingsNavPanel } from '@/components/profile';
 import { isSettingsSlug, type SettingsSlug } from '@/components/profile/settingsNavigation';
 import { usePullToRevealContext, useSearchContext, useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
@@ -42,8 +43,6 @@ import {
   mdiArrowLeft,
   mdiMagnify,
   mdiUpdate,
-  mdiBell,
-  mdiWeb,
   mdiPlay,
   mdiTimerOutline,
   mdiPause,
@@ -58,10 +57,6 @@ import {
   mdiPrinter3d,
   mdiViewDashboardOutline,
   mdiMenu,
-  mdiCheckCircle,
-  mdiAlertCircle,
-  mdiCloudCheck,
-  mdiCloudOff,
   mdiCheck,
 } from '@mdi/js';
 
@@ -405,6 +400,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const sheetOpenProgress = isBottomSheetDragging ? bottomSheetDragProgress : (statusExpanded ? 1 : 0);
   const isSheetVisible = sheetOpenProgress > 0.001;
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
+  const { visibleSections } = useHomeCenterPrefs();
   const matchingEntities = useHomeAssistantSelector(
     (entities) => selectMatchingEntities(entities, expandedSearchQuery),
     areEntitySearchMatchesEqual
@@ -847,6 +843,12 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     });
   }, [exitArrange]);
 
+  // Close the bottom sheet before navigating (shared Home Center sections).
+  const navigateFromSurface = useCallback((path: string) => {
+    closeExpandedSurface();
+    router.push(path);
+  }, [closeExpandedSurface, router]);
+
   const openExpandedSurface = useCallback(
     (tab: BottomSurfaceTab) => {
       if (statusExpanded && expandedSurfaceTab === tab) {
@@ -1027,12 +1029,6 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
 
 
 
-  const activeUpdates = activityData.activeUpdates;
-  const activeNotifications = activityData.activeNotifications;
-
-  const pendingUpdates = activeUpdates.length;
-  const notificationCount = activeNotifications.length;
-
   const userAvatar = useMemo(() => {
     if (activityData.user) {
       return {
@@ -1042,8 +1038,6 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     }
     return { picture: undefined, initials: 'U' };
   }, [activityData.user, haUrl]);
-
-  const isRemoteConnected = activityData.isRemoteConnected;
 
   const allActiveReleaseNotes = activityData.activeReleaseNotes;
 
@@ -1111,7 +1105,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   // Live activities are capped in the mobile navbar. Types past the cap collapse
   // into a "+N" overflow pill that opens the combined Active Now sheet. Order here
   // mirrors the render order below so the first-N kept are the ones shown.
-  const MAX_VISIBLE_ACTIVITIES = 3;
+  const MAX_VISIBLE_ACTIVITIES = 2;
   const activeWidgetTypes = useMemo<WidgetSurfaceType[]>(
     () =>
       (
@@ -1173,10 +1167,6 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const activePrinterCount = allActivePrinters.length;
   const displayedTimerProgress = activeTimer ? timerProgress : 0;
   
-  const offlineDevices = activityData.offlineDevices;
-
-  const offlineCount = offlineDevices.length;
-
   // Home is pinned first in its own cell; the rest carry the session arrange
   // order + soft-hides. Soft-hidden items also drop out of search.
   const homeItem = useMemo(() => items.find((item) => item && item.urlPath === '/'), [items]);
@@ -1380,7 +1370,6 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               value={expandedSearchQuery}
               onChange={setExpandedSearchQuery}
               placeholder="Search dashboards, apps, entities..."
-              autoFocus
               className="flex-1"
             />
             <button
@@ -1665,120 +1654,12 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       );
     }
 
+    // Home Center status surface — same shared sections as the desktop
+    // StatusBar pop-up so both stay aligned (order/visibility follow prefs).
     return (
       <div className="space-y-ha-3 pb-8">
-        {/* Connection Section */}
-        <div className="bg-surface-low rounded-2xl p-ha-3">
-            <div className="flex items-center gap-ha-3 mb-ha-3">
-                <div className={`p-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                  <Icon path={connectionStatus === 'connected' ? mdiCheckCircle : mdiAlertCircle} size={24} />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-text-primary">Home Assistant</h4>
-                  <p className="text-xs text-text-secondary font-medium">
-                      {connectionStatus === 'connecting' ? 'Connecting...' :
-                       connectionStatus === 'connected' ? 'Connected securely' :
-                       connectionStatus === 'error' ? 'Connection Error' : 'Unknown Status'}
-                  </p>
-                </div>
-            </div>
-              
-            {/* Connection Details */}
-            <div className="space-y-2 mt-2 pt-2 border-t border-surface-mid/50">
-                {/* Remote Access */}
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <Icon path={isRemoteConnected ? mdiCloudCheck : mdiCloudOff} size={16} className={isRemoteConnected ? "text-green-500" : "text-text-disabled"} />
-                    <span className="text-sm text-text-secondary">Remote Access</span>
-                  </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${isRemoteConnected ? 'bg-green-500/10 text-green-500' : 'bg-surface-mid text-text-disabled'}`}>
-                     {isRemoteConnected ? 'Enabled' : 'Disabled'}
-                  </span>
-                </div>
-            </div>
-        </div>
-
-        {/* Notifications Section - Always shown */}
-        <div className="bg-surface-low rounded-2xl p-ha-3">
-          <div className="flex items-center justify-between mb-ha-2 px-1">
-            <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Notifications</h4>
-            {activeNotifications.length > 0 && (
-              <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
-            )}
-          </div>
-          {activeNotifications.length > 0 ? (
-            <div className="space-y-2">
-              {activeNotifications.map(notif => (
-                <div key={notif.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
-                  <Icon path={mdiBell} size={18} className="text-yellow-500 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-text-primary leading-tight">{notif.title}</p>
-                    {notif.message && <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-snug">{notif.message}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
-              <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
-              No notifications
-            </p>
-          )}
-        </div>
-
-        {/* Active Updates Section */}
-        {(activeUpdates.length > 0) && (
-            <div className="bg-surface-low rounded-2xl p-ha-3">
-                <div className="flex items-center justify-between mb-ha-2 px-1">
-                  <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Updates Available</h4>
-                  <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
-                </div>
-                <div className="space-y-2">
-                    {activeUpdates.map(update => (
-                        <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-xl transition-colors cursor-pointer group">
-                            <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-110 transition-transform">
-                                {update.picture ? <img src={getEntityPictureUrl(update.picture)} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
-                            </div>
-                            <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
-                            <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
-                        </div>
-                    ))}
-                </div>
-            </div>
-        )}
-        
-        {/* Offline Devices Section - Always shown */}
-        <div className="bg-surface-low rounded-2xl p-ha-3">
-          <div className="flex items-center justify-between mb-ha-2 px-1">
-            <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Offline Devices</h4>
-            {offlineDevices.length > 0 && (
-              <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
-            )}
-          </div>
-          {offlineDevices.length > 0 ? (
-            <div className="space-y-1">
-              {offlineDevices.map(device => (
-                <div key={device.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-mid/50 transition-colors">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
-                  <span className="text-sm truncate font-medium">{device.name}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-text-disabled px-1 py-1 flex items-center gap-2">
-               <Icon path={mdiCheckCircle} size={14} className="opacity-50" />
-               All devices online
-            </p>
-          )}
-        </div>
-
-        {/* Empty State / All Good */}
-        {activeUpdates.length === 0 && activeNotifications.length === 0 && offlineDevices.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-6 text-center opacity-80">
-                <p className="text-sm font-medium text-text-primary">All systems nominal</p>
-                <p className="text-xs text-text-secondary mt-1">No issues detected in your home environment.</p>
-            </div>
-        )}
+        <HomeCenterStatusSections onNavigate={navigateFromSurface} />
+        <OpenHomeCenterButton onNavigate={navigateFromSurface} />
       </div>
     );
   };
@@ -2179,69 +2060,21 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             </div>
           )}
 
-          {/* Status pill: icons - pushed to the right */}
+          {/* Status pill: icons - pushed to the right.
+              Indicators follow Home Center prefs, same as the desktop pill. */}
           {(() => {
-            const statusIcons = [
-              // Updates indicator
-              <div key="updates" className="relative">
-                <Icon
-                  path={mdiUpdate}
-                  size={18}
-                  className="text-text-secondary"
-                />
-                {pendingUpdates > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-ha-blue rounded-full w-2 h-2" />
-                )}
-              </div>,
-              // Remote access indicator
-              <div key="remote" className="relative">
-                <Icon
-                  path={mdiWeb}
-                  size={18}
-                  className="text-text-secondary"
-                />
-                {isRemoteConnected && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-green-500 rounded-full w-2 h-2" />
-                )}
-                {!isRemoteConnected && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2 h-2" />
-                )}
-              </div>,
-              // Notifications indicator
-              <div key="notifications" className="relative">
-                <Icon
-                  path={mdiBell}
-                  size={18}
-                  className="text-text-secondary"
-                />
-                {notificationCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-yellow-500 rounded-full w-2 h-2" />
-                )}
-              </div>,
-              // Offline devices indicator
-              <div key="offline" className="relative">
-                <Icon
-                  path={mdiDevices}
-                  size={18}
-                  className="text-text-secondary"
-                />
-                {offlineCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 rounded-full w-2 h-2" />
-                )}
-              </div>,
-            ];
-
             const activeWidgetsCount = (showReleaseWidget ? 1 : 0) + (showMediaWidget ? 1 : 0) + (showTimerWidget ? 1 : 0) + (showCameraWidget ? 1 : 0) + (showPrinterWidget ? 1 : 0);
-            const maxIcons = activeWidgetsCount >= 2 ? 1 : activeWidgetsCount === 1 ? 2 : 4;
-            const visibleIcons = statusIcons.slice(0, maxIcons);
-            const hasMore = statusIcons.length > maxIcons;
+            // Always show at least two status icons; widen to 4 when no activities
+            // are competing for navbar width.
+            const maxIcons = activeWidgetsCount >= 1 ? 2 : 4;
+            const hasMore = visibleSections.length > maxIcons;
 
             return (
               <button
                 onClick={() => openExpandedSurface('dashboard')}
                 className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-10 flex-shrink-0 ml-auto active:scale-95 transition-transform"
               >
-                {visibleIcons}
+                <HomeCenterPillIndicators size={18} max={maxIcons} withTooltips={false} />
 
                 {/* Chevron if more icons */}
                 {hasMore && (

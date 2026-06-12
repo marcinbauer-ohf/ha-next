@@ -134,7 +134,7 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
         className={clsx(
           'flex flex-col justify-between px-3 pt-3 pb-3 relative overflow-hidden transition-colors',
           hasSecondary ? 'rounded-t-ha-2xl' : 'rounded-ha-2xl',
-          'min-h-[148px] md:min-h-[136px]',
+          'min-h-[128px] md:min-h-[136px]',
           editMode
             ? 'bg-surface-default hover:bg-surface-low'
             : isUnavailable
@@ -170,7 +170,7 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
               aria-hidden
               onError={() => setThumb((t) => ({ ...t, ok: false }))}
               className={clsx(
-                'pointer-events-none select-none absolute left-2 top-2 z-[1] h-[38%] md:h-[52%] w-auto object-contain object-left',
+                'pointer-events-none select-none absolute left-2 top-2 z-[1] h-[50%] md:h-[52%] w-auto object-contain object-left',
                 isUnavailable && 'opacity-50 grayscale',
               )}
               style={{
@@ -250,7 +250,7 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
               <div
                 key={entity.entityId}
                 className={clsx(
-                  'flex items-center gap-3 px-3 border-t border-surface-lower transition-colors min-h-[44px]',
+                  'flex items-center gap-3 px-3 border-t border-surface-lower transition-colors min-h-[52px]',
                   entityUnavailable
                     ? 'opacity-50 cursor-default'
                     : editMode
@@ -264,7 +264,7 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
                 {entity.size !== 'sm' && (
                   <Icon
                     path={entity.icon}
-                    size={16}
+                    size={19}
                     className={clsx(
                       'flex-shrink-0',
                       entityUnavailable ? 'text-text-disabled' : (entity.active && entity.toggleable) ? 'text-green-500' : 'text-text-tertiary',

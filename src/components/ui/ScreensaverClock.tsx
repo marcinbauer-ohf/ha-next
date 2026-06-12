@@ -24,7 +24,7 @@ import { CircularProgress } from './CircularProgress';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import { SummaryCard } from '../cards/SummaryCard';
 import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
-import { RingShaderBackground } from './RingShaderBackground';
+import { RingShaderBackground, useRingOrigin } from './RingShaderBackground';
 import { APP_BUILD } from '@/lib/version';
 import {
   areActivityDataEqual,
@@ -72,13 +72,16 @@ function ScreensaverActivityPills({
     resolveEntityPictureUrl(haUrl, picture) ?? fallback;
 
   const pills: React.ReactNode[] = [];
+  // Phone portrait shows at most this many pills; the rest collapse into a "+N more" chip.
+  const MOBILE_PILL_LIMIT = 3;
+  const mobileHide = () => (pills.length >= MOBILE_PILL_LIMIT ? 'max-md:portrait:hidden' : '');
 
   if (activityData.activeReleaseNotes.length > 0) {
     const note = activityData.activeReleaseNotes[0];
     pills.push(
       <div
         key="release-notes"
-        className="relative flex items-center gap-ha-3 bg-green-500/12 border border-green-500/25 rounded-ha-pill px-ha-3 h-12"
+        className={`relative flex items-center gap-ha-3 bg-green-500/12 border border-green-500/25 rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
       >
         <div className="relative">
           <div className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
@@ -86,7 +89,7 @@ function ScreensaverActivityPills({
           </div>
           <ActivityCountBadge count={activityData.activeReleaseNotes.length} variant="green" />
         </div>
-        <div className="flex flex-col min-w-0 max-w-[180px]">
+        <div className="flex flex-col min-w-0 max-w-[180px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
           <span className="text-sm font-bold text-green-600 truncate">What&apos;s New</span>
           <span className="text-xs text-text-secondary truncate">{note.version}</span>
         </div>
@@ -100,7 +103,7 @@ function ScreensaverActivityPills({
     pills.push(
       <div
         key="media"
-        className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12"
+        className={`relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
       >
         <div className="relative">
           {picture ? (
@@ -117,7 +120,7 @@ function ScreensaverActivityPills({
           )}
           <ActivityCountBadge count={activityData.activePlayers.length} />
         </div>
-        <div className="flex flex-col min-w-0 max-w-[140px]">
+        <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
           <span className="text-sm font-medium text-text-primary truncate">
             {player.mediaTitle || player.name}
           </span>
@@ -137,7 +140,7 @@ function ScreensaverActivityPills({
     pills.push(
       <div
         key="timer"
-        className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 ${isActive ? 'bg-fill-primary-normal' : 'bg-yellow-95'}`}
+        className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 ${isActive ? 'bg-fill-primary-normal' : 'bg-yellow-95'} ${mobileHide()}`}
       >
         <div className="relative">
           <ActivityCountBadge count={activityData.activeTimers.length} />
@@ -151,7 +154,7 @@ function ScreensaverActivityPills({
             <Icon path={isActive ? mdiTimerOutline : mdiPause} size={14} className={isActive ? 'text-ha-blue' : 'text-yellow-600'} />
           </CircularProgress>
         </div>
-        <div className="flex flex-col min-w-0 max-w-[140px]">
+        <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
           <span className="text-sm font-medium text-text-primary truncate">{timer.remaining}</span>
           <span className="text-xs text-text-secondary truncate">{timer.name}</span>
         </div>
@@ -164,14 +167,14 @@ function ScreensaverActivityPills({
     pills.push(
       <div
         key="camera"
-        className="relative flex items-center gap-ha-3 bg-red-500/10 border border-red-500/20 rounded-ha-pill px-ha-3 h-12"
+        className={`relative flex items-center gap-ha-3 bg-red-500/10 border border-red-500/20 rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
       >
         <div className="relative w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
           <img src={picUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover animate-pulse" />
           <div className="absolute inset-0 bg-red-500/10" />
           <ActivityCountBadge count={activityData.activeCameras.length} />
         </div>
-        <div className="flex flex-col min-w-0 max-w-[140px]">
+        <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
           <span className="text-sm font-bold text-red-500 truncate flex items-center gap-1">
             <Icon path={mdiDoorbellVideo} size={14} />
             {camera.name}
@@ -187,7 +190,7 @@ function ScreensaverActivityPills({
     pills.push(
       <div
         key="printer"
-        className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12"
+        className={`relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
       >
         <div className="relative">
           <ActivityCountBadge count={activityData.activePrinters.length} />
@@ -203,13 +206,24 @@ function ScreensaverActivityPills({
             </div>
           </CircularProgress>
         </div>
-        <div className="flex flex-col min-w-0 max-w-[140px]">
+        <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
           <div className="flex items-center gap-1">
             <span className="text-sm font-medium text-text-primary truncate font-mono">{printer.progress}%</span>
             <span className="text-[13px] text-text-disabled uppercase font-bold tracking-tighter">Printing</span>
           </div>
           <span className="text-xs text-text-secondary truncate">{printer.fileName}</span>
         </div>
+      </div>
+    );
+  }
+
+  if (pills.length > MOBILE_PILL_LIMIT) {
+    pills.push(
+      <div
+        key="more"
+        className="hidden max-md:portrait:flex items-center justify-center self-center h-8 px-ha-4 rounded-ha-pill bg-surface-low/60 text-[13px] font-medium text-text-secondary"
+      >
+        +{pills.length - MOBILE_PILL_LIMIT} more
       </div>
     );
   }
@@ -234,6 +248,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const liveSummaryItems = useLiveSummaryItems();
   const { haUrl } = useHomeAssistant();
   const { wavyBackgroundEnabled, reactiveBackgroundEnabled, reactiveTriggerMode, reactiveIntensity } = useFeatureFlags();
+  const ringOrigin = useRingOrigin();
   // Only watch for events while the screensaver is actually on screen.
   useHomeEventReactor(reactiveBackgroundEnabled && visible, reactiveTriggerMode);
   const [time, setTime] = useState({ hours: '', minutes: '', seconds: '', period: '', isAM: true });
@@ -508,7 +523,8 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     }
     return (
       <div key={id} className="relative">
-        <Icon path={icon} size={20} className="text-text-secondary" />
+        {/* Width classes shrink the icon below lg to match the compact pill */}
+        <Icon path={icon} size={20} className="w-[18px] h-[18px] lg:w-5 lg:h-5 text-text-secondary" />
         {dot && <span className={`absolute -top-0.5 -right-0.5 ${dot} rounded-full w-2 h-2 ${pulse ? 'animate-pulse' : ''}`} />}
       </div>
     );
@@ -524,7 +540,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     <div
       ref={containerRef}
       data-component="Screensaver"
-      className={`fixed inset-0 z-[100] bg-surface-default flex flex-col items-center justify-center transition-all ease-out ${
+      className={`fixed inset-0 z-[100] bg-surface-default flex flex-col items-center justify-center max-lg:pb-12 transition-all ease-out ${
         isDragging ? 'duration-0' : isDismissing ? 'duration-300' : 'duration-500'
       } ${
         isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'
@@ -544,6 +560,8 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         wavy={wavyBackgroundEnabled}
         reactive={reactiveBackgroundEnabled}
         intensity={reactiveIntensity}
+        center={ringOrigin.center}
+        reach={ringOrigin.reach}
       />
       {/* Build Info - Top */}
       <div className="absolute top-8 left-0 right-0 flex justify-center px-ha-6 pointer-events-none">
@@ -563,12 +581,12 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
               <RollingDigit
                 key={i}
                 digit={digit}
-                className="text-[6rem] lg:text-[8rem] font-semibold text-text-primary leading-none tracking-tight"
+                className="text-[4.5rem] md:text-[6rem] lg:text-[8rem] font-semibold text-text-primary leading-none tracking-tight"
               />
             ))}
           </div>
           <span
-            className={`text-[6rem] lg:text-[8rem] font-semibold text-text-primary leading-none transition-opacity duration-100 ${
+            className={`text-[4.5rem] md:text-[6rem] lg:text-[8rem] font-semibold text-text-primary leading-none transition-opacity duration-100 ${
               colonVisible ? 'opacity-100' : 'opacity-20'
             }`}
           >
@@ -579,7 +597,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
               <RollingDigit
                 key={i}
                 digit={digit}
-                className="text-[6rem] lg:text-[8rem] font-semibold text-text-primary leading-none tracking-tight"
+                className="text-[4.5rem] md:text-[6rem] lg:text-[8rem] font-semibold text-text-primary leading-none tracking-tight"
               />
             ))}
           </div>
@@ -587,14 +605,14 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         {!use24HourClock && (
           <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 -mt-2 flex flex-col">
             <span
-              className={`text-xl lg:text-2xl font-medium leading-tight ${
+              className={`text-lg md:text-xl lg:text-2xl font-medium leading-tight ${
                 time.isAM ? 'text-text-primary' : 'text-text-disabled'
               }`}
             >
               AM
             </span>
             <span
-              className={`text-xl lg:text-2xl font-medium leading-tight ${
+              className={`text-lg md:text-xl lg:text-2xl font-medium leading-tight ${
                 !time.isAM ? 'text-text-primary' : 'text-text-disabled'
               }`}
             >
@@ -605,10 +623,10 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       </div>
 
       {/* Date display */}
-      <p className="text-xl lg:text-2xl text-text-secondary mt-6">{date}</p>
+      <p className="text-lg mt-3 md:text-xl md:mt-6 lg:text-2xl text-text-secondary">{date}</p>
 
       {/* Summary badges */}
-      <div className="flex flex-wrap justify-center gap-ha-4 mt-12 max-w-4xl px-ha-6">
+      <div className="flex flex-wrap justify-center gap-ha-2 mt-5 md:gap-ha-4 md:mt-8 lg:mt-12 max-w-4xl px-ha-6">
         <PeopleBadge compact translucent />
         {liveSummaryItems.map((item) => (
           <SummaryCard
@@ -624,8 +642,8 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       </div>
 
       {hasActivities && (
-        <div className="w-full max-w-6xl px-ha-6 mt-8">
-          <div className="flex items-center justify-center gap-ha-3 mb-ha-4">
+        <div className="w-full max-w-6xl px-ha-6 mt-4 md:mt-6 lg:mt-8">
+          <div className="flex items-center justify-center gap-ha-3 mb-ha-2 md:mb-ha-4">
             <span className="h-px w-8 bg-surface-lower" />
             <p className="text-[13px] lg:text-xs font-semibold uppercase tracking-[0.22em] text-text-disabled">
               Active Now
@@ -633,14 +651,16 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             <span className="h-px w-8 bg-surface-lower" />
           </div>
 
-          <div className="flex flex-wrap justify-center gap-ha-3">
+          {/* Portrait phones: one pill per row, all equal width (flex-col stretch);
+              everything else keeps the centered wrapping row. */}
+          <div className="flex flex-wrap justify-center gap-ha-3 max-md:portrait:gap-ha-2 max-lg:portrait:flex-col max-lg:portrait:flex-nowrap max-lg:portrait:max-w-sm max-lg:portrait:mx-auto">
             <ScreensaverActivityPills activityData={activityData} haUrl={haUrl} />
           </div>
         </div>
       )}
 
       {/* Status pill — clickable, opens Home Center settings */}
-      <div className={`relative ${hasActivities ? 'mt-6' : 'mt-8'}`}>
+      <div className={`relative ${hasActivities ? 'mt-4 md:mt-6' : 'mt-5 md:mt-8'}`}>
         <button
           type="button"
           onClick={(e) => {
@@ -648,11 +668,13 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             onDismiss();
             router.push('/settings?section=home-center');
           }}
-          className="flex items-center gap-ha-3 rounded-ha-pill px-ha-4 py-ha-3 border border-white/10 backdrop-blur-md transition-colors bg-surface-mid/65 hover:bg-surface-mid/80"
+          className="flex items-center gap-ha-2 lg:gap-ha-3 rounded-ha-pill px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 border border-white/10 backdrop-blur-md transition-colors bg-surface-mid/65 hover:bg-surface-mid/80"
         >
-          <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" />
+          {/* Compact below lg — the desktop pill reads oversized on a phone */}
+          <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" className="lg:hidden" />
+          <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="md" className="hidden lg:flex" />
 
-          <div className="w-px h-6 bg-surface-lower" />
+          <div className="w-px h-5 lg:h-6 bg-surface-lower" />
 
           {/* Status indicators — order and visibility follow Home Center prefs */}
           {visibleSections.map(renderStatusIndicator)}
@@ -667,12 +689,12 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       {/* Mobile: Drag handle visual at bottom */}
       <div
         className="lg:hidden absolute bottom-0 left-0 right-0 flex flex-col items-center"
-        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + 1.5rem)`, paddingTop: '2rem' }}
+        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + 1rem)`, paddingTop: '1rem' }}
       >
-        <p className="text-sm text-text-disabled mb-ha-3 animate-pulse">
+        <p className="text-sm text-text-disabled mb-ha-2 animate-pulse">
           Drag up to dismiss
         </p>
-        <div className="w-10 h-1.5 rounded-full bg-text-secondary/40 mb-4" />
+        <div className="w-10 h-1.5 rounded-full bg-text-secondary/40" />
       </div>
     </div>
   );

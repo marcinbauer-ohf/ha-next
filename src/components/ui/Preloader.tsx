@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { useScreensaver } from '@/contexts';
-import { RingShaderBackground } from './RingShaderBackground';
+import { RingShaderBackground, useRingOrigin } from './RingShaderBackground';
 import { APP_BUILD } from '@/lib/version';
 
 // Dynamically import Lottie to avoid SSR issues
@@ -24,6 +24,7 @@ const getResolvedMode = (): ResolvedMode => {
 
 export function Preloader({ onFinish }: PreloaderProps) {
   const [animationData, setAnimationData] = useState<object | null>(null);
+  const ringOrigin = useRingOrigin();
   const [showLogo, setShowLogo] = useState(false);
   const [resolvedMode, setResolvedMode] = useState<ResolvedMode>(() => getResolvedMode());
   const { dismiss } = useScreensaver();
@@ -124,7 +125,7 @@ export function Preloader({ onFinish }: PreloaderProps) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25, ease: 'easeInOut' }}
     >
-      <RingShaderBackground resolvedMode={resolvedMode} />
+      <RingShaderBackground resolvedMode={resolvedMode} center={ringOrigin.center} reach={ringOrigin.reach} />
 
       {/* Centered Lottie animation — plays once, no loop */}
       <motion.div

@@ -3,14 +3,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
-import { Toast, ToastContainer, type ToastProps, type ToastPosition } from '@/components/ui/Toast';
+import { ToastStack, type ToastProps, type ToastStackItem } from '@/components/ui/Toast';
 import { emitStatusPulse } from '@/lib/statusPulseBus';
 import type { HomeCenterSectionId } from '@/lib/homeCenter';
 
 interface ToastOptions extends ToastProps {
-  /** Auto-dismiss delay in ms. Pass null to keep it up until replaced/dismissed. */
+  /** Auto-dismiss delay in ms. Pass null to keep it up until dismissed. */
   duration?: number | null;
-  position?: ToastPosition;
   /** Home Center section this toast relates to (connectivity, updates, …).
       When set, the status-bar clock widget pulses to point at where the
       same information lives. */
@@ -22,9 +21,10 @@ interface ToastState extends ToastOptions {
 }
 
 interface ToastContextValue {
-  /** Show a toast; returns its id so callers can dismiss that specific toast. */
+  /** Show a toast; returns its id so callers can dismiss that specific toast.
+      Multiple live toasts render as a card stack, newest in front. */
   showToast: (opts: ToastOptions) => number;
-  /** Dismiss the current toast. Pass an id to only dismiss if it's still showing. */
+  /** Dismiss all toasts. Pass an id to only dismiss that toast. */
   dismissToast: (id?: number) => void;
   /** True while any toast is on screen — used to freeze the mobile nav auto-hide. */
   isToastVisible: boolean;
@@ -36,7 +36,7 @@ const ToastContext = createContext<ToastContextValue>({
   isToastVisible: false,
 });
 
-function ToastGlow({ show, toastId, position }: { show: boolean; toastId: number; position: ToastPosition }) {
+function ToastGlow({ show, toastId }: { show: boolean; toastId: number }) {
   const [root, setRoot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -45,21 +45,33 @@ function ToastGlow({ show, toastId, position }: { show: boolean; toastId: number
 
   if (!root) return null;
 
-  const isCorner = position === 'bottom-right';
-
+  // Two responsive variants matching the stack's position: a short, wide
+  // corner glow on desktop and a full-width bottom glow on mobile.
   return createPortal(
     <AnimatePresence>
       {show && (
         <motion.div
-          key={`glow-${toastId}`}
-          className={`absolute bottom-0 pointer-events-none ${isCorner ? 'corner-toast-glow' : 'dashboard-bottom-glow'}`}
+          key={`glow-corner-${toastId}`}
+          className="hidden lg:block absolute bottom-0 pointer-events-none corner-toast-glow"
           style={{
-            // Corner glow is short + wide (squished, toast-shaped) rather than circular.
-            height: isCorner ? '15rem' : '40vh',
-            background: isCorner
-              ? 'radial-gradient(ellipse 85% 50% at 100% 100%, rgba(24,188,242,0.22) 0%, rgba(24,188,242,0.08) 48%, transparent 76%)'
-              : 'radial-gradient(ellipse 80% 70% at 50% 100%, rgba(24,188,242,0.14) 0%, rgba(24,188,242,0.05) 55%, transparent 75%)',
-            transformOrigin: isCorner ? '100% 100%' : '50% 100%',
+            height: '15rem',
+            background: 'radial-gradient(ellipse 85% 50% at 100% 100%, rgba(24,188,242,0.22) 0%, rgba(24,188,242,0.08) 48%, transparent 76%)',
+            transformOrigin: '100% 100%',
+          }}
+          initial={{ scale: 0.15, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.4, opacity: 0 }}
+          transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+        />
+      )}
+      {show && (
+        <motion.div
+          key={`glow-bottom-${toastId}`}
+          className="lg:hidden absolute bottom-0 pointer-events-none dashboard-bottom-glow"
+          style={{
+            height: '40vh',
+            background: 'radial-gradient(ellipse 80% 70% at 50% 100%, rgba(24,188,242,0.14) 0%, rgba(24,188,242,0.05) 55%, transparent 75%)',
+            transformOrigin: '50% 100%',
           }}
           initial={{ scale: 0.15, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -73,54 +85,60 @@ function ToastGlow({ show, toastId, position }: { show: boolean; toastId: number
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toast, setToast] = useState<ToastState | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [toasts, setToasts] = useState<ToastState[]>([]);
+  const timersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const idRef = useRef(0);
 
+  const removeToast = useCallback((id: number) => {
+    const timer = timersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   const showToast = useCallback((opts: ToastOptions) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
     const id = ++idRef.current;
-    setToast({ ...opts, id });
+    setToasts((prev) => [{ ...opts, id }, ...prev]);
     if (opts.statusSection) emitStatusPulse(opts.statusSection);
-    // Actionable or duration:null toasts stay until acted on / replaced /
-    // explicitly dismissed — don't auto-dismiss out from under a decision.
+    // Actionable or duration:null toasts stay until acted on / explicitly
+    // dismissed — don't auto-dismiss out from under a decision. The timer
+    // keeps running while a toast waits behind the front card.
     if (!opts.action && opts.duration !== null) {
-      timerRef.current = setTimeout(() => setToast(null), opts.duration ?? 4000);
+      timersRef.current.set(id, setTimeout(() => removeToast(id), opts.duration ?? 4000));
     }
     return id;
-  }, []);
+  }, [removeToast]);
 
   const dismiss = useCallback((id?: number) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setToast((prev) => (id != null && prev?.id !== id ? prev : null));
-  }, []);
+    if (id != null) {
+      removeToast(id);
+      return;
+    }
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current.clear();
+    setToasts([]);
+  }, [removeToast]);
+
+  // Wire each toast's action/✕ to also pop it from the stack.
+  const stackItems: ToastStackItem[] = toasts.map((t) => ({
+    ...t,
+    action: t.action
+      ? { ...t.action, onClick: () => { t.action!.onClick(); removeToast(t.id); } }
+      : undefined,
+    onClose: () => { t.onClose?.(); removeToast(t.id); },
+  }));
 
   return (
-    <ToastContext.Provider value={{ showToast, dismissToast: dismiss, isToastVisible: !!toast }}>
+    <ToastContext.Provider value={{ showToast, dismissToast: dismiss, isToastVisible: toasts.length > 0 }}>
       {children}
 
       {/* Radial glow — portaled into #toast-glow-root so it's clipped by the
           dashboard's overflow-hidden boundary and doesn't bleed into sidebar/topbar */}
-      <ToastGlow show={!!toast} toastId={toast?.id ?? 0} position={toast?.position ?? 'bottom-center'} />
+      <ToastGlow show={toasts.length > 0} toastId={toasts[0]?.id ?? 0} />
 
-      <AnimatePresence>
-        {toast && (
-          <ToastContainer key={toast.id} position={toast.position}>
-            <Toast
-              icon={toast.icon}
-              iconColor={toast.iconColor}
-              title={toast.title}
-              subtitle={toast.subtitle}
-              image={toast.image}
-              protocolIcon={toast.protocolIcon}
-              details={toast.details}
-              compact={toast.position === 'bottom-right'}
-              action={toast.action ? { ...toast.action, onClick: () => { toast.action!.onClick(); dismiss(); } } : undefined}
-              onClose={toast.position === 'bottom-right' ? () => dismiss() : undefined}
-            />
-          </ToastContainer>
-        )}
-      </AnimatePresence>
+      <ToastStack toasts={stackItems} />
     </ToastContext.Provider>
   );
 }
