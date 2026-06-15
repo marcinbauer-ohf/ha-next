@@ -27,9 +27,12 @@ interface SparklineProps {
    * same length as `points` and monotonically increasing.
    */
   xFractions?: number[];
+  /** Override the accent as an "R,G,B" triple (e.g. "139,92,246"). Defaults to
+   *  the on/off green/grey. The `on` opacity treatment still applies. */
+  rgb?: string;
 }
 
-export function Sparkline({ points, on, gradientId, small, stepped, onHover, fillHeight, endDot, crisp, xFractions }: SparklineProps) {
+export function Sparkline({ points, on, gradientId, small, stepped, onHover, fillHeight, endDot, crisp, xFractions, rgb }: SparklineProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   // Index of the data point under the cursor; drives both the crosshair line
   // and the marker dot that rides the line as the pointer moves.
@@ -65,7 +68,7 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, fil
   const area = `${line} L${W},${H} L0,${H} Z`;
 
   // Line color — same for stroke and fill, just different opacity
-  const r = on ? '34,197,94' : '120,120,120';
+  const r = rgb ?? (on ? '34,197,94' : '120,120,120');
   const stroke = `rgba(${r},${on ? 0.85 : 0.45})`;
   const fillTop = `rgba(${r},0.12)`;
 

@@ -2,6 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useCloseOnScreensaver } from '@/contexts';
 
 interface ModalSheetProps {
   open: boolean;
@@ -21,6 +22,10 @@ const SHEET_SPRING = { type: 'spring' as const, stiffness: 380, damping: 36, mas
  * Mobile: bottom sheet that springs up.
  */
 export function ModalSheet({ open, onClose, children, maxWidth = 560, transitionKey }: ModalSheetProps) {
+  // The screensaver clears anything sitting over the main UI. Since most modals
+  // and surfaces ride on ModalSheet, this covers them in one place.
+  useCloseOnScreensaver(open, onClose);
+
   if (typeof document === 'undefined') return null;
 
   // Crossfade content when transitionKey changes (panel switch inside the open dialog)
@@ -82,7 +87,15 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             <div className="flex justify-center py-ha-2">
               <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
             </div>
-            <div className="overflow-y-auto scrollbar-hide" style={{ maxHeight: 'calc(82dvh - 20px)' }}>
+            {/* Pad past the home-indicator / gesture bar, plus a little breathing
+                room so content never kisses the device's bottom edge. */}
+            <div
+              className="overflow-y-auto scrollbar-hide"
+              style={{
+                maxHeight: 'calc(82dvh - 20px)',
+                paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))',
+              }}
+            >
               {content}
             </div>
           </motion.div>

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { mdiClose, mdiPencilOutline, mdiPower, mdiInformation, mdiInformationOutline } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon, ListSection, RollingNumericValue, SegmentedControl, Dropdown, HALoader, ToggleSwitch } from '../ui';
+import { StateTimeline, type StateSegment } from '../ui/StateTimeline';
 import { Sparkline } from '../ui/Sparkline';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { HistoryPoint } from '@/lib/homeassistant/types';
@@ -25,6 +26,19 @@ const AGGREGATIONS = [
   { value: 'daily',  label: 'Avg/d' },
 ] as const;
 type Aggregation = typeof AGGREGATIONS[number]['value'];
+
+// Plausible "other" state for demo non-numeric history, so the timeline shows
+// realistic labels instead of a single flat band.
+const STATE_COUNTERPART: Record<string, string> = {
+  on: 'off', off: 'on',
+  open: 'closed', closed: 'open',
+  playing: 'paused', paused: 'playing', idle: 'playing',
+  home: 'not_home', not_home: 'home',
+  locked: 'unlocked', unlocked: 'locked',
+  detected: 'clear', clear: 'detected',
+  heat: 'off', cool: 'off', heating: 'idle', cooling: 'idle',
+  armed_home: 'disarmed', armed_away: 'disarmed', disarmed: 'armed_away',
+};
 
 function applyAggregation(
   data: { value: number; ts: number | null }[],
@@ -180,10 +194,14 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
       const count = Math.min(hours * 4, 192); // ~4 pts/hr, max 192
       let pts: HistoryPoint[];
       if (isNaN(base)) {
-        let s = Math.random() > 0.5 ? 1 : 0;
+        // Non-numeric: alternate between the live state and a plausible
+        // counterpart so the state timeline shows realistic labels in demo.
+        const cur = entity.state;
+        const other = STATE_COUNTERPART[cur.toLowerCase()] ?? (cur.toLowerCase() === 'off' ? 'on' : 'off');
+        let s = cur;
         pts = Array.from({ length: count }, (_, i) => {
-          if (i > 0 && Math.random() < 0.08) s = s === 1 ? 0 : 1;
-          return { s: s.toFixed(0), lc: nowSec - (count - 1 - i) * (spanSec / (count - 1)) };
+          if (i > 0 && Math.random() < 0.08) s = s === cur ? other : cur;
+          return { s, lc: nowSec - (count - 1 - i) * (spanSec / (count - 1)) };
         });
       } else {
         pts = Array.from({ length: count }, (_, i) => {
@@ -242,6 +260,26 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
 
   const hasChart = numericPoints.length >= 3;
 
+  // Non-numeric entities (lights, locks, covers, media, climate modes, doors…)
+  // get a state-duration timeline instead of a line chart: contiguous runs of
+  // the same state, each segment proportional to its duration.
+  const timeline = useMemo(() => {
+    const endTs = Date.now() / 1000;
+    const startTs = endTs - hours * 3600;
+    const pts = history.filter(p => p.lc != null).slice().sort((a, b) => a.lc! - b.lc!);
+    const segs: StateSegment[] = [];
+    for (let i = 0; i < pts.length; i++) {
+      const end = i + 1 < pts.length ? pts[i + 1].lc! : endTs;
+      if (end <= startTs) continue;
+      const start = Math.max(pts[i].lc!, startTs);
+      const prev = segs[segs.length - 1];
+      if (prev && prev.state === pts[i].s) prev.end = end;
+      else segs.push({ state: pts[i].s, start, end });
+    }
+    return { segs, startTs, endTs };
+  }, [history, hours]);
+  const showTimeline = !isNumeric && !isHistoryLoading && timeline.segs.length >= 1;
+
   return (
     <div className="shrink-0 flex flex-col items-center gap-3 px-6 py-5 overflow-hidden relative">
       {entity.entityPicture && (
@@ -252,29 +290,30 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
         </>
       )}
       <div className="relative z-10 flex flex-col items-center gap-3 w-full">
-      {entity.toggleable ? (
-        <>
-          {entity.onToggle ? (
-            <ToggleSwitch on={entity.active} onToggle={entity.onToggle} size="lg" />
-          ) : (
-            <div className={clsx(
-              'w-16 h-16 rounded-full flex items-center justify-center',
-              entity.active ? 'bg-green-500/20 text-green-500' : 'bg-surface-low text-text-secondary',
-            )}>
-              <Icon path={entity.icon} size={28} />
-            </div>
-          )}
-          <RollingNumericValue
-            value={entity.state}
-            className={clsx(
-              'text-lg font-semibold font-mono capitalize',
-              entity.entityPicture ? 'text-white' : 'text-text-primary',
+        {/* Header — fixed height so the hero doesn't jump between a tall toggle
+            and a shorter text value when switching entities. */}
+        <div className="flex w-full flex-col items-center justify-center gap-2 min-h-[80px]">
+        {entity.toggleable ? (
+          <>
+            {entity.onToggle ? (
+              <ToggleSwitch on={entity.active} onToggle={entity.onToggle} size="lg" />
+            ) : (
+              <div className={clsx(
+                'w-16 h-16 rounded-full flex items-center justify-center',
+                entity.active ? 'bg-green-500/20 text-green-500' : 'bg-surface-low text-text-secondary',
+              )}>
+                <Icon path={entity.icon} size={28} />
+              </div>
             )}
-          />
-        </>
-      ) : (
-        <>
-          {/* Value — rolling digit animation for numerics, capitalized state for booleans */}
+            <RollingNumericValue
+              value={entity.state}
+              className={clsx(
+                'text-lg font-semibold font-mono capitalize',
+                entity.entityPicture ? 'text-white' : 'text-text-primary',
+              )}
+            />
+          </>
+        ) : (
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-baseline justify-center">
               {isNumeric && entity.unit ? (
@@ -283,10 +322,10 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
                   <span className={clsx('text-lg font-mono ml-2', entity.entityPicture ? 'text-white/70' : 'text-text-secondary')}>{entity.unit}</span>
                 </>
               ) : (
-                <RollingNumericValue value={entity.state} className={clsx('text-2xl font-bold font-mono', entity.entityPicture ? 'text-white' : 'text-text-primary')} />
+                <RollingNumericValue value={entity.state} className={clsx('text-2xl font-bold font-mono capitalize', entity.entityPicture ? 'text-white' : 'text-text-primary')} />
               )}
             </div>
-            {/* Time label: "NOW" at rest, timestamp on hover */}
+            {/* Time label: "NOW" at rest, timestamp on hover (numeric/boolean only) */}
             {(isNumeric || isBoolean) && (
               <span className={clsx(
                 'text-[13px] font-semibold uppercase tracking-wider transition-colors',
@@ -298,12 +337,21 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
               </span>
             )}
           </div>
+        )}
+        </div>
 
-          {/* Sparkline — always reserves height to prevent layout jump */}
+        {/* History — numeric line/area, else a state-duration timeline. Fixed
+            min-height so numeric chart, timeline, loader and the empty case all
+            reserve the same space (no jump when switching entities). */}
+        <div className="w-full min-h-[116px] lg:min-h-[140px] flex flex-col justify-center">
+        {isHistoryLoading ? (
+          <div className="w-full flex items-center justify-center h-14 lg:h-24">
+            <HALoader size="sm" />
+          </div>
+        ) : isNumeric && hasChart ? (
           <div className="w-full">
             <div className="relative w-full flex items-center h-14 lg:h-24">
-              {/* Time-axis gridlines — one per hour (≤24h) or per day (7d) */}
-              {hasChart && !isHistoryLoading && timeTicks.map((t, i) => (
+              {timeTicks.map((t, i) => (
                 <div
                   key={i}
                   aria-hidden
@@ -311,24 +359,19 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
                   style={{ left: `${t.f * 100}%` }}
                 />
               ))}
-              {isHistoryLoading ? (
-                <HALoader size="sm" />
-              ) : hasChart ? (
-                <div className="w-full h-full opacity-80 relative">
-                  <Sparkline
-                    points={numericPoints}
-                    on={entity.active ?? false}
-                    gradientId={sparklineId}
-                    stepped={isBoolean}
-                    onHover={setHoveredIndex}
-                    xFractions={xFractions}
-                    fillHeight
-                  />
-                </div>
-              ) : null}
+              <div className="w-full h-full opacity-80 relative">
+                <Sparkline
+                  points={numericPoints}
+                  on={entity.active ?? false}
+                  gradientId={sparklineId}
+                  stepped={isBoolean}
+                  onHover={setHoveredIndex}
+                  xFractions={xFractions}
+                  fillHeight
+                />
+              </div>
             </div>
-            {/* Time-axis labels */}
-            {hasChart && !isHistoryLoading && timeTicks.some(t => t.labeled) && (
+            {timeTicks.some(t => t.labeled) && (
               <div className="relative w-full h-4 mt-1">
                 {timeTicks.filter(t => t.labeled).map((t, i) => {
                   const tx = t.f < 0.04 ? '0%' : t.f > 0.96 ? '-100%' : '-50%';
@@ -345,10 +388,15 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
               </div>
             )}
           </div>
+        ) : showTimeline ? (
+          <StateTimeline segments={timeline.segs} startTs={timeline.startTs} endTs={timeline.endTs} />
+        ) : null}
+        </div>
 
-          {/* Graph controls — stack on mobile so neither group is cramped. The
-              aggregation picker is a full SegmentedControl on mobile (room to
-              stack) and a compact Dropdown on desktop (saves the inline width). */}
+        {/* Controls — fixed-height slot so the present/absent controls row never
+            shifts the hero height between entities. */}
+        <div className="w-full min-h-[34px]">
+        {!isHistoryLoading && ((isNumeric && hasChart) || showTimeline) && (
           <div className="w-full flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 pt-1">
             <SegmentedControl
               segments={TIME_SPANS.map(t => ({ value: t.value, label: t.label }))}
@@ -356,24 +404,28 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
               onChange={v => setTimeSpan(v as TimeSpan)}
               className="text-xs"
             />
-            <div className="lg:hidden">
-              <SegmentedControl
-                segments={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
-                value={aggregation}
-                onChange={v => setAggregation(v as Aggregation)}
-                className="text-xs"
-              />
-            </div>
-            <div className="hidden lg:block">
-              <Dropdown
-                options={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
-                value={aggregation}
-                onChange={v => setAggregation(v as Aggregation)}
-              />
-            </div>
+            {isNumeric && hasChart && (
+              <>
+                <div className="lg:hidden">
+                  <SegmentedControl
+                    segments={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
+                    value={aggregation}
+                    onChange={v => setAggregation(v as Aggregation)}
+                    className="text-xs"
+                  />
+                </div>
+                <div className="hidden lg:block">
+                  <Dropdown
+                    options={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
+                    value={aggregation}
+                    onChange={v => setAggregation(v as Aggregation)}
+                  />
+                </div>
+              </>
+            )}
           </div>
-        </>
-      )}
+        )}
+        </div>
       </div>
     </div>
   );
@@ -457,13 +509,32 @@ export function EntityDetailPanel({
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-ha-4 pt-ha-4 pb-ha-3 shrink-0 gap-2">
-        <div className="min-w-0 flex-1">
-          {deviceName && (
-            <p className="text-base font-semibold text-text-primary truncate leading-tight">{deviceName}</p>
-          )}
-          {deviceMeta?.areaName && (
-            <p className="text-xs text-text-tertiary truncate mt-0.5">{deviceMeta.areaName}</p>
-          )}
+        <div className="flex items-center gap-ha-3 min-w-0 flex-1">
+          {/* Entity avatar — round background like the automations header. Uses
+              the entity's picture (camera/media) when present, else its icon on a
+              state-tinted fill (green when active, neutral otherwise). */}
+          <span className={clsx(
+            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full overflow-hidden',
+            focusedEntity?.entityPicture
+              ? 'bg-surface-mid'
+              : focusedEntity?.active
+                ? 'bg-green-500/15 text-green-500'
+                : 'bg-surface-mid text-text-secondary',
+          )}>
+            {focusedEntity?.entityPicture ? (
+              <img src={focusedEntity.entityPicture} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <Icon path={focusedEntity?.icon ?? ''} size={20} />
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            {deviceName && (
+              <p className="text-base font-semibold text-text-primary truncate leading-tight">{deviceName}</p>
+            )}
+            {deviceMeta?.areaName && (
+              <p className="text-xs text-text-tertiary truncate mt-0.5">{deviceMeta.areaName}</p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <button

@@ -1,6 +1,7 @@
 'use client';
 
 import { createPortal } from 'react-dom';
+import { useCloseOnScreensaver } from '@/contexts';
 
 interface DashboardSidePanelProps {
   open: boolean;
@@ -14,6 +15,8 @@ interface DashboardSidePanelProps {
  * Mobile:  portal bottom sheet.
  */
 export function DashboardSidePanel({ open, onClose, children }: DashboardSidePanelProps) {
+  useCloseOnScreensaver(open, onClose);
+
   return (
     <>
       {/* Desktop sibling panel */}

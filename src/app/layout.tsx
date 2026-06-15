@@ -7,7 +7,7 @@ import { HomeCenterPrefsProvider } from '@/hooks/useHomeCenterPrefs';
 import { ThemeProvider } from '@/hooks/useTheme';
 import { FontProvider } from '@/hooks/useFont';
 import { ImmersiveModeProvider } from '@/hooks/useImmersiveMode';
-import { PullToRevealProvider, SidebarItemsProvider, SidebarArrangeProvider, SearchProvider, AssistantProvider, HeaderProvider, AddContextProvider, ScreensaverProvider, EditModeProvider, ToastProvider } from '@/contexts';
+import { PullToRevealProvider, SidebarItemsProvider, SidebarArrangeProvider, SearchProvider, AssistantProvider, HeaderProvider, AddContextProvider, ScreensaverProvider, EditModeProvider, ToastProvider, DebugFlagsProvider } from '@/contexts';
 import { AppShell } from '@/components/layout';
 
 const inter = Inter({
@@ -95,6 +95,7 @@ export default function RootLayout({
         <ThemeProvider>
           <FontProvider>
           <FeatureFlagsProvider>
+            <DebugFlagsProvider>
             <HomeCenterPrefsProvider>
             <HomeAssistantProvider>
               <ImmersiveModeProvider>
@@ -122,6 +123,7 @@ export default function RootLayout({
               </ImmersiveModeProvider>
             </HomeAssistantProvider>
             </HomeCenterPrefsProvider>
+            </DebugFlagsProvider>
           </FeatureFlagsProvider>
           </FontProvider>
         </ThemeProvider>

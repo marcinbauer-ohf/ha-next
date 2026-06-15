@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from 'react';
 import { useIdleTimer } from '@/hooks';
 import { ScreensaverClock } from '@/components/ui/ScreensaverClock';
 
@@ -20,6 +20,23 @@ export function useScreensaver() {
     throw new Error('useScreensaver must be used within a ScreensaverProvider');
   }
   return context;
+}
+
+/**
+ * Dismiss an overlay when the screensaver kicks in. Call this inside any
+ * modal/surface component (passing its own open state + close handler) so the
+ * screensaver clears whatever sits over the main UI. Wiring it into the leaf
+ * overlay components covers every usage without touching their parents.
+ *
+ * Resilient to running outside the provider (tests/storybook) — it just no-ops.
+ */
+export function useCloseOnScreensaver(open: boolean, onClose: () => void) {
+  const isActive = useContext(ScreensaverContext)?.isActive ?? false;
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (isActive && open) closeRef.current();
+  }, [isActive, open]);
 }
 
 interface ScreensaverProviderProps {

@@ -7,6 +7,7 @@ import { usePullToRevealContext, useHeader } from '@/contexts';
 import { useDesktopImmersivePageLayout, useTheme } from '@/hooks';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { SectionLabel } from '@/components/ui';
+import { PowerAttributionChart } from '@/components/sections';
 import { mdiFlash } from '@mdi/js';
 
 type EnergyTab = 'now' | 'all';
@@ -19,8 +20,8 @@ const ENERGY_SEGMENTS = [
 function NowContent() {
   return (
     <div className="space-y-ha-4">
-      {/* Energy Flow Hero - Basic card */}
-      <div className="bg-surface-low rounded-ha-xl p-ha-4 h-40" />
+      {/* Power attribution — meter curve with per-device on-spans overlaid */}
+      <PowerAttributionChart />
 
       {/* Live breakdown - Basic cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-ha-3">

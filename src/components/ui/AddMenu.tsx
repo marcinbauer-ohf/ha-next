@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from './Icon';
-import { useAddContext } from '@/contexts';
+import { useAddContext, useCloseOnScreensaver } from '@/contexts';
 import { addableSettingsItems, type AddableSettingsItem } from '@/components/profile/settingsNavigation';
 
 interface Props {
@@ -18,6 +18,8 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
   const router = useRouter();
   const { contextSlug } = useAddContext();
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+
+  useCloseOnScreensaver(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen && anchorRef.current) {

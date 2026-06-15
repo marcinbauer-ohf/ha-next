@@ -57,6 +57,13 @@ export interface DeviceCardV2Props {
   className?: string;
   /** Shown above device name in smaller muted text — use when grouped by type */
   areaName?: string;
+  /**
+   * Resolved image URL for a camera snapshot / media artwork — rendered as a
+   * full-bleed hero behind the primary content (name/state in white over a
+   * scrim). Device-level, so it shows even when the primary slot is another
+   * entity (e.g. a camera's motion sensor).
+   */
+  feedImage?: string;
 }
 
 // ── Controls ──────────────────────────────────────────────────────────────────
@@ -75,10 +82,13 @@ function ActionButton({ onPress }: { onPress: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongPress, className, areaName }: DeviceCardV2Props) {
+function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongPress, className, areaName, feedImage }: DeviceCardV2Props) {
   const hasPicture = !!primary.entityPicture;
   const rawState = primary.state.toLowerCase();
   const isUnavailable = rawState === 'unavailable' || rawState === 'unknown';
+  // Camera/media hero feed — full-bleed image with white text over a scrim.
+  // Suppressed while unavailable so the amber state stays readable.
+  const showFeed = !!feedImage && !isUnavailable;
   const hasSecondary = secondary && secondary.length > 0;
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Thumbnail PNGs are dropped in by hand; revert to the mdi icon if one is
@@ -145,7 +155,17 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
         )}
         onClick={primary.onClick}
       >
-        {hasPicture && (
+        {/* Camera/media hero feed — full-bleed, with a bottom scrim so the
+            white name/state stay legible. */}
+        {showFeed && (
+          <>
+            <img src={feedImage} alt="" aria-hidden
+              className="absolute inset-0 w-full h-full object-cover" />
+            <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/10" />
+          </>
+        )}
+
+        {hasPicture && !showFeed && (
           <img src={primary.entityPicture} alt="" aria-hidden
             className="absolute inset-0 w-full h-full object-cover opacity-20" />
         )}
@@ -154,7 +174,7 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
             the name/state (which render on top). Faded toward the bottom with a
             gradient mask so the text stays legible on any card background (incl.
             the green "on" tint). The card keeps its size. */}
-        {showThumb && (
+        {showThumb && !showFeed && (
           <>
             {/* Fades the sparkline out left-to-right so the thumbnail sits on a
                 calm backdrop — only needed when a graph renders under it */}
@@ -182,8 +202,8 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
         )}
 
         {/* Top row: icon (hidden when the product thumbnail is shown) + control */}
-        <div className={clsx('relative z-[2] flex items-center', showThumb ? 'justify-end' : 'justify-between')}>
-          {!showThumb && (
+        <div className={clsx('relative z-[2] flex items-center', (showThumb || showFeed) ? 'justify-end' : 'justify-between')}>
+          {!showThumb && !showFeed && (
             <Icon path={primary.icon} size={20} className={isUnavailable ? 'text-amber-500/70' : 'text-text-tertiary'} />
           )}
           {isUnavailable ? (
@@ -198,7 +218,8 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
                   : primary.unit ? String(parseFloat(primary.state) || primary.state) : primary.state}
                 className={clsx(
                   'font-bold font-mono leading-none',
-                  primary.unit ? 'text-2xl text-text-primary' : 'text-lg text-text-primary',
+                  showFeed ? 'text-white' : 'text-text-primary',
+                  primary.unit ? 'text-2xl' : 'text-lg',
                 )}
               />
               {primary.unit && (
@@ -219,11 +240,11 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
         )}
 
         {/* Bottom: name + state — render on top of the background thumbnail */}
-        <div className="relative z-[2]">
+        <div className={clsx('relative z-[2]', showFeed && '[text-shadow:0_1px_3px_rgba(0,0,0,0.7)]')}>
           {areaName && (
-            <p className="text-[13px] font-medium text-text-tertiary leading-none truncate mb-0.5">{areaName}</p>
+            <p className={clsx('text-[13px] font-medium leading-none truncate mb-0.5', showFeed ? 'text-white/75' : 'text-text-tertiary')}>{areaName}</p>
           )}
-          <p className="text-sm font-semibold text-text-primary leading-tight truncate">{primary.name}</p>
+          <p className={clsx('text-sm font-semibold leading-tight truncate', showFeed ? 'text-white' : 'text-text-primary')}>{primary.name}</p>
           {isUnavailable ? (
             <div className="flex items-baseline gap-1.5 mt-0.5">
               <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-amber-500/90">Unavailable</span>
@@ -236,7 +257,7 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
               )}
             </div>
           ) : primary.toggleable ? (
-            <p className="text-sm font-medium font-mono text-text-secondary mt-0.5">{primary.state}</p>
+            <p className={clsx('text-sm font-medium font-mono mt-0.5', showFeed ? 'text-white/85' : 'text-text-secondary')}>{primary.state}</p>
           ) : null}
         </div>
       </div>
@@ -335,6 +356,7 @@ function propsEqual(prev: DeviceCardV2Props, next: DeviceCardV2Props): boolean {
     prev.selected !== next.selected ||
     prev.editMode !== next.editMode ||
     prev.areaName !== next.areaName ||
+    prev.feedImage !== next.feedImage ||
     prev.className !== next.className ||
     !!prev.onLongPress !== !!next.onLongPress
   ) {

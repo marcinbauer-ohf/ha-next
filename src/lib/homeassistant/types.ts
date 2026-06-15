@@ -98,6 +98,38 @@ export interface HistoryPoint {
   lu?: number;
 }
 
+/** A single logbook event row (subset of `logbook/get_events` output we use). */
+export interface LogbookEntry {
+  /** Unix timestamp (seconds) when the event happened. */
+  when: number;
+  /** Entity the event is about (e.g. `automation.morning_routine`). */
+  entity_id?: string;
+  /** Friendly name of the entity the event is about. */
+  name?: string;
+  /** Human-readable description, e.g. "has been triggered by …". */
+  message?: string;
+  /** Resulting state, when the event is a state change. */
+  state?: string;
+  context_id?: string;
+}
+
+/**
+ * An automation's stored config, as returned by the REST config endpoint.
+ * HA renamed the singular keys to plurals in 2024.10 — both are tolerated by
+ * the consumers, so they stay optional here.
+ */
+export interface AutomationConfig {
+  alias?: string;
+  mode?: string;
+  trigger?: unknown;
+  triggers?: unknown;
+  condition?: unknown;
+  conditions?: unknown;
+  action?: unknown;
+  actions?: unknown;
+  [key: string]: unknown;
+}
+
 export interface CallServiceParams {
   domain: string;
   service: string;

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '@/components/ui/Icon';
 import { SearchField } from '@/components/ui/SearchField';
 import { useHomeAssistantEntities } from '@/hooks/useHomeAssistant';
+import { useCloseOnScreensaver } from '@/contexts';
 import {
   mdiClose,
   mdiLightbulb,
@@ -83,6 +84,9 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // Mounted ⇒ open, so always pass true; the screensaver closes it via onClose.
+  useCloseOnScreensaver(true, onClose);
 
   useEffect(() => {
     setTimeout(() => searchRef.current?.focus(), 300);

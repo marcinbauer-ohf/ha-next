@@ -13,6 +13,7 @@ import {
 import {
   settingsNavSections,
   categoryAccents,
+  settingsHasContent,
   type SettingsNavLink,
   type SettingsSlug,
 } from './settingsNavigation';
@@ -50,26 +51,30 @@ function NavItem({
   onSelect: () => void;
   accent: string;
 }) {
+  // Sections without their own built-out UI render only the haPath stub — gray
+  // them out so it reads as "not built yet" while still being reachable.
+  const empty = !settingsHasContent(item.slug);
   return (
     <button
       type="button"
       onClick={onSelect}
       data-settings-slug={item.slug}
-      className={`w-full flex items-center gap-ha-3 px-ha-4 text-left transition-colors border-b border-surface-low/40 last:border-0 py-ha-3 ${
-        subtitle ? 'min-h-[60px]' : ''
+      className={`w-full flex items-center gap-ha-3 px-ha-4 text-left transition-colors border-b border-surface-low/40 last:border-0 py-ha-2 ${
+        subtitle ? 'min-h-[48px]' : ''
       } ${
         isActive ? 'bg-surface-mid' : 'hover:bg-surface-mid/50 active:bg-surface-mid'
-      }`}
+      } ${empty ? 'opacity-45' : ''}`}
     >
-      {/* Colored icon tile — translucent tint reads on both light and dark themes. */}
+      {/* Colored icon tile — translucent tint reads on both light and dark themes.
+          Muted to a neutral gray for sections that have no content yet. */}
       <div
-        className="w-9 h-9 flex items-center justify-center rounded-ha-xl flex-shrink-0"
-        style={{ backgroundColor: `${accent}24`, color: accent }}
+        className={`w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 ${empty ? 'bg-surface-mid' : ''}`}
+        style={empty ? undefined : { backgroundColor: `${accent}24`, color: accent }}
       >
-        <Icon path={item.icon} size={18} />
+        <Icon path={item.icon} size={16} className={empty ? 'text-text-tertiary' : undefined} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold leading-tight text-text-primary">
+        <p className={`text-[13px] font-semibold leading-tight ${empty ? 'text-text-secondary' : 'text-text-primary'}`}>
           {item.label}
         </p>
         {subtitle && (
@@ -238,18 +243,18 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
                 type="button"
                 disabled={!systemControlsEnabled}
                 onClick={() => runSystemCommand(cmd)}
-                className={`w-full flex items-center gap-ha-3 px-ha-4 py-ha-3 text-left border-b border-surface-low/40 last:border-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                className={`w-full flex items-center gap-ha-3 px-ha-4 py-ha-2 text-left border-b border-surface-low/40 last:border-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   cmd.danger
                     ? 'hover:bg-red-500/10 active:bg-red-500/15'
                     : 'hover:bg-surface-mid/50 active:bg-surface-mid'
                 }`}
               >
                 <div
-                  className={`w-9 h-9 flex items-center justify-center rounded-ha-xl flex-shrink-0 ${
+                  className={`w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 ${
                     cmd.danger ? 'bg-red-500/15 text-red-500' : 'bg-surface-mid text-text-secondary'
                   }`}
                 >
-                  <Icon path={cmd.icon} size={18} />
+                  <Icon path={cmd.icon} size={16} />
                 </div>
                 <span className={`text-[13px] font-semibold ${cmd.danger ? 'text-red-500' : 'text-text-primary'}`}>
                   {cmd.label}

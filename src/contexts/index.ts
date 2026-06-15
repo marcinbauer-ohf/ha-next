@@ -6,6 +6,7 @@ export { SearchProvider, useSearchContext } from './SearchContext';
 export { AssistantProvider, useAssistantContext } from './AssistantContext';
 export { HeaderProvider, useHeader } from './HeaderContext';
 export { AddContextProvider, useAddContext } from './AddContext';
-export { ScreensaverProvider, useScreensaver } from './ScreensaverContext';
+export { ScreensaverProvider, useScreensaver, useCloseOnScreensaver } from './ScreensaverContext';
 export { EditModeProvider, useEditMode } from './EditModeContext';
 export { ToastProvider, useToast } from './ToastContext';
+export { DebugFlagsProvider, useDebugFlags } from './DebugFlagsContext';

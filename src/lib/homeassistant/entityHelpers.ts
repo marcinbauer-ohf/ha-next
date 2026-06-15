@@ -65,6 +65,18 @@ export const TOGGLEABLE = new Set([
   'light', 'switch', 'fan', 'input_boolean', 'media_player', 'cover', 'lock',
 ]);
 
+/**
+ * The entity whose picture should front a device card — a camera snapshot feed
+ * first, else a media_player's current artwork. Returns undefined when the
+ * device has no such image. Surfaces the feed at the device level so it shows
+ * even when the card's primary slot is some other entity (e.g. a motion sensor).
+ */
+export function deviceFeedEntity(entities: HassEntity[]): HassEntity | undefined {
+  const cam = entities.find(e => entityDomain(e) === 'camera' && !!e.attributes.entity_picture);
+  if (cam) return cam;
+  return entities.find(e => entityDomain(e) === 'media_player' && !!e.attributes.entity_picture);
+}
+
 export function domainIcon(entity: HassEntity): string {
   const domain = entityDomain(entity);
   const on = isOn(entity);

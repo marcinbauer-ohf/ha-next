@@ -252,6 +252,25 @@ export const addableSettingsItems: AddableSettingsItem[] = settingsNavSections.f
   },
 );
 
+// Slugs that render real, built-out content rather than the "In production this
+// connects to <haPath>" placeholder. Everything else is grayed out in the nav.
+// Keep in sync with the dedicated branches in SettingsDetailPage.
+const IMPLEMENTED_SETTINGS_SLUGS = new Set<SettingsSlug>([
+  'home-center',
+  'developer',
+  'integrations',
+  'automations',
+  'notifications',
+  'updates',
+  'repairs',
+  'connectivity',
+]);
+
+/** True when the section has its own built-out UI (not just the haPath stub). */
+export function settingsHasContent(slug: SettingsSlug): boolean {
+  return IMPLEMENTED_SETTINGS_SLUGS.has(slug);
+}
+
 export function getSettingsHref(slug: SettingsSlug): string {
   return `/settings/${slug}`;
 }

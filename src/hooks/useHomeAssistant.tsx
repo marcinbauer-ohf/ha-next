@@ -25,8 +25,10 @@ import {
   getConfigEntries as getConfigEntriesAction,
   getIntegrationManifests as getIntegrationManifestsAction,
   getEntityHistory as getEntityHistoryAction,
+  getLogbook as getLogbookAction,
+  getAutomationConfig as getAutomationConfigAction,
 } from '@/lib/homeassistant';
-import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest } from '@/lib/homeassistant';
+import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 
@@ -54,6 +56,8 @@ interface HomeAssistantContextValue {
   getConfigEntries: () => Promise<ConfigEntry[]>;
   getIntegrationManifests: () => Promise<IntegrationManifest[]>;
   getEntityHistory: (entityId: string, hoursBack?: number) => Promise<HistoryPoint[]>;
+  getLogbook: (entityId: string | string[], hoursBack?: number) => Promise<LogbookEntry[]>;
+  getAutomationConfig: (numericId: string) => Promise<AutomationConfig | null>;
   reconnect: () => Promise<void>;
   saveCredentials: (url: string, token: string) => Promise<void>;
   enableDemoMode: () => void;
@@ -295,6 +299,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const getConfigEntries = useCallback(() => getConfigEntriesAction(), []);
   const getIntegrationManifests = useCallback(() => getIntegrationManifestsAction(), []);
   const getEntityHistory = useCallback((entityId: string, hoursBack?: number) => getEntityHistoryAction(entityId, hoursBack), []);
+  const getLogbook = useCallback((entityId: string | string[], hoursBack?: number) => getLogbookAction(entityId, hoursBack), []);
+  const getAutomationConfig = useCallback((numericId: string) => getAutomationConfigAction(numericId), []);
 
   const setMockEntity = useCallback((entityId: string, entity: HassEntity | null) => {
     updateMockEntityInStore(entityId, entity);
@@ -334,6 +340,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getConfigEntries,
     getIntegrationManifests,
     getEntityHistory,
+    getLogbook,
+    getAutomationConfig,
     reconnect,
     saveCredentials,
     enableDemoMode,
@@ -356,6 +364,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getConfigEntries,
     getIntegrationManifests,
     getEntityHistory,
+    getLogbook,
+    getAutomationConfig,
     reconnect,
     saveCredentials,
     enableDemoMode,

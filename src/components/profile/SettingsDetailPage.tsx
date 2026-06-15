@@ -8,9 +8,11 @@ import { SectionLabel } from '../ui';
 import { SimulationListModal } from '@/components/ui/SimulationListModal';
 import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
-import { useHeader, useScreensaver, useAddContext } from '@/contexts';
-import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFont, useDeviceStructure, useDeviceCardConfig, useIntegrations } from '@/hooks';
+import { useHeader, useScreensaver, useAddContext, useDebugFlags } from '@/contexts';
+import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFont, useDeviceStructure, useDeviceCardConfig, useIntegrations, useAutomations } from '@/hooks';
 import { IntegrationsTable, IntegrationDetailView } from './IntegrationsPanel';
+import { AutomationsTable } from './AutomationsPanel';
+import { AutomationEditor } from './AutomationEditor';
 import { HomeCenterSectionsModal } from './HomeCenterSectionEditor';
 import { TOGGLEABLE } from '@/lib/homeassistant/entityHelpers';
 import type { EntitySlot, EntitySection } from '@/hooks/useDeviceCardConfig';
@@ -27,6 +29,7 @@ import {
   mdiOpenInNew,
   mdiPlay,
   mdiPrinter3d,
+  mdiRobot,
   mdiTimerOutline,
   mdiUpdate,
 } from '@mdi/js';
@@ -34,6 +37,11 @@ import {
 interface SettingsDetailPageProps {
   slug: SettingsSlug;
   panelMode?: boolean;
+  /**
+   * Fired when a focused editor (e.g. the automation editor) opens or closes,
+   * so the two-column settings page can slide its nav column away.
+   */
+  onEditorFocusChange?: (focused: boolean) => void;
 }
 
 interface SettingsMeta {
@@ -83,13 +91,15 @@ function SettingsShell({
 
   if (panelMode) {
     return (
-      // `pt-ha-1` aligns the content column's top with the nav column's sticky search field.
-      <div ref={rootRef} className="pt-ha-1">
+      <div ref={rootRef}>
         {(onBack || title) && (
           // Sticky title — stays pinned while content scrolls under it. A list's
-          // own sticky search stacks just beneath via `--settings-header-h`.
+          // own sticky search stacks just beneath via `--settings-header-h`. The
+          // `pt-ha-1` lives *inside* the sticky (not on the scroll root) so there's
+          // no scrollable gap above it — otherwise the header drifts ~4px before
+          // pinning. It still aligns the title with the nav column's search field.
           <div className="sticky top-0 z-20">
-            <div ref={titleRef} className="flex items-center justify-between gap-ha-3 bg-surface-lower pb-ha-3">
+            <div ref={titleRef} className="flex items-center justify-between gap-ha-3 bg-surface-lower pt-ha-1 pb-ha-3">
               {onBack ? (
                 <button
                   type="button"
@@ -106,8 +116,6 @@ function SettingsShell({
               )}
               {titleAction}
             </div>
-            {/* Fades content scrolling under the title (hidden behind a list's search when one pins below). */}
-            <div className="h-6 bg-gradient-to-b from-surface-lower to-transparent pointer-events-none -mb-6" />
           </div>
         )}
         <div className="space-y-ha-6">{children}</div>
@@ -117,7 +125,9 @@ function SettingsShell({
 
   return (
     <AppSurfacePage>
-      <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full space-y-ha-6">
+      {/* `--list-top-pad` mirrors <main>'s top padding (pt-ha-4 / lg:pt-ha-5) so a
+          list's sticky search can absorb it and pin under the top bar without drift. */}
+      <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full space-y-ha-6 [--list-top-pad:var(--ha-space-4)] lg:[--list-top-pad:var(--ha-space-5)]">
         {children}
       </div>
     </AppSurfacePage>
@@ -256,6 +266,11 @@ const themeLabels: Record<Theme, string> = {
   fallout: 'Fallout',
 };
 
+const themeCaptions: Partial<Record<Theme, string>> = {
+  glass: 'Layered and airy',
+  eink: 'Paper-like contrast',
+};
+
 const backgroundLabels: Record<Background, string> = {
   gradient: 'Home Assistant background',
   image: 'Image',
@@ -326,7 +341,7 @@ const settingsMeta: Partial<Record<SettingsSlug, SettingsMeta>> = {
   },
 };
 
-export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps) {
+export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: SettingsDetailPageProps) {
   const router = useRouter();
   const { setHeader } = useHeader();
   const { setContextSlug } = useAddContext();
@@ -378,6 +393,18 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
   const activeIntegration = slug === 'integrations' && detailId
     ? integrations.find((i) => i.id === detailId) ?? null
     : null;
+  const { automations } = useAutomations();
+  const activeAutomation = slug === 'automations' && detailId
+    ? automations.find((a) => a.id === detailId) ?? null
+    : null;
+
+  // Let the settings workspace collapse its nav column while a focused editor
+  // is open. Reset on unmount so leaving the section restores the column.
+  const editorFocused = !!activeAutomation;
+  useEffect(() => {
+    onEditorFocusChange?.(editorFocused);
+    return () => onEditorFocusChange?.(false);
+  }, [editorFocused, onEditorFocusChange]);
 
   const autoConfigureDevices = useCallback(() => {
     const HIDDEN_DOMAINS = new Set(['update', 'button', 'event', 'number', 'select', 'text', 'scene', 'input_number', 'input_select', 'input_text', 'input_button']);
@@ -433,8 +460,7 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
     setTimeout(() => setConfigureStatus('idle'), 2500);
   }, [devices, setConfig]);
 
-  const [debugBadgesEnabled, setDebugBadgesEnabled] = useState(demoMode);
-  const [mockLatencyEnabled, setMockLatencyEnabled] = useState(false);
+  const { debugBadgesEnabled, toggleDebugBadges, mockLatencyEnabled, toggleMockLatency } = useDebugFlags();
   const [connectionSetupOpen, setConnectionSetupOpen] = useState(false);
   const [simulationModal, setSimulationModal] = useState<{ title: string; prefix: string } | null>(null);
 
@@ -552,6 +578,15 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
       });
       return;
     }
+    if (activeAutomation) {
+      setHeader({
+        title: activeAutomation.name,
+        subtitle: 'Automations',
+        icon: mdiRobot,
+        onBack: () => setDetailId(null),
+      });
+      return;
+    }
     setHeader({
       title: meta.title,
       subtitle: 'Settings',
@@ -561,7 +596,7 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
       // "Customize sections" cog rides there instead of next to an in-content title.
       primaryAction: slug === 'home-center' ? { icon: mdiCog, onClick: () => setSectionsEditorOpen(true) } : undefined,
     });
-  }, [activeIntegration, meta.icon, meta.title, panelMode, router, setHeader, slug]);
+  }, [activeAutomation, activeIntegration, meta.icon, meta.title, panelMode, router, setHeader, slug]);
 
   const connectionLabel = demoMode
     ? 'Demo data'
@@ -646,7 +681,7 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
           options={THEMES.map((entry) => ({
             value: entry,
             label: themeLabels[entry],
-            caption: entry === 'glass' ? 'Layered and airy' : entry === 'eink' ? 'Paper-like contrast' : 'Ready to use',
+            caption: themeCaptions[entry] ?? 'Ready to use',
           }))}
         />
       </SettingsCard>
@@ -874,13 +909,13 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
           label="Debug badges"
           description="Expose small diagnostic hints on cards and settings rows."
           checked={debugBadgesEnabled}
-          onToggle={() => setDebugBadgesEnabled((value) => !value)}
+          onToggle={toggleDebugBadges}
         />
         <ToggleRow
           label="Mock latency"
           description="Add a small artificial delay to make loading and response states easier to review."
           checked={mockLatencyEnabled}
-          onToggle={() => setMockLatencyEnabled((value) => !value)}
+          onToggle={toggleMockLatency}
         />
         <ToggleRow
           label="Demo data mode"
@@ -952,6 +987,29 @@ export function SettingsDetailPage({ slug, panelMode }: SettingsDetailPageProps)
       <div key="list" className={`ha-pane-in ha-pane-in--back ${paneFill}`}>
         <SettingsShell panelMode={panelMode} title={meta.title}>
           <IntegrationsTable integrations={integrations} onSelect={setDetailId} />
+        </SettingsShell>
+      </div>
+    );
+  }
+
+  // ── Automations (master list → flow editor drill-down) ────────────────────
+  // Same master-detail shape as integrations; the detail pane is the
+  // When / And if / Then do editor with its node-config sidebar.
+  if (slug === 'automations') {
+    const paneFill = panelMode ? '' : 'flex flex-col flex-1 min-h-0';
+    if (activeAutomation) {
+      return (
+        <div key={`detail:${activeAutomation.id}`} className={`ha-pane-in ${paneFill}`}>
+          <SettingsShell panelMode={panelMode} title={activeAutomation.name} onBack={() => setDetailId(null)}>
+            <AutomationEditor key={activeAutomation.id} automation={activeAutomation} onExit={() => setDetailId(null)} />
+          </SettingsShell>
+        </div>
+      );
+    }
+    return (
+      <div key="list" className={`ha-pane-in ha-pane-in--back ${paneFill}`}>
+        <SettingsShell panelMode={panelMode} title={meta.title}>
+          <AutomationsTable automations={automations} onSelect={setDetailId} />
         </SettingsShell>
       </div>
     );

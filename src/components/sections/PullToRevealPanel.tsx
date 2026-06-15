@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
+import { DashboardPreviewThumb } from './DashboardPreviewThumb';
 import { useSidebarItems } from '@/hooks';
 import { usePullToRevealContext, ENABLE_PULL_TO_REVEAL } from '@/contexts';
 import { clsx } from 'clsx';
@@ -393,15 +394,10 @@ export function PullToRevealPanel() {
                           href={dashboard.urlPath}
                           className="flex flex-col group"
                         >
-                          {/* Mobile aspect ratio preview card */}
-                          <div className="w-full aspect-[3/4] bg-surface-lower rounded-ha-xl overflow-hidden">
-                            {/* Placeholder content */}
-                            <div className="p-ha-2 space-y-ha-1">
-                              <div className="h-2 bg-surface-low rounded-full w-full" />
-                              <div className="h-2 bg-surface-low rounded-full w-3/4" />
-                              <div className="h-3 bg-surface-low rounded-ha-lg w-full mt-ha-2" />
-                              <div className="h-3 bg-surface-low rounded-ha-lg w-full" />
-                            </div>
+                          {/* Mobile aspect ratio preview card — real snapshot
+                              of the route, falling back to a skeleton. */}
+                          <div className="relative w-full aspect-[3/4] bg-surface-lower rounded-ha-xl overflow-hidden">
+                            <DashboardPreviewThumb urlPath={dashboard.urlPath} active={isRevealed} />
                           </div>
                           {/* Icon and name below card - left aligned */}
                           <div className="flex items-center gap-ha-1 mt-ha-1">

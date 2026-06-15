@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 import { mdiClose, mdiHomeAssistant, mdiGithub, mdiInformation } from '@mdi/js';
+import { useCloseOnScreensaver } from '@/contexts';
 
 interface InfoSidebarProps {
   open: boolean;
@@ -11,6 +12,8 @@ interface InfoSidebarProps {
 
 export function InfoSidebar({ open, onClose }: InfoSidebarProps) {
   const [visible, setVisible] = useState(false);
+
+  useCloseOnScreensaver(open, onClose);
 
   // Handle open/close animations
   useEffect(() => {

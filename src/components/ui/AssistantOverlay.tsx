@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Icon } from './Icon';
 import { SectionLabel } from './SectionLabel';
 import { useAssistantContext } from '@/contexts/AssistantContext';
+import { useCloseOnScreensaver } from '@/contexts';
 import {
   mdiClose,
   mdiLightbulbOnOutline,
@@ -24,6 +25,7 @@ const suggestions = [
 export function AssistantOverlay() {
   const pathname = usePathname();
   const { assistantOpen, closeAssistant } = useAssistantContext();
+  useCloseOnScreensaver(assistantOpen, closeAssistant);
   const [query, setQuery] = useState('');
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);

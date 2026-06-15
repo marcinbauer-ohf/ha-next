@@ -31,7 +31,7 @@ import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPre
 import { HomeCenterPillIndicators, HomeCenterStatusSections, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
 import { SettingsNavPanel } from '@/components/profile';
 import { isSettingsSlug, type SettingsSlug } from '@/components/profile/settingsNavigation';
-import { usePullToRevealContext, useSearchContext, useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
+import { usePullToRevealContext, useSearchContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, type SidebarItem } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
   areActivityDataEqual,
@@ -385,7 +385,14 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const pathSegments = pathname.split('/').filter(Boolean);
   const isDashboardSubView = pathSegments[0] === 'dashboard' && pathSegments.length > 1;
   const isRoomSubView = pathSegments[0] === 'room' && pathSegments.length > 1;
-  const showHomeBackButton = isDashboardSubView || isRoomSubView;
+  // A settings detail (e.g. /settings/integrations, or the /profile item) — on
+  // mobile these are pushed routes off the /settings master list, so they get
+  // the same bottom back affordance as dashboards but return to /settings.
+  const isSettingsSubView =
+    (pathSegments[0] === 'settings' && pathSegments.length > 1) || pathname === '/profile';
+  const showHomeBackButton = isDashboardSubView || isRoomSubView || isSettingsSubView;
+  const backHref = isSettingsSubView ? '/settings' : '/';
+  const backLabel = isSettingsSubView ? 'Back to Settings' : 'Back to Home';
   // The settings sub-page the user is currently on, so the bottom-sheet settings
   // list can highlight it and scroll it into view when the navbar opens.
   const currentSettingsSlug = useMemo<SettingsSlug | null>(() => {
@@ -842,6 +849,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       return tab;
     });
   }, [exitArrange]);
+
+  // Screensaver clears the expanded bottom sheet like any other surface.
+  useCloseOnScreensaver(statusExpanded, closeExpandedSurface);
 
   // Close the bottom sheet before navigating (shared Home Center sections).
   const navigateFromSurface = useCallback((path: string) => {
@@ -1741,8 +1751,8 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         <div className="flex items-center gap-ha-2 shrink-0">
           {showHomeBackButton && (
             <Link prefetch={false}
-              href="/"
-              aria-label="Back to Home"
+              href={backHref}
+              aria-label={backLabel}
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-ha-blue/15 text-ha-blue ring-1 ring-ha-blue/30 shadow-[0_8px_16px_-12px_rgba(3,169,244,0.9)] active:scale-95 transition-transform"
             >
               <Icon path={mdiArrowLeft} size={20} />

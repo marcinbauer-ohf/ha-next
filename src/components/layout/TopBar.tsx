@@ -113,7 +113,7 @@ export function TopBar() {
                     ? 'bg-ha-blue/20 text-ha-blue backdrop-blur-md hover:bg-ha-blue/30 border border-white/10'
                   : theme === 'teenage'
                     ? 'bg-[#d48e42] text-[#161616] hover:bg-[#c07d36] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_12px_-8px_rgba(0,0,0,0.6)] border border-[#b0712e]'
-                    : 'bg-ha-blue text-white hover:bg-ha-blue/90'
+                  : 'bg-ha-blue text-white hover:bg-ha-blue/90'
               }`}
             >
               <Icon path={mdiPlus} size={24} />

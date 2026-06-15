@@ -2,6 +2,7 @@
 
 import { Icon } from '@/components/ui/Icon';
 import { mdiClose, mdiDelete } from '@mdi/js';
+import { useCloseOnScreensaver } from '@/contexts';
 
 interface SimulationListModalProps {
   isOpen: boolean;
@@ -12,6 +13,8 @@ interface SimulationListModalProps {
 }
 
 export function SimulationListModal({ isOpen, onClose, title, items, onRemove }: SimulationListModalProps) {
+  useCloseOnScreensaver(isOpen, onClose);
+
   if (!isOpen) return null;
 
   return (

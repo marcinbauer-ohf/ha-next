@@ -21,6 +21,8 @@ import {
 import { Icon } from '../ui/Icon';
 import { clsx } from 'clsx';
 import { arePeoplePresenceEqual, selectPeoplePresence } from '@/lib/homeassistant/selectors';
+import { EnergyGlance, AutomationsGlance } from '../glances';
+import type { GlanceId } from '@/types';
 
 export function useLiveSummaryItems() {
   const entities = useHomeAssistantEntities();
@@ -51,24 +53,28 @@ export function useLiveSummaryItems() {
 
     const items = [
       {
+        id: 'lights' as GlanceId,
         icon: mdiLightbulbGroup,
         title: 'Lights',
         state: lights.length > 0 ? `${lightsOn} on` : '—',
         color: 'yellow' as const,
       },
       ...(avgTemp ? [{
+        id: 'climate' as GlanceId,
         icon: mdiThermometer,
         title: 'Climate',
         state: `${avgTemp}°C avg`,
         color: 'primary' as const,
       }] : []),
       ...(locks.length > 0 ? [{
+        id: 'security' as GlanceId,
         icon: mdiShieldHome,
         title: 'Security',
         state: allLocked ? 'All locked' : `${locksLocked}/${locks.length} locked`,
         color: (allLocked ? 'success' : 'default') as 'success' | 'default',
       }] : []),
       ...(weather ? [{
+        id: 'weather' as GlanceId,
         icon: mdiWeatherPartlyCloudy,
         title: 'Weather',
         state: weatherTemp != null ? `${weatherTemp}° ${weather.state}` : weather.state,
@@ -79,8 +85,8 @@ export function useLiveSummaryItems() {
     // Fallback if no real data yet
     if (items.every(i => i.state === '—') && all.length === 0) {
       return [
-        { icon: mdiLightbulbGroup, title: 'Lights', state: '—', color: 'yellow' as const },
-        { icon: mdiThermometer, title: 'Climate', state: '—', color: 'primary' as const },
+        { id: 'lights' as GlanceId, icon: mdiLightbulbGroup, title: 'Lights', state: '—', color: 'yellow' as const },
+        { id: 'climate' as GlanceId, icon: mdiThermometer, title: 'Climate', state: '—', color: 'primary' as const },
       ];
     }
     return items;
@@ -398,9 +404,12 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
             className="overflow-x-auto scrollbar-hide flex gap-ha-2 pr-4 pl-1"
           >
             <PeopleBadge compact />
+            <EnergyGlance compact />
+            <AutomationsGlance compact />
             {liveSummaryItems.map((item) => (
               <SummaryCard
                 key={item.title}
+                id={item.id}
                 icon={item.icon}
                 title={item.title}
                 state={item.state}
@@ -473,9 +482,12 @@ export function SummariesPanel({ onToggleImmersive, onToggleDarkMode, onToggleSc
       <h2 className="text-lg font-semibold text-text-primary mb-ha-4">Summary</h2>
       <div className="space-y-ha-3">
         <PeopleBadge variant={isCompact ? 'compact' : 'full'} />
+        <EnergyGlance variant={isCompact ? 'filled' : 'outlined'} compact={isCompact} />
+        <AutomationsGlance variant={isCompact ? 'filled' : 'outlined'} compact={isCompact} />
         {liveSummaryItems.map((item) => (
           <SummaryCard
             key={item.title}
+            id={item.id}
             icon={item.icon}
             title={item.title}
             state={item.state}

@@ -54,6 +54,9 @@ function SettingsWorkspace() {
   const [activeSlug, setActiveSlug] = useState<SettingsSlug>(
     requestedSection && isSettingsSlug(requestedSection) ? requestedSection : 'home-center',
   );
+  // True while a focused editor (automation editor) is open in column 2 — the
+  // nav column slides away so the editor gets the full workspace width.
+  const [editorFocus, setEditorFocus] = useState(false);
 
   useEffect(() => {
     setHeader({ title: 'Settings', subtitle: undefined });
@@ -73,14 +76,23 @@ function SettingsWorkspace() {
 
       {/* Wide (≥ xl): two independent scrolling columns with gradient masks.
           Widened to 1536px so content + an in-content sidebar both fit. */}
-      <div className="hidden xl:flex xl:h-full xl:gap-ha-6 max-w-[1536px] mx-auto w-full">
-        <ScrollColumn className="w-[340px] shrink-0">
-          <SettingsNavPanel activeSlug={activeSlug} onSelect={setActiveSlug} />
-        </ScrollColumn>
+      <div className="hidden xl:flex xl:h-full max-w-[1536px] mx-auto w-full">
+        {/* Slides away while a focused editor is open. The inner column keeps
+            its fixed width so its content doesn't reflow mid-animation. */}
+        <div
+          className={`h-full shrink-0 overflow-hidden transition-[width,opacity,transform] duration-300 ease-out ${
+            editorFocus ? 'w-0 opacity-0 -translate-x-6 pointer-events-none' : 'w-[364px] opacity-100 translate-x-0'
+          }`}
+          aria-hidden={editorFocus}
+        >
+          <ScrollColumn className="w-[340px] mr-ha-6">
+            <SettingsNavPanel activeSlug={activeSlug} onSelect={setActiveSlug} />
+          </ScrollColumn>
+        </div>
         <ScrollColumn className="flex-1 min-w-0">
           {/* Re-keyed per section so the pane fades/slides in instead of snapping. */}
           <div key={activeSlug} className="ha-pane-in">
-            <SettingsDetailPage slug={activeSlug} panelMode />
+            <SettingsDetailPage slug={activeSlug} panelMode onEditorFocusChange={setEditorFocus} />
           </div>
         </ScrollColumn>
       </div>

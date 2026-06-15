@@ -27,6 +27,7 @@ import { ModalSheet } from '@/components/layout/ModalSheet';
 import { MobileSummaryRow } from '@/components/sections';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
 import { PullToRevealPanel } from '@/components/sections';
+import { AutomationsDashboardSection } from '@/components/sections';
 import { useTheme, useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags } from '@/hooks';
 import { usePullToRevealContext, useHeader, useEditMode, useToast } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
@@ -37,7 +38,7 @@ import { OffscreenChangeHints } from '@/components/ui/OffscreenChangeHints';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import {
   entityDomain, friendlyName, entityLabel, stateLabel, isOn, TOGGLEABLE,
-  domainIcon, deviceThumbnail, SECTION_ORDER, SECTION_TITLES,
+  domainIcon, deviceThumbnail, deviceFeedEntity, SECTION_ORDER, SECTION_TITLES,
   entityCategory, CATEGORY_ORDER, CATEGORY_TITLES,
   AREA_ICON, domainTypeIcon, CATEGORY_ICONS, type DeviceCategory,
 } from '@/lib/homeassistant/entityHelpers';
@@ -482,9 +483,15 @@ export default function DashboardPage() {
   const allPanelEntities = useMemo(() => {
     if (!selectedDevice) return [];
     const config = getConfig(selectedDevice.id);
-    const visibleIds = config.slots.length === 0
+    const baseIds = config.slots.length === 0
       ? selectedDevice.entities.slice(0, 1).map(e => e.entity_id) // default: primary only
       : config.slots.filter(s => s.section === 'primary' || s.section === 'secondary').map(s => s.entity_id);
+    // Always include the camera/media feed entity (and put it first) so opening
+    // the device shows its feed even if that entity isn't a configured slot.
+    const feed = deviceFeedEntity(selectedDevice.entities);
+    const visibleIds = feed && !baseIds.includes(feed.entity_id)
+      ? [feed.entity_id, ...baseIds]
+      : baseIds;
     return visibleIds.flatMap(id => {
       const e = selectedDevice.entities.find(ent => ent.entity_id === id);
       if (!e) return [];
@@ -753,12 +760,20 @@ export default function DashboardPage() {
                           ];
                       const [primarySlotInfo, ...secondarySlotInfos] = displaySlots;
                       const primaryEntity = device.entities.find(e => e.entity_id === primarySlotInfo?.entity_id) ?? device.primaryEntity;
+                      // Camera/media feed shown as the card hero; clicking opens
+                      // that entity so the modal shows the feed too.
+                      const feedEntity = deviceFeedEntity(device.entities);
+                      const feedImage = feedEntity?.attributes.entity_picture
+                        ? (() => { const p = feedEntity.attributes.entity_picture as string; return p.startsWith('http') ? p : `${haUrl}${p}`; })()
+                        : undefined;
+                      const openEntity = feedEntity ?? primaryEntity;
 
                       return (
                         <DeviceCardV2
                           selected={selectedDeviceId === device.id}
                           editMode={isEditing}
                           areaName={groupBy !== 'area' ? (areas.get(device.areaId ?? '') ?? undefined) : undefined}
+                          feedImage={feedImage}
                           onLongPress={!isEditing ? () => { selectDeviceForEdit(device.id); toggleEditMode(); } : undefined}
                           primary={{
                             entityId: primaryEntity.entity_id,
@@ -775,7 +790,7 @@ export default function DashboardPage() {
                             unit: (primaryEntity.attributes.unit_of_measurement as string | undefined) ?? undefined,
                             toggleable: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)),
                             onToggle: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)) ? () => toggleEntity(primaryEntity.entity_id, primaryEntity.state) : undefined,
-                            onClick: isEditing ? () => selectDeviceForEdit(device.id) : () => selectEntity(device.id, primaryEntity.entity_id),
+                            onClick: isEditing ? () => selectDeviceForEdit(device.id) : () => selectEntity(device.id, openEntity.entity_id),
                           }}
                           secondary={secondarySlotInfos.flatMap(slot => {
                             const e = device.entities.find(ent => ent.entity_id === slot.entity_id);
@@ -871,6 +886,9 @@ export default function DashboardPage() {
                       </Section>
                     );
                   })}
+                  {/* Automations get first-class dashboard presence (not part of
+                      the device DnD grid, so only outside edit mode). */}
+                  {!isEditing && <AutomationsDashboardSection />}
                   </div>
                 </div>
               )}

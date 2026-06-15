@@ -20,6 +20,7 @@ export type {
 } from './DataListView';
 export { SegmentedControl } from './SegmentedControl';
 export { Dropdown } from './Dropdown';
+export { StateTimeline, type StateSegment } from './StateTimeline';
 export { ToggleSwitch } from './ToggleSwitch';
 export { RollingNumericValue } from './RollingNumericValue';
 export { Toast, ToastStack } from './Toast';

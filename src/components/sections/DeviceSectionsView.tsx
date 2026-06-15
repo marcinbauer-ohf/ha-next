@@ -11,7 +11,7 @@ import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { Icon } from '@/components/ui/Icon';
 import { useDevices, useHomeAssistant, useDeviceCardConfig } from '@/hooks';
 import {
-  entityDomain, entityLabel, stateLabel, isOn, TOGGLEABLE, domainIcon,
+  entityDomain, entityLabel, stateLabel, isOn, TOGGLEABLE, domainIcon, deviceFeedEntity,
 } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -55,9 +55,13 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
   const allPanelEntities = useMemo(() => {
     if (!selectedDevice) return [];
     const config = getConfig(selectedDevice.id);
-    const visibleIds = config.slots.length === 0
+    const baseIds = config.slots.length === 0
       ? selectedDevice.entities.slice(0, 1).map(e => e.entity_id)
       : config.slots.filter(s => s.section === 'primary' || s.section === 'secondary').map(s => s.entity_id);
+    const feed = deviceFeedEntity(selectedDevice.entities);
+    const visibleIds = feed && !baseIds.includes(feed.entity_id)
+      ? [feed.entity_id, ...baseIds]
+      : baseIds;
     return visibleIds.flatMap(eid => {
       const e = selectedDevice.entities.find(ent => ent.entity_id === eid);
       if (!e) return [];
@@ -105,10 +109,16 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
     const [primarySlotInfo, ...secondarySlotInfos] = displaySlots;
     const primaryEntity = device.entities.find(e => e.entity_id === primarySlotInfo?.entity_id) ?? device.primaryEntity;
     const p = primaryEntity.attributes.entity_picture as string | undefined;
+    const feedEntity = deviceFeedEntity(device.entities);
+    const feedImage = feedEntity?.attributes.entity_picture
+      ? (() => { const fp = feedEntity.attributes.entity_picture as string; return fp.startsWith('http') ? fp : `${haUrl}${fp}`; })()
+      : undefined;
+    const openEntity = feedEntity ?? primaryEntity;
     return (
       <DeviceCardV2
         key={device.id}
         selected={selectedDeviceId === device.id}
+        feedImage={feedImage}
         primary={{
           entityId: primaryEntity.entity_id,
           icon: domainIcon(primaryEntity),
@@ -120,7 +130,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
           unit: (primaryEntity.attributes.unit_of_measurement as string | undefined) ?? undefined,
           toggleable: TOGGLEABLE.has(entityDomain(primaryEntity)),
           onToggle: TOGGLEABLE.has(entityDomain(primaryEntity)) ? () => toggleEntity(primaryEntity.entity_id, primaryEntity.state) : undefined,
-          onClick: () => selectEntity(device.id, primaryEntity.entity_id),
+          onClick: () => selectEntity(device.id, openEntity.entity_id),
         }}
         secondary={secondarySlotInfos.flatMap(slot => {
           const e = device.entities.find(ent => ent.entity_id === slot.entity_id);

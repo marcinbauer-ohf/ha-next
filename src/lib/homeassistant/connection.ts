@@ -7,10 +7,13 @@ import {
   ERR_CANNOT_CONNECT,
   ERR_INVALID_AUTH,
 } from 'home-assistant-js-websocket';
-import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest } from './types';
+import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig } from './types';
 
 let connection: Connection | null = null;
 let entitySubscription: (() => void) | null = null;
+// Captured on connect so REST endpoints (no WS equivalent) can authenticate.
+let restUrl: string | null = null;
+let restToken: string | null = null;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -25,6 +28,8 @@ export async function connect(config: HassConfig): Promise<Connection> {
 
   try {
     connection = await createConnection({ auth });
+    restUrl = config.url.replace(/\/$/, '');
+    restToken = config.token;
     return connection;
   } catch (error) {
     if (error === ERR_CANNOT_CONNECT) {
@@ -46,6 +51,8 @@ export function disconnect(): void {
     connection.close();
     connection = null;
   }
+  restUrl = null;
+  restToken = null;
 }
 
 export function getConnection(): Connection | null {
@@ -247,6 +254,52 @@ export async function getEntityHistory(entityId: string, hoursBack = 24): Promis
     return [];
   } finally {
     releaseHistorySlot();
+  }
+}
+
+/**
+ * Recent logbook events for one entity, newest last. Used to build an
+ * automation's run history. Shares the history concurrency slot so a panel
+ * opening mid-dashboard-load doesn't add an unbounded socket burst.
+ */
+export async function getLogbook(entityId: string | string[], hoursBack = 168): Promise<LogbookEntry[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  const end = new Date();
+  const start = new Date(end.getTime() - hoursBack * 3600 * 1000);
+  await acquireHistorySlot();
+  try {
+    const result = await conn.sendMessagePromise<LogbookEntry[]>({
+      type: 'logbook/get_events',
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      entity_ids: Array.isArray(entityId) ? entityId : [entityId],
+    });
+    return result ?? [];
+  } catch {
+    return [];
+  } finally {
+    releaseHistorySlot();
+  }
+}
+
+/**
+ * An automation's stored config (triggers / conditions / actions). There is no
+ * WS command for this, so it goes through the REST config endpoint using the
+ * credentials captured on connect. Returns null when unavailable (YAML-only
+ * automations have no numeric id, the token may lack admin rights, etc.) — the
+ * caller falls back to a "flow unavailable" state.
+ */
+export async function getAutomationConfig(numericId: string): Promise<AutomationConfig | null> {
+  if (!restUrl || !restToken) return null;
+  try {
+    const res = await fetch(`${restUrl}/api/config/automation/config/${numericId}`, {
+      headers: { Authorization: `Bearer ${restToken}` },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as AutomationConfig;
+  } catch {
+    return null;
   }
 }
 
