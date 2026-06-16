@@ -115,7 +115,7 @@ export default function TypePage({ params }: TypePageProps) {
               className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide select-none px-ha-5 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-14 lg:pt-ha-5 lg:pb-ha-5"
               data-scrollable="dashboard"
             >
-              <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
+              <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full">
                 <ApplicationViewNotice />
 
                 {loading && <HALoader className="mb-ha-5" />}

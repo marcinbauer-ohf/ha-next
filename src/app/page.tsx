@@ -14,9 +14,11 @@ import {
   useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { mdiHomeAssistant, mdiChevronRight, mdiViewGrid, mdiCube, mdiAutoFix, mdiAccessPointNetwork, mdiWifi, mdiBluetooth, mdiZigbee, mdiZWave, mdiGraphOutline, mdiHexagonMultiple } from '@mdi/js';
+import { mdiHomeAssistant, mdiChevronRight, mdiViewGrid, mdiCube, mdiAutoFix, mdiTune, mdiClose, mdiCheck } from '@mdi/js';
 import { clsx } from 'clsx';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { Chip } from '@/components/ui/Chip';
+import { SectionLabel } from '@/components/ui/SectionLabel';
 
 const DashboardFloorView = dynamic(() => import('@/components/sections/DashboardFloorView'), { ssr: false });
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
@@ -27,7 +29,6 @@ import { ModalSheet } from '@/components/layout/ModalSheet';
 import { MobileSummaryRow } from '@/components/sections';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
 import { PullToRevealPanel } from '@/components/sections';
-import { AutomationsDashboardSection } from '@/components/sections';
 import { useTheme, useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags } from '@/hooks';
 import { usePullToRevealContext, useHeader, useEditMode, useToast } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
@@ -42,6 +43,7 @@ import {
   entityCategory, CATEGORY_ORDER, CATEGORY_TITLES,
   AREA_ICON, domainTypeIcon, CATEGORY_ICONS, type DeviceCategory,
 } from '@/lib/homeassistant/entityHelpers';
+import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
 import type { HassDevice } from '@/hooks';
 
 // ── Section ───────────────────────────────────────────────────────────────────
@@ -209,6 +211,18 @@ export default function DashboardPage() {
     const saved = localStorage.getItem('ha_group_by');
     return saved === 'type' || saved === 'category' ? saved : 'area';
   });
+  // Mobile: floor + grouping collapse into a ModalSheet behind a "Filters" chip,
+  // matching the data-list tables. Count tracks deviation from the defaults.
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const setGroupByPersisted = useCallback((next: 'area' | 'type' | 'category') => {
+    localStorage.setItem('ha_group_by', next);
+    setGroupBy(next);
+  }, []);
+  const activeFilterCount = (activeFloorId ? 1 : 0) + (groupBy !== 'area' ? 1 : 0);
+  const resetFilters = useCallback(() => {
+    setActiveFloorId(null);
+    setGroupByPersisted('area');
+  }, [setGroupByPersisted]);
   const { getConfig, setConfig } = useDeviceCardConfig();
 
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
@@ -323,41 +337,14 @@ export default function DashboardPage() {
     setHeader({ title: 'Home' });
   }, [setHeader]);
 
-  // Demo: surface simulated "new device detected" events as toasts — a few of
-  // them, staggered, so the toast stacking (newest in front, older peeking
-  // below) is visible. Placeholder until wired to real HA discovery /
-  // notification events. Mimics what a discovery payload carries: a product
-  // render, a manufacturer/model, and the transport (Wi-Fi / Bluetooth /
-  // Zigbee / Z-Wave / Thread / Matter) it was found over.
+  // Demo: surface a simulated "new device detected" toast once, 5s after load.
+  // Placeholder until wired to real HA discovery / notification events. Use the
+  // command palette ("Simulate device discovery") to fire more on demand.
   useEffect(() => {
     if (loading) return;
-    const discoveries = [
-      { name: 'Motion Sensor',      image: '/devices/motion_sensor.png',        manufacturer: 'Aqara',       model: 'P2',        protocol: 'Zigbee',    protocolIcon: mdiZigbee },
-      { name: 'Smart Plug',         image: '/devices/smart_plug_us.png',        manufacturer: 'TP-Link',     model: 'Tapo P110', protocol: 'Wi-Fi',     protocolIcon: mdiWifi },
-      { name: 'Door Lock',          image: '/devices/lock.png',                 manufacturer: 'Yale',        model: 'Assure 2',  protocol: 'Matter',    protocolIcon: mdiHexagonMultiple },
-      { name: 'Climate Sensor',     image: '/devices/temp_humidity_sensor.png', manufacturer: 'SwitchBot',   model: 'Meter',     protocol: 'Bluetooth', protocolIcon: mdiBluetooth },
-      { name: 'Light Strip',        image: '/devices/led_strip.png',            manufacturer: 'Govee',       model: 'H6199',     protocol: 'Wi-Fi',     protocolIcon: mdiWifi },
-      { name: 'Radiator Valve',     image: '/devices/radiator_valve.png',       manufacturer: 'tado°',       model: 'V3+',       protocol: 'Thread',    protocolIcon: mdiGraphOutline },
-      { name: 'Dome Camera',        image: '/devices/camera_dome.png',          manufacturer: 'Reolink',     model: 'E1 Pro',    protocol: 'Wi-Fi',     protocolIcon: mdiWifi },
-      { name: 'Contact Sensor',     image: '/devices/contact_sensor.png',       manufacturer: 'SONOFF',      model: 'SNZB-04',   protocol: 'Zigbee',    protocolIcon: mdiZigbee },
-      { name: 'Smart Bulb',         image: '/devices/bulb_e27.png',             manufacturer: 'Philips Hue', model: 'A60',       protocol: 'Zigbee',    protocolIcon: mdiZigbee },
-      { name: 'Wall Switch',        image: '/devices/wall_switch.png',          manufacturer: 'Inovelli',    model: 'Blue 2-1',  protocol: 'Z-Wave',    protocolIcon: mdiZWave },
-    ];
-    // Pick 3 distinct devices and announce them 3s apart, starting 5s after load.
-    const picked = [...discoveries].sort(() => Math.random() - 0.5).slice(0, 3);
-    const timers = picked.map((d, i) =>
-      setTimeout(() => {
-        showToast({
-          icon: mdiAccessPointNetwork,
-          image: d.image,
-          protocolIcon: d.protocolIcon,
-          title: `New ${d.name}`,
-          subtitle: `${d.model} • ${d.protocol} • Strong`,
-          action: { label: 'Set up', onClick: () => {} },
-        });
-      }, 5000 + i * 3000)
-    );
-    return () => timers.forEach(clearTimeout);
+    const [picked] = pickDiscoveries(1);
+    const timer = setTimeout(() => announceDiscovery(showToast, picked), 5000);
+    return () => clearTimeout(timer);
   }, [loading, showToast]);
 
   // Dashboard entrance animation
@@ -632,7 +619,9 @@ export default function DashboardPage() {
                   noSticky={dashboardView === '3d'}
                   extraRef={stickyHeaderRef}
                   extraContent={
-                    <div className="flex items-center gap-ha-2 min-w-0">
+                    <>
+                    {/* Desktop: floor + grouping inline, same as before */}
+                    <div className="hidden lg:flex items-center gap-ha-2 min-w-0">
                       {/* Floors — scrollable when many, takes remaining width on the left */}
                       {floors.length >= 2 && (
                         <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide -mx-ha-1 px-ha-1">
@@ -657,11 +646,7 @@ export default function DashboardPage() {
                             { value: 'category', label: 'Category' },
                           ]}
                           value={groupBy}
-                          onChange={v => {
-                            const next = v as 'area' | 'type' | 'category';
-                            localStorage.setItem('ha_group_by', next);
-                            setGroupBy(next);
-                          }}
+                          onChange={v => setGroupByPersisted(v as 'area' | 'type' | 'category')}
                         />
                       )}
                       {/* 3D view toggle — hidden until home model is ready
@@ -693,8 +678,99 @@ export default function DashboardPage() {
                       </div>
                       */}
                     </div>
+
+                    {/* Mobile: a single "Filters" chip; floor + grouping live in the
+                        sheet below — matches the data-list tables. */}
+                    {(floors.length >= 2 || areas.size > 0) && (
+                      <div className="flex lg:hidden items-center gap-ha-2">
+                        <Chip active={filterSheetOpen} onClick={() => setFilterSheetOpen(true)}>
+                          <Icon path={mdiTune} size={14} />
+                          <span>Filters</span>
+                          {activeFilterCount > 0 && (
+                            <span className="ml-ha-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ha-blue px-1 text-[10px] font-bold leading-none text-white">
+                              {activeFilterCount}
+                            </span>
+                          )}
+                        </Chip>
+                      </div>
+                    )}
+                    </>
                   }
                 />
+
+              {/* Mobile filter sheet — floor + grouping as tap-chips, mirroring
+                  DataListView's mobile sheet. */}
+              <ModalSheet open={filterSheetOpen} onClose={() => setFilterSheetOpen(false)}>
+                <div className="px-ha-4 pb-ha-6">
+                  <div className="mb-ha-4 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-text-primary">Filters</h3>
+                    <div className="flex items-center gap-ha-3">
+                      {activeFilterCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={resetFilters}
+                          className="text-xs font-semibold text-ha-blue"
+                        >
+                          Reset
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        aria-label="Close"
+                        onClick={() => setFilterSheetOpen(false)}
+                        className="flex h-7 w-7 items-center justify-center rounded-ha-lg text-text-secondary hover:bg-surface-low"
+                      >
+                        <Icon path={mdiClose} size={18} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-ha-4">
+                    {floors.length >= 2 && (
+                      <div>
+                        <SectionLabel>Floor</SectionLabel>
+                        <div className="mt-ha-2 flex flex-wrap gap-ha-2">
+                          <Chip active={activeFloorId === null} onClick={() => setActiveFloorId(null)}>
+                            {activeFloorId === null && <Icon path={mdiCheck} size={13} />}
+                            All
+                          </Chip>
+                          {floors.map(f => (
+                            <Chip
+                              key={f.floor_id}
+                              active={activeFloorId === f.floor_id}
+                              onClick={() => setActiveFloorId(f.floor_id)}
+                            >
+                              {activeFloorId === f.floor_id && <Icon path={mdiCheck} size={13} />}
+                              {f.name}
+                            </Chip>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {areas.size > 0 && (
+                      <div>
+                        <SectionLabel>Group by</SectionLabel>
+                        <div className="mt-ha-2 flex flex-wrap gap-ha-2">
+                          {([
+                            { value: 'area', label: 'Area' },
+                            { value: 'type', label: 'Device' },
+                            { value: 'category', label: 'Category' },
+                          ] as const).map(opt => (
+                            <Chip
+                              key={opt.value}
+                              active={groupBy === opt.value}
+                              onClick={() => setGroupByPersisted(opt.value)}
+                            >
+                              {groupBy === opt.value && <Icon path={mdiCheck} size={13} />}
+                              {opt.label}
+                            </Chip>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </ModalSheet>
 
               {dashboardView === '3d' ? (
                 <div className="flex-1 min-h-0">
@@ -886,9 +962,6 @@ export default function DashboardPage() {
                       </Section>
                     );
                   })}
-                  {/* Automations get first-class dashboard presence (not part of
-                      the device DnD grid, so only outside edit mode). */}
-                  {!isEditing && <AutomationsDashboardSection />}
                   </div>
                 </div>
               )}
