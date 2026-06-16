@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Icon, SearchField } from '../ui';
+import { clsx } from 'clsx';
+import { Icon, SearchField, NavChevron } from '../ui';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useDeviceStructure } from '@/hooks';
 import { getHaVersion } from '@/lib/homeassistant';
@@ -17,7 +18,7 @@ import {
   type SettingsNavLink,
   type SettingsSlug,
 } from './settingsNavigation';
-import { mdiChevronRight, mdiRestart, mdiRestartAlert, mdiPower } from '@mdi/js';
+import { mdiRestart, mdiRestartAlert, mdiPower } from '@mdi/js';
 
 // Most common Home Assistant system power commands — mirrors the power menu on
 // HA's own Settings → System page. Reboot/shutdown are Supervisor services
@@ -54,38 +55,54 @@ function NavItem({
   // Sections without their own built-out UI render only the haPath stub — gray
   // them out so it reads as "not built yet" while still being reachable.
   const empty = !settingsHasContent(item.slug);
+  // Active row: faint accent-tinted background + solid accent icon tile and
+  // accent label/chevron. No left bar.
+  const accentActive = isActive && !empty;
+
   return (
     <button
       type="button"
       onClick={onSelect}
       data-settings-slug={item.slug}
-      className={`w-full flex items-center gap-ha-3 px-ha-4 text-left transition-colors border-b border-surface-low/40 last:border-0 py-ha-2 ${
-        subtitle ? 'min-h-[48px]' : ''
-      } ${
-        isActive ? 'bg-surface-mid' : 'hover:bg-surface-mid/50 active:bg-surface-mid'
-      } ${empty ? 'opacity-45' : ''}`}
+      style={accentActive ? { backgroundColor: `${accent}1a` } : undefined}
+      className={clsx(
+        'group w-full flex items-center gap-ha-3 px-ha-4 text-left transition-colors border-b border-surface-low/40 last:border-0 py-ha-2',
+        subtitle && 'min-h-[48px]',
+        empty && 'opacity-45',
+        isActive ? 'bg-surface-mid' : 'hover:bg-surface-mid/50 active:bg-surface-mid',
+      )}
     >
-      {/* Colored icon tile — translucent tint reads on both light and dark themes.
-          Muted to a neutral gray for sections that have no content yet. */}
+      {/* Colored icon tile — solid accent fill when active, translucent tint
+          otherwise. Muted gray for sections with no content yet. */}
       <div
         className={`w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 ${empty ? 'bg-surface-mid' : ''}`}
-        style={empty ? undefined : { backgroundColor: `${accent}24`, color: accent }}
+        style={
+          empty
+            ? undefined
+            : accentActive
+              ? { backgroundColor: accent, color: '#fff' }
+              : { backgroundColor: `${accent}24`, color: accent }
+        }
       >
         <Icon path={item.icon} size={16} className={empty ? 'text-text-tertiary' : undefined} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={`text-[13px] font-semibold leading-tight ${empty ? 'text-text-secondary' : 'text-text-primary'}`}>
+        <p
+          className={`text-sm font-semibold leading-tight ${empty ? 'text-text-secondary' : accentActive ? '' : 'text-text-primary'}`}
+          style={accentActive ? { color: accent } : undefined}
+        >
           {item.label}
         </p>
         {subtitle && (
-          <p className="text-[13px] text-text-secondary truncate mt-0.5">{subtitle}</p>
+          <p className="text-xs text-text-secondary truncate mt-0.5">{subtitle}</p>
         )}
       </div>
-      <Icon
-        path={mdiChevronRight}
-        size={16}
-        className={isActive ? 'text-text-secondary' : 'text-text-disabled'}
-      />
+      <span
+        className={accentActive ? undefined : isActive ? 'text-text-secondary' : 'text-text-disabled'}
+        style={accentActive ? { color: accent } : undefined}
+      >
+        <NavChevron size={16} />
+      </span>
     </button>
   );
 }
@@ -170,18 +187,28 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
 
   return (
     <div ref={rootRef}>
-      {/* Search — sticky at top. z-30 keeps it above the mobile bottom-sheet's own top fade (z-20). */}
-      <div className="sticky top-0 z-30">
-        <div className={`${bg === 'surface-default' ? 'bg-surface-default' : 'bg-surface-lower'} pt-ha-1 pb-ha-3`}>
-          <SearchField
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search settings…"
-            onClear={() => setSearchQuery('')}
-          />
-        </div>
-        {/* Gradient fades nav items scrolling under the sticky search */}
-        <div className={`h-6 bg-gradient-to-b ${bg === 'surface-default' ? 'from-surface-default' : 'from-surface-lower'} to-transparent pointer-events-none`} />
+      {/* Search — sticky at top, pinned with no drift. Mirrors DataListView's
+          sticky search (devices list): a negative margin cancels the scroll
+          container's top padding (`--list-top-pad`) so it pins immediately, an
+          equal inner padding keeps the field in place while its opaque bg covers
+          the band, and `--settings-header-h` (0 here) stacks it below any title.
+          z-30 keeps it above the mobile bottom-sheet's own top fade (z-20). */}
+      <div
+        className={`sticky z-30 ${bg === 'surface-default' ? 'bg-surface-default' : 'bg-surface-lower'} pb-ha-2`}
+        style={{
+          top: 'var(--settings-header-h, 0px)',
+          marginTop: 'calc(-1 * var(--list-top-pad, 0px))',
+          paddingTop: 'calc(var(--list-top-pad, 0px) + var(--ha-space-1))',
+        }}
+      >
+        <SearchField
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search settings…"
+          onClear={() => setSearchQuery('')}
+        />
+        {/* fade for nav items scrolling under the sticky search */}
+        <div className={`h-4 bg-gradient-to-b ${bg === 'surface-default' ? 'from-surface-default' : 'from-surface-lower'} to-transparent pointer-events-none -mb-4`} />
       </div>
 
       {/* Profile card — below search, scrolls away. Clickable like the nav items. */}
@@ -189,7 +216,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
         type="button"
         onClick={() => onSelect('profile')}
         data-settings-slug="profile"
-        className={`w-full text-left flex items-center gap-ha-4 rounded-ha-3xl p-ha-5 border border-surface-lower shadow-[0_18px_42px_-30px_rgba(15,23,42,0.32)] mb-ha-4 transition-colors ${
+        className={`group w-full text-left flex items-center gap-ha-4 rounded-ha-3xl p-ha-5 border border-surface-lower shadow-[0_18px_42px_-30px_rgba(15,23,42,0.32)] mb-ha-4 transition-colors ${
           activeSlug === 'profile' ? 'bg-surface-mid' : 'bg-surface-default hover:bg-surface-low active:bg-surface-mid'
         }`}
       >
@@ -200,7 +227,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
             Administrator
           </p>
         </div>
-        <Icon path={mdiChevronRight} size={20} className="text-text-disabled flex-shrink-0" />
+        <NavChevron size={20} className="text-text-disabled flex-shrink-0" />
       </button>
 
       {/* Nav sections — all categories share one card, grouped by extra spacing. */}
@@ -208,7 +235,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
         {visibleSections.length === 0 ? (
           <p className="text-sm text-text-tertiary text-center py-ha-6">No results for &ldquo;{searchQuery}&rdquo;</p>
         ) : (
-          <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden">
+          <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden py-ha-2">
             {visibleSections.map((section, idx) => {
               const accent = categoryAccents[section.title] ?? '#64748b';
               return (
@@ -236,7 +263,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
           <p className="text-[13px] font-semibold uppercase tracking-wide text-text-tertiary px-ha-3 pb-ha-2">
             System
           </p>
-          <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden">
+          <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden py-ha-2">
             {SYSTEM_COMMANDS.map((cmd) => (
               <button
                 key={cmd.key}
@@ -256,7 +283,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
                 >
                   <Icon path={cmd.icon} size={16} />
                 </div>
-                <span className={`text-[13px] font-semibold ${cmd.danger ? 'text-red-500' : 'text-text-primary'}`}>
+                <span className={`text-sm font-semibold ${cmd.danger ? 'text-red-500' : 'text-text-primary'}`}>
                   {cmd.label}
                 </span>
               </button>

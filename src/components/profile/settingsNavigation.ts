@@ -18,7 +18,6 @@ import {
   mdiDatabase,
   mdiDevices,
   mdiHarddisk,
-  mdiLayers,
   mdiLightbulbGroup,
   mdiLightningBolt,
   mdiMap,
@@ -139,15 +138,14 @@ export const settingsNavSections: SettingsNavSection[] = [
   {
     title: 'Prototype Debugging Tools',
     items: [
-      { slug: 'developer', icon: mdiAlphaDBox, label: 'Prototype & Debug Tools', description: 'Dashboards, theme, task bar, maintenance, and developer flags' },
+      { slug: 'developer', icon: mdiAlphaDBox, label: 'Prototype & Debug Tools', description: 'Data, appearance, behavior, and prototyping flags' },
     ],
   },
   {
     title: 'My Home',
     items: [
-      { slug: 'areas', icon: mdiMap, label: 'Areas', description: 'Rooms and spaces in your home', haPath: '/config/areas', addLabel: 'Area' },
+      { slug: 'areas', icon: mdiMap, label: 'Areas & Floors', description: 'Rooms, spaces, and the floors they sit on', haPath: '/config/areas', addLabel: 'Area' },
       { slug: 'zones', icon: mdiMapMarker, label: 'Zones', description: 'Geographic zones for presence detection', haPath: '/config/zones', addLabel: 'Zone' },
-      { slug: 'floors', icon: mdiLayers, label: 'Floors', description: 'Organize areas across floors', haPath: '/config/areas', addLabel: 'Floor' },
       { slug: 'people', icon: mdiAccountGroup, label: 'People', description: 'Household members and presence tracking', haPath: '/config/people', addLabel: 'Person' },
       { slug: 'users', icon: mdiAccountKey, label: 'Users', description: 'User accounts and permissions', haPath: '/config/users', addLabel: 'User' },
     ],
@@ -259,6 +257,8 @@ const IMPLEMENTED_SETTINGS_SLUGS = new Set<SettingsSlug>([
   'home-center',
   'developer',
   'integrations',
+  'devices',
+  'areas',
   'automations',
   'notifications',
   'updates',

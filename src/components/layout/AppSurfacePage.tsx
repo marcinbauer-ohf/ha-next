@@ -5,6 +5,8 @@ import { PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext } from '@/contexts';
 import { useDesktopImmersivePageLayout } from '@/hooks';
 import { ApplicationViewNotice } from './ApplicationViewNotice';
+import { ImmersiveDogEar } from './ImmersiveDogEar';
+import { ScreensaverDogEar } from './ScreensaverDogEar';
 
 interface AppSurfacePageProps {
   children: ReactNode;
@@ -24,13 +26,15 @@ export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePag
         } ${contentPaddingClasses} ${contentTransitionClasses}`}
         style={contentStyle}
       >
-        <div className={`h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
+        <div id="app-surface-root" className={`ha-surface-enter relative h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
+          <ImmersiveDogEar />
+          <ScreensaverDogEar />
           <div
             className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide"
             data-scrollable="dashboard"
           >
             <main
-              className={`${isMobileImmersive ? 'px-ha-5' : 'px-ha-4'} pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
+              className={`${isMobileImmersive ? 'px-ha-5' : 'px-ha-4'} pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
             >
               <ApplicationViewNotice />
               {children}

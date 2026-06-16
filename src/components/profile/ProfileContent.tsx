@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import Link from 'next/link';
-import { Icon, ListSection, SectionLabel } from '../ui';
+import { Icon, ListSection, SectionLabel, NavChevron } from '../ui';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFeatureFlags } from '@/hooks';
 import {
@@ -12,7 +12,7 @@ import {
   selectSimulationEntities,
 } from '@/lib/homeassistant/selectors';
 import { getSettingsHref, settingsNavSections, type SettingsNavLink } from './settingsNavigation';
-import { mdiChevronRight, mdiInformationOutline } from '@mdi/js';
+import { mdiInformationOutline } from '@mdi/js';
 import { Tooltip } from '../ui/Tooltip';
 import { useScreensaver } from '@/contexts';
 import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
@@ -43,7 +43,7 @@ function ProfileItem({ item, value, onNavigate }: ProfileItemProps) {
         <p className="text-[15px] font-medium text-text-primary leading-tight">{item.label}</p>
         <p className="text-sm text-text-secondary truncate mt-0.5">{value}</p>
       </div>
-      <Icon path={mdiChevronRight} size={22} className="text-text-disabled flex-shrink-0" />
+      <NavChevron size={22} className="text-text-disabled flex-shrink-0" />
     </Link>
   );
 }
@@ -177,9 +177,9 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
             <Link
               href="/settings"
               onClick={onNavigate}
-              className="inline-flex items-center gap-ha-2 px-ha-4 py-ha-2 bg-surface-low hover:bg-surface-mid rounded-ha-xl border border-surface-lower transition-colors text-sm font-medium text-text-secondary hover:text-text-primary"
+              className="group inline-flex items-center gap-ha-2 px-ha-4 py-ha-2 bg-surface-low hover:bg-surface-mid rounded-ha-xl border border-surface-lower transition-colors text-sm font-medium text-text-secondary hover:text-text-primary"
             >
-              <Icon path={mdiChevronRight} size={16} className="text-text-disabled" />
+              <NavChevron size={16} className="text-text-disabled" />
               Settings
             </Link>
           </div>

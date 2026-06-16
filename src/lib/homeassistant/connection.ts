@@ -7,7 +7,7 @@ import {
   ERR_CANNOT_CONNECT,
   ERR_INVALID_AUTH,
 } from 'home-assistant-js-websocket';
-import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig } from './types';
+import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig } from './types';
 
 let connection: Connection | null = null;
 let entitySubscription: (() => void) | null = null;
@@ -204,6 +204,115 @@ export async function getFloorRegistry(): Promise<FloorRegistryEntry[]> {
   } catch {
     return [];
   }
+}
+
+export async function getLabelRegistry(): Promise<LabelRegistryEntry[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  try {
+    return await conn.sendMessagePromise<LabelRegistryEntry[]>({ type: 'config/label_registry/list' }) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// ── Registry writes ─────────────────────────────────────────────────────────
+// All require a live connection (callers guard on demo/connected upstream).
+// `undefined` fields are dropped so we never overwrite with null unintentionally;
+// pass an explicit null to clear an optional field (e.g. unassign a floor).
+
+function requireConnection(): Connection {
+  if (!connection) throw new Error('Not connected to Home Assistant');
+  return connection;
+}
+
+/** Drop keys whose value is `undefined` (but keep explicit `null`). */
+function pruneUndefined(obj: object): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+export interface AreaWriteFields {
+  name?: string;
+  floor_id?: string | null;
+  icon?: string | null;
+  picture?: string | null;
+  aliases?: string[];
+  labels?: string[];
+}
+
+export async function createArea(fields: AreaWriteFields): Promise<AreaRegistryEntry> {
+  return requireConnection().sendMessagePromise<AreaRegistryEntry>({
+    type: 'config/area_registry/create',
+    ...pruneUndefined(fields),
+  });
+}
+
+export async function updateArea(areaId: string, fields: AreaWriteFields): Promise<AreaRegistryEntry> {
+  return requireConnection().sendMessagePromise<AreaRegistryEntry>({
+    type: 'config/area_registry/update',
+    area_id: areaId,
+    ...pruneUndefined(fields),
+  });
+}
+
+export async function deleteArea(areaId: string): Promise<void> {
+  await requireConnection().sendMessagePromise({ type: 'config/area_registry/delete', area_id: areaId });
+}
+
+export interface FloorWriteFields {
+  name?: string;
+  level?: number | null;
+  icon?: string | null;
+  aliases?: string[];
+}
+
+export async function createFloor(fields: FloorWriteFields): Promise<FloorRegistryEntry> {
+  return requireConnection().sendMessagePromise<FloorRegistryEntry>({
+    type: 'config/floor_registry/create',
+    ...pruneUndefined(fields),
+  });
+}
+
+export async function updateFloor(floorId: string, fields: FloorWriteFields): Promise<FloorRegistryEntry> {
+  return requireConnection().sendMessagePromise<FloorRegistryEntry>({
+    type: 'config/floor_registry/update',
+    floor_id: floorId,
+    ...pruneUndefined(fields),
+  });
+}
+
+export async function deleteFloor(floorId: string): Promise<void> {
+  await requireConnection().sendMessagePromise({ type: 'config/floor_registry/delete', floor_id: floorId });
+}
+
+export interface LabelWriteFields {
+  name?: string;
+  color?: string | null;
+  icon?: string | null;
+  description?: string | null;
+}
+
+export async function createLabel(fields: LabelWriteFields): Promise<LabelRegistryEntry> {
+  return requireConnection().sendMessagePromise<LabelRegistryEntry>({
+    type: 'config/label_registry/create',
+    ...pruneUndefined(fields),
+  });
+}
+
+export async function updateLabel(labelId: string, fields: LabelWriteFields): Promise<LabelRegistryEntry> {
+  return requireConnection().sendMessagePromise<LabelRegistryEntry>({
+    type: 'config/label_registry/update',
+    label_id: labelId,
+    ...pruneUndefined(fields),
+  });
+}
+
+export async function deleteLabel(labelId: string): Promise<void> {
+  await requireConnection().sendMessagePromise({ type: 'config/label_registry/delete', label_id: labelId });
 }
 
 // History requests are made by every visible sparkline at once. On a real

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { SummaryCard } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities } from '@/hooks';
@@ -348,22 +348,6 @@ interface MobileSummaryRowProps {
 
 export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraContent, extraRef }: MobileSummaryRowProps) {
   const liveSummaryItems = useLiveSummaryItems();
-  const [showLeftGradient, setShowLeftGradient] = useState(false);
-  const [showRightGradient, setShowRightGradient] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const checkScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-    setShowLeftGradient(scrollLeft > 0);
-    setShowRightGradient(scrollLeft < scrollWidth - clientWidth - 1);
-  };
-
-  useEffect(() => {
-    checkScroll();
-    window.addEventListener('resize', checkScroll);
-    return () => window.removeEventListener('resize', checkScroll);
-  }, []);
 
   const summaryBackground = 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent) 0%, transparent 80%)';
   const containerStyle = fullBleed
@@ -382,49 +366,30 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
     <>
     {/* Chips — scroll out of view with the page content */}
     <div
+      data-section-key="__summaries__"
       className={clsx(
         'lg:mx-0 lg:px-0 pt-ha-4 pb-ha-1 w-full',
         fullBleed ? '' : '-mx-ha-1 px-ha-1'
       )}
       style={containerStyle}
     >
-      <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full flex items-center gap-ha-2 overflow-hidden">
-        {/* Scrollable Container for Summaries */}
-        <div className="flex-1 min-w-0 relative group">
-          {/* Left Gradient */}
-          <div 
-            className={`absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-surface-lower to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
-              showLeftGradient ? 'opacity-100' : 'opacity-0'
-            }`} 
-          />
-          
-          <div
-            ref={scrollContainerRef}
-            onScroll={checkScroll}
-            className="overflow-x-auto scrollbar-hide flex gap-ha-2 pr-4 pl-1"
-          >
-            <PeopleBadge compact />
-            <EnergyGlance compact />
-            <AutomationsGlance compact />
-            {liveSummaryItems.map((item) => (
-              <SummaryCard
-                key={item.title}
-                id={item.id}
-                icon={item.icon}
-                title={item.title}
-                state={item.state}
-                color={item.color}
-                compact
-              />
-            ))}
-          </div>
-
-          {/* Right Gradient */}
-          <div
-            className={`absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-surface-lower to-transparent z-10 pointer-events-none transition-opacity duration-300 ${
-              showRightGradient ? 'opacity-100' : 'opacity-0'
-            }`}
-          />
+      <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full">
+        {/* Wrapping bento row — chips flow onto new lines instead of scrolling */}
+        <div className="flex flex-wrap items-center gap-ha-2 px-1">
+          <PeopleBadge compact />
+          <EnergyGlance compact />
+          <AutomationsGlance compact />
+          {liveSummaryItems.map((item) => (
+            <SummaryCard
+              key={item.title}
+              id={item.id}
+              icon={item.icon}
+              title={item.title}
+              state={item.state}
+              color={item.color}
+              compact
+            />
+          ))}
         </div>
       </div>
 
@@ -435,7 +400,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
       <div
         ref={extraRef}
         className={clsx(
-          !noSticky && 'sticky top-0 z-[60]',
+          !noSticky && 'sticky top-[var(--app-topbar-clear)] lg:top-0 z-[60]',
           'lg:mx-0 lg:px-0 pt-ha-1 pb-ha-2 backdrop-blur-md w-full',
           fullBleed ? '' : '-mx-ha-1 px-ha-1'
         )}

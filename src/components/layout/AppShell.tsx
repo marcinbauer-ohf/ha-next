@@ -11,6 +11,8 @@ import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { Preloader } from '@/components/ui/Preloader';
+import { emitSettingsReset } from '@/lib/settingsResetBus';
+import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
 import { AnimatePresence, motion } from 'framer-motion';
 type ConnectionStatus = 'connecting' | 'connected' | 'error' | null;
 import {
@@ -201,6 +203,21 @@ function AppShellContent({ children }: AppShellProps) {
     }, 1200);
     return () => clearTimeout(timer);
   }, [showPreloader, standaloneHydrated, isStandalone, showToast]);
+
+  // Demo: surface a simulated "new device detected" toast once, 5s after the app
+  // is ready — fires on whatever view you're on (dashboard, settings, automation
+  // editor, …), not just the dashboard. Placeholder until wired to real HA
+  // discovery events; use the command palette ("Simulate device discovery") for
+  // more on demand.
+  const discoveryShown = useRef(false);
+  useEffect(() => {
+    if (showPreloader || discoveryShown.current) return;
+    const timer = setTimeout(() => {
+      discoveryShown.current = true;
+      announceDiscovery(showToast, pickDiscoveries(1)[0]);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [showPreloader, showToast]);
 
   // Dismiss any open toast when entering edit mode
   useEffect(() => {
@@ -462,7 +479,7 @@ function AppShellContent({ children }: AppShellProps) {
 
       {/* Main app shell — fades in as preloader exits */}
       <div
-        className={`h-[100svh] lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge transition-opacity duration-700 ${
+        className={`relative h-[100svh] lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge transition-opacity duration-700 ${
           showPreloader ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={layoutStyle}
@@ -477,12 +494,20 @@ function AppShellContent({ children }: AppShellProps) {
         {/* TopBar - Desktop & Mobile persistent header */}
         <div
           data-component="MobileTopBar"
-          className={`h-16 bg-transparent lg:bg-transparent px-edge lg:pr-edge overflow-hidden flex-shrink-0 relative z-10 pointer-events-auto ${desktopTopBarStateClass}`}
+          className={`h-16 bg-transparent lg:bg-transparent px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 pointer-events-auto ${desktopTopBarStateClass}`}
           style={mobileTopBarStyle}
         >
-            {/* Mobile backdrop — solid surface so the bar matches the surrounding UI */}
+            {/* Mobile backdrop — frosted blend instead of a solid cutoff: the
+                content surface scrolls beneath, gets progressively blurred, and
+                the white tint dissolves toward the bottom. Both layers extend
+                below the bar so the readable white backing spans lower before
+                fading out — no hard line between the bar and the surface. */}
           <div
-            className="lg:hidden absolute inset-0 pointer-events-none bg-surface-default"
+            className="lg:hidden absolute top-0 inset-x-0 h-[125%] pointer-events-none backdrop-blur-xl [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
+            aria-hidden
+          />
+          <div
+            className="lg:hidden absolute top-0 inset-x-0 h-[125%] pointer-events-none bg-gradient-to-b from-surface-default from-45% via-surface-default/65 via-80% to-transparent"
             aria-hidden
           />
           <div className="relative z-[1] h-full">
@@ -574,7 +599,14 @@ function AppShellContent({ children }: AppShellProps) {
         <StatusBar
           connectionStatus={connectionStatus}
           editModeFade={isEditing}
-          onProfileToggle={() => router.push('/settings')}
+          onProfileToggle={() => {
+            // Already on the two-column workspace → the URL won't change, so
+            // reset its active section back to Home Center via the bus. From a
+            // deep /settings/<slug> route (or anywhere else) a plain push lands
+            // on the workspace root, which defaults to Home Center on its own.
+            if (pathname === '/settings') emitSettingsReset();
+            else router.push('/settings');
+          }}
         />
       </div>
 

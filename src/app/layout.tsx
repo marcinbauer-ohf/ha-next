@@ -7,7 +7,8 @@ import { HomeCenterPrefsProvider } from '@/hooks/useHomeCenterPrefs';
 import { ThemeProvider } from '@/hooks/useTheme';
 import { FontProvider } from '@/hooks/useFont';
 import { ImmersiveModeProvider } from '@/hooks/useImmersiveMode';
-import { PullToRevealProvider, SidebarItemsProvider, SidebarArrangeProvider, SearchProvider, AssistantProvider, HeaderProvider, AddContextProvider, ScreensaverProvider, EditModeProvider, ToastProvider, DebugFlagsProvider } from '@/contexts';
+import { DogEarConfigProvider } from '@/hooks/useDogEarConfig';
+import { PullToRevealProvider, SidebarItemsProvider, SidebarArrangeProvider, SearchProvider, AssistantProvider, HeaderProvider, AddContextProvider, ScreensaverProvider, EditModeProvider, MobileToolbarProvider, ToastProvider, NotificationCenterProvider, DebugFlagsProvider } from '@/contexts';
 import { AppShell } from '@/components/layout';
 
 const inter = Inter({
@@ -93,6 +94,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} ${poppins.variable} ${quantico.variable} ${nunito.variable} ${vt323.variable} ${notoSans.variable} ${ibmPlexSans.variable} ${sourceSans.variable} ${figtree.variable} ${atkinson.variable} antialiased`} suppressHydrationWarning>
         <ThemeProvider>
+          <DogEarConfigProvider>
           <FontProvider>
           <FeatureFlagsProvider>
             <DebugFlagsProvider>
@@ -106,13 +108,17 @@ export default function RootLayout({
                       <AssistantProvider>
                         <HeaderProvider>
                           <AddContextProvider>
+                          <NotificationCenterProvider>
                           <ScreensaverProvider>
                             <EditModeProvider>
+                              <MobileToolbarProvider>
                               <ToastProvider>
                                 <AppShell>{children}</AppShell>
                               </ToastProvider>
+                              </MobileToolbarProvider>
                             </EditModeProvider>
                           </ScreensaverProvider>
+                          </NotificationCenterProvider>
                           </AddContextProvider>
                         </HeaderProvider>
                       </AssistantProvider>
@@ -126,6 +132,7 @@ export default function RootLayout({
             </DebugFlagsProvider>
           </FeatureFlagsProvider>
           </FontProvider>
+          </DogEarConfigProvider>
         </ThemeProvider>
       </body>
     </html>

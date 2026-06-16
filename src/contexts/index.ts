@@ -5,8 +5,12 @@ export { SidebarArrangeProvider, useSidebarArrange, arrangeItems } from './Sideb
 export { SearchProvider, useSearchContext } from './SearchContext';
 export { AssistantProvider, useAssistantContext } from './AssistantContext';
 export { HeaderProvider, useHeader } from './HeaderContext';
+export type { BreadcrumbItem } from './HeaderContext';
 export { AddContextProvider, useAddContext } from './AddContext';
 export { ScreensaverProvider, useScreensaver, useCloseOnScreensaver } from './ScreensaverContext';
 export { EditModeProvider, useEditMode } from './EditModeContext';
+export { MobileToolbarProvider, useMobileToolbar } from './MobileToolbarContext';
 export { ToastProvider, useToast } from './ToastContext';
+export { NotificationCenterProvider, useNotificationCenter } from './NotificationCenterContext';
+export type { CenterNotification } from './NotificationCenterContext';
 export { DebugFlagsProvider, useDebugFlags } from './DebugFlagsContext';

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
+import { haptic } from '@/lib/haptics';
 
 interface LongPressOptions {
   /** Hold duration before firing, in ms. */
@@ -40,6 +41,7 @@ export function useLongPress(fire: () => void, options: LongPressOptions = {}) {
       timerRef.current = setTimeout(() => {
         consumedRef.current = true;
         timerRef.current = null;
+        haptic('impact');
         fire();
       }, delay);
     },

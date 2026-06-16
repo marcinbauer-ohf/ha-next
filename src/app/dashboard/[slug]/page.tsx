@@ -2,6 +2,8 @@
 
 import { use, useEffect } from 'react';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
+import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
+import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { PullToRevealPanel } from '@/components/sections';
 import { useDesktopImmersivePageLayout, useSidebarItems } from '@/hooks';
 import { usePullToRevealContext, useHeader } from '@/contexts';
@@ -36,12 +38,14 @@ export default function DashboardPage({ params }: DashboardPageProps) {
         } ${contentPaddingClasses} ${contentTransitionClasses}`}
         style={contentStyle}
       >
-        <div className={`h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
+        <div className={`relative h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
+          <ImmersiveDogEar />
+          <ScreensaverDogEar />
           <div
-            className="h-full overflow-y-auto px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5"
+            className="h-full overflow-y-auto px-ha-4 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5"
             data-scrollable="dashboard"
           >
-            <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full">
+            <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full">
               <ApplicationViewNotice />
             </div>
           </div>

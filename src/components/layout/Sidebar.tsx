@@ -28,6 +28,7 @@ import { useSidebarItems, useLongPress } from '@/hooks';
 import { useSearchContext, useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
 import { mdiMagnify, mdiClose, mdiCheck, mdiDragVariant, mdiDeleteOutline } from '@mdi/js';
 import { clsx } from 'clsx';
+import { haptic } from '@/lib/haptics';
 
 const appPalettes = [
   { text: 'text-ha-blue' },
@@ -237,6 +238,7 @@ export function Sidebar({
     const newIndex = sortableIds.indexOf(over.id as string);
     if (oldIndex < 0 || newIndex < 0) return;
     const next = arrayMove(sortableIds, oldIndex, newIndex);
+    haptic('impact');
     reorderVisible(sortableIds, sortableIds, next);
   };
 
@@ -480,8 +482,8 @@ export function Sidebar({
             <div
               ref={tooltipRef}
               className={clsx(
-                'fixed z-[200] px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 pointer-events-none text-xs text-text-primary whitespace-nowrap font-medium transition-[top,left,opacity,transform] duration-120 ease-out',
-                tooltip.visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+                'fixed z-[200] px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 pointer-events-none text-xs text-text-primary whitespace-nowrap font-medium',
+                tooltip.visible ? 'opacity-100' : 'opacity-0'
               )}
               style={{
                 top: `${tooltip.top}px`,

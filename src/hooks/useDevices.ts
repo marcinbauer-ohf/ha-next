@@ -12,8 +12,9 @@ import {
   mdiZigbee,
 } from '@mdi/js';
 import { useHomeAssistant, useHomeAssistantEntities, useHomeAssistantSelector, peekEntities } from './useHomeAssistant';
+import { entityCategory, domainIcon, deviceThumbnail, type DeviceCategory } from '@/lib/homeassistant/entityHelpers';
 import { DEMO_AREAS, DEMO_FLOORS, demoAreaForEntity } from '@/lib/homeassistant/demoEntities';
-import type { EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, ConfigEntry, IntegrationManifest } from '@/lib/homeassistant/types';
+import type { EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, ConfigEntry, IntegrationManifest } from '@/lib/homeassistant/types';
 import type { HassEntities, HassEntity } from '@/types';
 
 const DOMAIN_PRIORITY = [
@@ -174,6 +175,7 @@ interface RegistryStore {
   deviceReg: DeviceRegistryEntry[];
   areaReg: AreaRegistryEntry[];
   floorReg: FloorRegistryEntry[];
+  labelReg: LabelRegistryEntry[];
   loading: boolean;
   loaded: boolean;
 }
@@ -183,6 +185,7 @@ const EMPTY_REGISTRY: RegistryStore = {
   deviceReg: [],
   areaReg: [],
   floorReg: [],
+  labelReg: [],
   loading: false,
   loaded: false,
 };
@@ -218,22 +221,24 @@ interface RegistryGetters {
   getDeviceRegistry: () => Promise<DeviceRegistryEntry[]>;
   getAreaRegistry: () => Promise<AreaRegistryEntry[]>;
   getFloorRegistry: () => Promise<FloorRegistryEntry[]>;
+  getLabelRegistry: () => Promise<LabelRegistryEntry[]>;
 }
 
-function loadRegistry(getters: RegistryGetters): Promise<void> {
+function loadRegistry(getters: RegistryGetters, force = false): Promise<void> {
   if (registryInFlight) return registryInFlight;
-  if (registryStore.loaded) return Promise.resolve();
+  if (registryStore.loaded && !force) return Promise.resolve();
 
   setRegistryStore({ ...registryStore, loading: true });
 
   registryInFlight = (async () => {
-    const [entityReg, deviceReg, areaReg, floorReg] = await Promise.all([
+    const [entityReg, deviceReg, areaReg, floorReg, labelReg] = await Promise.all([
       getters.getEntityRegistry(),
       getters.getDeviceRegistry(),
       getters.getAreaRegistry(),
       getters.getFloorRegistry(),
+      getters.getLabelRegistry(),
     ]);
-    setRegistryStore({ entityReg, deviceReg, areaReg, floorReg, loading: false, loaded: true });
+    setRegistryStore({ entityReg, deviceReg, areaReg, floorReg, labelReg, loading: false, loaded: true });
   })()
     .catch(() => {
       setRegistryStore({ ...registryStore, loading: false });
@@ -243,6 +248,16 @@ function loadRegistry(getters: RegistryGetters): Promise<void> {
     });
 
   return registryInFlight;
+}
+
+/**
+ * Force a re-fetch of the shared registry store. Call after a registry write
+ * (area/floor/label create/update/delete) so every consumer re-renders with
+ * the new data. HA does push *_registry_updated events, but we re-pull rather
+ * than subscribe to keep the store the single source of truth.
+ */
+export function refreshRegistry(getters: RegistryGetters): Promise<void> {
+  return loadRegistry(getters, true);
 }
 
 function resetRegistry(): void {
@@ -294,7 +309,7 @@ function buildDevicesCached(
 // ── Hook ──────────────────────────────────────────────────────────────────
 
 export function useDevices(): { devices: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; loading: boolean } {
-  const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry } = useHomeAssistant();
+  const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry } = useHomeAssistant();
   const allEntities = useHomeAssistantEntities();
 
   const { entityReg, deviceReg, areaReg: liveAreaReg, floorReg, loading: regLoading } = useSyncExternalStore(
@@ -308,8 +323,8 @@ export function useDevices(): { devices: HassDevice[]; areas: Map<string, string
       resetRegistry();
       return;
     }
-    loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry });
-  }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry]);
+    loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry });
+  }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry]);
 
   // Demo mode has no live registries — substitute the sample home's layout so
   // area grouping, floor tabs, and room pages work on demo data.
@@ -612,7 +627,7 @@ function resetIntegrationsData(): void {
 }
 
 export function useIntegrations(): { integrations: IntegrationSummary[]; loading: boolean } {
-  const { connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getConfigEntries, getIntegrationManifests } = useHomeAssistant();
+  const { connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry, getConfigEntries, getIntegrationManifests } = useHomeAssistant();
 
   const { entityReg, deviceReg, loading: regLoading } = useSyncExternalStore(
     subscribeToRegistry,
@@ -634,9 +649,9 @@ export function useIntegrations(): { integrations: IntegrationSummary[]; loading
       resetIntegrationsData();
       return;
     }
-    loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry });
+    loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry });
     loadIntegrationsData(getConfigEntries, getIntegrationManifests);
-  }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getConfigEntries, getIntegrationManifests]);
+  }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry, getConfigEntries, getIntegrationManifests]);
 
   const integrations = useMemo<IntegrationSummary[]>(() => {
     const live = connected && (entityReg.length > 0 || configEntries.length > 0);
@@ -658,10 +673,10 @@ export function useIntegrations(): { integrations: IntegrationSummary[]; loading
 // those large components to the entity store made them re-render ~6×/sec under a
 // live HA feed, freezing navigation. The entity count is a cheap signal that
 // changes only when entities appear/disappear, not when a value updates.
-export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; loading: boolean } {
-  const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry } = useHomeAssistant();
+export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; labelReg: LabelRegistryEntry[]; loading: boolean } {
+  const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry } = useHomeAssistant();
 
-  const { entityReg, deviceReg, areaReg: liveAreaReg, floorReg, loading: regLoading } = useSyncExternalStore(
+  const { entityReg, deviceReg, areaReg: liveAreaReg, floorReg, labelReg, loading: regLoading } = useSyncExternalStore(
     subscribeToRegistry,
     getRegistrySnapshot,
     getServerRegistrySnapshot,
@@ -679,8 +694,8 @@ export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string
       resetRegistry();
       return;
     }
-    loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry });
-  }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry]);
+    loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry });
+  }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry]);
 
   const devices = useMemo<HassDevice[]>(
     () => buildDevicesCached(connected, entityReg, deviceReg, peekEntities()),
@@ -704,6 +719,99 @@ export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string
     areas,
     areaReg,
     floors,
+    labelReg: useDemoLayout ? [] : labelReg,
     loading: connected && regLoading,
   };
 }
+
+// ── Devices list (settings master-detail) ───────────────────────────────────
+// Flat per-device summary for the Devices settings table — mirrors the
+// IntegrationSummary shape so the generic DataListView powers search / sort /
+// group / filter. Built from the structure hook (no live state ticks) plus the
+// entity registry (carries each entity's `platform` → owning integration).
+
+export interface DeviceSummary {
+  /** Device registry id (or synthetic entity_id in demo mode) — drill-down key. */
+  id: string;
+  name: string;
+  manufacturer?: string;
+  model?: string;
+  areaId?: string;
+  areaName?: string;
+  /** Owning integration platform key, e.g. "hue". */
+  integration?: string;
+  integrationName?: string;
+  /** Semantic category of the device's primary entity (grouping bucket). */
+  category: DeviceCategory;
+  primaryDomain?: string;
+  /** mdi icon for the primary entity. */
+  icon: string;
+  /** Product thumbnail path (or null → fall back to icon). */
+  thumbnail?: string | null;
+  entityCount: number;
+  /** False when every entity is unavailable. */
+  available: boolean;
+}
+
+const DEVICE_CATEGORY_LABEL: Record<DeviceCategory, string> = {
+  security: 'Security',
+  entertainment: 'Entertainment',
+  climate: 'Climate',
+  lighting: 'Lighting',
+  sensors: 'Sensors',
+};
+
+function buildDeviceSummaries(
+  devices: HassDevice[],
+  entityReg: EntityRegistryEntry[],
+  areas: Map<string, string>,
+): DeviceSummary[] {
+  // device_id → owning integration platform (first non-null entity platform).
+  const devicePlatform = new Map<string, string>();
+  for (const e of entityReg) {
+    if (!e.device_id || !e.platform) continue;
+    if (!devicePlatform.has(e.device_id)) devicePlatform.set(e.device_id, e.platform);
+  }
+
+  return devices
+    .map((d) => {
+      const primary = d.primaryEntity;
+      const platform = devicePlatform.get(d.id);
+      const available = d.entities.some((e) => e.state !== 'unavailable');
+      return {
+        id: d.id,
+        name: d.name,
+        manufacturer: d.manufacturer,
+        model: d.model,
+        areaId: d.areaId,
+        areaName: d.areaId ? areas.get(d.areaId) : undefined,
+        integration: platform,
+        integrationName: platform ? integrationLabel(platform) : undefined,
+        category: primary ? entityCategory(primary) : 'sensors',
+        primaryDomain: primary?.entity_id.split('.')[0],
+        icon: primary ? domainIcon(primary) : mdiPuzzle,
+        thumbnail: primary ? deviceThumbnail(primary) : null,
+        entityCount: d.entities.length,
+        available,
+      } satisfies DeviceSummary;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function useDevicesList(): { devices: DeviceSummary[]; loading: boolean } {
+  const { devices, areas, loading } = useDeviceStructure();
+  const { entityReg } = useSyncExternalStore(
+    subscribeToRegistry,
+    getRegistrySnapshot,
+    getServerRegistrySnapshot,
+  );
+
+  const summaries = useMemo<DeviceSummary[]>(
+    () => buildDeviceSummaries(devices, entityReg, areas),
+    [devices, entityReg, areas],
+  );
+
+  return { devices: summaries, loading };
+}
+
+export { DEVICE_CATEGORY_LABEL };

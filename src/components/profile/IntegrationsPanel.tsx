@@ -2,11 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { Icon } from '../ui/Icon';
-import { SectionLabel, DataListView } from '../ui';
+import { SectionLabel, DataListView, NavChevron } from '../ui';
 import type { DataListConfig } from '../ui';
 import type { IntegrationSummary, IntegrationStatus, IntegrationFlags } from '@/hooks';
 import {
-  mdiChevronRight,
   mdiCheckCircle,
   mdiFlaskOutline,
   mdiDevices,
@@ -141,7 +140,7 @@ function IntegrationRow({
     <button
       type="button"
       onClick={() => onSelect(integration.id)}
-      className="w-full flex items-center gap-ha-3 px-ha-4 py-ha-3 text-left transition-colors hover:bg-surface-mid/50 active:bg-surface-mid"
+      className="group w-full flex items-center gap-ha-3 px-ha-4 py-ha-3 text-left transition-colors hover:bg-surface-mid/50 active:bg-surface-mid"
     >
       <IntegrationLogo
         domain={integration.id}
@@ -161,7 +160,7 @@ function IntegrationRow({
         </p>
       </div>
       <IntegrationFlagIcons flags={integration.flags} />
-      <Icon path={mdiChevronRight} size={16} className="text-text-disabled flex-shrink-0" />
+      <NavChevron size={16} className="text-text-disabled flex-shrink-0" />
     </button>
   );
 }
@@ -196,7 +195,7 @@ function IntegrationTile({
             <StatusPill status={integration.status} />
           </div>
         </div>
-        <Icon path={mdiChevronRight} size={16} className="text-text-disabled flex-shrink-0" />
+        <NavChevron size={16} className="text-text-disabled flex-shrink-0" />
       </div>
       <div className="mt-ha-3 flex items-center justify-between gap-ha-2">
         <p className="text-[13px] text-text-secondary truncate">
@@ -216,9 +215,11 @@ function IntegrationTile({
 export function IntegrationsTable({
   integrations,
   onSelect,
+  lastOpenedId,
 }: {
   integrations: IntegrationSummary[];
   onSelect: (id: string) => void;
+  lastOpenedId?: string | null;
 }) {
   const config = useMemo<DataListConfig<IntegrationSummary>>(() => ({
     keyOf: (i) => i.id,
@@ -264,7 +265,8 @@ export function IntegrationsTable({
     defaultLayout: 'list',
     emptyLabel: 'No integrations match these filters.',
     bg: 'surface-lower',
-  }), [onSelect]);
+    highlightKey: lastOpenedId ?? undefined,
+  }), [onSelect, lastOpenedId]);
 
   return <DataListView items={integrations} config={config} />;
 }

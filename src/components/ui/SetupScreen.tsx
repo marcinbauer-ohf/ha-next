@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { Icon } from './Icon';
-import { mdiHomeAssistant, mdiLinkVariant, mdiKey, mdiArrowRight, mdiFlaskOutline, mdiClose } from '@mdi/js';
+import { ModalSheet } from '@/components/layout/ModalSheet';
+import { mdiHomeAssistant, mdiArrowRight, mdiFlaskOutline, mdiClose } from '@mdi/js';
 
 interface SetupScreenProps {
   onSave: (url: string, token: string) => Promise<void>;
@@ -10,116 +11,73 @@ interface SetupScreenProps {
   error?: string | null;
   connecting?: boolean;
   onClose?: () => void;
+  /** Controls visibility. Defaults to open (first-run blocking screen). */
+  open?: boolean;
 }
 
-export function SetupScreen({ onSave, onUseDemo, error, connecting, onClose }: SetupScreenProps) {
+const INPUT_CLASS =
+  'w-full px-4 py-3 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-ha-blue/50 focus:border-ha-blue transition-colors disabled:opacity-50';
+
+export function SetupScreen({ onSave, onUseDemo, error, connecting, onClose, open = true }: SetupScreenProps) {
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
-  const [securityAnswer, setSecurityAnswer] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (securityAnswer.toLowerCase().trim() !== 'home assistant sync') {
-      return; 
-    }
-    
-    if (url.trim() && token.trim() && !connecting) {
-      onSave(url.trim(), token.trim());
-    }
+    if (connecting) return;
+    if (url.trim() && token.trim()) onSave(url.trim(), token.trim());
   };
 
-  const isSecurityCorrect = securityAnswer.toLowerCase().trim() === 'home assistant sync';
-
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-surface-lower p-ha-4">
-      <div className="w-full max-w-md">
-        {onClose && (
-          <div className="flex justify-end mb-ha-3">
+    <ModalSheet open={open} onClose={onClose ?? (() => {})} maxWidth={440}>
+      <div className="p-ha-6">
+        <div className="flex items-start justify-between mb-ha-5">
+          <div className="flex items-center gap-ha-3">
+            <div className="w-11 h-11 rounded-ha-xl bg-ha-blue/10 flex items-center justify-center shrink-0">
+              <Icon path={mdiHomeAssistant} size={26} className="text-ha-blue" />
+            </div>
+            <h1 className="text-lg font-semibold text-text-primary leading-tight">
+              Connect to Home Assistant
+            </h1>
+          </div>
+          {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="p-ha-2 rounded-full bg-surface-default border border-surface-lower text-text-secondary hover:bg-surface-low transition-colors"
-              aria-label="Close connection setup"
+              className="p-ha-1 -mr-ha-1 rounded-full text-text-secondary hover:bg-surface-low transition-colors"
+              aria-label="Close"
             >
-              <Icon path={mdiClose} size={18} />
+              <Icon path={mdiClose} size={20} />
             </button>
-          </div>
-        )}
-
-        <div className="flex flex-col items-center mb-ha-8">
-          <div className="w-16 h-16 rounded-2xl bg-ha-blue/10 flex items-center justify-center mb-ha-4">
-            <Icon path={mdiHomeAssistant} size={36} className="text-ha-blue" />
-          </div>
-          <h1 className="text-2xl font-bold text-text-primary">Connect to Home Assistant</h1>
-          <p className="text-sm text-text-secondary mt-ha-2 text-center">
-            Enter your Home Assistant URL and a Long-Lived Access Token to get started.
-          </p>
-          
-          <div className="mt-ha-4 p-ha-3 rounded-ha-xl bg-orange-500/10 border border-orange-500/20 text-xs text-orange-600 dark:text-orange-400 max-w-sm text-center">
-             This page does not store your url and token. They are stored in your local browser storage, which can be cleared once logged in.
-          </div>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-ha-4">
-          <div>
-            <label htmlFor="ha-url" className="block text-sm font-medium text-text-primary mb-ha-1">
-              Home Assistant URL
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Icon path={mdiLinkVariant} size={18} className="text-text-secondary" />
-              </div>
-              <input
-                id="ha-url"
-                type="url"
-                required
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="http://homeassistant.local:8123"
-                disabled={connecting}
-                className="w-full pl-10 pr-4 py-3 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-ha-blue/50 focus:border-ha-blue transition-colors disabled:opacity-50"
-              />
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-ha-3">
+          <input
+            type="url"
+            required
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="http://homeassistant.local:8123"
+            disabled={connecting}
+            className={INPUT_CLASS}
+            aria-label="Home Assistant URL"
+          />
 
           <div>
-            <label htmlFor="ha-token" className="block text-sm font-medium text-text-primary mb-ha-1">
-              Long-Lived Access Token
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Icon path={mdiKey} size={18} className="text-text-secondary" />
-              </div>
-              <input
-                id="ha-token"
-                type="password"
-                required
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="Paste your token here"
-                disabled={connecting}
-                className="w-full pl-10 pr-4 py-3 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-ha-blue/50 focus:border-ha-blue transition-colors disabled:opacity-50"
-              />
-            </div>
+            <input
+              type="password"
+              required
+              value={token}
+              onChange={e => setToken(e.target.value)}
+              placeholder="Long-Lived Access Token"
+              disabled={connecting}
+              className={INPUT_CLASS}
+              aria-label="Long-Lived Access Token"
+            />
             <p className="text-xs text-text-secondary mt-ha-1">
-              Create one in Home Assistant at <span className="font-mono">Profile → Security → Long-Lived Access Tokens</span>
+              Profile → Security → Long-Lived Access Tokens
             </p>
-          </div>
-
-          <div>
-             <label htmlFor="security-q" className="block text-sm font-medium text-text-primary mb-ha-1">
-               Restricted access: What is the name of the meeting we all attend on mondays?
-             </label>
-             <input
-               id="security-q"
-               type="text"
-               required
-               value={securityAnswer}
-               onChange={(e) => setSecurityAnswer(e.target.value)}
-               placeholder="Answer..."
-               disabled={connecting}
-               className="w-full px-4 py-3 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-ha-blue/50 focus:border-ha-blue transition-colors disabled:opacity-50"
-             />
           </div>
 
           {error && (
@@ -130,28 +88,24 @@ export function SetupScreen({ onSave, onUseDemo, error, connecting, onClose }: S
 
           <button
             type="submit"
-            disabled={!url.trim() || !token.trim() || connecting || !isSecurityCorrect}
+            disabled={!url.trim() || !token.trim() || connecting}
             className="w-full flex items-center justify-center gap-ha-2 py-3 px-4 rounded-ha-xl bg-ha-blue text-white font-medium hover:bg-ha-blue/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            {connecting ? 'Connecting...' : 'Connect'}
+            {connecting ? 'Connecting…' : 'Connect'}
             {!connecting && <Icon path={mdiArrowRight} size={18} />}
           </button>
 
           <button
             type="button"
             onClick={onUseDemo}
-            disabled={connecting || !isSecurityCorrect}
+            disabled={connecting}
             className="w-full flex items-center justify-center gap-ha-2 py-3 px-4 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary font-medium hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <Icon path={mdiFlaskOutline} size={18} />
             Use demo data
           </button>
-
-          <p className="text-xs text-text-secondary text-center">
-            Demo mode still requires the restricted-access answer above.
-          </p>
         </form>
       </div>
-    </div>
+    </ModalSheet>
   );
 }

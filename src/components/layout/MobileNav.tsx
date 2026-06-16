@@ -31,8 +31,10 @@ import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPre
 import { HomeCenterPillIndicators, HomeCenterStatusSections, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
 import { SettingsNavPanel } from '@/components/profile';
 import { isSettingsSlug, type SettingsSlug } from '@/components/profile/settingsNavigation';
-import { usePullToRevealContext, useSearchContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, type SidebarItem } from '@/contexts';
+import { usePullToRevealContext, useSearchContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, useMobileToolbar, type SidebarItem } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
+import { subscribeStatusPulse } from '@/lib/statusPulseBus';
+import { haptic } from '@/lib/haptics';
 import {
   areActivityDataEqual,
   areEntitySearchMatchesEqual,
@@ -68,10 +70,10 @@ function parseTime(time: string): number {
 }
 
 const appPalettes = [
-  { bg: 'bg-[var(--ha-color-fill-primary-normal)]', text: 'text-ha-blue' },
-  { bg: 'bg-[var(--ha-color-fill-danger-normal)]', text: 'text-red-600' },
-  { bg: 'bg-[var(--ha-color-fill-success-normal)]', text: 'text-green-600' },
-  { bg: 'bg-[var(--ha-color-yellow-95)]', text: 'text-yellow-600' },
+  { text: 'text-ha-blue' },
+  { text: 'text-red-600' },
+  { text: 'text-green-600' },
+  { text: 'text-yellow-600' },
 ];
 
 const activityWidgetTransition = {
@@ -241,24 +243,18 @@ function MobileAppTile({
             }
             onClose();
           }}
-          className={`w-full rounded-ha-xl transition-colors flex flex-col items-center gap-1 p-ha-1.5 min-w-0 select-none ${
-            isActive ? 'bg-surface-low/80' : 'hover:bg-surface-low'
-          }`}
+          className="w-full rounded-ha-xl flex flex-col items-center gap-1 p-ha-1.5 min-w-0 select-none"
           title={item.title}
         >
           <div
             className={`w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors ha-app-icon-shell ${
-              isActive ? 'bg-ha-blue' : palette.bg
-            } ${
-              isActive
-                ? 'ha-app-icon-shell-active ring-2 ring-ha-blue/35 ring-offset-1 ring-offset-surface-default'
-                : ''
+              isActive ? 'bg-surface-mid ha-app-icon-shell-active' : 'bg-surface-low'
             }`}
           >
             <MdiIcon
               icon={item.icon || 'mdi:application'}
-              size={26}
-              className={`${isActive ? 'text-white' : palette.text} ha-app-icon-glyph`}
+              size={24}
+              className={`${palette.text} ha-app-icon-glyph`}
             />
           </div>
           <span
@@ -334,6 +330,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const { searchOpen, closeSearch } = useSearchContext();
   const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, reorderVisible } =
     useSidebarArrange();
+  const { toolbarActive } = useMobileToolbar();
   const [pendingDelete, setPendingDelete] = useState<SidebarItem | null>(null);
   const arrangeSensors = useSensors(
     useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 6 } }),
@@ -390,7 +387,8 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   // the same bottom back affordance as dashboards but return to /settings.
   const isSettingsSubView =
     (pathSegments[0] === 'settings' && pathSegments.length > 1) || pathname === '/profile';
-  const showHomeBackButton = isDashboardSubView || isRoomSubView || isSettingsSubView;
+  // Hidden for now — bottom-nav back affordance disabled per design pass.
+  const showHomeBackButton = false && (isDashboardSubView || isRoomSubView || isSettingsSubView);
   const backHref = isSettingsSubView ? '/settings' : '/';
   const backLabel = isSettingsSubView ? 'Back to Settings' : 'Back to Home';
   // The settings sub-page the user is currently on, so the bottom-sheet settings
@@ -408,6 +406,25 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const isSheetVisible = sheetOpenProgress > 0.001;
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const { visibleSections } = useHomeCenterPrefs();
+  // Pulse the status pill when a toast nudges attention to the command center
+  // (e.g. an unattended device-discovery toast), mirroring the desktop StatusBar.
+  const [statusPulsing, setStatusPulsing] = useState(false);
+  const statusPulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const unsubscribe = subscribeStatusPulse((section) => {
+      // A section-less pulse is a generic attention nudge — always pulse.
+      if (section && !visibleSections.includes(section)) return;
+      if (statusPulseTimer.current) clearTimeout(statusPulseTimer.current);
+      // Drop the class for a frame so back-to-back pulses restart the animation.
+      setStatusPulsing(false);
+      requestAnimationFrame(() => setStatusPulsing(true));
+      statusPulseTimer.current = setTimeout(() => setStatusPulsing(false), 2000);
+    });
+    return () => {
+      unsubscribe();
+      if (statusPulseTimer.current) clearTimeout(statusPulseTimer.current);
+    };
+  }, [visibleSections]);
   const matchingEntities = useHomeAssistantSelector(
     (entities) => selectMatchingEntities(entities, expandedSearchQuery),
     areEntitySearchMatchesEqual
@@ -1207,6 +1224,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       const oldIndex = dashboardIds.indexOf(active.id as string);
       const newIndex = dashboardIds.indexOf(over.id as string);
       if (oldIndex < 0 || newIndex < 0) return;
+      haptic('impact');
       reorderVisible(allVisibleArrangeIds, dashboardIds, arrayMove(dashboardIds, oldIndex, newIndex));
     },
     [dashboardIds, allVisibleArrangeIds, reorderVisible]
@@ -1219,6 +1237,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       const oldIndex = appIds.indexOf(active.id as string);
       const newIndex = appIds.indexOf(over.id as string);
       if (oldIndex < 0 || newIndex < 0) return;
+      haptic('impact');
       reorderVisible(allVisibleArrangeIds, appIds, arrayMove(appIds, oldIndex, newIndex));
     },
     [appIds, allVisibleArrangeIds, reorderVisible]
@@ -1678,7 +1697,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     <>
     <nav
       ref={navRef}
-      className={`lg:hidden fixed inset-x-0 bottom-0 z-50 ${editModeFade ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+      className={`lg:hidden fixed inset-x-0 bottom-0 z-50 ${editModeFade || toolbarActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
       style={{ paddingBottom: 'calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))' }}
       data-component="MobileNav"
       data-connection-status={connectionStatus ?? 'unknown'}
@@ -2081,8 +2100,8 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
 
             return (
               <button
-                onClick={() => openExpandedSurface('dashboard')}
-                className="flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-10 flex-shrink-0 ml-auto active:scale-95 transition-transform"
+                onClick={() => navigateFromSurface('/settings/home-center')}
+                className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-10 flex-shrink-0 ml-auto active:scale-95 transition-transform duration-300 ${statusPulsing ? 'ha-status-pulse' : ''}`}
               >
                 <HomeCenterPillIndicators size={18} max={maxIcons} withTooltips={false} />
 
@@ -2140,7 +2159,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             </button>
             <button
               type="button"
-              onClick={() => openExpandedSurface('settings')}
+              onClick={() => navigateFromSurface('/settings')}
               className={`relative h-full pl-ha-4 pr-ha-2 flex items-center justify-center transition-opacity ${
                 isSettingsActive ? 'opacity-100' : 'opacity-90 hover:opacity-100'
               }`}

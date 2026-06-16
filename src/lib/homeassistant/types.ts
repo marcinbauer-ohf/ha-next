@@ -80,6 +80,11 @@ export interface AreaRegistryEntry {
   area_id: string;
   name: string;
   floor_id?: string | null;
+  icon?: string | null;
+  /** Image URL path (e.g. /api/image/serve/<id>/512x512); upload is phase-2. */
+  picture?: string | null;
+  aliases?: string[];
+  labels?: string[];
 }
 
 export interface FloorRegistryEntry {
@@ -87,6 +92,16 @@ export interface FloorRegistryEntry {
   name: string;
   level?: number | null;
   icon?: string | null;
+  aliases?: string[];
+}
+
+export interface LabelRegistryEntry {
+  label_id: string;
+  name: string;
+  /** HA color name (e.g. "red", "green") or null. */
+  color?: string | null;
+  icon?: string | null;
+  description?: string | null;
 }
 
 export interface HistoryPoint {

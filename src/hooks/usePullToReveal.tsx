@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, RefObject } from 'react';
 import { usePullToRevealContext } from '@/contexts';
+import { haptic } from '@/lib/haptics';
 
 interface UsePullToRevealOptions {
   threshold?: number;
@@ -79,12 +80,14 @@ export function usePullToReveal(
       if (isRevealed) {
         // When revealed, check if we should close
         if (pullDistance >= threshold) {
+          haptic('impact');
           setRevealed(false);
           setPullDistance(0);
         }
       } else {
         // When closed, check if we should reveal
         if (pullDistance >= threshold) {
+          haptic('impact');
           setRevealed(true);
           setPullDistance(maxPull);
         } else {

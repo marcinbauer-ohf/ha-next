@@ -7,12 +7,26 @@
 /** Normalised RGB in 0..1, ready to hand straight to WebGL / canvas. */
 export type PulseColor = [number, number, number];
 
-type Listener = (color: PulseColor) => void;
+/** Semantic kind of a pulse — keys of PULSE_COLORS (see below). */
+export type PulseKind = keyof typeof PULSE_COLORS;
+
+/**
+ * Optional human-readable context about *what* triggered a pulse, so a UI (the
+ * screensaver pulse log) can show it. The shader background ignores this.
+ */
+export interface PulseMeta {
+  /** Friendly name of the entity that changed. */
+  label: string;
+  /** Which semantic class the change fell into. */
+  kind: PulseKind;
+}
+
+type Listener = (color: PulseColor, meta?: PulseMeta) => void;
 
 const listeners = new Set<Listener>();
 
-export function emitHomePulse(color: PulseColor): void {
-  listeners.forEach((l) => l(color));
+export function emitHomePulse(color: PulseColor, meta?: PulseMeta): void {
+  listeners.forEach((l) => l(color, meta));
 }
 
 export function subscribeHomePulse(listener: Listener): () => void {

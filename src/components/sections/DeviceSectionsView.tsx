@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { mdiChevronRight } from '@mdi/js';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
 import { DeferredCard } from '@/components/cards/DeferredCard';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
-import { Icon } from '@/components/ui/Icon';
+import { NavChevron } from '@/components/ui';
 import { useDevices, useHomeAssistant, useDeviceCardConfig } from '@/hooks';
 import {
   entityDomain, entityLabel, stateLabel, isOn, TOGGLEABLE, domainIcon, deviceFeedEntity,
@@ -46,6 +45,10 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   const [panelMode, setPanelMode] = useState<'entity' | 'edit'>('entity');
+  // The card last opened in the detail panel. Survives closing the panel so the
+  // grid marks which card you came back from, and scrolls it back into view.
+  const [lastOpenedDeviceId, setLastOpenedDeviceId] = useState<string | null>(null);
+  const lastOpenedCardRef = useRef<HTMLDivElement | null>(null);
 
   const selectedDevice = useMemo(
     () => devices.find(d => d.id === selectedDeviceId) ?? null,
@@ -87,6 +90,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
   function selectEntity(deviceId: string, entityId: string) {
     setSelectedDeviceId(deviceId);
     setSelectedEntityId(entityId);
+    setLastOpenedDeviceId(deviceId);
     setPanelMode('entity');
   }
   function closePanel() {
@@ -94,6 +98,13 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
     setSelectedEntityId(null);
     setPanelMode('entity');
   }
+
+  // When the panel closes, bring the card we came back from into view (a no-op
+  // if it's already visible). `block: 'nearest'` keeps the page from jumping.
+  useEffect(() => {
+    if (selectedDeviceId !== null || !lastOpenedDeviceId) return;
+    lastOpenedCardRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [selectedDeviceId, lastOpenedDeviceId]);
 
   const renderCard = (device: HassDevice) => {
     if (!device.primaryEntity) return null;
@@ -118,6 +129,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
       <DeviceCardV2
         key={device.id}
         selected={selectedDeviceId === device.id}
+        lastOpened={selectedDeviceId === null && lastOpenedDeviceId === device.id}
         feedImage={feedImage}
         primary={{
           entityId: primaryEntity.entity_id,
@@ -159,7 +171,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
 
   return (
     <>
-      <div className="space-y-ha-6">
+      <div className="space-y-ha-8">
         {sections.map(section => {
           if (section.devices.length === 0) return null;
           const colArrays: HassDevice[][] = Array.from({ length: masonryCols }, () => []);
@@ -170,21 +182,36 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
               data-section-key={section.key}
               style={{ scrollMarginTop: 'calc(var(--dashboard-sticky-top, 0px) + var(--ha-space-2))' }}
             >
-              <div className="py-ha-2 mb-ha-1">
+              {/* Sticky section header — stays pinned while scrolling its section. */}
+              <div
+                className="sticky z-30 -mx-ha-1 px-ha-1 py-ha-2 mb-ha-1 bg-surface-lower"
+                style={{ top: 'var(--dashboard-sticky-top, 0px)' }}
+              >
                 {section.href ? (
                   <Link href={section.href} prefetch={false} className="flex items-center gap-1 group w-fit">
-                    <span className="text-base font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{section.title}</span>
-                    <Icon path={mdiChevronRight} size={16} className="text-text-tertiary group-hover:text-ha-blue transition-colors" />
+                    <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{section.title}</span>
+                    <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
                   </Link>
                 ) : (
-                  <span className="text-base font-semibold text-text-primary">{section.title}</span>
+                  <span className="text-xl font-semibold text-text-primary">{section.title}</span>
                 )}
+                {/* Fade hangs off the bottom edge of the (sticky) header so cards
+                    dissolve as they scroll under it. Tracks the pinned header. */}
+                <div
+                  aria-hidden
+                  className="absolute inset-x-0 top-full h-8 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent"
+                />
               </div>
-              <div className="flex gap-ha-3 items-start">
+              <div className="flex gap-ha-4 items-start">
                 {colArrays.map((col, ci) => (
-                  <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
+                  <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">
                     {col.map(device => (
-                      <DeferredCard key={device.id}>{renderCard(device)}</DeferredCard>
+                      <div
+                        key={device.id}
+                        ref={device.id === lastOpenedDeviceId ? lastOpenedCardRef : undefined}
+                      >
+                        <DeferredCard>{renderCard(device)}</DeferredCard>
+                      </div>
                     ))}
                   </div>
                 ))}

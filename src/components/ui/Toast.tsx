@@ -5,13 +5,22 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { mdiClose } from '@mdi/js';
 import { Icon } from './Icon';
+import { SectionLabel } from './SectionLabel';
 
 export interface ToastProps {
   icon: string;
   iconColor?: string;
+  /** Small uppercase eyebrow above the title naming the notification type
+      (e.g. 'New device', 'Update', 'Repair') — same style as list section
+      headers. Lets the user tell one toast kind from another at a glance. */
+  caption?: string;
   title: string;
   subtitle?: string;
   action?: { label: string; onClick: () => void };
+  /** Whole-card tap handler. When set, the entire toast is the affordance
+      (e.g. tap a discovery toast to enter device setup) and no action button
+      is needed. The ✕ dismiss button still works independently. */
+  onClick?: () => void;
   /** Called when the toast's dismiss (✕) button is pressed. */
   onClose?: () => void;
   /** Optional preview render (e.g. a discovered-device thumbnail) for the leading tile. */
@@ -30,18 +39,25 @@ const SPRING_CONTAINER = { type: 'spring' as const, stiffness: 420, damping: 32,
 const SPRING_STACK     = { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.8 };
 const FADE             = { duration: 0.18, ease: [0.25, 0.1, 0.25, 1] as const };
 
-export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, action, onClose, image, protocolIcon, details }: ToastProps) {
+export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtitle, action, onClick, onClose, image, protocolIcon, details }: ToastProps) {
   const [imgError, setImgError] = useState(false);
   const showImage = !!image && !imgError;
+  const clickable = !!onClick;
   return (
-    <div className="w-full px-ha-4 py-ha-3 rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50">
+    <div
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!(); } } : undefined}
+      className={`w-full px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50${clickable ? ' cursor-pointer hover:bg-surface-lower/95 active:scale-[0.99] transition-[background-color,transform]' : ''}`}
+    >
       <div className="flex items-center gap-ha-3">
-        <div className="shrink-0 relative w-11 h-11">
+        <div className="shrink-0 relative w-9 h-9 lg:w-11 lg:h-11">
           <div className="w-full h-full rounded-ha-xl bg-surface-mid flex items-center justify-center overflow-hidden">
             {showImage ? (
               <img src={image} alt="" onError={() => setImgError(true)} className="w-full h-full object-contain p-0.5" />
             ) : (
-              <Icon path={icon} size={20} className={iconColor} />
+              <Icon path={icon} size={18} className={iconColor} />
             )}
           </div>
           {protocolIcon && (
@@ -51,6 +67,15 @@ export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, actio
           )}
         </div>
         <div className="flex-1 min-w-0">
+          {caption && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...FADE, delay: 0.08 }}
+            >
+              <SectionLabel className="text-[10px] mb-0.5 truncate">{caption}</SectionLabel>
+            </motion.div>
+          )}
           <motion.p
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -75,7 +100,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, actio
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ ...FADE, delay: 0.26 }}
-            onClick={action.onClick}
+            onClick={(e) => { e.stopPropagation(); action.onClick(); }}
             className="relative shrink-0 h-8 px-ha-3 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-xs font-semibold text-text-primary transition-colors active:scale-95 before:absolute before:-inset-2 before:content-['']"
           >
             {action.label}
@@ -86,11 +111,11 @@ export function Toast({ icon, iconColor = 'text-ha-blue', title, subtitle, actio
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ ...FADE, delay: 0.32 }}
-            onClick={onClose}
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
             aria-label="Dismiss"
-            className="relative shrink-0 w-8 h-8 -mr-1 rounded-ha-pill flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-surface-mid transition-colors active:scale-95 before:absolute before:-inset-2.5 before:content-['']"
+            className="relative shrink-0 w-10 h-10 -mr-1.5 rounded-ha-pill flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-surface-mid transition-colors active:scale-95 before:absolute before:-inset-3 before:content-['']"
           >
-            <Icon path={mdiClose} size={16} />
+            <Icon path={mdiClose} size={18} />
           </motion.button>
         )}
       </div>

@@ -12,6 +12,7 @@ const LS_REACTIVE_BACKGROUND_KEY = 'ha-flag-reactive-background';
 const LS_REACTIVE_TRIGGER_KEY = 'ha-flag-reactive-trigger';
 const LS_REACTIVE_INTENSITY_KEY = 'ha-flag-reactive-intensity';
 const LS_PULSE_WALLPAPER_REACTIVE_KEY = 'ha-flag-pulse-wallpaper-reactive';
+const LS_REACTIVE_TRIGGER_LABELS_KEY = 'ha-flag-reactive-trigger-labels';
 
 const REACTIVE_TRIGGER_MODES: ReactiveTriggerMode[] = ['toggles-errors', 'all', 'errors'];
 const PULSE_INTENSITIES: PulseIntensity[] = ['subtle', 'bold'];
@@ -36,6 +37,10 @@ interface FeatureFlagsContextValue {
   setReactiveTriggerMode: (value: ReactiveTriggerMode) => void;
   reactiveIntensity: PulseIntensity;
   setReactiveIntensity: (value: PulseIntensity) => void;
+  /** Show the bottom-center labels naming what triggered each reactive ripple. */
+  reactiveTriggerLabelsEnabled: boolean;
+  setReactiveTriggerLabelsEnabled: (value: boolean) => void;
+  toggleReactiveTriggerLabels: () => void;
   /** When the "Pulse" wallpaper is active, ripple on device toggles/errors. */
   pulseWallpaperReactive: boolean;
   setPulseWallpaperReactive: (value: boolean) => void;
@@ -143,6 +148,21 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(LS_REACTIVE_INTENSITY_KEY, value);
   }, []);
 
+  // Trigger labels — default off so the screensaver stays clean; opt-in.
+  const [reactiveTriggerLabelsEnabled, setReactiveTriggerLabelsEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(LS_REACTIVE_TRIGGER_LABELS_KEY) === '1';
+  });
+
+  const setReactiveTriggerLabelsEnabled = useCallback((value: boolean) => {
+    setReactiveTriggerLabelsEnabledState(value);
+    localStorage.setItem(LS_REACTIVE_TRIGGER_LABELS_KEY, value ? '1' : '0');
+  }, []);
+
+  const toggleReactiveTriggerLabels = useCallback(() => {
+    setReactiveTriggerLabelsEnabled(!reactiveTriggerLabelsEnabled);
+  }, [reactiveTriggerLabelsEnabled, setReactiveTriggerLabelsEnabled]);
+
   // Pulse wallpaper reactivity — defaults on, so the wallpaper ripples on toggles.
   const [pulseWallpaperReactive, setPulseWallpaperReactiveState] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -180,6 +200,9 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
         setReactiveTriggerMode,
         reactiveIntensity,
         setReactiveIntensity,
+        reactiveTriggerLabelsEnabled,
+        setReactiveTriggerLabelsEnabled,
+        toggleReactiveTriggerLabels,
         pulseWallpaperReactive,
         setPulseWallpaperReactive,
         togglePulseWallpaperReactive,

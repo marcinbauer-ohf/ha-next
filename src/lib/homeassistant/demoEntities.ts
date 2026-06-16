@@ -75,12 +75,26 @@ export function createDemoEntities(now = new Date()): HassEntities {
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
 
   return {
+    'zone.home': createEntity(
+      'zone.home',
+      'zoning',
+      {
+        friendly_name: 'Home',
+        latitude: 52.3676,
+        longitude: 4.9041,
+        radius: 100,
+      },
+      timestamp
+    ),
     'person.alex': createEntity(
       'person.alex',
       'home',
       {
         friendly_name: 'Alex',
         entity_picture: '/casita.png',
+        latitude: 52.3676,
+        longitude: 4.9041,
+        gps_accuracy: 20,
       },
       timestamp
     ),
@@ -89,6 +103,9 @@ export function createDemoEntities(now = new Date()): HassEntities {
       'home',
       {
         friendly_name: 'Sam',
+        latitude: 52.3679,
+        longitude: 4.9035,
+        gps_accuracy: 35,
       },
       timestamp
     ),
@@ -97,6 +114,9 @@ export function createDemoEntities(now = new Date()): HassEntities {
       'not_home',
       {
         friendly_name: 'Jules',
+        latitude: 52.3902,
+        longitude: 4.8896,
+        gps_accuracy: 50,
       },
       timestamp
     ),

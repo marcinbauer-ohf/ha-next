@@ -1,7 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
+import { CountBadge } from './CountBadge';
+import { Chip } from './Chip';
 import { ModalSheet } from '../layout/ModalSheet';
 import { SearchField } from './SearchField';
 import { SectionLabel } from './SectionLabel';
@@ -75,6 +77,12 @@ export interface DataListConfig<T> {
   emptyLabel?: string;
   /** Background token for the sticky header gradient. Default surface-default. */
   bg?: 'surface-default' | 'surface-lower';
+  /**
+   * Key of the item last drilled into. When set, that row/tile is marked
+   * (tint + accent) and scrolled into view — so returning from a detail view
+   * shows which item you came back from.
+   */
+  highlightKey?: string;
 }
 
 interface Bucket<T> {
@@ -84,31 +92,6 @@ interface Bucket<T> {
 }
 
 const NONE_GROUP_ID = 'none';
-
-/** Small chip button used for sort/group triggers and facet toggles. */
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-ha-1 rounded-ha-xl border px-ha-3 py-1.5 text-xs font-semibold transition-colors ${
-        active
-          ? 'border-ha-blue/40 bg-fill-primary-normal text-ha-blue'
-          : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 /** A chip that opens a radio-style popover of options below it. */
 function SelectChip({
@@ -176,7 +159,7 @@ function LayoutToggle({ layout, onChange }: { layout: DataListLayout; onChange: 
     { id: 'grid', icon: mdiViewGridOutline, label: 'Grid view' },
   ];
   return (
-    <div className="ml-auto inline-flex rounded-ha-xl border border-surface-lower bg-surface-default p-0.5">
+    <div className="ml-auto inline-flex h-10 items-center rounded-ha-xl border border-surface-lower bg-surface-default p-0.5">
       {modes.map((mode) => (
         <button
           key={mode.id}
@@ -184,7 +167,7 @@ function LayoutToggle({ layout, onChange }: { layout: DataListLayout; onChange: 
           aria-label={mode.label}
           aria-pressed={layout === mode.id}
           onClick={() => onChange(mode.id)}
-          className={`flex h-7 w-7 items-center justify-center rounded-ha-lg transition-colors ${
+          className={`flex h-9 w-9 items-center justify-center rounded-ha-lg transition-colors ${
             layout === mode.id ? 'bg-fill-primary-normal text-ha-blue' : 'text-text-secondary hover:bg-surface-low'
           }`}
         >
@@ -210,6 +193,7 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
     gridColsClassName = 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3',
     emptyLabel = 'Nothing to show.',
     bg = 'surface-default',
+    highlightKey,
   } = config;
 
   const [query, setQuery] = useState('');
@@ -315,8 +299,32 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
   const fromBg = bg === 'surface-lower' ? 'from-surface-lower' : 'from-surface-default';
   const solidBg = bg === 'surface-lower' ? 'bg-surface-lower' : 'bg-surface-default';
 
+  // Publish the sticky controls bar's height so group headers can pin *below*
+  // it (stacked sticky), not behind it.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    const ctrl = controlsRef.current;
+    if (!root || !ctrl) return;
+    const apply = () => root.style.setProperty('--datalist-controls-h', `${ctrl.offsetHeight}px`);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(ctrl);
+    return () => ro.disconnect();
+  }, []);
+
+  // Bring the last-opened row/tile into view when the list (re)mounts with a
+  // highlight — e.g. coming back from a detail view. `block: 'nearest'` keeps it
+  // still if the row is already visible.
+  const highlightRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!highlightKey) return;
+    highlightRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [highlightKey]);
+
   return (
-    <div>
+    <div ref={rootRef}>
       {/* Controls — sticky so they stay reachable on long lists. In settings'
           second column the title pins above, so offset by its measured height
           (`--settings-header-h`); 0 everywhere else.
@@ -330,6 +338,7 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
           two-column panel, where the title already absorbs the gap. The `+ha-1`
           is the original top breathing room shared with the nav column search. */}
       <div
+        ref={controlsRef}
         className={`sticky z-30 ${solidBg} pb-ha-2`}
         style={{
           top: 'var(--settings-header-h, 0px)',
@@ -370,7 +379,7 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
               )}
               {filterGroups.length > 0 && (
                 <>
-                  <span className="mx-ha-1 h-5 w-px bg-surface-lower" aria-hidden />
+                  <span className="mx-ha-1 h-6 w-px bg-surface-lower" aria-hidden />
                   {filterChips}
                 </>
               )}
@@ -474,24 +483,43 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
           {groups.map((bucket) => (
             <div key={bucket.key} className="space-y-ha-2">
               {grouped && bucket.title && (
-                <div className="flex items-center justify-between px-ha-1">
+                <div
+                  className={`sticky z-20 ${solidBg} flex items-center gap-ha-2 px-ha-1 py-ha-1`}
+                  style={{ top: 'calc(var(--settings-header-h, 0px) + var(--datalist-controls-h, 0px))' }}
+                >
                   <SectionLabel>{bucket.title}</SectionLabel>
-                  <span className="text-[13px] text-text-tertiary tabular-nums">{bucket.items.length}</span>
+                  <CountBadge count={bucket.items.length} />
                 </div>
               )}
               {layout === 'grid' && renderCard ? (
                 <div className={`grid gap-ha-3 ${gridColsClassName}`}>
-                  {bucket.items.map((item) => (
-                    <div key={keyOf(item)}>{renderCard(item)}</div>
-                  ))}
+                  {bucket.items.map((item) => {
+                    const hl = highlightKey != null && keyOf(item) === highlightKey;
+                    return (
+                      <div
+                        key={keyOf(item)}
+                        ref={hl ? highlightRef : undefined}
+                        className={hl ? 'rounded-ha-2xl ha-last-opened' : undefined}
+                      >
+                        {renderCard(item)}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden">
-                  {bucket.items.map((item) => (
-                    <div key={keyOf(item)} className="border-b border-surface-low/40 last:border-0">
-                      {renderRow(item)}
-                    </div>
-                  ))}
+                  {bucket.items.map((item) => {
+                    const hl = highlightKey != null && keyOf(item) === highlightKey;
+                    return (
+                      <div
+                        key={keyOf(item)}
+                        ref={hl ? highlightRef : undefined}
+                        className={`border-b border-surface-low/40 last:border-0${hl ? ' ha-last-opened' : ''}`}
+                      >
+                        {renderRow(item)}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

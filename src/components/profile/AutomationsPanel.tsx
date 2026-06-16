@@ -2,10 +2,10 @@
 
 import { useMemo } from 'react';
 import { Icon } from '../ui/Icon';
-import { DataListView } from '../ui';
+import { DataListView, NavChevron } from '../ui';
 import type { DataListConfig } from '../ui';
 import { formatLastTriggered, type AutomationSummary } from '@/hooks/useAutomations';
-import { mdiChevronRight, mdiRobot } from '@mdi/js';
+import { mdiRobot } from '@mdi/js';
 
 function StatusPill({ enabled }: { enabled: boolean }) {
   if (enabled) return null;
@@ -37,7 +37,7 @@ function AutomationRow({
     <button
       type="button"
       onClick={() => onSelect(automation.id)}
-      className="w-full flex items-center gap-ha-3 px-ha-4 py-ha-3 text-left transition-colors hover:bg-surface-mid/50 active:bg-surface-mid"
+      className="group w-full flex items-center gap-ha-3 px-ha-4 py-ha-3 text-left transition-colors hover:bg-surface-mid/50 active:bg-surface-mid"
     >
       <AutomationGlyph
         tileClass="w-9 h-9 flex items-center justify-center rounded-ha-xl flex-shrink-0"
@@ -54,7 +54,7 @@ function AutomationRow({
           {formatLastTriggered(automation.lastTriggered)}
         </p>
       </div>
-      <Icon path={mdiChevronRight} size={16} className="text-text-disabled flex-shrink-0" />
+      <NavChevron size={16} className="text-text-disabled flex-shrink-0" />
     </button>
   );
 }
@@ -88,7 +88,7 @@ function AutomationTile({
             </span>
           </div>
         </div>
-        <Icon path={mdiChevronRight} size={16} className="text-text-disabled flex-shrink-0" />
+        <NavChevron size={16} className="text-text-disabled flex-shrink-0" />
       </div>
       <div className="mt-ha-3 flex items-center justify-between gap-ha-2">
         <span className="text-[13px] text-text-secondary">
@@ -107,9 +107,11 @@ function AutomationTile({
 export function AutomationsTable({
   automations,
   onSelect,
+  lastOpenedId,
 }: {
   automations: AutomationSummary[];
   onSelect: (id: string) => void;
+  lastOpenedId?: string | null;
 }) {
   const config = useMemo<DataListConfig<AutomationSummary>>(() => ({
     keyOf: (a) => a.id,
@@ -150,7 +152,8 @@ export function AutomationsTable({
     defaultLayout: 'list',
     emptyLabel: 'No automations match these filters.',
     bg: 'surface-lower',
-  }), [onSelect]);
+    highlightKey: lastOpenedId ?? undefined,
+  }), [onSelect, lastOpenedId]);
 
   return <DataListView items={automations} config={config} />;
 }

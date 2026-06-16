@@ -15,6 +15,8 @@ export {
   useAverageTemperature,
 } from './useEntities';
 
+export { useAreasFloors, type AreasFloorsModel, type AreaWithCounts, type FloorWithAreas } from './useAreasFloors';
+
 export { ThemeProvider, useTheme } from './useTheme';
 export { FontProvider, useFont, FONTS, type FontKey, type FontOption } from './useFont';
 export { FeatureFlagsProvider, useFeatureFlags } from './useFeatureFlags';
@@ -23,6 +25,8 @@ export { HomeCenterPrefsProvider, useHomeCenterPrefs } from './useHomeCenterPref
 export { useIdleTimer } from './useIdleTimer';
 
 export { useLongPress } from './useLongPress';
+
+export { useCopyToClipboard } from './useCopyToClipboard';
 
 export { useHomeEventReactor, type ReactiveTriggerMode } from './useHomeEventReactor';
 
@@ -34,13 +38,14 @@ export { useDesktopImmersivePageLayout } from './useDesktopImmersivePageLayout';
 export { usePullToReveal } from './usePullToReveal';
 
 export { useStandaloneMode } from './useStandaloneMode';
-export { useDevices, useDeviceStructure, useIntegrations } from './useDevices';
-export type { HassDevice, IntegrationSummary, IntegrationDevice, IntegrationStatus, IntegrationFlags } from './useDevices';
+export { useDevices, useDeviceStructure, useIntegrations, useDevicesList, DEVICE_CATEGORY_LABEL } from './useDevices';
+export type { HassDevice, IntegrationSummary, IntegrationDevice, IntegrationStatus, IntegrationFlags, DeviceSummary } from './useDevices';
 export { useAutomations, useAutomationActions, formatLastTriggered } from './useAutomations';
 export type { AutomationSummary } from './useAutomations';
 export { useEnergyMetrics } from './useEnergyMetrics';
 export type { EnergyMetrics } from './useEnergyMetrics';
 export { useDeviceCardConfig } from './useDeviceCardConfig';
+export { useFavorites } from './useFavorites';
 export type { DeviceCardConfig, EntitySlot, EntitySection } from './useDeviceCardConfig';
 export { useDashboardLayout } from './useDashboardLayout';
 export type { DashboardLayout, SectionConfig, CardConfig, CardColSpan, CardRowSpan } from './useDashboardLayout';

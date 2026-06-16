@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, CSSProperties } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -14,11 +14,8 @@ import {
   useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { mdiHomeAssistant, mdiChevronRight, mdiViewGrid, mdiCube, mdiAutoFix, mdiTune, mdiClose, mdiCheck } from '@mdi/js';
+import { mdiHomeAssistant, mdiViewGrid, mdiCube, mdiAutoFix, mdiStar, mdiViewAgenda } from '@mdi/js';
 import { clsx } from 'clsx';
-import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { Chip } from '@/components/ui/Chip';
-import { SectionLabel } from '@/components/ui/SectionLabel';
 
 const DashboardFloorView = dynamic(() => import('@/components/sections/DashboardFloorView'), { ssr: false });
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
@@ -28,10 +25,13 @@ import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { MobileSummaryRow } from '@/components/sections';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
+import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
+import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
+import { DashboardFilterBar } from '@/components/layout/DashboardFilterBar';
 import { PullToRevealPanel } from '@/components/sections';
-import { useTheme, useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags } from '@/hooks';
+import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags, useFavorites } from '@/hooks';
 import { usePullToRevealContext, useHeader, useEditMode, useToast } from '@/contexts';
-import { Icon } from '@/components/ui/Icon';
+import { NavChevron } from '@/components/ui';
 import { HALoader } from '@/components/ui/HALoader';
 import { TipStack, type TipStackTip } from '@/components/ui/TipStack';
 import { SetupScreen } from '@/components/ui/SetupScreen';
@@ -43,7 +43,6 @@ import {
   entityCategory, CATEGORY_ORDER, CATEGORY_TITLES,
   AREA_ICON, domainTypeIcon, CATEGORY_ICONS, type DeviceCategory,
 } from '@/lib/homeassistant/entityHelpers';
-import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
 import type { HassDevice } from '@/hooks';
 
 // ── Section ───────────────────────────────────────────────────────────────────
@@ -57,15 +56,27 @@ function Section({ sectionKey, title, count, href, children }: { sectionKey: str
       data-section-key={sectionKey}
       style={{ scrollMarginTop: 'calc(var(--dashboard-sticky-top, 0px) + var(--ha-space-2))' }}
     >
-      <div className="py-ha-2 mb-ha-1">
+      {/* Sticky section header — pins just below the dashboard's sticky summary
+          row so you always see which section you're scrolling. Sticks within
+          its own section, then the next section's header takes over. */}
+      <div
+        className="sticky z-30 -mx-ha-1 px-ha-1 py-ha-2 mb-ha-1 bg-surface-lower"
+        style={{ top: 'var(--dashboard-sticky-top, 0px)' }}
+      >
         {href ? (
           <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
-            <span className="text-base font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
-            <Icon path={mdiChevronRight} size={16} className="text-text-tertiary group-hover:text-ha-blue transition-colors" />
+            <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
+            <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
           </Link>
         ) : (
-          <span className="text-base font-semibold text-text-primary">{title}</span>
+          <span className="text-xl font-semibold text-text-primary">{title}</span>
         )}
+        {/* Fade hangs off the bottom edge of the (sticky) header so cards
+            dissolve as they scroll under it. Tracks the pinned header exactly. */}
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-full h-8 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent"
+        />
       </div>
       {children}
     </div>
@@ -117,11 +128,11 @@ function DraggableCard({ id, children }: { id: string; children: React.ReactNode
 // One cell of the edit-mode placement grid. Every cell is a drop target;
 // empty cells render as dashed placeholders, occupied cells highlight when
 // another card hovers over them (drop = swap).
-function GridSlot({ index, cardId, children }: { index: number; cardId?: string; children?: React.ReactNode }) {
-  const { setNodeRef, isOver, active } = useDroppable({ id: `slot-${index}` });
-  const isForeignOver = isOver && active?.id !== cardId;
+function GridSlot({ droppableId, dragId, children }: { droppableId: string; dragId?: string; children?: React.ReactNode }) {
+  const { setNodeRef, isOver, active } = useDroppable({ id: droppableId });
+  const isForeignOver = isOver && active?.id !== dragId;
 
-  if (cardId) {
+  if (dragId) {
     return (
       <div ref={setNodeRef} className={clsx('rounded-ha-2xl transition-shadow', isForeignOver && 'ring-2 ring-ha-blue/70')}>
         {children}
@@ -141,6 +152,34 @@ function GridSlot({ index, cardId, children }: { index: number; cardId?: string;
   );
 }
 
+// ── Edit-mode drag ids ──────────────────────────────────────────────────────
+// One DndContext spans every section in edit mode, so drag/drop ids must encode
+// which section they belong to. A device favorited also shows in its group, so
+// its two card instances need distinct drag ids (`f::` vs `g::`).
+const FAVORITES_KEY = '__favorites__';
+const slotId = (section: string, index: number) => `s::${section}::${index}`;
+const cardDragId = (section: string, deviceId: string) =>
+  section === FAVORITES_KEY ? `f::${deviceId}` : `g::${section}::${deviceId}`;
+
+function parseSlotId(id: string): { section: string; index: number } | null {
+  if (!id.startsWith('s::')) return null;
+  const rest = id.slice(3);
+  const i = rest.lastIndexOf('::');
+  if (i === -1) return null;
+  return { section: rest.slice(0, i), index: Number(rest.slice(i + 2)) };
+}
+
+function parseCardDragId(id: string): { fromFav: boolean; section: string; deviceId: string } | null {
+  if (id.startsWith('f::')) return { fromFav: true, section: FAVORITES_KEY, deviceId: id.slice(3) };
+  if (id.startsWith('g::')) {
+    const rest = id.slice(3);
+    const i = rest.indexOf('::');
+    if (i === -1) return null;
+    return { fromFav: false, section: rest.slice(0, i), deviceId: rest.slice(i + 2) };
+  }
+  return null;
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function useMasonryCols() {
@@ -155,7 +194,6 @@ function useMasonryCols() {
 }
 
 export default function DashboardPage() {
-  const { background } = useTheme();
   const masonryCols = useMasonryCols();
   const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
   const router = useRouter();
@@ -211,19 +249,15 @@ export default function DashboardPage() {
     const saved = localStorage.getItem('ha_group_by');
     return saved === 'type' || saved === 'category' ? saved : 'area';
   });
-  // Mobile: floor + grouping collapse into a ModalSheet behind a "Filters" chip,
-  // matching the data-list tables. Count tracks deviation from the defaults.
-  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  // Floor + grouping live in the floating DashboardFilterBar. Count tracks
+  // deviation from the defaults.
   const setGroupByPersisted = useCallback((next: 'area' | 'type' | 'category') => {
     localStorage.setItem('ha_group_by', next);
     setGroupBy(next);
   }, []);
   const activeFilterCount = (activeFloorId ? 1 : 0) + (groupBy !== 'area' ? 1 : 0);
-  const resetFilters = useCallback(() => {
-    setActiveFloorId(null);
-    setGroupByPersisted('area');
-  }, [setGroupByPersisted]);
   const { getConfig, setConfig } = useDeviceCardConfig();
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   const [onboardingDismissed, setOnboardingDismissed] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -336,16 +370,6 @@ export default function DashboardPage() {
   useEffect(() => {
     setHeader({ title: 'Home' });
   }, [setHeader]);
-
-  // Demo: surface a simulated "new device detected" toast once, 5s after load.
-  // Placeholder until wired to real HA discovery / notification events. Use the
-  // command palette ("Simulate device discovery") to fire more on demand.
-  useEffect(() => {
-    if (loading) return;
-    const [picked] = pickDiscoveries(1);
-    const timer = setTimeout(() => announceDiscovery(showToast, picked), 5000);
-    return () => clearTimeout(timer);
-  }, [loading, showToast]);
 
   // Dashboard entrance animation
   useEffect(() => {
@@ -462,6 +486,168 @@ export default function DashboardPage() {
 
   const visibleSections = sections;
 
+  // Favorites — a flat band pinned above the grouped sections. Built from
+  // floorDevices so it respects the active floor filter, but ignores groupBy
+  // (it's its own section, not a grouping mode). Ordered like other sections.
+  const favoriteDevices = useMemo(
+    () => resolveSlots(
+      floorDevices.filter(d => d.primaryEntity && isFavorite(d.id)),
+      sectionOrders['__favorites__'],
+    ).filter((d): d is HassDevice => d !== null),
+    [floorDevices, isFavorite, sectionOrders],
+  );
+
+  // Devices for any section key (favorites included) — used by the shared
+  // edit-mode drag handler to reconstruct a section's slot layout on drop.
+  const sectionDevicesByKey = useMemo(() => {
+    const m = new Map<string, HassDevice[]>();
+    for (const s of sections) m.set(s.key, s.devices);
+    m.set(FAVORITES_KEY, favoriteDevices);
+    return m;
+  }, [sections, favoriteDevices]);
+
+  // Rebuild the padded slot list for a section and move `deviceId` into the
+  // dropped slot (same logic as the old per-section handler, generalised).
+  const reorderWithin = useCallback((section: string, targetIndex: number, deviceId: string) => {
+    const devices = sectionDevicesByKey.get(section) ?? [];
+    const slots = resolveSlots(devices, sectionOrders[section]);
+    const paddedSlots = [...slots];
+    while (paddedSlots.length % editColCount !== 0) paddedSlots.push(null);
+    if (paddedSlots.length === 0 || !paddedSlots.includes(null)) {
+      paddedSlots.push(...Array<null>(editColCount).fill(null));
+    }
+    const sourceIndex = paddedSlots.findIndex(d => d?.id === deviceId);
+    if (sourceIndex === -1 || Number.isNaN(targetIndex) || targetIndex === sourceIndex) return;
+    const ids: (string | null)[] = paddedSlots.map(d => d?.id ?? null);
+    ids[sourceIndex] = ids[targetIndex];
+    ids[targetIndex] = deviceId;
+    while (ids.length && ids[ids.length - 1] === null) ids.pop();
+    handleSectionReorder(section, ids);
+  }, [sectionDevicesByKey, sectionOrders, editColCount, handleSectionReorder]);
+
+  // Single drag handler for the whole edit-mode dashboard. Cross-section drags
+  // only carry meaning for favorites: into the band favorites a device, out of
+  // it unfavorites. Same-section drags reorder; other cross-section drags noop.
+  const handleEditDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+    const slot = parseSlotId(String(over.id));
+    const card = parseCardDragId(String(active.id));
+    if (!slot || !card) return;
+
+    if (card.fromFav && slot.section !== FAVORITES_KEY) {
+      if (isFavorite(card.deviceId)) toggleFavorite(card.deviceId); // drag out → unfavorite
+      return;
+    }
+    if (!card.fromFav && slot.section === FAVORITES_KEY) {
+      if (!isFavorite(card.deviceId)) toggleFavorite(card.deviceId); // drag in → favorite
+      return;
+    }
+    if (slot.section === card.section) {
+      reorderWithin(card.section, slot.index, card.deviceId);
+    }
+  }, [isFavorite, toggleFavorite, reorderWithin]);
+
+  function selectEntity(deviceId: string, entityId: string) {
+    setSelectedDeviceId(deviceId);
+    setSelectedEntityId(entityId);
+    setPanelMode('entity');
+  }
+  function selectDeviceForEdit(deviceId: string) {
+    setSelectedDeviceId(deviceId);
+    setSelectedEntityId(null);
+    setPanelMode('edit');
+  }
+  function closePanel() {
+    setSelectedDeviceId(null);
+    setSelectedEntityId(null);
+    setPanelMode('entity');
+  }
+
+  // Renders a single device card. Hoisted so both the grouped sections and the
+  // favorites band can use it. `forceArea` shows the area chip even in area
+  // grouping (favorites are ungrouped, so the chip tells you where each lives).
+  // The entity id the card tags itself with (DeviceCardV2's data-entity-id).
+  // Mirrors renderCard's primary-slot resolution so the deferred placeholder
+  // can carry the same id, keeping offscreen cards locatable while unmounted.
+  const cardPrimaryEntityId = useCallback((device: HassDevice): string | undefined => {
+    if (!device.primaryEntity) return undefined;
+    const config = getConfig(device.id);
+    const primarySlot = config.slots.find(s => s.section === 'primary');
+    const firstId = config.slots.length === 0 ? device.primaryEntity.entity_id : primarySlot?.entity_id;
+    return device.entities.find(e => e.entity_id === firstId)?.entity_id ?? device.primaryEntity.entity_id;
+  }, [getConfig]);
+
+  const renderCard = useCallback((device: HassDevice, opts?: { forceArea?: boolean }) => {
+    if (!device.primaryEntity) return null;
+    const config = getConfig(device.id);
+    const primarySlot = config.slots.find(s => s.section === 'primary');
+    const secondarySlots = config.slots.filter(s => s.section === 'secondary');
+    const displaySlots: { entity_id: string; size: 'sm' | 'lg'; chart?: boolean }[] = config.slots.length === 0
+      ? [{ entity_id: device.primaryEntity.entity_id, size: 'lg' as const }]
+      : [
+          ...(primarySlot ? [{ entity_id: primarySlot.entity_id, size: 'lg' as const }] : []),
+          ...secondarySlots,
+        ];
+    const [primarySlotInfo, ...secondarySlotInfos] = displaySlots;
+    const primaryEntity = device.entities.find(e => e.entity_id === primarySlotInfo?.entity_id) ?? device.primaryEntity;
+    // Camera/media feed shown as the card hero; clicking opens
+    // that entity so the modal shows the feed too.
+    const feedEntity = deviceFeedEntity(device.entities);
+    const feedImage = feedEntity?.attributes.entity_picture
+      ? (() => { const p = feedEntity.attributes.entity_picture as string; return p.startsWith('http') ? p : `${haUrl}${p}`; })()
+      : undefined;
+    const openEntity = feedEntity ?? primaryEntity;
+
+    return (
+      <DeviceCardV2
+        selected={selectedDeviceId === device.id}
+        editMode={isEditing}
+        areaName={(opts?.forceArea || groupBy !== 'area') ? (areas.get(device.areaId ?? '') ?? undefined) : undefined}
+        feedImage={feedImage}
+        onLongPress={!isEditing ? () => { selectDeviceForEdit(device.id); toggleEditMode(); } : undefined}
+        primary={{
+          entityId: primaryEntity.entity_id,
+          icon: domainIcon(primaryEntity),
+          // Thumbnail represents the DEVICE, not the chosen primary
+          // slot — so a TV whose card is set to show its battery
+          // entity still renders the television image.
+          thumbnail: deviceThumbnail(device.primaryEntity),
+          name: device.name,
+          state: stateLabel(primaryEntity),
+          lastChanged: primaryEntity.last_changed,
+          active: isOn(primaryEntity),
+          entityPicture: (() => { const p = primaryEntity.attributes.entity_picture as string | undefined; return p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined; })(),
+          unit: (primaryEntity.attributes.unit_of_measurement as string | undefined) ?? undefined,
+          toggleable: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)),
+          onToggle: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)) ? () => toggleEntity(primaryEntity.entity_id, primaryEntity.state) : undefined,
+          onClick: isEditing ? () => selectDeviceForEdit(device.id) : () => selectEntity(device.id, openEntity.entity_id),
+        }}
+        secondary={secondarySlotInfos.flatMap(slot => {
+          const e = device.entities.find(ent => ent.entity_id === slot.entity_id);
+          if (!e) return [];
+          const dom = entityDomain(e);
+          const isToggleable = TOGGLEABLE.has(dom);
+          const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
+          return [{
+            entityId: e.entity_id,
+            icon: domainIcon(e),
+            name: entityLabel(e, device.name),
+            state: stateLabel(e),
+            active: isOn(e),
+            unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
+            chart: slot.chart,
+            size: slot.size,
+            toggleable: !isEditing && isToggleable,
+            pressable: !isEditing && isPressable,
+            onToggle: !isEditing && (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
+            onClick: isEditing ? () => selectDeviceForEdit(device.id) : () => selectEntity(device.id, e.entity_id),
+          }];
+        })}
+      />
+    );
+  }, [getConfig, haUrl, selectedDeviceId, isEditing, groupBy, areas, toggleEntity, toggleEditMode]);
+
   const selectedDevice = useMemo(
     () => devices.find(d => d.id === selectedDeviceId) ?? null,
     [devices, selectedDeviceId],
@@ -500,22 +686,6 @@ export default function DashboardPage() {
     });
   }, [selectedDevice, getConfig, toggleEntity]);
 
-  function selectEntity(deviceId: string, entityId: string) {
-    setSelectedDeviceId(deviceId);
-    setSelectedEntityId(entityId);
-    setPanelMode('entity');
-  }
-  function selectDeviceForEdit(deviceId: string) {
-    setSelectedDeviceId(deviceId);
-    setSelectedEntityId(null);
-    setPanelMode('edit');
-  }
-  function closePanel() {
-    setSelectedDeviceId(null);
-    setSelectedEntityId(null);
-    setPanelMode('entity');
-  }
-
   const isImmersiveFixed = immersivePhase !== 'normal';
   const isMobileImmersive = immersiveMode && !isImmersiveFixed;
 
@@ -549,6 +719,20 @@ export default function DashboardPage() {
     <>
       <PullToRevealPanel />
 
+      {/* Floating filter/grouping controls — hidden in edit mode (EditingToolbar
+          owns the bottom) and in 3D view. */}
+      {!isEditing && dashboardView === 'list' && (
+        <DashboardFilterBar
+          floors={floors}
+          hasAreas={areas.size > 0}
+          activeFloorId={activeFloorId}
+          setActiveFloorId={setActiveFloorId}
+          groupBy={groupBy}
+          setGroupBy={setGroupByPersisted}
+          activeFilterCount={activeFilterCount}
+        />
+      )}
+
       <div
         className={clsx(
           'min-h-0 overflow-hidden',
@@ -562,50 +746,32 @@ export default function DashboardPage() {
           {/* Dashboard surface */}
           <div
             className={clsx(
-              'flex-1 min-w-0 overflow-hidden transition-[opacity,transform,border-radius,background-color] duration-500 ease-out relative',
-              dashboardReady ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.9]',
+              'flex-1 min-w-0 overflow-hidden transition-[opacity,transform,border-radius,background-color] duration-[400ms] ease-out relative',
+              // Soft fade + small rise on land instead of a scale zoom — reads as
+              // a calm settle rather than a pop when arriving from another page.
+              dashboardReady ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2',
               isMobileImmersive ? 'bg-surface-lower rounded-none lg:rounded-ha-3xl' : 'bg-surface-lower rounded-ha-3xl',
             )}
           >
-            {/* Immersive toggle — desktop only, a folded page corner ("dog-ear")
-                in the surface corner. The parent's overflow-hidden + rounded
-                corner clips it into the curve; clip-path keeps the hit area
-                triangular so only the fold itself is clickable. */}
-            {!isEditing && (
-              <button
-                onClick={() => toggleImmersiveMode()}
-                aria-label={immersiveMode ? 'Exit immersive mode' : 'Enter immersive mode'}
-                title={immersiveMode ? 'Exit immersive mode' : 'Immersive mode'}
-                className={clsx(
-                  'hidden lg:block absolute top-0 left-0 z-[70] transition-all duration-200',
-                  // text-tertiary-based fill reads as a raised fold on both
-                  // light and dark themes (surface-mid is darker than the
-                  // surface-lower container in dark mode, so it won't work here)
-                  'bg-gradient-to-br from-text-tertiary/25 via-text-tertiary/10 to-transparent',
-                  'hover:from-text-tertiary/45 hover:via-text-tertiary/20',
-                  immersiveMode ? 'w-10 h-10' : 'w-8 h-8 hover:w-10 hover:h-10',
-                )}
-                style={{ clipPath: 'polygon(0 0, 100% 0, 0 100%)' }}
-              />
-            )}
+            {/* Immersive toggle — desktop-only "dog-ear" fold. Hidden while
+                editing the dashboard grid. See ImmersiveDogEar. */}
+            {!isEditing && <ImmersiveDogEar />}
+            {!isEditing && <ScreensaverDogEar />}
 
-            {background !== 'image' && background !== 'gradient' && (
-              <>
-                <div className={clsx(
-                  'absolute top-0 left-0 right-0 lg:left-0 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300',
-                  showTopGradient ? 'opacity-100' : 'opacity-0',
-                )} />
-                <div className={clsx(
-                  'absolute bottom-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300',
-                  showBottomGradient ? 'opacity-100' : 'opacity-0',
-                )} />
-              </>
-            )}
+            {/* Bottom scroll fade — blends overflowing content into the surface.
+                (The TOP fade lives inside <main> below, so it sits under the
+                sticky section headers instead of painting over them.) */}
+            <div className={clsx(
+              'absolute bottom-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300',
+              showBottomGradient ? 'opacity-100' : 'opacity-0',
+            )} />
 
             <main
               ref={el => { scrollableRef.current = el; }}
               className={clsx(
                 'h-full overscroll-none touch-pan-y scrollbar-hide select-none',
+                // Clear the frosted overlay bar on mobile (0 on desktop).
+                'pt-[var(--app-topbar-clear)] lg:pt-0',
                 dashboardView === '3d' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto',
                 dashboardView !== '3d' && 'pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-ha-5',
                 isMobileImmersive ? 'px-ha-5' : 'px-ha-3',
@@ -613,164 +779,16 @@ export default function DashboardPage() {
               )}
               data-scrollable="dashboard"
             >
-              {/* Summary chips scroll away; the filters block below them stays pinned */}
+              {/* Summary chips scroll away. Floor + grouping moved into the
+                  floating DashboardFilterBar (desktop pill / mobile FAB). */}
               <MobileSummaryRow
                   fullBleed={isMobileImmersive}
                   noSticky={dashboardView === '3d'}
-                  extraRef={stickyHeaderRef}
-                  extraContent={
-                    <>
-                    {/* Desktop: floor + grouping inline, same as before */}
-                    <div className="hidden lg:flex items-center gap-ha-2 min-w-0">
-                      {/* Floors — scrollable when many, takes remaining width on the left */}
-                      {floors.length >= 2 && (
-                        <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide -mx-ha-1 px-ha-1">
-                          <SegmentedControl
-                            segments={[
-                              { value: '__all__', label: 'All' },
-                              ...floors.map(f => ({ value: f.floor_id, label: f.name })),
-                            ]}
-                            value={activeFloorId ?? '__all__'}
-                            onChange={v => setActiveFloorId(v === '__all__' ? null : v)}
-                            className="w-max"
-                          />
-                        </div>
-                      )}
-                      {/* Room/Type — pinned to the right edge */}
-                      {areas.size > 0 && (
-                        <SegmentedControl
-                          className="shrink-0 ml-auto"
-                          segments={[
-                            { value: 'area', label: 'Area' },
-                            { value: 'type', label: 'Device' },
-                            { value: 'category', label: 'Category' },
-                          ]}
-                          value={groupBy}
-                          onChange={v => setGroupByPersisted(v as 'area' | 'type' | 'category')}
-                        />
-                      )}
-                      {/* 3D view toggle — hidden until home model is ready
-                      <div className="ml-auto inline-flex items-center bg-surface-mid rounded-ha-xl p-[3px] gap-[2px]">
-                        <button
-                          onClick={() => setDashboardView('list')}
-                          className={clsx(
-                            'flex items-center justify-center w-8 h-7 rounded-ha-lg transition-all duration-200',
-                            dashboardView === 'list'
-                              ? 'bg-surface-default text-text-primary shadow-sm'
-                              : 'text-text-secondary hover:text-text-primary',
-                          )}
-                          aria-label="List view"
-                        >
-                          <Icon path={mdiViewGrid} size={16} />
-                        </button>
-                        <button
-                          onClick={handleSwitchTo3D}
-                          className={clsx(
-                            'flex items-center justify-center w-8 h-7 rounded-ha-lg transition-all duration-200',
-                            dashboardView === '3d'
-                              ? 'bg-surface-default text-text-primary shadow-sm'
-                              : 'text-text-secondary hover:text-text-primary',
-                          )}
-                          aria-label="3D view"
-                        >
-                          <Icon path={mdiCube} size={16} />
-                        </button>
-                      </div>
-                      */}
-                    </div>
-
-                    {/* Mobile: a single "Filters" chip; floor + grouping live in the
-                        sheet below — matches the data-list tables. */}
-                    {(floors.length >= 2 || areas.size > 0) && (
-                      <div className="flex lg:hidden items-center gap-ha-2">
-                        <Chip active={filterSheetOpen} onClick={() => setFilterSheetOpen(true)}>
-                          <Icon path={mdiTune} size={14} />
-                          <span>Filters</span>
-                          {activeFilterCount > 0 && (
-                            <span className="ml-ha-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ha-blue px-1 text-[10px] font-bold leading-none text-white">
-                              {activeFilterCount}
-                            </span>
-                          )}
-                        </Chip>
-                      </div>
-                    )}
-                    </>
-                  }
                 />
 
-              {/* Mobile filter sheet — floor + grouping as tap-chips, mirroring
-                  DataListView's mobile sheet. */}
-              <ModalSheet open={filterSheetOpen} onClose={() => setFilterSheetOpen(false)}>
-                <div className="px-ha-4 pb-ha-6">
-                  <div className="mb-ha-4 flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-text-primary">Filters</h3>
-                    <div className="flex items-center gap-ha-3">
-                      {activeFilterCount > 0 && (
-                        <button
-                          type="button"
-                          onClick={resetFilters}
-                          className="text-xs font-semibold text-ha-blue"
-                        >
-                          Reset
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        aria-label="Close"
-                        onClick={() => setFilterSheetOpen(false)}
-                        className="flex h-7 w-7 items-center justify-center rounded-ha-lg text-text-secondary hover:bg-surface-low"
-                      >
-                        <Icon path={mdiClose} size={18} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-ha-4">
-                    {floors.length >= 2 && (
-                      <div>
-                        <SectionLabel>Floor</SectionLabel>
-                        <div className="mt-ha-2 flex flex-wrap gap-ha-2">
-                          <Chip active={activeFloorId === null} onClick={() => setActiveFloorId(null)}>
-                            {activeFloorId === null && <Icon path={mdiCheck} size={13} />}
-                            All
-                          </Chip>
-                          {floors.map(f => (
-                            <Chip
-                              key={f.floor_id}
-                              active={activeFloorId === f.floor_id}
-                              onClick={() => setActiveFloorId(f.floor_id)}
-                            >
-                              {activeFloorId === f.floor_id && <Icon path={mdiCheck} size={13} />}
-                              {f.name}
-                            </Chip>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {areas.size > 0 && (
-                      <div>
-                        <SectionLabel>Group by</SectionLabel>
-                        <div className="mt-ha-2 flex flex-wrap gap-ha-2">
-                          {([
-                            { value: 'area', label: 'Area' },
-                            { value: 'type', label: 'Device' },
-                            { value: 'category', label: 'Category' },
-                          ] as const).map(opt => (
-                            <Chip
-                              key={opt.value}
-                              active={groupBy === opt.value}
-                              onClick={() => setGroupByPersisted(opt.value)}
-                            >
-                              {groupBy === opt.value && <Icon path={mdiCheck} size={13} />}
-                              {opt.label}
-                            </Chip>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </ModalSheet>
+              {/* Top scroll fade now hangs off each sticky section header (see the
+                  Section component) so it tracks the pinned header instead of a
+                  fixed offset. No standalone top-fade element needed. */}
 
               {dashboardView === '3d' ? (
                 <div className="flex-1 min-h-0">
@@ -782,6 +800,8 @@ export default function DashboardPage() {
               ) : (
                 <div className={clsx(
                   'max-w-[1536px] mx-auto lg:px-ha-8 w-full space-y-ha-6',
+                  // Clearance for the floating DashboardFilterBar pill on desktop.
+                  !isEditing && (floors.length >= 2 || areas.size > 0) && 'lg:pb-28',
                   // Reserve room for the scroll-index rail so its dots never
                   // sit on top of the cards, at any window width. (lg keeps
                   // the symmetric px-ha-8 gutter — the rail fits inside it.)
@@ -799,9 +819,9 @@ export default function DashboardPage() {
                     const colArrays: number[][] = Array.from({ length: masonryCols }, () => []);
                     skeletons.forEach((h, i) => colArrays[i % masonryCols].push(h));
                     return (
-                      <div className="flex gap-ha-3 items-start">
+                      <div className="flex gap-ha-4 items-start">
                         {colArrays.map((col, ci) => (
-                          <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
+                          <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">
                             {col.map((h, j) => (
                               <div key={j} className="rounded-ha-2xl bg-surface-low animate-pulse" style={{ height: h }} />
                             ))}
@@ -817,81 +837,70 @@ export default function DashboardPage() {
                     </p>
                   )}
 
+                  {/* Favorites band + grouped sections share one DndContext so
+                      cards can be dragged across sections in edit mode (drop in
+                      the Favorites band = favorite; drag a favorite out =
+                      unfavorite). In view mode there are no draggables, so the
+                      context is inert. */}
+                  {!loading && (
+                  <DndContext
+                    sensors={dndSensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleEditDragEnd}
+                  >
+                  {/* Favorites — flat band above the grouped sections. Cross-cuts
+                      grouping; respects the active floor filter. In edit mode it's
+                      always shown as a drop target, even when empty. */}
+                  {(isEditing || favoriteDevices.length > 0) && (
+                    <Section sectionKey={FAVORITES_KEY} title="Favorites" count={isEditing ? Math.max(1, favoriteDevices.length) : favoriteDevices.length}>
+                      {isEditing ? (() => {
+                        const slots = resolveSlots(favoriteDevices, sectionOrders[FAVORITES_KEY]);
+                        const paddedSlots = [...slots];
+                        while (paddedSlots.length % editColCount !== 0) paddedSlots.push(null);
+                        if (paddedSlots.length === 0 || !paddedSlots.includes(null)) {
+                          paddedSlots.push(...Array<null>(editColCount).fill(null));
+                        }
+                        return (
+                          <>
+                            {favoriteDevices.length === 0 && (
+                              <p className="text-sm text-text-tertiary mb-ha-2">Drag devices here to favorite them.</p>
+                            )}
+                            <div className={`grid gap-ha-4 items-start ${gridCols ?? 'grid-cols-2 lg:grid-cols-3'}`}>
+                              {paddedSlots.map((device, i) => (
+                                <GridSlot key={device ? device.id : `fav-empty-${i}`} droppableId={slotId(FAVORITES_KEY, i)} dragId={device ? cardDragId(FAVORITES_KEY, device.id) : undefined}>
+                                  {device && (
+                                    <DraggableCard id={cardDragId(FAVORITES_KEY, device.id)}>
+                                      {renderCard(device, { forceArea: true })}
+                                    </DraggableCard>
+                                  )}
+                                </GridSlot>
+                              ))}
+                            </div>
+                          </>
+                        );
+                      })() : (() => {
+                        const colArrays: HassDevice[][] = Array.from({ length: masonryCols }, () => []);
+                        favoriteDevices.forEach((d, i) => colArrays[i % masonryCols].push(d));
+                        return (
+                          <div className="flex gap-ha-4 items-start">
+                            {colArrays.map((col, ci) => (
+                              <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">
+                                {col.map(device => (
+                                  <DeferredCard key={device.id} entityId={cardPrimaryEntityId(device)}>{renderCard(device, { forceArea: true })}</DeferredCard>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </Section>
+                  )}
+
                   {/* Re-keyed on floor/grouping switch — plays a one-shot enter fade */}
-                  <div key={`${groupBy}-${activeFloorId ?? 'all'}`} className="ha-view-enter space-y-ha-6">
+                  <div key={`${groupBy}-${activeFloorId ?? 'all'}`} className="ha-view-enter space-y-ha-8">
                   {visibleSections.map(({ key, title, devices: sectionDevices, kind }) => {
                     const slots = resolveSlots(sectionDevices, sectionOrders[key]);
-                    const editGridClass = `grid gap-ha-3 items-start ${gridCols ?? 'grid-cols-2 lg:grid-cols-3'}`;
-
-                    const renderCard = (device: HassDevice) => {
-                      if (!device.primaryEntity) return null;
-                      const config = getConfig(device.id);
-                      const primarySlot = config.slots.find(s => s.section === 'primary');
-                      const secondarySlots = config.slots.filter(s => s.section === 'secondary');
-                      const displaySlots: { entity_id: string; size: 'sm' | 'lg'; chart?: boolean }[] = config.slots.length === 0
-                        ? [{ entity_id: device.primaryEntity.entity_id, size: 'lg' as const }]
-                        : [
-                            ...(primarySlot ? [{ entity_id: primarySlot.entity_id, size: 'lg' as const }] : []),
-                            ...secondarySlots,
-                          ];
-                      const [primarySlotInfo, ...secondarySlotInfos] = displaySlots;
-                      const primaryEntity = device.entities.find(e => e.entity_id === primarySlotInfo?.entity_id) ?? device.primaryEntity;
-                      // Camera/media feed shown as the card hero; clicking opens
-                      // that entity so the modal shows the feed too.
-                      const feedEntity = deviceFeedEntity(device.entities);
-                      const feedImage = feedEntity?.attributes.entity_picture
-                        ? (() => { const p = feedEntity.attributes.entity_picture as string; return p.startsWith('http') ? p : `${haUrl}${p}`; })()
-                        : undefined;
-                      const openEntity = feedEntity ?? primaryEntity;
-
-                      return (
-                        <DeviceCardV2
-                          selected={selectedDeviceId === device.id}
-                          editMode={isEditing}
-                          areaName={groupBy !== 'area' ? (areas.get(device.areaId ?? '') ?? undefined) : undefined}
-                          feedImage={feedImage}
-                          onLongPress={!isEditing ? () => { selectDeviceForEdit(device.id); toggleEditMode(); } : undefined}
-                          primary={{
-                            entityId: primaryEntity.entity_id,
-                            icon: domainIcon(primaryEntity),
-                            // Thumbnail represents the DEVICE, not the chosen primary
-                            // slot — so a TV whose card is set to show its battery
-                            // entity still renders the television image.
-                            thumbnail: deviceThumbnail(device.primaryEntity),
-                            name: device.name,
-                            state: stateLabel(primaryEntity),
-                            lastChanged: primaryEntity.last_changed,
-                            active: isOn(primaryEntity),
-                            entityPicture: (() => { const p = primaryEntity.attributes.entity_picture as string | undefined; return p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined; })(),
-                            unit: (primaryEntity.attributes.unit_of_measurement as string | undefined) ?? undefined,
-                            toggleable: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)),
-                            onToggle: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)) ? () => toggleEntity(primaryEntity.entity_id, primaryEntity.state) : undefined,
-                            onClick: isEditing ? () => selectDeviceForEdit(device.id) : () => selectEntity(device.id, openEntity.entity_id),
-                          }}
-                          secondary={secondarySlotInfos.flatMap(slot => {
-                            const e = device.entities.find(ent => ent.entity_id === slot.entity_id);
-                            if (!e) return [];
-                            const dom = entityDomain(e);
-                            const isToggleable = TOGGLEABLE.has(dom);
-                            const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
-                            return [{
-                              entityId: e.entity_id,
-                              icon: domainIcon(e),
-                              name: entityLabel(e, device.name),
-                              state: stateLabel(e),
-                              active: isOn(e),
-                              unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
-                              chart: slot.chart,
-                              size: slot.size,
-                              toggleable: !isEditing && isToggleable,
-                              pressable: !isEditing && isPressable,
-                              onToggle: !isEditing && (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
-                              onClick: isEditing ? () => selectDeviceForEdit(device.id) : () => selectEntity(device.id, e.entity_id),
-                            }];
-                          })}
-                        />
-                      );
-                    };
+                    const editGridClass = `grid gap-ha-4 items-start ${gridCols ?? 'grid-cols-2 lg:grid-cols-3'}`;
 
                     // Edit grid is a slot canvas: pad to full rows, and when
                     // every slot is taken open one extra empty row so cards
@@ -903,40 +912,20 @@ export default function DashboardPage() {
                       paddedSlots.push(...Array<null>(editCols).fill(null));
                     }
 
-                    const handleDragEnd = (event: DragEndEvent) => {
-                      const { active, over } = event;
-                      if (!over) return;
-                      const targetIndex = Number(String(over.id).replace('slot-', ''));
-                      const sourceIndex = paddedSlots.findIndex(d => d?.id === active.id);
-                      if (sourceIndex === -1 || Number.isNaN(targetIndex) || targetIndex === sourceIndex) return;
-                      const ids: (string | null)[] = paddedSlots.map(d => d?.id ?? null);
-                      // Drop on empty slot = place there; on another card = swap.
-                      ids[sourceIndex] = ids[targetIndex];
-                      ids[targetIndex] = active.id as string;
-                      while (ids.length && ids[ids.length - 1] === null) ids.pop();
-                      handleSectionReorder(key, ids);
-                    };
-
                     return (
                       <Section key={key} sectionKey={key} title={title} count={sectionDevices.length} href={key === '__none__' ? undefined : kind === 'area' ? `/room/${key}` : kind === 'category' ? `/category/${key}` : `/type/${key}`}>
                         {isEditing ? (
-                          <DndContext
-                            sensors={dndSensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={handleDragEnd}
-                          >
-                            <div className={editGridClass}>
-                              {paddedSlots.map((device, i) => (
-                                <GridSlot key={device ? device.id : `empty-${i}`} index={i} cardId={device?.id}>
-                                  {device && (
-                                    <DraggableCard id={device.id}>
-                                      {renderCard(device)}
-                                    </DraggableCard>
-                                  )}
-                                </GridSlot>
-                              ))}
-                            </div>
-                          </DndContext>
+                          <div className={editGridClass}>
+                            {paddedSlots.map((device, i) => (
+                              <GridSlot key={device ? device.id : `empty-${i}`} droppableId={slotId(key, i)} dragId={device ? cardDragId(key, device.id) : undefined}>
+                                {device && (
+                                  <DraggableCard id={cardDragId(key, device.id)}>
+                                    {renderCard(device)}
+                                  </DraggableCard>
+                                )}
+                              </GridSlot>
+                            ))}
+                          </div>
                         ) : (() => {
                           // Distribute items by slot index across columns so
                           // ordering is left-to-right and column heights
@@ -948,11 +937,11 @@ export default function DashboardPage() {
                           );
                           slots.forEach((d, i) => { if (d) colArrays[i % masonryCols].push(d); });
                           return (
-                            <div className="flex gap-ha-3 items-start">
+                            <div className="flex gap-ha-4 items-start">
                               {colArrays.map((col, ci) => (
-                                <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
+                                <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">
                                   {col.map(device => (
-                                    <DeferredCard key={device.id}>{renderCard(device)}</DeferredCard>
+                                    <DeferredCard key={device.id} entityId={cardPrimaryEntityId(device)}>{renderCard(device)}</DeferredCard>
                                   ))}
                                 </div>
                               ))}
@@ -963,6 +952,8 @@ export default function DashboardPage() {
                     );
                   })}
                   </div>
+                  </DndContext>
+                  )}
                 </div>
               )}
             </main>
@@ -974,13 +965,23 @@ export default function DashboardPage() {
 
             <ScrollIndexRail
               scrollRef={scrollableRef}
-              sections={visibleSections.map(s => ({
-                key: s.key,
-                title: s.title,
-                icon: s.kind === 'category' ? CATEGORY_ICONS[s.key as DeviceCategory]
-                  : s.kind === 'type' ? domainTypeIcon(s.key)
-                  : AREA_ICON,
-              }))}
+              sections={[
+                // Summary chips sit at the very top, so their tick leads the
+                // rail. Dashboard glyph distinguishes it from the favorites star.
+                { key: '__summaries__', title: 'Summaries', icon: mdiViewAgenda, markerIcon: mdiViewAgenda },
+                // Favorites band renders above the grouped sections, so its
+                // tick leads the rail when any favorite is visible.
+                ...(!isEditing && favoriteDevices.length > 0
+                  ? [{ key: '__favorites__', title: 'Favorites', icon: mdiStar, markerIcon: mdiStar }]
+                  : []),
+                ...visibleSections.map(s => ({
+                  key: s.key,
+                  title: s.title,
+                  icon: s.kind === 'category' ? CATEGORY_ICONS[s.key as DeviceCategory]
+                    : s.kind === 'type' ? domainTypeIcon(s.key)
+                    : AREA_ICON,
+                })),
+              ]}
               enabled={scrollIndexEnabled && dashboardView === 'list' && !isEditing}
             />
           </div>
@@ -1005,6 +1006,8 @@ export default function DashboardPage() {
                 }}
                 onClose={closePanel}
                 onEditCard={() => setPanelMode('edit')}
+                isFavorite={isFavorite(selectedDevice.id)}
+                onToggleFavorite={() => toggleFavorite(selectedDevice.id)}
               />
             )}
             {selectedDevice && panelMode === 'edit' && (
@@ -1022,15 +1025,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Connection setup — opened from the connect tip */}
-      {setupOpen && (
-        <SetupScreen
-          onSave={handleSetupSave}
-          onUseDemo={handleSetupUseDemo}
-          error={connectionError}
-          connecting={connecting}
-          onClose={() => setSetupOpen(false)}
-        />
-      )}
+      <SetupScreen
+        open={setupOpen}
+        onSave={handleSetupSave}
+        onUseDemo={handleSetupUseDemo}
+        error={connectionError}
+        connecting={connecting}
+        onClose={() => setSetupOpen(false)}
+      />
     </>
   );
 }

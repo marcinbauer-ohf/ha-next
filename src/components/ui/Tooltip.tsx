@@ -140,12 +140,10 @@ export function Tooltip({ content, children, delay = 300, hideDelay = 0, placeme
       </div>
       {typeof document !== 'undefined' && isVisible && createPortal(
         <div
-          className="fixed z-[200] px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 transition-all duration-300 ease-out pointer-events-none"
+          className="fixed z-[200] px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 pointer-events-none"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
-            opacity: isVisible ? 1 : 0,
-            transform: isVisible ? 'scale(1)' : 'scale(0.9)',
           }}
         >
           <span className="text-xs text-text-primary whitespace-nowrap font-medium">

@@ -52,6 +52,8 @@ export interface DeviceCardV2Props {
   primary: DeviceCardV2Entity;
   secondary?: DeviceCardV2Entity[];
   selected?: boolean;
+  /** Softer marker than `selected` — the card was the last one opened, kept after the panel closes. */
+  lastOpened?: boolean;
   editMode?: boolean;
   onLongPress?: () => void;
   className?: string;
@@ -82,7 +84,7 @@ function ActionButton({ onPress }: { onPress: () => void }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongPress, className, areaName, feedImage }: DeviceCardV2Props) {
+function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editMode, onLongPress, className, areaName, feedImage }: DeviceCardV2Props) {
   const hasPicture = !!primary.entityPicture;
   const rawState = primary.state.toLowerCase();
   const isUnavailable = rawState === 'unavailable' || rawState === 'unknown';
@@ -122,6 +124,7 @@ function DeviceCardV2Component({ primary, secondary, selected, editMode, onLongP
         'group/card relative rounded-ha-2xl overflow-hidden bg-surface-default transition-[box-shadow]',
         editMode && 'cursor-grab active:cursor-grabbing select-none',
         selected && 'ha-selected',
+        !selected && lastOpened && 'ha-last-opened',
         isUnavailable && 'ring-2 ring-inset ring-amber-500/40',
         className,
       )}
@@ -354,6 +357,7 @@ function entityFieldsEqual(a?: DeviceCardV2Entity, b?: DeviceCardV2Entity): bool
 function propsEqual(prev: DeviceCardV2Props, next: DeviceCardV2Props): boolean {
   if (
     prev.selected !== next.selected ||
+    prev.lastOpened !== next.lastOpened ||
     prev.editMode !== next.editMode ||
     prev.areaName !== next.areaName ||
     prev.feedImage !== next.feedImage ||

@@ -4,20 +4,40 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { ToastStack, type ToastProps, type ToastStackItem } from '@/components/ui/Toast';
+import { GlowCanvas } from '@/components/ui/GlowCanvas';
 import { emitStatusPulse } from '@/lib/statusPulseBus';
+import { haptic, type HapticKind } from '@/lib/haptics';
 import type { HomeCenterSectionId } from '@/lib/homeCenter';
+import { useNotificationCenter } from './NotificationCenterContext';
 
-interface ToastOptions extends ToastProps {
+export interface ToastOptions extends ToastProps {
   /** Auto-dismiss delay in ms. Pass null to keep it up until dismissed. */
   duration?: number | null;
   /** Home Center section this toast relates to (connectivity, updates, …).
       When set, the status-bar clock widget pulses to point at where the
       same information lives. */
   statusSection?: HomeCenterSectionId;
+  /** Fire a haptic pulse when this toast appears (e.g. 'error' on a failure). */
+  haptic?: HapticKind;
+  /**
+   * For actionable toasts (`action`/`onClick`) that would otherwise stay until
+   * acted on: after this many ms with no interaction, dismiss the toast (normal
+   * exit animation) and pulse the status-bar command center to redirect
+   * attention there. Pulses `statusSection` when set, otherwise a generic pulse.
+   */
+  idleDismiss?: number;
+  /**
+   * Also record this toast in the Notification Center (settings → Notifications)
+   * so it survives dismissal. Closing the toast (✕ / idle) leaves the entry in
+   * place to act on later; acting on the toast (action / onClick) clears it.
+   */
+  persist?: boolean;
 }
 
 interface ToastState extends ToastOptions {
   id: number;
+  /** Notification Center entry id, when this toast was persisted. */
+  centerId?: string;
 }
 
 interface ToastContextValue {
@@ -53,16 +73,19 @@ function ToastGlow({ show, toastId }: { show: boolean; toastId: number }) {
         <motion.div
           key={`glow-corner-${toastId}`}
           className="hidden lg:block absolute bottom-0 pointer-events-none corner-toast-glow"
-          style={{
-            height: '15rem',
-            background: 'radial-gradient(ellipse 85% 50% at 100% 100%, rgba(24,188,242,0.22) 0%, rgba(24,188,242,0.08) 48%, transparent 76%)',
-            transformOrigin: '100% 100%',
-          }}
+          style={{ height: '19rem', transformOrigin: '100% 100%' }}
           initial={{ scale: 0.15, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.4, opacity: 0 }}
           transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-        />
+        >
+          <GlowCanvas
+            className="w-full h-full"
+            origin={[1, 1]}
+            radius={[0.9, 0.62]}
+            intensity={0.85}
+          />
+        </motion.div>
       )}
       {show && (
         <motion.div
@@ -88,6 +111,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastState[]>([]);
   const timersRef = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const idRef = useRef(0);
+  const { addNotification, removeNotification } = useNotificationCenter();
 
   const removeToast = useCallback((id: number) => {
     const timer = timersRef.current.get(id);
@@ -100,16 +124,38 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const showToast = useCallback((opts: ToastOptions) => {
     const id = ++idRef.current;
-    setToasts((prev) => [{ ...opts, id }, ...prev]);
+    // Record persisted toasts in the Notification Center up front, so the entry
+    // exists the moment the toast appears — surviving any later dismissal.
+    const centerId = opts.persist ? `toast-${id}` : undefined;
+    if (centerId) {
+      addNotification({
+        id: centerId,
+        title: opts.title,
+        message: opts.subtitle,
+        caption: opts.caption,
+        icon: opts.icon,
+        image: opts.image,
+        onAct: opts.onClick ?? opts.action?.onClick,
+      });
+    }
+    setToasts((prev) => [{ ...opts, id, centerId }, ...prev]);
     if (opts.statusSection) emitStatusPulse(opts.statusSection);
+    if (opts.haptic) haptic(opts.haptic);
     // Actionable or duration:null toasts stay until acted on / explicitly
     // dismissed — don't auto-dismiss out from under a decision. The timer
     // keeps running while a toast waits behind the front card.
-    if (!opts.action && opts.duration !== null) {
+    if (!opts.action && !opts.onClick && opts.duration !== null) {
       timersRef.current.set(id, setTimeout(() => removeToast(id), opts.duration ?? 4000));
+    } else if (opts.idleDismiss != null) {
+      // Actionable toast left untouched: nudge attention to the command center
+      // and let it dismiss with its usual exit animation.
+      timersRef.current.set(id, setTimeout(() => {
+        emitStatusPulse(opts.statusSection);
+        removeToast(id);
+      }, opts.idleDismiss));
     }
     return id;
-  }, [removeToast]);
+  }, [removeToast, addNotification]);
 
   const dismiss = useCallback((id?: number) => {
     if (id != null) {
@@ -121,11 +167,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts([]);
   }, [removeToast]);
 
-  // Wire each toast's action/✕ to also pop it from the stack.
+  // Wire each toast's action/✕ to also pop it from the stack. Acting on a toast
+  // (action button or whole-card tap) means it's handled, so clear its
+  // Notification Center entry; closing it (✕ / idle) leaves the entry to act on
+  // later from settings → Notifications.
   const stackItems: ToastStackItem[] = toasts.map((t) => ({
     ...t,
     action: t.action
-      ? { ...t.action, onClick: () => { t.action!.onClick(); removeToast(t.id); } }
+      ? { ...t.action, onClick: () => { t.action!.onClick(); if (t.centerId) removeNotification(t.centerId); removeToast(t.id); } }
+      : undefined,
+    onClick: t.onClick
+      ? () => { t.onClick!(); if (t.centerId) removeNotification(t.centerId); removeToast(t.id); }
       : undefined,
     onClose: () => { t.onClose?.(); removeToast(t.id); },
   }));

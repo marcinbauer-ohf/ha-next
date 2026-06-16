@@ -22,13 +22,23 @@ import {
   getDeviceRegistry as getDeviceRegistryAction,
   getAreaRegistry as getAreaRegistryAction,
   getFloorRegistry as getFloorRegistryAction,
+  getLabelRegistry as getLabelRegistryAction,
   getConfigEntries as getConfigEntriesAction,
   getIntegrationManifests as getIntegrationManifestsAction,
   getEntityHistory as getEntityHistoryAction,
   getLogbook as getLogbookAction,
   getAutomationConfig as getAutomationConfigAction,
+  createArea as createAreaAction,
+  updateArea as updateAreaAction,
+  deleteArea as deleteAreaAction,
+  createFloor as createFloorAction,
+  updateFloor as updateFloorAction,
+  deleteFloor as deleteFloorAction,
+  createLabel as createLabelAction,
+  updateLabel as updateLabelAction,
+  deleteLabel as deleteLabelAction,
 } from '@/lib/homeassistant';
-import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig } from '@/lib/homeassistant';
+import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 
@@ -53,6 +63,16 @@ interface HomeAssistantContextValue {
   getDeviceRegistry: () => Promise<DeviceRegistryEntry[]>;
   getAreaRegistry: () => Promise<AreaRegistryEntry[]>;
   getFloorRegistry: () => Promise<FloorRegistryEntry[]>;
+  getLabelRegistry: () => Promise<LabelRegistryEntry[]>;
+  createArea: (fields: AreaWriteFields) => Promise<AreaRegistryEntry>;
+  updateArea: (areaId: string, fields: AreaWriteFields) => Promise<AreaRegistryEntry>;
+  deleteArea: (areaId: string) => Promise<void>;
+  createFloor: (fields: FloorWriteFields) => Promise<FloorRegistryEntry>;
+  updateFloor: (floorId: string, fields: FloorWriteFields) => Promise<FloorRegistryEntry>;
+  deleteFloor: (floorId: string) => Promise<void>;
+  createLabel: (fields: LabelWriteFields) => Promise<LabelRegistryEntry>;
+  updateLabel: (labelId: string, fields: LabelWriteFields) => Promise<LabelRegistryEntry>;
+  deleteLabel: (labelId: string) => Promise<void>;
   getConfigEntries: () => Promise<ConfigEntry[]>;
   getIntegrationManifests: () => Promise<IntegrationManifest[]>;
   getEntityHistory: (entityId: string, hoursBack?: number) => Promise<HistoryPoint[]>;
@@ -296,6 +316,26 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const getDeviceRegistry = useCallback(() => getDeviceRegistryAction(), []);
   const getAreaRegistry = useCallback(() => getAreaRegistryAction(), []);
   const getFloorRegistry = useCallback(() => getFloorRegistryAction(), []);
+  const getLabelRegistry = useCallback(() => getLabelRegistryAction(), []);
+
+  // Registry writes throw (unlike callService which swallows) so editors can
+  // show success/failure. Guarded: demo mode and disconnected state reject —
+  // we never fabricate local registry edits when not talking to real HA.
+  const assertWritable = useCallback(() => {
+    if (demoMode) throw new Error('Editing areas and floors is disabled in demo mode.');
+    if (!connected) throw new Error('Not connected to Home Assistant.');
+  }, [demoMode, connected]);
+
+  const createArea = useCallback(async (fields: AreaWriteFields) => { assertWritable(); return createAreaAction(fields); }, [assertWritable]);
+  const updateArea = useCallback(async (areaId: string, fields: AreaWriteFields) => { assertWritable(); return updateAreaAction(areaId, fields); }, [assertWritable]);
+  const deleteArea = useCallback(async (areaId: string) => { assertWritable(); return deleteAreaAction(areaId); }, [assertWritable]);
+  const createFloor = useCallback(async (fields: FloorWriteFields) => { assertWritable(); return createFloorAction(fields); }, [assertWritable]);
+  const updateFloor = useCallback(async (floorId: string, fields: FloorWriteFields) => { assertWritable(); return updateFloorAction(floorId, fields); }, [assertWritable]);
+  const deleteFloor = useCallback(async (floorId: string) => { assertWritable(); return deleteFloorAction(floorId); }, [assertWritable]);
+  const createLabel = useCallback(async (fields: LabelWriteFields) => { assertWritable(); return createLabelAction(fields); }, [assertWritable]);
+  const updateLabel = useCallback(async (labelId: string, fields: LabelWriteFields) => { assertWritable(); return updateLabelAction(labelId, fields); }, [assertWritable]);
+  const deleteLabel = useCallback(async (labelId: string) => { assertWritable(); return deleteLabelAction(labelId); }, [assertWritable]);
+
   const getConfigEntries = useCallback(() => getConfigEntriesAction(), []);
   const getIntegrationManifests = useCallback(() => getIntegrationManifestsAction(), []);
   const getEntityHistory = useCallback((entityId: string, hoursBack?: number) => getEntityHistoryAction(entityId, hoursBack), []);
@@ -337,6 +377,16 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getDeviceRegistry,
     getAreaRegistry,
     getFloorRegistry,
+    getLabelRegistry,
+    createArea,
+    updateArea,
+    deleteArea,
+    createFloor,
+    updateFloor,
+    deleteFloor,
+    createLabel,
+    updateLabel,
+    deleteLabel,
     getConfigEntries,
     getIntegrationManifests,
     getEntityHistory,
@@ -361,6 +411,16 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getDeviceRegistry,
     getAreaRegistry,
     getFloorRegistry,
+    getLabelRegistry,
+    createArea,
+    updateArea,
+    deleteArea,
+    createFloor,
+    updateFloor,
+    deleteFloor,
+    createLabel,
+    updateLabel,
+    deleteLabel,
     getConfigEntries,
     getIntegrationManifests,
     getEntityHistory,

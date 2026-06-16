@@ -19,6 +19,25 @@ export interface PersonSummary {
   state: string;
   picture?: string;
   initials: string;
+  /** GPS latitude from the backing device_tracker, when exposed. */
+  lat?: number;
+  /** GPS longitude from the backing device_tracker, when exposed. */
+  lng?: number;
+}
+
+/** Home coordinates pulled from the `zone.home` entity. */
+export interface HomeLocation {
+  lat: number;
+  lng: number;
+}
+
+export interface PeopleMap {
+  /** Home marker / map center, when `zone.home` exposes coordinates. */
+  home: HomeLocation | null;
+  /** Everyone with resolvable coordinates (home people may also carry coords). */
+  people: PersonSummary[];
+  /** True when at least one person is away (state !== 'home'). */
+  anyoneAway: boolean;
 }
 
 export interface UpdateSummary {
@@ -218,7 +237,9 @@ function arePersonSummariesEqual(previous: PersonSummary, next: PersonSummary): 
     previous.name === next.name &&
     previous.state === next.state &&
     previous.picture === next.picture &&
-    previous.initials === next.initials
+    previous.initials === next.initials &&
+    previous.lat === next.lat &&
+    previous.lng === next.lng
   );
 }
 
@@ -308,6 +329,8 @@ function areEntitySearchMatchesItemEqual(previous: EntitySearchMatch, next: Enti
 
 function toPersonSummary(entityId: string, entity: HassEntities[string]): PersonSummary {
   const friendlyName = (entity.attributes.friendly_name as string | undefined) || 'User';
+  const lat = entity.attributes.latitude;
+  const lng = entity.attributes.longitude;
 
   return {
     id: entityId,
@@ -315,6 +338,8 @@ function toPersonSummary(entityId: string, entity: HassEntities[string]): Person
     state: entity.state,
     picture: entity.attributes.entity_picture as string | undefined,
     initials: buildInitials(friendlyName),
+    lat: typeof lat === 'number' ? lat : undefined,
+    lng: typeof lng === 'number' ? lng : undefined,
   };
 }
 
@@ -343,6 +368,35 @@ export function arePeoplePresenceEqual(previous: PeoplePresence, next: PeoplePre
   return (
     areArraysEqual(previous.peopleHome, next.peopleHome, arePersonSummariesEqual) &&
     areArraysEqual(previous.peopleAway, next.peopleAway, arePersonSummariesEqual)
+  );
+}
+
+export function selectPeopleMap(entities: HassEntities): PeopleMap {
+  const people = Object.entries(entities)
+    .filter(([entityId]) => entityId.startsWith('person.'))
+    .map(([entityId, entity]) => toPersonSummary(entityId, entity));
+
+  const homeZone = entities['zone.home'];
+  const homeLat = homeZone?.attributes.latitude;
+  const homeLng = homeZone?.attributes.longitude;
+  const home: HomeLocation | null =
+    typeof homeLat === 'number' && typeof homeLng === 'number'
+      ? { lat: homeLat, lng: homeLng }
+      : null;
+
+  return {
+    home,
+    people,
+    anyoneAway: people.some((person) => person.state !== 'home'),
+  };
+}
+
+export function arePeopleMapEqual(previous: PeopleMap, next: PeopleMap): boolean {
+  return (
+    previous.anyoneAway === next.anyoneAway &&
+    previous.home?.lat === next.home?.lat &&
+    previous.home?.lng === next.home?.lng &&
+    areArraysEqual(previous.people, next.people, arePersonSummariesEqual)
   );
 }
 

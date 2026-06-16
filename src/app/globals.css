@@ -49,6 +49,14 @@
   --ha-edge-padding-mobile: 12px;
   --ha-font-family-base: 'Hyperlegible Sans', var(--font-inter), sans-serif;
 
+  /* Mobile overlay top bar: how far content/sticky elements must clear so they
+     sit below the frosted bar. 0 on desktop (the bar takes its own grid row). */
+  --app-topbar-clear: 0px;
+
+  /* Mobile floating bottom nav: how far edge UI must sit above it. 0 on desktop
+     (no bottom nav). Mirrors the dashboard scroller's bottom padding. */
+  --app-bottomnav-clear: 0px;
+
   /* HA Surface Colors */
   --ha-color-surface-default: #ffffff;
   --ha-color-surface-low: #f3f3f3;
@@ -98,6 +106,15 @@
   --ha-radius-2xl: 20px;
   --ha-radius-3xl: 24px;
   --ha-radius-pill: 9999px;
+}
+
+/* Below the lg breakpoint the top bar overlays the content as a frosted bar, so
+   content and sticky headers reserve its height to sit beneath it. */
+@media (max-width: 1023.98px) {
+  :root {
+    --app-topbar-clear: 4rem;
+    --app-bottomnav-clear: calc(7rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Default Theme Typography */
@@ -1251,59 +1268,59 @@
    This works well for Dark Glass. For Light Glass, also keep it white/black pop? 
    Or maybe dark/white pop? Let's stick to the high contrast Pop for now.
 */
-[data-theme="glass"] .bg-fill-primary-normal,
-[data-theme="glass"] .bg-fill-danger-normal,
-[data-theme="glass"] .bg-fill-success-normal,
-[data-theme="glass"] .bg-yellow-95,
-[data-theme="glass"] .bg-fill-primary-quiet {
+[data-theme="glass"][data-mode="light"] .bg-fill-primary-normal,
+[data-theme="glass"][data-mode="light"] .bg-fill-danger-normal,
+[data-theme="glass"][data-mode="light"] .bg-fill-success-normal,
+[data-theme="glass"][data-mode="light"] .bg-yellow-95,
+[data-theme="glass"][data-mode="light"] .bg-fill-primary-quiet {
   background-color: rgba(255, 255, 255, 0.9) !important;
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Force text colors to black inside active white cards */
-[data-theme="glass"] .bg-fill-primary-normal .text-text-primary,
-[data-theme="glass"] .bg-fill-danger-normal .text-text-primary,
-[data-theme="glass"] .bg-fill-success-normal .text-text-primary,
-[data-theme="glass"] .bg-yellow-95 .text-text-primary,
-[data-theme="glass"] .bg-fill-primary-quiet .text-text-primary {
+[data-theme="glass"][data-mode="light"] .bg-fill-primary-normal .text-text-primary,
+[data-theme="glass"][data-mode="light"] .bg-fill-danger-normal .text-text-primary,
+[data-theme="glass"][data-mode="light"] .bg-fill-success-normal .text-text-primary,
+[data-theme="glass"][data-mode="light"] .bg-yellow-95 .text-text-primary,
+[data-theme="glass"][data-mode="light"] .bg-fill-primary-quiet .text-text-primary {
   color: rgba(0, 0, 0, 0.95) !important;
 }
 
-[data-theme="glass"] .bg-fill-primary-normal .text-text-secondary,
-[data-theme="glass"] .bg-fill-danger-normal .text-text-secondary,
-[data-theme="glass"] .bg-fill-success-normal .text-text-secondary,
-[data-theme="glass"] .bg-yellow-95 .text-text-secondary,
-[data-theme="glass"] .bg-fill-primary-quiet .text-text-secondary {
+[data-theme="glass"][data-mode="light"] .bg-fill-primary-normal .text-text-secondary,
+[data-theme="glass"][data-mode="light"] .bg-fill-danger-normal .text-text-secondary,
+[data-theme="glass"][data-mode="light"] .bg-fill-success-normal .text-text-secondary,
+[data-theme="glass"][data-mode="light"] .bg-yellow-95 .text-text-secondary,
+[data-theme="glass"][data-mode="light"] .bg-fill-primary-quiet .text-text-secondary {
   color: rgba(0, 0, 0, 0.7) !important;
 }
 
 /* Active Card Styles for Default Theme - No hue (White BG, Black Text) 
    Matches Glass theme logic but with solid colors */
-[data-theme="default"] .bg-fill-primary-normal,
-[data-theme="default"] .bg-fill-danger-normal,
-[data-theme="default"] .bg-fill-success-normal,
-[data-theme="default"] .bg-yellow-95,
-[data-theme="default"] .bg-fill-primary-quiet {
+[data-theme="default"][data-mode="light"] .bg-fill-primary-normal,
+[data-theme="default"][data-mode="light"] .bg-fill-danger-normal,
+[data-theme="default"][data-mode="light"] .bg-fill-success-normal,
+[data-theme="default"][data-mode="light"] .bg-yellow-95,
+[data-theme="default"][data-mode="light"] .bg-fill-primary-quiet {
   background-color: #ffffff !important;
   color: rgba(0, 0, 0, 0.95) !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
 /* Force text colors to black inside active white cards */
-[data-theme="default"] .bg-fill-primary-normal .text-text-primary,
-[data-theme="default"] .bg-fill-danger-normal .text-text-primary,
-[data-theme="default"] .bg-fill-success-normal .text-text-primary,
-[data-theme="default"] .bg-yellow-95 .text-text-primary,
-[data-theme="default"] .bg-fill-primary-quiet .text-text-primary {
+[data-theme="default"][data-mode="light"] .bg-fill-primary-normal .text-text-primary,
+[data-theme="default"][data-mode="light"] .bg-fill-danger-normal .text-text-primary,
+[data-theme="default"][data-mode="light"] .bg-fill-success-normal .text-text-primary,
+[data-theme="default"][data-mode="light"] .bg-yellow-95 .text-text-primary,
+[data-theme="default"][data-mode="light"] .bg-fill-primary-quiet .text-text-primary {
   color: rgba(0, 0, 0, 0.95) !important;
 }
 
-[data-theme="default"] .bg-fill-primary-normal .text-text-secondary,
-[data-theme="default"] .bg-fill-danger-normal .text-text-secondary,
-[data-theme="default"] .bg-fill-success-normal .text-text-secondary,
-[data-theme="default"] .bg-yellow-95 .text-text-secondary,
-[data-theme="default"] .bg-fill-primary-quiet .text-text-secondary {
+[data-theme="default"][data-mode="light"] .bg-fill-primary-normal .text-text-secondary,
+[data-theme="default"][data-mode="light"] .bg-fill-danger-normal .text-text-secondary,
+[data-theme="default"][data-mode="light"] .bg-fill-success-normal .text-text-secondary,
+[data-theme="default"][data-mode="light"] .bg-yellow-95 .text-text-secondary,
+[data-theme="default"][data-mode="light"] .bg-fill-primary-quiet .text-text-secondary {
   color: rgba(0, 0, 0, 0.7) !important;
 }
 
@@ -1388,16 +1405,16 @@
 }
 
 /* Status-bar clock pill pulse — fired when a toast appears about a subject
-   the clock widget also reports (connectivity, updates, battery, …). Two
-   gentle scale+ring beats pointing the eye at where that info lives. */
+   the clock widget also reports (connectivity, updates, battery, …). Mimics
+   the press/click interaction (scale-down then settle) to point the eye at
+   where that info lives, without the ring pulse. */
 @keyframes ha-status-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(24, 188, 242, 0.45); transform: scale(1); }
-  30% { transform: scale(1.05); }
-  60% { box-shadow: 0 0 0 12px rgba(24, 188, 242, 0); transform: scale(1); }
-  100% { box-shadow: 0 0 0 0 rgba(24, 188, 242, 0); transform: scale(1); }
+  0% { transform: scale(1); }
+  45% { transform: scale(0.95); }
+  100% { transform: scale(1); }
 }
 .ha-status-pulse {
-  animation: ha-status-pulse 0.9s ease-out 2;
+  animation: ha-status-pulse 0.5s ease-out 1;
 }
 
 /* Corner toast (bottom-right) — positioned relative to the dashboard <main>.
@@ -1408,13 +1425,17 @@
    instead of slipping under the still-visible top row. Desktop: inset from the
    corner of the main content area. */
 .corner-toast {
+  /* Mobile: stretch from the left edge to the right edge, but leave room on the
+     left for the dashboard filter FAB when present (--corner-toast-left-inset,
+     set/cleared by DashboardFilterBar). Desktop: fixed compact width. */
+  left: calc(var(--spacing-edge, 12px) + var(--corner-toast-left-inset, 0px));
   right: var(--spacing-edge, 12px);
-  /* Mobile: full width (edge-to-edge minus padding). Desktop: fixed compact width. */
-  width: calc(100% - 2 * var(--spacing-edge, 12px));
+  width: auto;
   bottom: calc(var(--mobile-nav-height, 6rem) + var(--ha-space-2, 0.5rem));
 }
 @media (min-width: 1024px) {
   .corner-toast {
+    left: auto;
     right: 1.5rem;
     bottom: 1.5rem;
     width: 24rem;
@@ -1427,7 +1448,7 @@
    into the gutter beyond it. The toast itself stays inset above the glow. */
 .corner-toast-glow {
   right: var(--spacing-edge, 12px);
-  width: min(80%, 38rem);
+  width: min(88%, 44rem);
   /* Round the bottom-right corner to match the dashboard surface (rounded-ha-3xl)
      and clip the radial to it, so the glow follows the panel's corner instead of
      showing a sharp 90° clip. */
@@ -1453,6 +1474,19 @@ body {
   color: var(--ha-color-text-primary);
   font-family: var(--ha-font-family-base), system-ui, sans-serif;
   overscroll-behavior: none;
+  /* Max legibility across all switchable faces:
+     - text-rendering: kerning + standard ligatures
+     - optical-sizing: variable fonts adapt glyph shapes to size
+     - kerning/ligatures: explicit, don't rely on UA defaults
+     - text-size-adjust: stop mobile Safari/Chrome inflating text on rotate */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-optical-sizing: auto;
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures contextual;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   transition:
     background-color 0.3s ease,
     color 0.3s ease;
@@ -1586,6 +1620,38 @@ html {
   outline-offset: 2px;
 }
 
+/* "Last opened" marker — a brief, faint wash (like a hover tint) that flashes
+   over the row/card when you return from its detail view, then fades. Painted as
+   an overlay so it works over opaque cards/tiles too; text/controls stay above. */
+@keyframes ha-last-opened-flash {
+  0%   { background-color: color-mix(in srgb, var(--ha-color-blue) 22%, transparent); opacity: 1; }
+  35%  { background-color: color-mix(in srgb, var(--ha-color-blue) 22%, transparent); opacity: 1; }
+  100% { background-color: var(--ha-color-surface-mid); opacity: 0; }
+}
+.ha-last-opened {
+  position: relative;
+}
+.ha-last-opened::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  animation: ha-last-opened-flash 1.4s ease-out 0.1s 1 both;
+}
+/* Reduced motion (common on phones): drop the flash but still mark the item —
+   otherwise there's no indicator at all. A static, faint inset ring works over
+   both transparent rows and opaque cards without obscuring their content. */
+@media (prefers-reduced-motion: reduce) {
+  .ha-last-opened::after {
+    animation: none;
+    opacity: 1;
+    background-color: transparent;
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ha-color-blue) 35%, transparent);
+  }
+}
+
 /* Offscreen-change edge hint — a glowing bar that pulses then fades at the
    top/bottom edge of the dashboard, aligned with the changed card's column.
    Tappable: the surrounding button is a generous, transparent hit target that
@@ -1605,8 +1671,8 @@ html {
 
 /* Offset the top hint below the sticky summary/filter header so it isn't
    hidden behind it. --dashboard-sticky-top tracks that header's height. */
-.ha-edge-hint-hit--top { top: var(--dashboard-sticky-top, 0px); align-items: flex-start; }
-.ha-edge-hint-hit--bottom { bottom: 0; align-items: flex-end; }
+.ha-edge-hint-hit--top { top: calc(var(--app-topbar-clear, 0px) + var(--dashboard-sticky-top, 0px)); align-items: flex-start; }
+.ha-edge-hint-hit--bottom { bottom: var(--app-bottomnav-clear, 0px); align-items: flex-end; }
 
 .ha-edge-hint {
   display: block;
@@ -1670,6 +1736,21 @@ html {
       0 0 22px 5px var(--flash-color, #38bdf8);
   }
   100% { box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
+}
+
+/* Page surface enter — gentle fade + rise when an AppSurfacePage mounts
+   (settings, room, type, category, panel). Pairs with the dashboard's own
+   entrance so navigating between a subpage and the home dashboard reads as a
+   soft crossfade in either direction instead of a hard swap. */
+.ha-surface-enter {
+  animation: ha-surface-enter 360ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ha-surface-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-surface-enter { animation: none; }
 }
 
 /* Settings detail pane — soft fade + slide when column-2 content changes
@@ -1759,4 +1840,57 @@ html {
 }
 @media (prefers-reduced-motion: reduce) {
   .ha-view-enter { animation: none; }
+}
+
+/* Deferred dashboard cards fade in when they lazy-mount during scroll, instead
+   of popping in. Slightly longer + softer than the view-enter so it reads as a
+   gentle settle. */
+.ha-card-in {
+  animation: ha-card-in 0.32s ease-out both;
+}
+@keyframes ha-card-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-card-in { animation: none; }
+}
+
+/* ── People map widget (Leaflet) ──────────────────────────────────────────── */
+.ha-map-canvas {
+  background: var(--ha-color-surface-mid);
+}
+
+/* divIcon wrapper: strip Leaflet's default white box. */
+.ha-map-marker { background: transparent; border: 0; }
+
+.ha-map-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ha-color-surface-mid);
+  color: var(--ha-color-blue);
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 0 0 2px var(--ha-color-blue), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.ha-map-avatar.is-away {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.ha-map-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.ha-map-home {
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ha-color-blue);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }

@@ -10,6 +10,12 @@ interface DeferredCardProps {
    * masonry column heights stay roughly stable and the layout doesn't collapse.
    */
   minHeight?: number;
+  /**
+   * Primary entity id of the deferred card. Mirrored onto the placeholder's
+   * `data-entity-id` so features that locate offscreen cards by entity (e.g.
+   * OffscreenChangeHints) still find them while the real card is unmounted.
+   */
+  entityId?: string;
 }
 
 /**
@@ -24,7 +30,7 @@ interface DeferredCardProps {
  * cheap to keep alive and re-mounting would drop their local state / re-run
  * history fetches.
  */
-export function DeferredCard({ children, minHeight = 88 }: DeferredCardProps) {
+export function DeferredCard({ children, minHeight = 88, entityId }: DeferredCardProps) {
   const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -52,7 +58,10 @@ export function DeferredCard({ children, minHeight = 88 }: DeferredCardProps) {
     return () => observer.disconnect();
   }, [mounted]);
 
-  if (mounted) return <>{children}</>;
+  // Gently fade/settle the card in when it lazy-mounts during scroll, rather
+  // than popping in. (Cards above the fold mount immediately and fade with the
+  // view's own enter animation — harmless overlap.)
+  if (mounted) return <div className="ha-card-in">{children}</div>;
 
-  return <div ref={ref} aria-hidden style={{ minHeight }} />;
+  return <div ref={ref} data-entity-id={entityId} aria-hidden style={{ minHeight }} />;
 }

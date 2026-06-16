@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
+import { mdiLayers } from '@mdi/js';
 import { Icon } from './Icon';
 import { useAddContext, useCloseOnScreensaver } from '@/contexts';
 import { addableSettingsItems, type AddableSettingsItem } from '@/components/profile/settingsNavigation';
@@ -14,9 +15,32 @@ interface Props {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
 }
 
+// A menu row. Most map 1:1 to a settings section (navigate on select); some
+// sections expand into several create actions (Areas → Add area + Add floor)
+// that open an editor in-place via the AddContext request channel.
+interface AddMenuRow extends AddableSettingsItem {
+  /** Stable key — slugs alone collide once a section expands into variants. */
+  key: string;
+  /** When set, select raises a create request for slug/variant (no navigation away). */
+  variant?: string;
+  /** Belongs to the hoisted current-section group (drives the divider). */
+  contextGroup?: boolean;
+}
+
+// Sections that expose multiple create actions in the "+" menu.
+function expandRow(item: AddableSettingsItem, contextGroup: boolean): AddMenuRow[] {
+  if (item.slug === 'areas') {
+    return [
+      { ...item, key: 'areas:area', label: 'Add area', variant: 'area', contextGroup },
+      { ...item, key: 'areas:floor', label: 'Add floor', icon: mdiLayers, variant: 'floor', contextGroup },
+    ];
+  }
+  return [{ ...item, key: item.slug, contextGroup }];
+}
+
 export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
   const router = useRouter();
-  const { contextSlug } = useAddContext();
+  const { contextSlug, requestAdd } = useAddContext();
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
   useCloseOnScreensaver(isOpen, onClose);
@@ -27,29 +51,34 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
     }
   }, [isOpen, anchorRef]);
 
-  // Hoist the current settings section's item to the top (e.g. viewing Areas →
-  // "Add Area" first); the rest stay in settings order.
-  const items = useMemo(() => {
-    if (!contextSlug) return addableSettingsItems;
-    const hit = addableSettingsItems.find((i) => i.slug === contextSlug);
-    if (!hit) return addableSettingsItems;
-    return [hit, ...addableSettingsItems.filter((i) => i.slug !== contextSlug)];
+  // Hoist the current settings section's create action(s) to the top (e.g.
+  // viewing Areas → Add area / Add floor first); the rest stay in settings order.
+  const items = useMemo<AddMenuRow[]>(() => {
+    const hit = contextSlug ? addableSettingsItems.find((i) => i.slug === contextSlug) : undefined;
+    if (!hit) return addableSettingsItems.flatMap((i) => expandRow(i, false));
+    const rest = addableSettingsItems.filter((i) => i.slug !== contextSlug);
+    return [...expandRow(hit, true), ...rest.flatMap((i) => expandRow(i, false))];
   }, [contextSlug]);
 
-  const hasContextItem = !!contextSlug && addableSettingsItems.some((i) => i.slug === contextSlug);
+  // Key of the last hoisted item, so the divider sits after the whole group.
+  const lastContextKey = useMemo(() => {
+    const ctx = items.filter((i) => i.contextGroup);
+    return ctx.length ? ctx[ctx.length - 1].key : null;
+  }, [items]);
 
-  const handleSelect = (item: AddableSettingsItem) => {
+  const handleSelect = (item: AddMenuRow) => {
     onClose();
+    if (item.variant) requestAdd(item.slug, item.variant);
     router.push(`/settings/${item.slug}`);
   };
 
   if (typeof document === 'undefined') return null;
 
-  const renderRow = (item: AddableSettingsItem, _index: number, size: 'sm' | 'lg') => {
+  const renderRow = (item: AddMenuRow, _index: number, size: 'sm' | 'lg') => {
     const tile = size === 'lg' ? 'w-10 h-10' : 'w-9 h-9';
     return (
       <button
-        key={item.slug}
+        key={item.key}
         onClick={() => handleSelect(item)}
         className="w-full flex items-center gap-ha-3 px-ha-3 py-ha-3 rounded-ha-xl transition-colors text-left hover:bg-surface-low active:bg-surface-low"
       >
@@ -101,9 +130,9 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
             >
               <div className="p-ha-2 max-h-[min(70vh,560px)] overflow-y-auto scrollbar-hide">
                 {items.map((item, i) => (
-                  <div key={item.slug}>
+                  <div key={item.key}>
                     {renderRow(item, i, 'sm')}
-                    {hasContextItem && i === 0 && (
+                    {item.key === lastContextKey && (
                       <div className="my-ha-1 mx-ha-3 border-t border-surface-low/30" />
                     )}
                   </div>
@@ -129,9 +158,9 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
               <h3 className="text-base font-semibold text-text-primary mb-ha-3 px-ha-1">Add</h3>
               <div className="space-y-ha-1 max-h-[60vh] overflow-y-auto scrollbar-hide">
                 {items.map((item, i) => (
-                  <div key={item.slug}>
+                  <div key={item.key}>
                     {renderRow(item, i, 'lg')}
-                    {hasContextItem && i === 0 && (
+                    {item.key === lastContextKey && (
                       <div className="my-ha-1 mx-ha-3 border-t border-surface-low/30" />
                     )}
                   </div>

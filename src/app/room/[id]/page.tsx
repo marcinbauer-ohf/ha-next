@@ -5,13 +5,15 @@ import { mdiArrowLeft } from '@mdi/js';
 import { clsx } from 'clsx';
 import Link from 'next/link';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
+import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
+import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { PullToRevealPanel } from '@/components/sections';
 import { DeviceSectionsView, type DeviceSection } from '@/components/sections';
 import { Icon } from '@/components/ui/Icon';
 import { HALoader } from '@/components/ui/HALoader';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import { usePullToRevealContext, useHeader } from '@/contexts';
-import { useTheme, useDevices, useDesktopImmersivePageLayout, useFeatureFlags } from '@/hooks';
+import { useDevices, useDesktopImmersivePageLayout, useFeatureFlags } from '@/hooks';
 import { entityDomain, SECTION_ORDER, SECTION_TITLES, domainTypeIcon } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -45,7 +47,6 @@ export default function RoomPage({ params }: RoomPageProps) {
   const { id } = use(params);
   const { isRevealed } = usePullToRevealContext();
   const { setHeader } = useHeader();
-  const { background } = useTheme();
   const { devices, areas, loading } = useDevices();
   const { scrollIndexEnabled } = useFeatureFlags();
   const { contentPaddingClasses, contentTransitionClasses, contentStyle, surfaceRoundingClass } = useDesktopImmersivePageLayout();
@@ -99,12 +100,11 @@ export default function RoomPage({ params }: RoomPageProps) {
       >
         <div className="h-full flex">
           <div className={`flex-1 min-w-0 bg-surface-lower overflow-hidden relative ${surfaceRoundingClass}`}>
-            {background !== 'image' && background !== 'gradient' && (
-              <>
-                <div className={clsx('absolute top-0 left-0 right-0 lg:left-14 lg:right-14 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300', showTopGradient ? 'opacity-100' : 'opacity-0')} />
-                <div className={clsx('absolute bottom-0 left-0 right-0 lg:left-14 lg:right-14 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300', showBottomGradient ? 'opacity-100' : 'opacity-0')} />
-              </>
-            )}
+            <ImmersiveDogEar />
+            <ScreensaverDogEar />
+            {/* Bottom scroll fade. (Top fade lives inside <main> below so it sits
+                under the sticky section headers instead of over them.) */}
+            <div className={clsx('absolute bottom-0 left-0 right-0 lg:left-14 lg:right-14 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300', showBottomGradient ? 'opacity-100' : 'opacity-0')} />
 
             {/* Back arrow — desktop left gutter */}
             <Link
@@ -122,9 +122,11 @@ export default function RoomPage({ params }: RoomPageProps) {
 
             <main
               ref={el => { scrollableRef.current = el; }}
-              className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide select-none px-ha-5 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-14 lg:pt-ha-5 lg:pb-ha-5"
+              className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide select-none px-ha-5 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5"
               data-scrollable="dashboard"
             >
+              {/* Top scroll fade hangs off each sticky section header (in
+                  DeviceSectionsView) so it tracks the pinned header. */}
               <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full">
                 <ApplicationViewNotice />
 

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
+import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
+import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext, useHeader } from '@/contexts';
 import { useDesktopImmersivePageLayout, useTheme } from '@/hooks';
@@ -144,9 +146,11 @@ export default function EnergyDashboardPage() {
         style={contentStyle}
       >
         <div className={`h-full bg-surface-lower overflow-hidden relative ${surfaceRoundingClass}`}>
+          <ImmersiveDogEar />
+          <ScreensaverDogEar />
           {/* Top scroll gradient - absolute to container */}
           {showTopGradient && background !== 'image' && background !== 'gradient' && (
-            <div className="absolute top-0 left-0 right-0 lg:left-14 lg:right-ha-5 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />
+            <div className="hidden lg:block absolute top-0 left-0 right-0 lg:left-14 lg:right-ha-5 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />
           )}
           {/* Bottom scroll gradient - absolute to container */}
           {showBottomGradient && background !== 'image' && background !== 'gradient' && (
@@ -154,13 +158,13 @@ export default function EnergyDashboardPage() {
           )}
           <div 
             ref={(el) => { scrollableRef.current = el; }}
-            className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-4 pt-ha-4 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5" 
+            className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-4 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pl-14 lg:pr-ha-5 lg:pt-ha-5 lg:pb-ha-5" 
             data-scrollable="dashboard"
           >
 
             {/* Tabs - sticky on mobile */}
             <div
-              className="sticky top-0 -mx-ha-3 px-ha-3 lg:-ml-14 lg:pl-14 lg:-mr-ha-5 lg:pr-ha-5 pt-ha-1 pb-ha-3 z-30 backdrop-blur-md"
+              className="sticky top-[var(--app-topbar-clear)] lg:top-0 -mx-ha-3 px-ha-3 lg:-ml-14 lg:pl-14 lg:-mr-ha-5 lg:pr-ha-5 pt-ha-1 pb-ha-3 z-30 backdrop-blur-md"
               style={{ background: 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 80%, transparent), transparent)' }}
             >
               <SegmentedControl segments={ENERGY_SEGMENTS} value={activeTab} onChange={setActiveTab} />

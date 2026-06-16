@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCloseOnScreensaver } from '@/contexts';
+import { haptic } from '@/lib/haptics';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -78,7 +79,7 @@ export function ConfirmDialog({
                 {cancelLabel}
               </button>
               <button
-                onClick={onConfirm}
+                onClick={() => { if (destructive) haptic('warning'); onConfirm(); }}
                 className={`flex-1 h-11 rounded-ha-xl text-white text-sm font-semibold transition-colors ${
                   destructive ? 'bg-red-500 hover:bg-red-600' : 'bg-ha-blue hover:bg-ha-blue/90'
                 }`}

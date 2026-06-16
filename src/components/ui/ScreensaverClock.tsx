@@ -6,6 +6,7 @@ import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { RollingDigit } from './RollingDigit';
 import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor, useHomeCenterPrefs } from '@/hooks';
+import { useNotificationCenter } from '@/contexts';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import {
   mdiDevices,
@@ -25,6 +26,7 @@ import { resolveEntityPictureUrl } from '@/lib/utils';
 import { SummaryCard } from '../cards/SummaryCard';
 import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
 import { RingShaderBackground, useRingOrigin } from './RingShaderBackground';
+import { ScreensaverPulseLog } from './ScreensaverPulseLog';
 import { EnergyGlance } from '../glances';
 import { APP_BUILD } from '@/lib/version';
 import {
@@ -248,7 +250,7 @@ function systemPrefers24HourClock(): boolean {
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
   const liveSummaryItems = useLiveSummaryItems();
   const { haUrl } = useHomeAssistant();
-  const { wavyBackgroundEnabled, reactiveBackgroundEnabled, reactiveTriggerMode, reactiveIntensity } = useFeatureFlags();
+  const { wavyBackgroundEnabled, reactiveBackgroundEnabled, reactiveTriggerMode, reactiveIntensity, reactiveTriggerLabelsEnabled } = useFeatureFlags();
   const ringOrigin = useRingOrigin();
   // Only watch for events while the screensaver is actually on screen.
   useHomeEventReactor(reactiveBackgroundEnabled && visible, reactiveTriggerMode);
@@ -270,9 +272,10 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const screensaverData = useHomeAssistantSelector(selectScreensaverData, areScreensaverDataEqual);
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const { visibleSections } = useHomeCenterPrefs();
+  const { notifications: centerNotifications } = useNotificationCenter();
   // Status-pill indicators derive from the full activity data so they can cover
   // every configurable Home Center section (repairs, battery, backups, …).
-  const notificationCount = activityData.activeNotifications.length;
+  const notificationCount = activityData.activeNotifications.length + centerNotifications.length;
   const pendingUpdates = activityData.activeUpdates.length;
   const offlineCount = activityData.offlineDevices.length;
   const repairCount = activityData.repairs.length;
@@ -564,6 +567,9 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         center={ringOrigin.center}
         reach={ringOrigin.reach}
       />
+      {/* Names the entity behind each reactive ripple, bottom-center. Opt-in
+          (Settings → screensaver) and only while the reactive background is on. */}
+      {reactiveBackgroundEnabled && reactiveTriggerLabelsEnabled && <ScreensaverPulseLog />}
       {/* Build Info - Top */}
       <div className="absolute top-8 left-0 right-0 flex justify-center px-ha-6 pointer-events-none">
         <p className="text-[13px] lg:text-xs text-text-disabled opacity-40 font-mono text-center">
@@ -670,7 +676,11 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
           onClick={(e) => {
             e.stopPropagation();
             onDismiss();
-            router.push('/settings?section=home-center');
+            // Open Settings → Home Center. ≥xl shows the two-column workspace
+            // (deep-linked via ?section); below that the workspace doesn't
+            // exist, so route straight to the full-page Home Center detail.
+            const hasWorkspace = typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches;
+            router.push(hasWorkspace ? '/settings?section=home-center' : '/settings/home-center');
           }}
           className="flex items-center gap-ha-2 lg:gap-ha-3 rounded-ha-pill px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 border border-white/10 backdrop-blur-md transition-colors bg-surface-mid/65 hover:bg-surface-mid/80"
         >

@@ -8,16 +8,21 @@ import { SectionLabel } from '../ui';
 import { SimulationListModal } from '@/components/ui/SimulationListModal';
 import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
-import { useHeader, useScreensaver, useAddContext, useDebugFlags } from '@/contexts';
-import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFont, useDeviceStructure, useDeviceCardConfig, useIntegrations, useAutomations } from '@/hooks';
+import { useHeader, useScreensaver, useAddContext, useDebugFlags, type BreadcrumbItem } from '@/contexts';
+import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFont, useDeviceStructure, useDeviceCardConfig, useIntegrations, useDevicesList, useAutomations } from '@/hooks';
 import { IntegrationsTable, IntegrationDetailView } from './IntegrationsPanel';
+import { DevicesTable, DeviceDetailView } from './DevicesPanel';
 import { AutomationsTable } from './AutomationsPanel';
+import { AreasFloorsPanel } from './AreasFloorsPanel';
 import { AutomationEditor } from './AutomationEditor';
 import { HomeCenterSectionsModal } from './HomeCenterSectionEditor';
 import { TOGGLEABLE } from '@/lib/homeassistant/entityHelpers';
 import type { EntitySlot, EntitySection } from '@/hooks/useDeviceCardConfig';
 import { THEMES, type Background, type ColorMode, type Theme } from '@/hooks/useTheme';
+import { useDogEarConfig } from '@/hooks/useDogEarConfig';
+import { DOG_EAR_ACTIONS } from '@/lib/dogEarActions';
 import { areSimulationEntitiesEqual, selectSimulationEntities } from '@/lib/homeassistant/selectors';
+import { useHaptics } from '@/lib/haptics';
 import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
 import { type SettingsSlug, allSettingsLinks } from './settingsNavigation';
 import {
@@ -26,6 +31,8 @@ import {
   mdiChevronLeft,
   mdiCog,
   mdiHomeAssistant,
+  mdiInformation,
+  mdiInformationOutline,
   mdiOpenInNew,
   mdiPlay,
   mdiPrinter3d,
@@ -33,6 +40,7 @@ import {
   mdiTimerOutline,
   mdiUpdate,
 } from '@mdi/js';
+import pkgInfo from '../../../package.json';
 
 interface SettingsDetailPageProps {
   slug: SettingsSlug;
@@ -42,6 +50,13 @@ interface SettingsDetailPageProps {
    * so the two-column settings page can slide its nav column away.
    */
   onEditorFocusChange?: (focused: boolean) => void;
+  /**
+   * In the two-column workspace, selecting a Home Center section should swap the
+   * active section in place (left-nav selection + right column) instead of
+   * navigating to the standalone single-column route. When omitted (standalone
+   * route), section links fall back to `router.push`.
+   */
+  onSelectSection?: (slug: SettingsSlug) => void;
 }
 
 interface SettingsMeta {
@@ -252,6 +267,44 @@ function ActionButton({
   );
 }
 
+// Label + description on the left, a single action button on the right. Used to
+// stack maintenance/reset actions inside one card instead of one card per action.
+function ActionRow({
+  label,
+  description,
+  buttonLabel,
+  onClick,
+  tone = 'default',
+}: {
+  label: string;
+  description: string;
+  buttonLabel: string;
+  onClick: () => void;
+  tone?: 'default' | 'primary' | 'danger';
+}) {
+  return (
+    <div className="flex flex-col gap-ha-3 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold text-text-primary">{label}</div>
+        <div className="mt-0.5 text-xs text-text-secondary">{description}</div>
+      </div>
+      <div className="shrink-0">
+        <ActionButton label={buttonLabel} onClick={onClick} tone={tone} />
+      </div>
+    </div>
+  );
+}
+
+// One read-only label/value line for the Diagnostics card.
+function DiagnosticRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-ha-4 px-ha-4 py-ha-3">
+      <dt className="text-sm text-text-secondary">{label}</dt>
+      <dd className="max-w-[60%] truncate text-right text-sm font-medium text-text-primary">{value}</dd>
+    </div>
+  );
+}
+
 function formatLabel(value: string): string {
   return value.replace(/-/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
 }
@@ -334,14 +387,14 @@ const taskBarActivityDefinitions: Array<{
 const settingsMeta: Partial<Record<SettingsSlug, SettingsMeta>> = {
   developer: {
     title: 'Prototype & Debug Tools',
-    description: 'Dashboards, theme, task bar, maintenance, and developer flags — every preview-only tool on one page.',
+    description: 'Data, appearance, behavior, and prototyping flags — every preview-only tool on one page.',
     icon: mdiAlphaDBox,
     eyebrow: 'Preview',
     accentClassName: 'border-orange-500/20',
   },
 };
 
-export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: SettingsDetailPageProps) {
+export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSelectSection }: SettingsDetailPageProps) {
   const router = useRouter();
   const { setHeader } = useHeader();
   const { setContextSlug } = useAddContext();
@@ -353,9 +406,10 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
     setContextSlug(slug);
     return () => setContextSlug(null);
   }, [slug, setContextSlug]);
-  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, pulseWallpaperReactive, togglePulseWallpaperReactive } = useFeatureFlags();
+  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive } = useFeatureFlags();
   const { theme, mode, background, setTheme, setMode, setBackground } = useTheme();
   const { font, fonts, setFont } = useFont();
+  const { enabled: hapticsEnabled, setEnabled: setHapticsEnabled, supported: hapticsSupported } = useHaptics();
   const {
     clearCredentials,
     connected,
@@ -369,6 +423,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
   } = useHomeAssistant();
   const { immersiveMode, setImmersiveMode } = useImmersiveMode();
   const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
+  const { config: dogEarConfig, setCorner: setDogEarCorner } = useDogEarConfig();
   const simulationEntities = useHomeAssistantSelector(selectSimulationEntities, areSimulationEntitiesEqual);
 
   // Device card configuration
@@ -383,15 +438,42 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
   // (e.g. an integration platform key); null means we're showing the table.
   const { integrations } = useIntegrations();
   const [detailId, setDetailId] = useState<string | null>(null);
+  // The row last drilled into. Unlike `detailId` it survives going back, so the
+  // list can mark which item you just returned from. Cleared on section change.
+  const [lastOpenedId, setLastOpenedId] = useState<string | null>(null);
+  const openDetail = useCallback((id: string) => {
+    setDetailId(id);
+    setLastOpenedId(id);
+  }, []);
   // Reset the drill-down whenever the settings section changes — adjusted during
   // render (React's recommended pattern) rather than in an effect.
   const [drillSlug, setDrillSlug] = useState(slug);
   if (slug !== drillSlug) {
     setDrillSlug(slug);
     setDetailId(null);
+    setLastOpenedId(null);
+  }
+
+  // Automation editor's "Info" panel visibility, toggled from the top-bar info
+  // icon. Default-open on desktop (it's a docked sidebar) but default-closed on
+  // mobile, where it's a bottom sheet that should only appear on an explicit tap.
+  // Re-evaluated (render-phase, so no flash) each time a different automation
+  // opens; the matchMedia read is client-only and runs post-hydration.
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoForId, setInfoForId] = useState<string | null>(null);
+  if (detailId !== infoForId) {
+    setInfoForId(detailId);
+    setInfoOpen(
+      (slug === 'automations' || slug === 'devices') && detailId != null &&
+        typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches,
+    );
   }
   const activeIntegration = slug === 'integrations' && detailId
     ? integrations.find((i) => i.id === detailId) ?? null
+    : null;
+  const { devices: deviceList } = useDevicesList();
+  const activeDevice = slug === 'devices' && detailId
+    ? deviceList.find((d) => d.id === detailId) ?? null
     : null;
   const { automations } = useAutomations();
   const activeAutomation = slug === 'automations' && detailId
@@ -567,14 +649,75 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
   }, [setMockEntity]);
 
   useEffect(() => {
-    if (panelMode) return;
+    // Top-bar breadcrumb trail for a drilled-in detail. "Settings" is ambient
+    // page context in the two-column workspace (static crumb) but a real link
+    // back to the settings home on the full-page route; the section crumb always
+    // clears the drill back to its list.
+    const detailCrumbs = (sectionLabel: string): BreadcrumbItem[] => [
+      // Two-column workspace: jump back to the default section (Home Center) in
+      // place. Full-page route: navigate to the settings home.
+      { label: 'Settings', onClick: panelMode ? () => onSelectSection?.('home-center') : () => router.push('/settings') },
+      { label: sectionLabel, onClick: () => setDetailId(null) },
+    ];
+
+    if (panelMode) {
+      // Two-column workspace: the top bar normally reads "Settings". A nav item
+      // is always open at the section root, so no back arrow there. Drilling
+      // DEEPER into a detail pane (integration / device / automation editor)
+      // promotes that row's name to the title and shows a back arrow that clears
+      // the drill (returning to the section's list).
+      if (activeAutomation) {
+        setHeader({
+          title: activeAutomation.name,
+          subtitle: 'Settings',
+          breadcrumbs: detailCrumbs('Automations'),
+          icon: mdiRobot,
+          onBack: () => setDetailId(null),
+          primaryAction: { icon: infoOpen ? mdiInformation : mdiInformationOutline, onClick: () => setInfoOpen((v) => !v) },
+        });
+      } else if (activeDevice) {
+        setHeader({
+          title: activeDevice.name,
+          subtitle: 'Settings',
+          breadcrumbs: detailCrumbs('Devices'),
+          icon: activeDevice.icon,
+          onBack: () => setDetailId(null),
+          primaryAction: { icon: infoOpen ? mdiInformation : mdiInformationOutline, onClick: () => setInfoOpen((v) => !v) },
+        });
+      } else if (activeIntegration) {
+        setHeader({ title: activeIntegration.name, subtitle: 'Settings', breadcrumbs: detailCrumbs('Integrations'), icon: activeIntegration.icon, onBack: () => setDetailId(null) });
+      } else {
+        // Section root: the selected nav item owns the title with "Settings" as
+        // the eyebrow above it. No onBack — you're at the top of settings and
+        // the nav column is right there, so no back affordance.
+        setHeader({
+          title: meta.title,
+          subtitle: 'Settings',
+          icon: meta.icon,
+          hideBack: true,
+        });
+      }
+      return;
+    }
     // Drilled into a detail row → header shows the row, back clears the drill.
     if (activeIntegration) {
       setHeader({
         title: activeIntegration.name,
         subtitle: 'Integrations',
+        breadcrumbs: detailCrumbs('Integrations'),
         icon: activeIntegration.icon,
         onBack: () => setDetailId(null),
+      });
+      return;
+    }
+    if (activeDevice) {
+      setHeader({
+        title: activeDevice.name,
+        subtitle: 'Devices',
+        breadcrumbs: detailCrumbs('Devices'),
+        icon: activeDevice.icon,
+        onBack: () => setDetailId(null),
+        primaryAction: { icon: infoOpen ? mdiInformation : mdiInformationOutline, onClick: () => setInfoOpen((v) => !v) },
       });
       return;
     }
@@ -582,8 +725,10 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
       setHeader({
         title: activeAutomation.name,
         subtitle: 'Automations',
+        breadcrumbs: detailCrumbs('Automations'),
         icon: mdiRobot,
         onBack: () => setDetailId(null),
+        primaryAction: { icon: infoOpen ? mdiInformation : mdiInformationOutline, onClick: () => setInfoOpen((v) => !v) },
       });
       return;
     }
@@ -592,11 +737,8 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
       subtitle: 'Settings',
       icon: meta.icon,
       onBack: () => router.push('/settings'),
-      // On the full-page Home Center route the title lives in the top bar, so the
-      // "Customize sections" cog rides there instead of next to an in-content title.
-      primaryAction: slug === 'home-center' ? { icon: mdiCog, onClick: () => setSectionsEditorOpen(true) } : undefined,
     });
-  }, [activeAutomation, activeIntegration, meta.icon, meta.title, panelMode, router, setHeader, slug]);
+  }, [activeAutomation, activeDevice, activeIntegration, infoOpen, meta.icon, meta.title, onSelectSection, panelMode, router, setHeader, slug]);
 
   const connectionLabel = demoMode
     ? 'Demo data'
@@ -606,61 +748,72 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
         ? 'Connected'
         : 'Offline';
 
-  const actions = null;
-
   // ── Prototype debugging tool card groups (used standalone and merged) ───────
-  const renderDashboardsCards = () => (
-    <SettingsCard
-      title="Device cards"
-      description="Configure which entities appear on each device card in the dashboard."
-    >
-      <div className="space-y-ha-3">
-        <div className="flex items-start gap-ha-4 px-ha-4 py-ha-3 rounded-ha-xl bg-surface-low">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-text-primary">Auto-configure entities</p>
-            <p className="text-xs text-text-secondary mt-0.5">
-              Analyses all {devices.length} devices and automatically assigns entities to Primary, Secondary, or Hidden based on their domain and type.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={autoConfigureDevices}
-            className="shrink-0 px-ha-3 py-ha-2 rounded-ha-lg text-sm font-semibold bg-fill-primary-normal text-ha-blue hover:bg-fill-primary-quiet transition-colors"
-          >
-            {configureStatus === 'done' ? 'Done ✓' : 'Configure'}
-          </button>
-        </div>
-        <div className="flex items-start gap-ha-4 px-ha-4 py-ha-3 rounded-ha-xl bg-surface-low">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-text-primary">Reset dashboard</p>
-            <p className="text-xs text-text-secondary mt-0.5">
-              Clears all entity configuration. Each device will show only its primary entity card.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={resetDashboard}
-            className="shrink-0 px-ha-3 py-ha-2 rounded-ha-lg text-sm font-semibold text-text-secondary bg-surface-mid hover:bg-surface-lower transition-colors"
-          >
-            Reset
-          </button>
-        </div>
-      </div>
-    </SettingsCard>
-  );
 
-  const renderThemeCards = () => (
-    <>
-      <SettingsCard title="Immersive Mode" description="Expand dashboard content edge-to-edge for a cleaner shell on desktop and mobile. On by default on mobile.">
-        <ToggleRow
-          label="Immersive mode"
-          description="Keep content expanded and reduce surrounding chrome while moving through subviews."
-          checked={immersiveMode}
-          onToggle={() => setImmersiveMode(!immersiveMode)}
-        />
-      </SettingsCard>
+  // Data source + read-only diagnostics. The old page had three places that
+  // talked about demo/live (Connect, Reload Demo, and a "Demo data mode" toggle);
+  // they're merged here into one status + action block plus a diagnostics readout.
+  const renderDataCards = () => {
+    const totalEntities = devices.reduce((sum, device) => sum + device.entities.length, 0);
+    return (
+      <>
+        <SettingsCard
+          title="Data source"
+          description="Connect a live Home Assistant instance or fall back to the bundled demo home."
+        >
+          <div className="space-y-ha-4">
+            <div className="flex items-center gap-ha-3 rounded-ha-2xl border border-surface-lower bg-surface-low/50 px-ha-4 py-ha-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
+                <Icon path={mdiHomeAssistant} size={20} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-text-primary">
+                  {demoMode ? 'Demo home active' : connected ? 'Live Home Assistant connected' : 'Not connected'}
+                </div>
+                <div className="truncate text-sm text-text-secondary">
+                  {demoMode ? 'Sample data — connect to use your real instance.' : haUrl || 'Saved credentials appear here after connecting.'}
+                </div>
+              </div>
+            </div>
 
-      <SettingsCard title="Color Mode" description="Switch the dashboard between light, dark, or device-following color modes.">
+            <div className="flex flex-wrap gap-ha-2">
+              <ActionButton
+                label={connected && !demoMode ? 'Reconnect live data' : 'Connect live data'}
+                onClick={() => setConnectionSetupOpen(true)}
+                tone="primary"
+              />
+              {demoMode ? (
+                <ActionButton label="Reload demo home" onClick={handleClearCredentials} />
+              ) : (
+                <>
+                  <ActionButton label="Disconnect to demo" onClick={handleClearCredentials} tone="danger" />
+                  <ActionButton label="Use demo data" onClick={handleUseDemoData} />
+                </>
+              )}
+            </div>
+          </div>
+        </SettingsCard>
+
+        <SettingsCard title="Diagnostics" description="Read-only snapshot of the current build and connection.">
+          <dl className="divide-y divide-surface-lower overflow-hidden rounded-ha-2xl border border-surface-lower">
+            <DiagnosticRow label="App version" value={pkgInfo.version} />
+            <DiagnosticRow label="Data source" value={connectionLabel} />
+            <DiagnosticRow label="Instance URL" value={demoMode ? 'Demo' : haUrl || '—'} />
+            <DiagnosticRow label="Devices" value={String(devices.length)} />
+            <DiagnosticRow label="Entities" value={String(totalEntities)} />
+            <DiagnosticRow label="Simulated entities" value={String(simulationEntities.length)} />
+          </dl>
+        </SettingsCard>
+      </>
+    );
+  };
+
+  // Pure visual treatment — every choice group stacked in a single card instead
+  // of one card per setting (color mode, theme, font, background each used to be
+  // its own full card).
+  const renderAppearanceCard = () => (
+    <SettingsCard title="Appearance" description="Visual treatment of the dashboard — applied live.">
+      <div className="space-y-ha-6">
         <ChoiceGroup<ColorMode>
           label="Color mode"
           value={mode}
@@ -671,9 +824,6 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
             { value: 'system', label: 'System', caption: 'Follow device preference' },
           ]}
         />
-      </SettingsCard>
-
-      <SettingsCard title="Theme Appearance" description="Cycle between the visual treatments used during dashboard design reviews.">
         <ChoiceGroup<Theme>
           label="Theme"
           value={theme}
@@ -684,11 +834,8 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
             caption: themeCaptions[entry] ?? 'Ready to use',
           }))}
         />
-      </SettingsCard>
-
-      <SettingsCard title="Typeface" description="Swap the base UI font live. Every option is SIL OFL licensed — free to ship in Home Assistant with no licensing strings. Themed faces (Cyberpunk, Material, etc.) keep their own type. Shortcut: ⌘/Ctrl+Shift+F cycles fonts.">
         <ChoiceGroup<string>
-          label="Font"
+          label="Typeface · ⌘/Ctrl+Shift+F cycles"
           value={font}
           onChange={setFont}
           options={fonts.map((entry) => ({
@@ -697,10 +844,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
             caption: entry.caption,
           }))}
         />
-      </SettingsCard>
-
-      <SettingsCard title="Background" description="Set the dashboard backdrop without returning to the home screen.">
-        <div className="space-y-ha-4">
+        <div className="space-y-ha-3">
           <ChoiceGroup<Background>
             label="Background"
             value={background}
@@ -713,230 +857,108 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
             ]}
           />
           {background === 'pulse' && (
-            <div className="rounded-ha-2xl border border-surface-lower bg-surface-low/40 px-ha-4 py-ha-3">
-              <ToggleRow
-                label="Pulse on device toggles"
-                description="Ripple a coloured wave across the wallpaper whenever a device turns on or off, or goes unavailable — gold for on, blue for off, red for errors."
-                checked={pulseWallpaperReactive}
-                onToggle={togglePulseWallpaperReactive}
-              />
-            </div>
+            <ToggleRow
+              label="Pulse on device toggles"
+              description="Ripple a coloured wave across the wallpaper whenever a device turns on or off, or goes unavailable — gold for on, blue for off, red for errors."
+              checked={pulseWallpaperReactive}
+              onToggle={togglePulseWallpaperReactive}
+            />
           )}
         </div>
-      </SettingsCard>
+      </div>
+    </SettingsCard>
+  );
 
-      <SettingsCard title="Screensaver" description="Preview the idle clock state from settings instead of from the dashboard itself.">
-        <ToggleRow
-          label="Screensaver preview"
-          description="Activate the full-screen clock now, or dismiss it if you are already previewing it."
-          checked={screensaverActive}
-          onToggle={screensaverActive ? dismissScreensaver : activateScreensaver}
+  // The two folded-corner shortcuts, merged from two single-choice cards.
+  const renderCornerCard = () => (
+    <SettingsCard
+      title="Corner shortcuts"
+      description="Folded-corner shortcuts on every dashboard surface. Hover (desktop) or press-and-hold (touch) reveals them."
+    >
+      <div className="space-y-ha-6">
+        <ChoiceGroup<string>
+          label="Top-left action"
+          value={dogEarConfig.left}
+          onChange={(id) => setDogEarCorner('left', id as (typeof DOG_EAR_ACTIONS)[number]['id'])}
+          options={DOG_EAR_ACTIONS.map((a) => ({ value: a.id, label: a.label, caption: a.description }))}
         />
-      </SettingsCard>
+        <ChoiceGroup<string>
+          label="Top-right action"
+          value={dogEarConfig.right}
+          onChange={(id) => setDogEarCorner('right', id as (typeof DOG_EAR_ACTIONS)[number]['id'])}
+          options={DOG_EAR_ACTIONS.map((a) => ({ value: a.id, label: a.label, caption: a.description }))}
+        />
+      </div>
+    </SettingsCard>
+  );
 
-      <SettingsCard title="Desktop Split View" description="Keep the workspace split shortcut available without surfacing it on the dashboard.">
+  // Interaction/motion behavior toggles — six single-toggle cards collapsed into
+  // one stack of rows.
+  const renderBehaviorCard = () => (
+    <SettingsCard title="Dashboard behavior" description="Interaction and motion behaviors across the dashboard.">
+      <div className="space-y-ha-3">
+        <ToggleRow
+          label="Immersive mode"
+          description="Expand content edge-to-edge and reduce surrounding chrome. On by default on mobile."
+          checked={immersiveMode}
+          onToggle={() => setImmersiveMode(!immersiveMode)}
+        />
+        <ToggleRow
+          label="Edge change hints"
+          description="Pulse a bar at the top or bottom edge when an off-screen card changes. Tap it to scroll the card into view."
+          checked={offscreenChangeHintsEnabled}
+          onToggle={toggleOffscreenChangeHints}
+        />
+        <ToggleRow
+          label="Scroll index rail"
+          description="A thin rail of section ticks that fades in while scrolling. Drag to scrub between rooms or types."
+          checked={scrollIndexEnabled}
+          onToggle={toggleScrollIndex}
+        />
         <ToggleRow
           label="Desktop split view"
           description="Enable the split-workspace entry points used when comparing dashboards side by side."
           checked={desktopSplitViewEnabled}
           onToggle={toggleDesktopSplitView}
         />
-      </SettingsCard>
-
-      <SettingsCard title="Off-screen Change Hints" description="Surface a glowing cue at the dashboard edge when a card scrolled out of view changes state.">
         <ToggleRow
-          label="Edge change hints"
-          description="Pulse a bar at the top or bottom edge, aligned with the changed card. Tap it to scroll the card into view."
-          checked={offscreenChangeHintsEnabled}
-          onToggle={toggleOffscreenChangeHints}
+          label="Haptic feedback"
+          description={hapticsSupported
+            ? 'Short vibrations confirm toggles, drops, and gestures. Android only.'
+            : 'Not available in this browser (no Vibration API — e.g. iOS Safari). Kept for when you open on a supported device.'}
+          checked={hapticsEnabled}
+          onToggle={() => setHapticsEnabled(!hapticsEnabled)}
         />
-      </SettingsCard>
-
-      <SettingsCard title="Scroll Index" description="Show a section scrubber on the right edge of the dashboard for jumping between rooms or types.">
-        <ToggleRow
-          label="Scroll index rail"
-          description="A thin rail of section ticks that fades in while scrolling. Drag it to scrub, with a preview bubble showing the section name."
-          checked={scrollIndexEnabled}
-          onToggle={toggleScrollIndex}
-        />
-      </SettingsCard>
-    </>
+      </div>
+    </SettingsCard>
   );
 
-  const renderTaskBarCards = () => (
-    <>
-      {taskBarActivityDefinitions.map((definition) => {
-        const prefix = simulationPrefixes[definition.type];
-        const count = getSimulatedEntities(prefix).length;
-
-        return (
-          <SettingsCard key={definition.type} title={definition.title} description={definition.description}>
-            <div className="space-y-ha-4">
-              <div className="flex items-start gap-ha-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
-                  <Icon path={definition.icon} size={22} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-text-primary">{definition.formatState(count)}</div>
-                  <div className="mt-1 text-sm text-text-secondary">
-                    {count > 0
-                      ? `${count} simulated ${count === 1 ? 'entity is' : 'entities are'} active for this task.`
-                      : 'No simulated entities are active right now.'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-ha-2">
-                {definition.singleToggle ? (
-                  <ActionButton
-                    label={count > 0 ? 'Clear activity' : 'Enable activity'}
-                    onClick={toggleReleaseSimulation}
-                    tone={count > 0 ? 'danger' : 'primary'}
-                  />
-                ) : (
-                  <>
-                    <ActionButton
-                      label="Add activity"
-                      onClick={() => addSimulation(definition.type)}
-                      tone="primary"
-                    />
-                    <ActionButton
-                      label="Remove last"
-                      onClick={() => removeLastSimulation(definition.type)}
-                      tone="danger"
-                      disabled={count === 0}
-                    />
-                  </>
-                )}
-                <ActionButton
-                  label="Review list"
-                  onClick={() => openSimulationList(definition.reviewTitle, prefix)}
-                />
-              </div>
-            </div>
-          </SettingsCard>
-        );
-      })}
-    </>
-  );
-
-  const renderMaintenanceCards = () => (
-    <>
-      <SettingsCard title="Connect My Data" description="Open the Home Assistant setup flow without leaving profile settings.">
-        <div className="space-y-ha-4">
-          <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3">
-            <div className="flex items-center gap-ha-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
-                <Icon path={mdiHomeAssistant} size={20} />
-              </div>
-              <div>
-                <div className="text-sm font-semibold text-text-primary">
-                  {connected && !demoMode ? 'Live Home Assistant connected' : 'Connection setup ready'}
-                </div>
-                <div className="text-sm text-text-secondary">
-                  {demoMode ? 'Demo mode is active until you connect to a real instance.' : haUrl || 'Saved credentials appear here after a successful connection.'}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-ha-2">
-            <ActionButton
-              label={connected && !demoMode ? 'Reconnect live data' : 'Open connection setup'}
-              onClick={() => setConnectionSetupOpen(true)}
-              tone="primary"
-            />
-            <ActionButton
-              label="Use demo data"
-              onClick={handleUseDemoData}
-            />
-          </div>
-        </div>
-      </SettingsCard>
-
-      <SettingsCard title={demoMode ? 'Reload Demo Data' : 'Disconnect to Demo'} description="Refresh the sample home or step back out of the live connection without searching through the dashboard.">
-        <div className="space-y-ha-4">
-          <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3">
-            <div className="text-sm font-semibold text-text-primary">
-              {demoMode ? 'Sample home is currently active' : 'Live connection is currently active'}
-            </div>
-            <div className="mt-1 text-sm text-text-secondary">
-              {demoMode
-                ? 'Reload the demo entities if you want a clean prototype state.'
-                : 'Switch back to the bundled demo home when you want broader UI coverage.'}
-            </div>
-          </div>
-
-          <ActionButton
-            label={demoMode ? 'Reload demo home' : 'Disconnect and use demo'}
-            onClick={handleClearCredentials}
-            tone={demoMode ? 'default' : 'danger'}
-          />
-        </div>
-      </SettingsCard>
-
-      <SettingsCard title="Reset Layout" description="Restore the presentation defaults that used to be one tap from the dashboard.">
-        <div className="space-y-ha-4">
-          <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3">
-            <div className="text-sm font-semibold text-text-primary">Current dashboard preset</div>
-            <div className="mt-1 text-sm text-text-secondary">
-              {`${themeLabels[theme]} theme · ${mode === 'system' ? 'System mode' : `${formatLabel(mode)} mode`} · ${backgroundLabels[background]} background`}
-            </div>
-          </div>
-
-          <ActionButton
-            label="Restore dashboard defaults"
-            onClick={resetLayoutToDefaults}
-            tone="primary"
-          />
-        </div>
-      </SettingsCard>
-
-      <SettingsCard title="Devices Dashboard" description="Reset the card order, visibility, and column widths you've customised in the Devices dashboard back to their defaults.">
-        <ActionButton
-          label={devicesDashboardResetDone ? 'Reset complete' : 'Reset devices layout'}
-          onClick={resetDevicesDashboard}
-          tone={devicesDashboardResetDone ? 'default' : 'danger'}
-        />
-      </SettingsCard>
-    </>
-  );
-
-  const renderDeveloperCards = () => (
-    <SettingsCard title="Preview controls" description="These toggles are useful when shaping the prototype experience.">
+  // Everything screensaver in one place — preview + both background flags + the
+  // reactive sub-options. Previously the preview lived under "Theme and Display"
+  // while wavy/reactive lived under "Developer Tools".
+  const renderScreensaverCard = () => (
+    <SettingsCard title="Screensaver" description="The idle full-screen clock and its animated background.">
       <div className="space-y-ha-3">
         <ToggleRow
-          label="Debug badges"
-          description="Expose small diagnostic hints on cards and settings rows."
-          checked={debugBadgesEnabled}
-          onToggle={toggleDebugBadges}
+          label="Screensaver preview"
+          description="Activate the full-screen clock now, or dismiss it if you are already previewing it."
+          checked={screensaverActive}
+          onToggle={screensaverActive ? dismissScreensaver : activateScreensaver}
         />
         <ToggleRow
-          label="Mock latency"
-          description="Add a small artificial delay to make loading and response states easier to review."
-          checked={mockLatencyEnabled}
-          onToggle={toggleMockLatency}
-        />
-        <ToggleRow
-          label="Demo data mode"
-          description="Return to the bundled sample home for broader coverage during UI review."
-          checked={demoMode}
-          onToggle={() => { if (!demoMode) enableDemoMode(); }}
-        />
-        <ToggleRow
-          label="Wavy screensaver background"
-          description="Use the squiggly rippling rings instead of the original perfect concentric circles on the screensaver."
+          label="Wavy background"
+          description="Use squiggly rippling rings instead of perfect concentric circles."
           checked={wavyBackgroundEnabled}
           onToggle={toggleWavyBackground}
         />
         <ToggleRow
-          label="Reactive screensaver background"
-          description="Spawn a coloured ripple in the background when something happens at home — gold for on, blue for off, red for errors, amber for sensor jumps."
+          label="Reactive background"
+          description="Spawn a coloured ripple when something happens at home — gold for on, blue for off, red for errors, amber for sensor jumps."
           checked={reactiveBackgroundEnabled}
           onToggle={toggleReactiveBackground}
         />
         {reactiveBackgroundEnabled && (
-          <div className="rounded-ha-2xl border border-surface-lower bg-surface-low/40 px-ha-4 py-ha-4 space-y-ha-4">
+          <div className="space-y-ha-4 rounded-ha-2xl border border-surface-lower bg-surface-low/40 px-ha-4 py-ha-4">
             <ChoiceGroup
               label="React to"
               value={reactiveTriggerMode}
@@ -956,8 +978,122 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
                 { value: 'bold', label: 'Bold bloom', caption: 'Bright, thicker ripple that pops' },
               ]}
             />
+            <ToggleRow
+              label="Show trigger labels"
+              description="Name the entity behind each ripple in a small pill at the bottom of the screensaver."
+              checked={reactiveTriggerLabelsEnabled}
+              onToggle={toggleReactiveTriggerLabels}
+            />
           </div>
         )}
+      </div>
+    </SettingsCard>
+  );
+
+  // Five per-activity cards condensed into one card of compact rows.
+  const renderSimulatedActivityCard = () => (
+    <SettingsCard title="Simulated activity" description="Inject mock task-bar activity to preview the activity surface.">
+      <div className="space-y-ha-2">
+        {taskBarActivityDefinitions.map((definition) => {
+          const prefix = simulationPrefixes[definition.type];
+          const count = getSimulatedEntities(prefix).length;
+
+          return (
+            <div
+              key={definition.type}
+              className="flex flex-col gap-ha-3 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 sm:flex-row sm:items-center"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-ha-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary">
+                  <Icon path={definition.icon} size={20} />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-text-primary">{definition.title}</div>
+                  <div className="truncate text-xs text-text-secondary">{definition.formatState(count)}</div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-ha-2 sm:justify-end">
+                {definition.singleToggle ? (
+                  <ActionButton
+                    label={count > 0 ? 'Clear' : 'Enable'}
+                    onClick={toggleReleaseSimulation}
+                    tone={count > 0 ? 'danger' : 'primary'}
+                  />
+                ) : (
+                  <>
+                    <ActionButton label="Add" onClick={() => addSimulation(definition.type)} tone="primary" />
+                    <ActionButton
+                      label="Remove"
+                      onClick={() => removeLastSimulation(definition.type)}
+                      tone="danger"
+                      disabled={count === 0}
+                    />
+                  </>
+                )}
+                <ActionButton label="Review" onClick={() => openSimulationList(definition.reviewTitle, prefix)} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </SettingsCard>
+  );
+
+  // All "reset/restore to defaults" actions, previously split between the
+  // "Dashboards" and "Maintenance" sections.
+  const renderResetsCard = () => (
+    <SettingsCard title="Reset & restore" description="Roll dashboard customisations back to their defaults.">
+      <div className="space-y-ha-2">
+        <ActionRow
+          label="Auto-configure device cards"
+          description={`Analyse all ${devices.length} devices and assign entities to Primary, Secondary, or Hidden by domain and type.`}
+          buttonLabel={configureStatus === 'done' ? 'Done ✓' : 'Configure'}
+          onClick={autoConfigureDevices}
+          tone="primary"
+        />
+        <ActionRow
+          label="Reset device cards"
+          description="Clear all entity configuration. Each device shows only its primary entity card."
+          buttonLabel="Reset"
+          onClick={resetDashboard}
+        />
+        <ActionRow
+          label="Restore appearance defaults"
+          description={`${themeLabels[theme]} · ${mode === 'system' ? 'System' : formatLabel(mode)} · ${backgroundLabels[background]} → Default · System · None.`}
+          buttonLabel="Restore"
+          onClick={resetLayoutToDefaults}
+          tone="primary"
+        />
+        <ActionRow
+          label="Reset devices dashboard"
+          description="Restore card order, visibility, and column widths in the Devices dashboard."
+          buttonLabel={devicesDashboardResetDone ? 'Reset complete' : 'Reset'}
+          onClick={resetDevicesDashboard}
+          tone="danger"
+        />
+      </div>
+    </SettingsCard>
+  );
+
+  // Diagnostic overlays / simulated conditions. The old "Demo data mode" toggle
+  // moved into the Data source card; screensaver flags moved to the screensaver
+  // card — so this is now just the developer-only flags.
+  const renderDeveloperFlagsCard = () => (
+    <SettingsCard title="Developer flags" description="Diagnostic overlays and simulated conditions.">
+      <div className="space-y-ha-3">
+        <ToggleRow
+          label="Debug badges"
+          description="Expose small diagnostic hints on cards and settings rows."
+          checked={debugBadgesEnabled}
+          onToggle={toggleDebugBadges}
+        />
+        <ToggleRow
+          label="Mock latency"
+          description="Add a small artificial delay to make loading and response states easier to review."
+          checked={mockLatencyEnabled}
+          onToggle={toggleMockLatency}
+        />
       </div>
     </SettingsCard>
   );
@@ -977,7 +1113,9 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
     if (activeIntegration) {
       return (
         <div key={`detail:${activeIntegration.id}`} className={`ha-pane-in ${paneFill}`}>
-          <SettingsShell panelMode={panelMode} title={activeIntegration.name} onBack={() => setDetailId(null)}>
+          {/* In panelMode the title rides the top bar (see header effect); only the
+              full-page route needs the in-content title + back chevron. */}
+          <SettingsShell panelMode={panelMode} title={panelMode ? undefined : activeIntegration.name} onBack={panelMode ? undefined : () => setDetailId(null)}>
             <IntegrationDetailView integration={activeIntegration} />
           </SettingsShell>
         </div>
@@ -985,8 +1123,31 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
     }
     return (
       <div key="list" className={`ha-pane-in ha-pane-in--back ${paneFill}`}>
-        <SettingsShell panelMode={panelMode} title={meta.title}>
-          <IntegrationsTable integrations={integrations} onSelect={setDetailId} />
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
+          <IntegrationsTable integrations={integrations} onSelect={openDetail} lastOpenedId={lastOpenedId} />
+        </SettingsShell>
+      </div>
+    );
+  }
+
+  // ── Devices (master-detail drill-down) ────────────────────────────────────
+  // Same shape as integrations; the detail pane is the device page (info card +
+  // entities split into Controls / Sensors / Diagnostic).
+  if (slug === 'devices') {
+    const paneFill = panelMode ? '' : 'flex flex-col flex-1 min-h-0';
+    if (activeDevice) {
+      return (
+        <div key={`detail:${activeDevice.id}`} className={`ha-pane-in ${paneFill}`}>
+          <SettingsShell panelMode={panelMode} title={panelMode ? undefined : activeDevice.name} onBack={panelMode ? undefined : () => setDetailId(null)}>
+            <DeviceDetailView device={activeDevice} infoOpen={infoOpen} onCloseInfo={() => setInfoOpen(false)} />
+          </SettingsShell>
+        </div>
+      );
+    }
+    return (
+      <div key="list" className={`ha-pane-in ha-pane-in--back ${paneFill}`}>
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
+          <DevicesTable devices={deviceList} onSelect={openDetail} lastOpenedId={lastOpenedId} />
         </SettingsShell>
       </div>
     );
@@ -1000,16 +1161,29 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
     if (activeAutomation) {
       return (
         <div key={`detail:${activeAutomation.id}`} className={`ha-pane-in ${paneFill}`}>
-          <SettingsShell panelMode={panelMode} title={activeAutomation.name} onBack={() => setDetailId(null)}>
-            <AutomationEditor key={activeAutomation.id} automation={activeAutomation} onExit={() => setDetailId(null)} />
+          <SettingsShell panelMode={panelMode} title={panelMode ? undefined : activeAutomation.name} onBack={panelMode ? undefined : () => setDetailId(null)}>
+            <AutomationEditor key={activeAutomation.id} automation={activeAutomation} onExit={() => setDetailId(null)} infoOpen={infoOpen} onCloseInfo={() => setInfoOpen(false)} />
           </SettingsShell>
         </div>
       );
     }
     return (
       <div key="list" className={`ha-pane-in ha-pane-in--back ${paneFill}`}>
-        <SettingsShell panelMode={panelMode} title={meta.title}>
-          <AutomationsTable automations={automations} onSelect={setDetailId} />
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
+          <AutomationsTable automations={automations} onSelect={openDetail} lastOpenedId={lastOpenedId} />
+        </SettingsShell>
+      </div>
+    );
+  }
+
+  // ── Areas & Floors (combined registry editor) ────────────────────────────
+  // One panel manages both floors (section headers) and the areas grouped under
+  // them; create/edit happen in modal editors, so no master-detail drill here.
+  if (slug === 'areas') {
+    return (
+      <div key="areas" className={`ha-pane-in ${panelMode ? '' : 'flex flex-col flex-1 min-h-0'}`}>
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
+          <AreasFloorsPanel />
         </SettingsShell>
       </div>
     );
@@ -1018,7 +1192,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
   // ── HA settings placeholder ───────────────────────────────────────────────
   if (navItem?.haPath) {
     return (
-      <SettingsShell panelMode={panelMode} title={meta.title}>
+      <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
         <div className="flex items-start gap-ha-4 p-ha-5 bg-fill-primary-quiet rounded-ha-2xl border border-ha-blue/15">
           <div className="w-10 h-10 rounded-ha-xl bg-ha-blue/10 flex items-center justify-center flex-shrink-0 mt-0.5">
             <Icon path={navItem.icon} size={20} className="text-ha-blue" />
@@ -1057,20 +1231,27 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
       <>
         <SettingsShell
           panelMode={panelMode}
-          title={meta.title}
-          titleAction={
-            <button
-              type="button"
-              onClick={() => setSectionsEditorOpen(true)}
-              aria-label="Customize sections"
-              title="Customize sections"
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-            >
-              <Icon path={mdiCog} size={20} />
-            </button>
-          }
+          title={panelMode ? undefined : meta.title}
         >
-          <SystemStatusPanel onNavigate={(target) => router.push(`/settings/${sectionSlug[target]}`)} />
+          <SystemStatusPanel
+            onNavigate={(target) => {
+              const targetSlug = sectionSlug[target];
+              // In the two-column workspace, select the section in place; on the
+              // standalone route, navigate to its single-column page.
+              if (onSelectSection) onSelectSection(targetSlug);
+              else router.push(`/settings/${targetSlug}`);
+            }}
+          />
+          {/* "Customize sections" moved off the top-bar cog into a subtle
+              secondary button at the bottom of the Home Center content. */}
+          <button
+            type="button"
+            onClick={() => setSectionsEditorOpen(true)}
+            className="w-full flex items-center justify-center gap-ha-2 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary active:bg-surface-mid"
+          >
+            <Icon path={mdiCog} size={18} />
+            Customize sections
+          </button>
         </SettingsShell>
         <HomeCenterSectionsModal open={sectionsEditorOpen} onClose={() => setSectionsEditorOpen(false)} />
       </>
@@ -1079,7 +1260,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
 
   if (slug === 'notifications' || slug === 'updates' || slug === 'repairs' || slug === 'connectivity') {
     return (
-      <SettingsShell panelMode={panelMode} title={meta.title}>
+      <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
         <SystemStatusPanel focus={slug} />
       </SettingsShell>
     );
@@ -1088,31 +1269,30 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
   if (slug === 'developer') {
     return (
       <>
-        <SettingsShell panelMode={panelMode} title={meta.title}>
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
           <div className="space-y-ha-8">
             <div className="space-y-ha-4">
-              <SectionLabel className="px-ha-1">Dashboards</SectionLabel>
-              {renderDashboardsCards()}
+              <SectionLabel className="px-ha-1">Data &amp; diagnostics</SectionLabel>
+              {renderDataCards()}
             </div>
 
             <div className="space-y-ha-4">
-              <SectionLabel className="px-ha-1">Theme and Display</SectionLabel>
-              {renderThemeCards()}
+              <SectionLabel className="px-ha-1">Appearance</SectionLabel>
+              {renderAppearanceCard()}
+              {renderCornerCard()}
             </div>
 
             <div className="space-y-ha-4">
-              <SectionLabel className="px-ha-1">Task Bar Activities</SectionLabel>
-              {renderTaskBarCards()}
+              <SectionLabel className="px-ha-1">Dashboard behavior</SectionLabel>
+              {renderBehaviorCard()}
+              {renderScreensaverCard()}
             </div>
 
             <div className="space-y-ha-4">
-              <SectionLabel className="px-ha-1">Maintenance</SectionLabel>
-              {renderMaintenanceCards()}
-            </div>
-
-            <div className="space-y-ha-4">
-              <SectionLabel className="px-ha-1">Developer Tools</SectionLabel>
-              {renderDeveloperCards()}
+              <SectionLabel className="px-ha-1">Prototyping</SectionLabel>
+              {renderSimulatedActivityCard()}
+              {renderResetsCard()}
+              {renderDeveloperFlagsCard()}
             </div>
           </div>
         </SettingsShell>
@@ -1127,22 +1307,21 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange }: Set
           />
         )}
 
-        {connectionSetupOpen && (
-          <SetupScreen
-            onSave={handleSaveCredentials}
-            onUseDemo={handleUseDemoData}
-            error={connectionError}
-            connecting={connecting}
-            onClose={() => setConnectionSetupOpen(false)}
-          />
-        )}
+        <SetupScreen
+          open={connectionSetupOpen}
+          onSave={handleSaveCredentials}
+          onUseDemo={handleUseDemoData}
+          error={connectionError}
+          connecting={connecting}
+          onClose={() => setConnectionSetupOpen(false)}
+        />
       </>
     );
   }
 
   return (
-    <SettingsShell panelMode={panelMode} title={meta.title}>
-      {renderDeveloperCards()}
+    <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
+      {renderDeveloperFlagsCard()}
     </SettingsShell>
   );
 }

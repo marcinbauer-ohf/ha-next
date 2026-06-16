@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
-import { ToggleSwitch, ConfirmDialog } from '../ui';
+import { ToggleSwitch, ConfirmDialog, Sidebar } from '../ui';
+import { Tooltip } from '../ui/Tooltip';
+import { useMobileToolbar } from '@/contexts';
 import { formatLastTriggered, type AutomationSummary } from '@/hooks/useAutomations';
 import {
   mdiAlertCircleOutline,
@@ -16,13 +18,16 @@ import {
   mdiCloseCircle,
   mdiCodeBraces,
   mdiContentDuplicate,
+  mdiDotsHorizontal,
+  mdiFormatListBulleted,
+  mdiGraphOutline,
   mdiHistory,
+  mdiInformationOutline,
   mdiMinus,
   mdiPencilOutline,
   mdiPlay,
   mdiPlus,
   mdiRedo,
-  mdiRobot,
   mdiTrashCanOutline,
   mdiUndo,
 } from '@mdi/js';
@@ -37,6 +42,7 @@ import {
   SECTIONS,
   buildMockFlow,
 } from './automationFlow';
+import { AutomationNodeCanvas } from './AutomationNodeCanvas';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Automation editor — HA-style single content column with When / And if /
@@ -46,6 +52,12 @@ import {
 // editor's contents here are mock-only — the real flow is shown in the panel.
 // ─────────────────────────────────────────────────────────────────────────────
 
+
+// Most icons in the app render at 24px. A small set of highly-recognizable
+// glyphs (info "ⓘ", eye, exclamation) read fine — and look better — much smaller
+// when they sit inline next to text rather than as standalone controls. Use this
+// for those cases only.
+const GLYPH_ICON_SIZE = 14;
 
 // ── Editor building blocks ───────────────────────────────────────────────────
 
@@ -146,17 +158,16 @@ function NodeRow({
   );
 }
 
-/** Right-hand config form for the selected node. */
+/** Right-hand config form for the selected node — body only; the header + close
+ *  are provided by the surrounding <Sidebar>. */
 function NodeConfigPanel({
   node,
   onChange,
   onDelete,
-  onClose,
 }: {
   node: AutomationNode;
   onChange: (next: AutomationNode) => void;
   onDelete: () => void;
-  onClose: () => void;
 }) {
   const def = defOf(node);
   const setField = (key: string, value: string) =>
@@ -166,26 +177,7 @@ function NodeConfigPanel({
     'w-full rounded-ha-xl border border-surface-lower bg-surface-low px-ha-3 py-ha-2 text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:border-ha-blue/50';
 
   return (
-    <div className="rounded-ha-3xl border border-surface-lower bg-surface-default shadow-[0_14px_36px_-30px_rgba(15,23,42,0.28)] overflow-hidden">
-      <div className="flex items-center gap-ha-3 border-b border-surface-low/60 px-ha-4 py-ha-3">
-        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-ha-xl bg-fill-primary-normal text-ha-blue">
-          <Icon path={def.icon} size={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-tight text-text-primary truncate">{def.label}</p>
-          <p className="text-xs text-text-secondary mt-0.5">{KIND_LABEL[node.kind]}</p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close configuration"
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-ha-lg text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-        >
-          <Icon path={mdiClose} size={18} />
-        </button>
-      </div>
-
-      <div className="space-y-ha-4 px-ha-4 py-ha-4">
+      <div className="space-y-ha-4">
         {def.fields.map((field) => (
           <label key={field.key} className="block space-y-ha-1">
             <span className="block text-xs font-medium uppercase tracking-wider text-text-tertiary">
@@ -230,7 +222,67 @@ function NodeConfigPanel({
           Delete {KIND_LABEL[node.kind].toLowerCase()}
         </button>
       </div>
-    </div>
+  );
+}
+
+/** Automation-level settings: name + enabled, plus read-only run info. Lives in
+ *  the right sidebar so the content column stays focused on the flow. */
+function AutomationSettingsPanel({
+  automation,
+  name,
+  onNameChange,
+  enabled,
+  onToggleEnabled,
+}: {
+  automation: AutomationSummary;
+  name: string;
+  onNameChange: (value: string) => void;
+  enabled: boolean;
+  onToggleEnabled: () => void;
+}) {
+  const inputClass =
+    'w-full rounded-ha-xl border border-surface-lower bg-surface-low px-ha-3 py-ha-2 text-sm text-text-primary placeholder:text-text-disabled focus:outline-none focus:border-ha-blue/50';
+  const lastRun = automation.lastTriggered
+    ? formatLastTriggered(automation.lastTriggered).replace('Triggered ', '')
+    : 'Never';
+  const modeLabel = automation.mode ? automation.mode[0].toUpperCase() + automation.mode.slice(1) : null;
+
+  return (
+      <div className="space-y-ha-4">
+        <label className="block space-y-ha-1">
+          <span className="block text-xs font-medium uppercase tracking-wider text-text-tertiary">Name</span>
+          <input
+            type="text"
+            value={name}
+            placeholder="Automation name"
+            onChange={(e) => onNameChange(e.target.value)}
+            className={inputClass}
+          />
+        </label>
+
+        <div className="flex items-center justify-between gap-ha-3 rounded-ha-xl bg-surface-low px-ha-3 py-ha-2">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-text-primary">Enabled</p>
+            <p className="text-xs text-text-secondary">
+              {enabled ? 'Available to run automatically.' : "Turned off — it won't run."}
+            </p>
+          </div>
+          <ToggleSwitch on={enabled} onToggle={onToggleEnabled} />
+        </div>
+
+        <div className="space-y-ha-2 rounded-ha-xl bg-surface-low px-ha-3 py-ha-3">
+          <div className="flex items-center justify-between gap-ha-2 text-[13px]">
+            <span className="text-text-secondary">Last run</span>
+            <span className="font-medium text-text-primary">{lastRun}</span>
+          </div>
+          {modeLabel && (
+            <div className="flex items-center justify-between gap-ha-2 text-[13px]">
+              <span className="text-text-secondary">Run mode</span>
+              <span className="font-medium text-text-primary">{modeLabel}</span>
+            </div>
+          )}
+        </div>
+      </div>
   );
 }
 
@@ -671,11 +723,11 @@ type EditorMode = 'edit' | 'traces';
 const TOOLBAR_SPRING = { type: 'spring' as const, stiffness: 380, damping: 28, mass: 0.8 };
 const SEGMENT_SPRING = { type: 'spring' as const, stiffness: 500, damping: 36, mass: 0.7 };
 
-/** Edit / Traces segmented control with a sliding indicator. */
+/** Edit / Traces segmented control (text only) with a sliding indicator. */
 function ModeToggle({ id, mode, onChange }: { id: string; mode: EditorMode; onChange: (m: EditorMode) => void }) {
-  const segments: Array<{ key: EditorMode; icon: string; label: string }> = [
-    { key: 'edit', icon: mdiPencilOutline, label: 'Edit' },
-    { key: 'traces', icon: mdiHistory, label: 'Traces' },
+  const segments: Array<{ key: EditorMode; label: string }> = [
+    { key: 'edit', label: 'Edit' },
+    { key: 'traces', label: 'Traces' },
   ];
   return (
     <div className="flex items-center rounded-ha-xl bg-surface-low p-0.5">
@@ -687,7 +739,7 @@ function ModeToggle({ id, mode, onChange }: { id: string; mode: EditorMode; onCh
             type="button"
             onClick={() => onChange(seg.key)}
             aria-pressed={active}
-            className="relative flex h-9 items-center gap-ha-1 rounded-ha-lg px-ha-3 text-sm font-semibold"
+            className="relative flex h-9 items-center rounded-ha-lg px-ha-3 text-sm font-semibold"
           >
             {active && (
               <motion.span
@@ -696,8 +748,45 @@ function ModeToggle({ id, mode, onChange }: { id: string; mode: EditorMode; onCh
                 transition={SEGMENT_SPRING}
               />
             )}
-            <Icon path={seg.icon} size={16} className={`relative z-10 ${active ? 'text-ha-blue' : 'text-text-secondary'}`} />
             <span className={`relative z-10 ${active ? 'text-ha-blue' : 'text-text-secondary'}`}>{seg.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+type EditorView = 'list' | 'node' | 'yaml';
+
+/** List / Node / YAML segmented control (icons) with a sliding indicator. */
+function ViewToggle({ id, view, onChange }: { id: string; view: EditorView; onChange: (v: EditorView) => void }) {
+  const segments: Array<{ key: EditorView; icon: string; label: string }> = [
+    { key: 'list', icon: mdiFormatListBulleted, label: 'List view' },
+    { key: 'node', icon: mdiGraphOutline, label: 'Node view' },
+    { key: 'yaml', icon: mdiCodeBraces, label: 'YAML view' },
+  ];
+  return (
+    <div className="flex items-center rounded-ha-xl bg-surface-low p-0.5">
+      {segments.map((seg) => {
+        const active = view === seg.key;
+        return (
+          <button
+            key={seg.key}
+            type="button"
+            onClick={() => onChange(seg.key)}
+            aria-pressed={active}
+            aria-label={seg.label}
+            title={seg.label}
+            className="relative flex h-9 flex-1 items-center justify-center rounded-ha-lg px-ha-3 lg:flex-none"
+          >
+            {active && (
+              <motion.span
+                layoutId={`${id}-view-indicator`}
+                className="absolute inset-0 rounded-ha-lg bg-surface-default shadow-sm"
+                transition={SEGMENT_SPRING}
+              />
+            )}
+            <Icon path={seg.icon} size={18} className={`relative z-10 ${active ? 'text-ha-blue' : 'text-text-secondary'}`} />
           </button>
         );
       })}
@@ -743,18 +832,60 @@ function ToolbarIconButton({
   );
 }
 
+/** Overflow "⋯" menu of automation-level operations. Opens upward (the toolbar
+ *  sits at the bottom of the screen). Duplicate/Rename/Disable are demo-only;
+ *  Delete is wired to the real exit-after-delete flow. */
+function ToolbarOverflowMenu({ onDelete }: { onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const renderItem = (icon: string, label: string, onClick: () => void, danger = false) => (
+    <button
+      type="button"
+      onClick={() => { onClick(); setOpen(false); }}
+      className={`flex w-full items-center gap-ha-3 rounded-ha-xl px-ha-3 py-ha-2 text-left text-sm font-medium transition-colors ${
+        danger ? 'text-red-500 hover:bg-red-500/10' : 'text-text-primary hover:bg-surface-low'
+      }`}
+    >
+      <Icon path={icon} size={18} className={danger ? 'text-red-500' : 'text-text-secondary'} />
+      {label}
+    </button>
+  );
+  return (
+    <div className="relative">
+      <ToolbarIconButton icon={mdiDotsHorizontal} label="More options" onClick={() => setOpen((v) => !v)} active={open} />
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute right-0 bottom-full z-50 mb-ha-2 w-[224px] rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-1 shadow-[0_18px_42px_-20px_rgba(15,23,42,0.4)]">
+            {renderItem(mdiContentDuplicate, 'Duplicate', () => {})}
+            {renderItem(mdiPencilOutline, 'Rename', () => {})}
+            {renderItem(mdiCancel, 'Disable', () => {})}
+            <div className="my-ha-1 h-px bg-surface-lower" />
+            {renderItem(mdiTrashCanOutline, 'Delete', onDelete, true)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AutomationEditorToolbar({
   mode,
   onChangeMode,
-  yamlView,
-  onToggleYaml,
+  view,
+  onChangeView,
   onDelete,
   onDone,
 }: {
   mode: EditorMode;
   onChangeMode: (m: EditorMode) => void;
-  yamlView: boolean;
-  onToggleYaml: () => void;
+  view: EditorView;
+  onChangeView: (v: EditorView) => void;
   onDelete: () => void;
   onDone: () => void;
 }) {
@@ -777,19 +908,29 @@ function AutomationEditorToolbar({
       className="fixed z-[60] pointer-events-none inset-x-0 bottom-0 lg:left-[76px] lg:bottom-20 lg:right-0"
       style={{ paddingBottom: `calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))` }}
     >
-      {/* Mobile: full-width pill matching MobileNav style */}
+      {/* Mobile: full-width pill matching MobileNav style. The edit-only View
+          toggle row collapses its own height (0 ↔ auto), so the pill grows from
+          its content — no layout projection, nothing inside lags. */}
       <div className="lg:hidden px-edge pointer-events-auto">
         <div className="relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)]">
           <div className="relative rounded-[23px] bg-surface-default/95 backdrop-blur-md px-edge py-ha-3">
             <div className="flex items-center gap-ha-2">
               <ModeToggle id="m" mode={mode} onChange={onChangeMode} />
               <div className="flex-1" />
-              {editing && (
-                <>
-                  <ToolbarIconButton icon={mdiCodeBraces} label="Edit in YAML" onClick={onToggleYaml} active={yamlView} />
-                  <ToolbarIconButton icon={mdiTrashCanOutline} label="Delete automation" onClick={onDelete} tone="danger" />
-                </>
-              )}
+              <AnimatePresence initial={false}>
+                {editing && (
+                  <motion.div
+                    key="m-overflow"
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 'auto', opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <ToolbarOverflowMenu onDelete={onDelete} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <button
                 type="button"
                 onClick={onDone}
@@ -798,33 +939,62 @@ function AutomationEditorToolbar({
                 Done
               </button>
             </div>
+            <AnimatePresence initial={false}>
+              {editing && (
+                <motion.div
+                  key="m-viewtoggle"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-ha-2">
+                    <ViewToggle id="m" view={view} onChange={onChangeView} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
 
-      {/* Desktop: centered floating pill */}
+      {/* Desktop: centered floating pill. The edit-only controls collapse their
+          own width (0 ↔ auto), so the pill grows/shrinks from its content — no
+          framer layout projection, so nothing inside scales or lags. */}
       <div className="hidden lg:flex justify-center pointer-events-auto">
         <div className="px-ha-2 py-ha-2 rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center gap-ha-1">
           <ModeToggle id="d" mode={mode} onChange={onChangeMode} />
 
-          {editing && (
-            <>
-              <div className="w-px h-6 bg-border-default mx-ha-1" />
+          <AnimatePresence initial={false}>
+            {editing && (
+              <motion.div
+                key="edit-controls"
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 'auto', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center gap-ha-1 overflow-hidden"
+              >
+                <div className="w-px h-6 bg-border-default mx-ha-1" />
 
-              <ToolbarIconButton icon={mdiUndo} label="Undo" disabled />
-              <ToolbarIconButton icon={mdiRedo} label="Redo" disabled />
+                <ToolbarIconButton icon={mdiUndo} label="Undo" disabled />
+                <ToolbarIconButton icon={mdiRedo} label="Redo" disabled />
 
-              <div className="w-px h-6 bg-border-default mx-ha-1" />
+                <div className="w-px h-6 bg-border-default mx-ha-1" />
 
-              <ToolbarIconButton icon={ran ? mdiCheck : mdiPlay} label="Run actions" onClick={() => setRan(true)} active={ran} />
-              <ToolbarIconButton icon={mdiContentDuplicate} label="Duplicate" />
-              <ToolbarIconButton icon={mdiCodeBraces} label="Edit in YAML" onClick={onToggleYaml} active={yamlView} />
+                <ToolbarIconButton icon={ran ? mdiCheck : mdiPlay} label="Run actions" onClick={() => setRan(true)} active={ran} />
 
-              <div className="w-px h-6 bg-border-default mx-ha-1" />
+                <div className="w-px h-6 bg-border-default mx-ha-1" />
 
-              <ToolbarIconButton icon={mdiTrashCanOutline} label="Delete automation" onClick={onDelete} tone="danger" />
-            </>
-          )}
+                <ViewToggle id="d" view={view} onChange={onChangeView} />
+
+                <div className="w-px h-6 bg-border-default mx-ha-1" />
+
+                <ToolbarOverflowMenu onDelete={onDelete} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <button
             type="button"
@@ -845,19 +1015,36 @@ function AutomationEditorToolbar({
 export function AutomationEditor({
   automation,
   onExit,
+  infoOpen = true,
+  onCloseInfo,
 }: {
   automation: AutomationSummary;
   /** Leave the editor (toolbar Done / delete). Also enables the toolbar. */
   onExit?: () => void;
+  /** Whether the "Info" sidebar is shown — driven by the top-bar info toggle. */
+  infoOpen?: boolean;
+  /** Close the info sidebar (its X), kept in sync with the top-bar toggle. */
+  onCloseInfo?: () => void;
 }) {
   // Mock flow, kept in local state so add/edit/delete feel real within the session.
   const [nodes, setNodes] = useState<AutomationNode[]>(() => buildMockFlow(automation.id));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(automation.enabled);
+  const [name, setName] = useState(automation.name);
   const [mode, setMode] = useState<EditorMode>('edit');
-  const [yamlView, setYamlView] = useState(false);
+  const [view, setView] = useState<EditorView>('list');
+  const yamlView = view === 'yaml';
+  const nodeView = view === 'node';
   const [confirmDelete, setConfirmDelete] = useState(false);
   const nextNodeId = useRef(nodes.length);
+
+  // The floating editor toolbar (only when the host wires up an exit) takes the
+  // place of the mobile bottom nav, so hide the nav while it's mounted.
+  const { acquireToolbar } = useMobileToolbar();
+  useEffect(() => {
+    if (!onExit) return;
+    return acquireToolbar();
+  }, [onExit, acquireToolbar]);
 
   const tracesMode = mode === 'traces';
 
@@ -880,37 +1067,58 @@ export function AutomationEditor({
     setSelectedId((current) => (current === id ? null : current));
   };
 
-  const configPanel = selected && (
-    <NodeConfigPanel
-      node={selected}
-      onChange={updateNode}
-      onDelete={() => deleteNode(selected.id)}
-      onClose={() => setSelectedId(null)}
+  // The docked/sheet sidebar shows node-config when a node is selected, else the
+  // automation-level "Info" panel. Header (icon/title/subtitle) is fed to the
+  // reusable <Sidebar> chrome; the form components render body-only.
+  const nodeBody = selected && (
+    <NodeConfigPanel node={selected} onChange={updateNode} onDelete={() => deleteNode(selected.id)} />
+  );
+  const settingsBody = (
+    <AutomationSettingsPanel
+      automation={automation}
+      name={name}
+      onNameChange={setName}
+      enabled={enabled}
+      onToggleEnabled={() => setEnabled((v) => !v)}
     />
   );
+
+  const panelHeader = selected
+    ? {
+        icon: defOf(selected).icon,
+        title: defOf(selected).label,
+        subtitle: KIND_LABEL[selected.kind],
+        onClose: () => setSelectedId(null),
+      }
+    : { title: 'Info', onClose: onCloseInfo };
+  const panelBody = selected ? nodeBody : settingsBody;
+
+  // Canvas (node-graph view) docks its own non-resizable, square-cornered config
+  // rail — same Sidebar chrome, only ever showing node-config.
+  const canvasConfigPanel = selected ? (
+    <Sidebar
+      icon={defOf(selected).icon}
+      title={defOf(selected).label}
+      subtitle={KIND_LABEL[selected.kind]}
+      onClose={() => setSelectedId(null)}
+      className="ha-pane-in hidden h-full w-[340px] flex-shrink-0 border-0 border-l !rounded-none !shadow-none lg:flex"
+    >
+      {nodeBody}
+    </Sidebar>
+  ) : null;
 
   return (
     // Bottom padding keeps the last section reachable above the floating toolbar.
     <div className={`flex items-start justify-center gap-ha-5 ${onExit ? 'pb-32' : ''}`}>
-      {/* Content column: summary header + the three flow sections. Capped so
-          rows stay readable when the settings nav slides away. */}
-      <div className="min-w-0 flex-1 max-w-2xl space-y-ha-6">
-        <section className="rounded-ha-3xl border border-surface-lower bg-surface-default p-ha-5 shadow-[0_14px_36px_-30px_rgba(15,23,42,0.28)]">
-          <div className="flex items-center gap-ha-4">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-ha-2xl bg-violet-500/15 text-violet-500">
-              <Icon path={mdiRobot} size={26} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-semibold text-text-primary truncate">{automation.name}</h2>
-              <p className="mt-0.5 text-sm text-text-secondary">{formatLastTriggered(automation.lastTriggered)}</p>
-            </div>
-            <ToggleSwitch on={enabled} onToggle={() => setEnabled((v) => !v)} />
-          </div>
-        </section>
-
+      {/* Content column: the three flow sections. Capped so rows stay readable
+          when the settings nav slides away. Automation-level settings (name,
+          enabled) live in the right sidebar — inlined here only on mobile. */}
+      <div className={`min-w-0 flex-1 space-y-ha-6 ${nodeView ? '' : 'max-w-2xl'}`}>
+        {/* Mobile has no room for a sidebar — the Info / node-config panel comes
+            up as a bottom sheet instead (below). */}
         {tracesMode ? (
           <TracesView automation={automation} nodes={nodes} />
-        ) : yamlView ? (
+        ) : nodeView ? null : yamlView ? (
           <div className="overflow-hidden rounded-ha-2xl border border-surface-lower bg-surface-default shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)]">
             <div className="flex items-center gap-ha-2 border-b border-surface-low/60 px-ha-4 py-ha-2">
               <Icon path={mdiCodeBraces} size={15} className="text-text-tertiary" />
@@ -924,9 +1132,17 @@ export function AutomationEditor({
           const sectionNodes = nodes.filter((n) => n.kind === section.kind);
           return (
             <div key={section.kind} className="space-y-ha-2">
-              <div className="px-ha-1">
+              <div className="flex items-center gap-ha-2 px-ha-1">
                 <h3 className="text-sm font-semibold text-text-primary">{section.title}</h3>
-                <p className="text-[13px] text-text-secondary">{section.hint}</p>
+                <Tooltip content={section.hint} placement="top">
+                  <span
+                    tabIndex={0}
+                    aria-label={section.hint}
+                    className="flex items-center justify-center text-text-tertiary transition-colors hover:text-text-secondary"
+                  >
+                    <Icon path={mdiInformationOutline} size={GLYPH_ICON_SIZE} exact />
+                  </span>
+                </Tooltip>
               </div>
               {sectionNodes.length === 0 ? (
                 section.emptyLabel && (
@@ -957,31 +1173,76 @@ export function AutomationEditor({
         })}
       </div>
 
-      {/* Config sidebar — inline at lg+, sticky just below the pinned title. */}
-      {selected && (
-        <aside
-          className="sticky hidden w-[340px] flex-shrink-0 lg:block"
-          style={{ top: 'calc(var(--settings-header-h, 0px) + 4px)' }}
+      {/* Right sidebar (lg+), sticky below the pinned title: the node config form
+          while a node is selected, otherwise the "Info" panel when toggled open
+          from the top bar. Hidden entirely when neither applies so the flow column
+          expands to fill the width. */}
+      {!nodeView && (selected || infoOpen) && (
+        <Sidebar
+          resizable
+          {...panelHeader}
+          className="ha-pane-in sticky z-20 hidden flex-shrink-0 lg:flex"
+          style={{
+            top: 'calc(var(--settings-header-h, 0px) + 4px)',
+            maxHeight: 'calc(100vh - var(--settings-header-h, 0px) - 24px)',
+          }}
         >
-          {configPanel}
-        </aside>
+          {panelBody}
+        </Sidebar>
       )}
 
-      {/* Below lg the same panel becomes a right slide-over drawer. Portaled to
-          the body — the pane-transition wrapper above is transformed during its
-          animation, which would otherwise clip this fixed overlay to the page. */}
-      {selected && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[100] lg:hidden">
-          <button
-            type="button"
-            aria-label="Close configuration"
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setSelectedId(null)}
+      {/* Node-graph view — a dotted canvas with draggable cards + bezier noodles,
+          filling the entire immersive surface (the rounded panel that holds the
+          dog-ear). Portaled there so it spans the whole container instead of the
+          capped content column. The floating toolbar (body, z-60) stays above. */}
+      {nodeView && typeof document !== 'undefined' && document.getElementById('app-surface-root') && createPortal(
+        <div className="absolute inset-0 z-30 overflow-hidden bg-surface-low">
+          <AutomationNodeCanvas
+            nodes={nodes}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            configPanel={canvasConfigPanel}
           />
-          <div className="ha-pane-in absolute inset-y-0 right-0 w-[min(380px,92vw)] overflow-y-auto bg-surface-lower p-ha-3">
-            {configPanel}
-          </div>
         </div>,
+        document.getElementById('app-surface-root') as HTMLElement,
+      )}
+
+      {/* Below lg the same panel rises as a bottom sheet (node config when a node
+          is selected, otherwise the Info panel). Portaled to the body — the
+          pane-transition wrapper above is transformed during its animation, which
+          would otherwise clip this fixed overlay to the page. */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {(selected || infoOpen) && (
+            <>
+              <motion.div
+                key="sheet-scrim"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="lg:hidden fixed inset-0 z-[100] bg-black/40"
+                onClick={() => (selected ? setSelectedId(null) : onCloseInfo?.())}
+              />
+              <motion.div
+                key="sheet"
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className="lg:hidden fixed inset-x-0 bottom-0 z-[100] px-ha-2"
+                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
+              >
+                <div className="flex justify-center pb-ha-2">
+                  <div className="h-1.5 w-9 rounded-full bg-white/40" />
+                </div>
+                <Sidebar {...panelHeader} className="flex max-h-[82vh]">
+                  {panelBody}
+                </Sidebar>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>,
         document.body,
       )}
 
@@ -993,12 +1254,13 @@ export function AutomationEditor({
             setMode(next);
             // Editing-only surfaces don't carry over into Traces.
             setSelectedId(null);
-            if (next === 'traces') setYamlView(false);
+            if (next === 'traces') setView('list');
           }}
-          yamlView={yamlView}
-          onToggleYaml={() => {
-            setYamlView((v) => !v);
-            setSelectedId(null);
+          view={view}
+          onChangeView={(next) => {
+            setView(next);
+            // YAML has no selectable nodes; List/Node keep the current pick.
+            if (next === 'yaml') setSelectedId(null);
           }}
           onDelete={() => setConfirmDelete(true)}
           onDone={onExit}
@@ -1008,7 +1270,7 @@ export function AutomationEditor({
       <ConfirmDialog
         open={confirmDelete}
         title="Delete automation?"
-        message={`"${automation.name}" will be removed. This can't be undone.`}
+        message={`"${name}" will be removed. This can't be undone.`}
         confirmLabel="Delete"
         destructive
         onConfirm={() => {

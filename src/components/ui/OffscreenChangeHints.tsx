@@ -48,6 +48,24 @@ function classifyChange(prev: HassEntity, next: HassEntity): HintKind | null {
   return isOn(next) ? 'on' : 'off';
 }
 
+/**
+ * Resolve --app-topbar-clear / --app-bottomnav-clear to pixels. These hold
+ * rem/calc()/env() expressions that getComputedStyle returns verbatim on the
+ * custom property, so a transient probe (which evaluates them as a real
+ * `height`) is the reliable way to read their px value. Returns [top, bottom].
+ */
+function measureChromeInsets(host: HTMLElement): [number, number] {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;width:0;pointer-events:none;';
+  host.appendChild(probe);
+  probe.style.height = 'var(--app-topbar-clear, 0px)';
+  const top = probe.getBoundingClientRect().height;
+  probe.style.height = 'var(--app-bottomnav-clear, 0px)';
+  const bottom = probe.getBoundingClientRect().height;
+  probe.remove();
+  return [top, bottom];
+}
+
 interface OffscreenChangeHintsProps {
   /** The dashboard scroll container — its visible box defines on/offscreen. */
   scrollRef: RefObject<HTMLElement | null>;
@@ -77,6 +95,16 @@ export function OffscreenChangeHints({ scrollRef, enabled }: OffscreenChangeHint
 
     const prev = prevRef.current;
     const containerRect = scroller.getBoundingClientRect();
+
+    // On mobile the frosted top bar and floating bottom nav overlay the scroll
+    // surface, so its raw box top/bottom sit *behind* that chrome. Inset the
+    // visible region by the same vars the chrome reserves, so cards covered by
+    // it count as offscreen and hints land in the uncovered strip. The vars
+    // hold rem/calc()/env() (which getComputedStyle leaves unresolved), so
+    // measure them via a probe. Both resolve to 0 on desktop — no effect there.
+    const [topInset, bottomInset] = measureChromeInsets(scroller);
+    const visibleTop = containerRect.top + topInset;
+    const visibleBottom = containerRect.bottom - bottomInset;
     const fresh: Hint[] = [];
 
     for (const id in entities) {
@@ -91,8 +119,8 @@ export function OffscreenChangeHints({ scrollRef, enabled }: OffscreenChangeHint
       const r = card.getBoundingClientRect();
 
       let edge: 'top' | 'bottom' | null = null;
-      if (r.bottom <= containerRect.top + OFFSCREEN_MARGIN) edge = 'top';
-      else if (r.top >= containerRect.bottom - OFFSCREEN_MARGIN) edge = 'bottom';
+      if (r.bottom <= visibleTop + OFFSCREEN_MARGIN) edge = 'top';
+      else if (r.top >= visibleBottom - OFFSCREEN_MARGIN) edge = 'bottom';
       if (!edge) continue; // card is (partly) visible — no need for a hint
 
       const x = r.left + r.width / 2 - containerRect.left;

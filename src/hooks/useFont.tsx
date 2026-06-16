@@ -27,9 +27,12 @@ export interface FontOption {
   caption: string;
   /** CSS value for --ha-font-family-base, or null to defer to the active theme. */
   stack: string | null;
+  /** Google Fonts family name to lazy-load via <link> when first selected. */
+  google?: string;
 }
 
-export const FONTS: FontOption[] = [
+/** Fonts bundled at build time via next/font/google (always present). */
+const BUNDLED_FONTS: FontOption[] = [
   {
     key: 'theme',
     label: 'Theme default',
@@ -72,7 +75,107 @@ export const FONTS: FontOption[] = [
     caption: 'OFL · low-vision accessibility champion',
     stack: 'var(--font-atkinson), "Atkinson Hyperlegible", "Hyperlegible Sans", system-ui, sans-serif',
   },
+  {
+    key: 'system',
+    label: 'System UI',
+    caption: 'No web font — uses the OS default UI face (SF, Segoe, Roboto…)',
+    stack: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  },
+  // ── Apple system faces — resident on macOS/iOS, no download. Fall back to
+  // system-ui / generic families on non-Apple platforms. ──
+  {
+    key: 'sf-pro',
+    label: 'SF Pro',
+    caption: 'Apple system · default macOS/iOS UI face',
+    stack: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
+  },
+  {
+    key: 'sf-compact',
+    label: 'SF Compact',
+    caption: 'Apple system · narrower, watchOS face',
+    stack: '"SF Compact Display", "SF Compact Text", "SF Compact", -apple-system, system-ui, sans-serif',
+  },
+  {
+    key: 'sf-mono',
+    label: 'SF Mono',
+    caption: 'Apple system · monospaced',
+    stack: 'ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, monospace',
+  },
+  {
+    key: 'new-york',
+    label: 'New York',
+    caption: 'Apple system · serif companion to SF',
+    stack: 'ui-serif, "New York", "Times New Roman", Georgia, serif',
+  },
 ];
+
+/**
+ * Top ~30 Google Fonts for quick prototype experimentation. These are NOT
+ * bundled — the family's stylesheet is injected on demand the first time it's
+ * selected (see `ensureGoogleFont`), so adding/removing names here is free.
+ * Mix of sans / serif / mono / display for variety.
+ */
+const GOOGLE_EXPERIMENT_FONTS: string[] = [
+  'Roboto',
+  'Open Sans',
+  'Montserrat',
+  'Lato',
+  'Poppins',
+  'Roboto Condensed',
+  'Roboto Mono',
+  'Oswald',
+  'Raleway',
+  'Nunito',
+  'Nunito Sans',
+  'Rubik',
+  'Work Sans',
+  'Mulish',
+  'DM Sans',
+  'Manrope',
+  'Quicksand',
+  'Josefin Sans',
+  'Karla',
+  'Barlow',
+  'Fira Sans',
+  'Libre Franklin',
+  'Space Grotesk',
+  'Archivo',
+  'Outfit',
+  'Playfair Display',
+  'Merriweather',
+  'Lora',
+  'PT Serif',
+  'Bricolage Grotesque',
+];
+
+function fontSlug(family: string): string {
+  return family.toLowerCase().replace(/\s+/g, '-');
+}
+
+const DYNAMIC_FONTS: FontOption[] = GOOGLE_EXPERIMENT_FONTS.map((family) => ({
+  key: fontSlug(family),
+  label: family,
+  caption: 'Google Fonts · loaded on demand',
+  stack: `"${family}", system-ui, sans-serif`,
+  google: family,
+}));
+
+export const FONTS: FontOption[] = [...BUNDLED_FONTS, ...DYNAMIC_FONTS];
+
+/**
+ * Inject a Google Fonts stylesheet for `family` once. Requests weights 400+700
+ * (universally available across popular families; avoids a 400 on the whole
+ * request that a rarer weight would trigger). No-op if already present.
+ */
+function ensureGoogleFont(family: string): void {
+  const id = `gf-${fontSlug(family)}`;
+  if (document.getElementById(id)) return;
+  const link = document.createElement('link');
+  link.id = id;
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/\s+/g, '+')}:wght@400;700&display=swap`;
+  document.head.appendChild(link);
+}
 
 export type FontKey = (typeof FONTS)[number]['key'];
 
@@ -106,9 +209,10 @@ export function FontProvider({ children }: { children: ReactNode }) {
     const def = FONTS.find((f) => f.key === font);
     if (!def || def.stack === null) {
       document.body.style.removeProperty('--ha-font-family-base');
-    } else {
-      document.body.style.setProperty('--ha-font-family-base', def.stack);
+      return;
     }
+    if (def.google) ensureGoogleFont(def.google);
+    document.body.style.setProperty('--ha-font-family-base', def.stack);
   }, [font]);
 
   const setFont = useCallback((key: FontKey) => {

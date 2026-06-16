@@ -26,6 +26,7 @@ import {
   mdiLightningBolt,
   mdiPaletteSwatch,
   mdiCardBulleted,
+  mdiAccessPointNetwork,
 } from '@mdi/js';
 import { useTheme } from './useTheme';
 import { useFont } from './useFont';
@@ -45,6 +46,7 @@ import {
   getSettingsHref,
   type SettingsNavLink,
 } from '@/components/profile/settingsNavigation';
+import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
 
 export type CommandGroup = 'command' | 'navigate' | 'debug';
 
@@ -278,6 +280,15 @@ export function useCommands(): CommandItem[] {
         state: onOff(flags.scrollIndexEnabled),
         active: flags.scrollIndexEnabled,
         run: flags.toggleScrollIndex,
+      },
+      {
+        id: 'dbg.discover',
+        group: 'debug',
+        icon: mdiAccessPointNetwork,
+        label: 'Simulate device discovery',
+        keywords: ['new device', 'detected', 'onboarding', 'toast', 'pairing'],
+        closeOnRun: true,
+        run: () => announceDiscovery(showToast, pickDiscoveries(1)[0]),
       },
       {
         id: 'dbg.reset',

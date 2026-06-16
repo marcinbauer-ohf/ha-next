@@ -1,8 +1,10 @@
 'use client';
 
 import { Icon } from '../ui/Icon';
+import { NavChevron } from '../ui';
 import { Tooltip } from '../ui/Tooltip';
 import { useHomeAssistant, useHomeAssistantSelector, useHomeCenterPrefs } from '@/hooks';
+import { useNotificationCenter } from '@/contexts';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { resolveEntityPictureUrl } from '@/lib/utils';
@@ -12,7 +14,6 @@ import {
   mdiBatteryAlertVariantOutline,
   mdiBell,
   mdiCheckCircle,
-  mdiChevronRight,
   mdiCloudCheck,
   mdiCloudOff,
   mdiDevices,
@@ -44,8 +45,9 @@ export function HomeCenterPillIndicators({
   withTooltips?: boolean;
 }) {
   const { activityData, visibleSections } = useHomeCenterStatusData();
+  const { notifications: centerNotifications } = useNotificationCenter();
 
-  const notificationCount = activityData.activeNotifications.length;
+  const notificationCount = activityData.activeNotifications.length + centerNotifications.length;
   const pendingUpdates = activityData.activeUpdates.length;
   const offlineCount = activityData.offlineDevices.length;
   const repairCount = activityData.repairs.length;
@@ -120,8 +122,10 @@ export function HomeCenterPillIndicators({
 
 export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: string) => void }) {
   const { haUrl, demoMode, connected, connecting, activityData, visibleSections } = useHomeCenterStatusData();
+  const { notifications: centerNotifications } = useNotificationCenter();
 
-  const activeNotifications = activityData.activeNotifications;
+  // App-generated notifications (dismissed toasts) ahead of HA persistent ones.
+  const activeNotifications = [...centerNotifications, ...activityData.activeNotifications];
   const activeUpdates = activityData.activeUpdates;
   const offlineDevices = activityData.offlineDevices;
   const repairs = activityData.repairs;
@@ -158,7 +162,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
                 {activeNotifications.length > 0 && (
                   <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
                 )}
-                <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
+                <NavChevron size={16} className="text-text-disabled group-hover:text-text-secondary" />
               </div>
             </button>
             {activeNotifications.length > 0 ? (
@@ -187,7 +191,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
                 {activeUpdates.length > 0 && (
                   <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
                 )}
-                <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
+                <NavChevron size={16} className="text-text-disabled group-hover:text-text-secondary" />
               </div>
             </button>
             {activeUpdates.length > 0 ? (
@@ -198,7 +202,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
                       {update.picture ? <img src={getEntityPictureUrl(update.picture)} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
                     </div>
                     <span className="text-sm font-medium text-text-primary truncate">{update.name}</span>
-                    <Icon path={mdiChevronRight} size={16} className="text-text-disabled ml-auto" />
+                    <NavChevron size={16} className="text-text-disabled ml-auto" />
                   </div>
                 ))}
               </div>
@@ -242,7 +246,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
                 {offlineDevices.length > 0 && (
                   <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
                 )}
-                <Icon path={mdiChevronRight} size={16} className="text-text-disabled group-hover:text-text-secondary transition-colors" />
+                <NavChevron size={16} className="text-text-disabled group-hover:text-text-secondary" />
               </div>
             </button>
             {offlineDevices.length > 0 ? (
@@ -329,12 +333,22 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
   return <>{visibleSections.map(renderSection)}</>;
 }
 
-export function OpenHomeCenterButton({ onNavigate }: { onNavigate: (path: string) => void }) {
+export function OpenHomeCenterButton({
+  onNavigate,
+  variant = 'primary',
+}: {
+  onNavigate: (path: string) => void;
+  variant?: 'primary' | 'secondary';
+}) {
+  const tone =
+    variant === 'secondary'
+      ? 'bg-surface-low text-text-primary hover:bg-surface-lower'
+      : 'bg-ha-blue text-white hover:bg-ha-blue-dark shadow-md';
   return (
     <button
       type="button"
       onClick={() => onNavigate('/settings?section=home-center')}
-      className="w-full h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all"
+      className={`w-full h-11 rounded-ha-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all ${tone}`}
     >
       <Icon path={mdiHomeVariant} size={18} />
       Open Home Center

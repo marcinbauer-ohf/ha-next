@@ -14,6 +14,9 @@ export interface ScrollIndexSection {
   title: string;
   /** Optional MDI icon path representing the section (area / type / category). */
   icon?: string;
+  /** When set, the rail draws this MDI icon in place of the plain dot, so the
+   *  section stands out on the rail itself (e.g. a star for Favorites). */
+  markerIcon?: string;
 }
 
 interface ScrollIndexRailProps {
@@ -197,15 +200,28 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
               onMouseEnter={isHoverDevice ? () => setHoverIndex(i) : undefined}
               onMouseLeave={isHoverDevice ? () => setHoverIndex(null) : undefined}
             >
-              <span
-                className={clsx(
-                  // Uniform size for every dot — only the colour marks the active
-                  // section, never a size change.
-                  'rounded-full transition-colors duration-150',
-                  'w-1.5 h-1.5 md:w-2.5 md:h-2.5 lg:w-3 lg:h-3',
-                  active ? 'bg-ha-blue' : 'bg-text-tertiary/50',
-                )}
-              />
+              {s.markerIcon ? (
+                <Icon
+                  path={s.markerIcon}
+                  // Slightly larger than a dot so the marker reads as an icon;
+                  // colour still tracks active state like every other tick.
+                  className={clsx(
+                    'transition-colors duration-150',
+                    'w-2.5 h-2.5 md:w-3.5 md:h-3.5 lg:w-4 lg:h-4',
+                    active ? 'text-ha-blue' : 'text-text-tertiary/50',
+                  )}
+                />
+              ) : (
+                <span
+                  className={clsx(
+                    // Uniform size for every dot — only the colour marks the active
+                    // section, never a size change.
+                    'rounded-full transition-colors duration-150',
+                    'w-1.5 h-1.5 md:w-2.5 md:h-2.5 lg:w-3 lg:h-3',
+                    active ? 'bg-ha-blue' : 'bg-text-tertiary/50',
+                  )}
+                />
+              )}
             </span>
           );
         })}

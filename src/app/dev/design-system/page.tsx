@@ -700,6 +700,7 @@ export default function DesignSystemPage() {
                 { label: 'Success', props: { icon: mdiCheckCircle, iconColor: 'text-green-500', title: 'Saved', subtitle: 'Changes applied successfully' } },
                 { label: 'Warning', props: { icon: mdiAlertCircle, iconColor: 'text-amber-500', title: 'Warning', subtitle: 'Something needs attention' } },
                 { label: 'No subtitle', props: { icon: mdiAutoFix, title: 'Title only' } },
+                { label: 'Caption', props: { icon: mdiAutoFix, caption: 'New device', title: 'Motion Sensor', subtitle: 'Aqara P2 • Zigbee' } },
               ].map(({ label, props }) => (
                 <button
                   key={label}

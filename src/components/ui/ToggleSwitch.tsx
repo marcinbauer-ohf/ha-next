@@ -1,6 +1,7 @@
 'use client';
 
 import { clsx } from 'clsx';
+import { haptic } from '@/lib/haptics';
 
 interface ToggleSwitchProps {
   on?: boolean;
@@ -14,7 +15,7 @@ export function ToggleSwitch({ on, onToggle, size = 'md' }: ToggleSwitchProps) {
   const lg = size === 'lg';
   return (
     <button
-      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      onClick={(e) => { e.stopPropagation(); haptic('toggle'); onToggle(); }}
       className={clsx(
         'flex items-center shrink-0 rounded-full transition-colors',
         lg ? 'w-[76px] h-[44px] px-[5px]' : 'w-11 h-[26px] px-[4px]',

@@ -6,11 +6,14 @@
 
 import type { HomeCenterSectionId } from '@/lib/homeCenter';
 
-type Listener = (section: HomeCenterSectionId) => void;
+// `section` may be omitted for a generic attention pulse (e.g. a device just
+// discovered) that doesn't map to a specific Home Center section — the pill
+// still pulses, it just isn't gated on a section being visible.
+type Listener = (section?: HomeCenterSectionId) => void;
 
 const listeners = new Set<Listener>();
 
-export function emitStatusPulse(section: HomeCenterSectionId): void {
+export function emitStatusPulse(section?: HomeCenterSectionId): void {
   listeners.forEach((l) => l(section));
 }
 

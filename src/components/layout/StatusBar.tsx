@@ -230,7 +230,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
 
   useEffect(() => {
     const unsubscribe = subscribeStatusPulse((section) => {
-      if (!visibleSections.includes(section)) return;
+      // A section-less pulse is a generic attention nudge — always pulse.
+      if (section && !visibleSections.includes(section)) return;
       if (statusPulseTimer.current) clearTimeout(statusPulseTimer.current);
       // Drop the class for a frame so back-to-back pulses restart the animation.
       setStatusPulsing(false);
@@ -859,11 +860,11 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         <button
           onClick={onProfileToggle}
           aria-label="Open settings"
-          className="pl-ha-4 pr-ha-1 py-ha-1 flex items-center justify-center flex-shrink-0 transition-opacity opacity-90 hover:opacity-100"
+          className="group pl-ha-4 pr-ha-1 py-ha-1 flex items-center justify-center flex-shrink-0 transition-opacity opacity-90 hover:opacity-100"
           style={{ marginLeft: '8px' }}
         >
           <div className="relative flex items-center justify-center">
-            <Icon path={mdiMenu} size={28} className="absolute -left-3 text-text-secondary z-0" />
+            <Icon path={mdiMenu} size={28} className={`absolute -left-3 z-0 transition-[transform,color] duration-500 ease-out group-hover:-translate-x-1 ${pathname.startsWith('/settings') ? 'text-text-primary' : 'text-text-secondary group-hover:text-text-primary'}`} />
             <div className="relative z-10 rounded-full ring-[3px] ring-surface-low bg-surface-low">
               <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" />
             </div>
@@ -2458,14 +2459,14 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             {/* Home Center link — pinned footer so the CTA stays reachable no matter
                 how many status sections push the list past the popup's max height. */}
             <div className="shrink-0 border-t border-surface-low p-ha-3">
-              <OpenHomeCenterButton onNavigate={goToSettings} />
+              <OpenHomeCenterButton onNavigate={goToSettings} variant="secondary" />
             </div>
           </motion.div>
         )}
         </AnimatePresence>
 
         <button
-          className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50 ${statusPulsing ? 'ha-status-pulse' : ''}`}
+          className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all duration-300 active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50 ${statusPulsing ? 'ha-status-pulse' : ''}`}
           onClick={() => setStatusExpanded(!statusExpanded)}
         >
         {/* Status indicators — order and visibility follow Home Center prefs */}

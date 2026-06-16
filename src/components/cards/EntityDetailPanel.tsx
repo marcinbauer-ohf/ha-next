@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { mdiClose, mdiPencilOutline, mdiPower, mdiInformation, mdiInformationOutline } from '@mdi/js';
+import { mdiClose, mdiPencilOutline, mdiPower, mdiInformation, mdiInformationOutline, mdiStar, mdiStarOutline } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon, ListSection, RollingNumericValue, SegmentedControl, Dropdown, HALoader, ToggleSwitch } from '../ui';
 import { StateTimeline, type StateSegment } from '../ui/StateTimeline';
@@ -160,6 +160,8 @@ export interface EntityDetailPanelProps {
   deviceMeta?: DeviceMeta;
   onClose: () => void;
   onEditCard?: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }
 
 // ── Detail body — history fetch + render ─────────────────────────────────────
@@ -492,6 +494,8 @@ export function EntityDetailPanel({
   deviceMeta,
   onClose,
   onEditCard,
+  isFavorite,
+  onToggleFavorite,
 }: EntityDetailPanelProps) {
   const [tab, setTab] = useState<'stats' | 'info'>('stats');
   const [focusedEntityId, setFocusedEntityId] = useState(initialEntityId);
@@ -537,6 +541,21 @@ export function EntityDetailPanel({
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {onToggleFavorite && (
+            <button
+              className={clsx(
+                'p-1.5 rounded-ha-lg transition-colors',
+                isFavorite
+                  ? 'text-amber-500 hover:bg-surface-low'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-low',
+              )}
+              onClick={onToggleFavorite}
+              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              aria-pressed={isFavorite}
+            >
+              <Icon path={isFavorite ? mdiStar : mdiStarOutline} size={24} />
+            </button>
+          )}
           <button
             className="p-1.5 rounded-ha-lg text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
             onClick={() => setTab(tab === 'info' ? 'stats' : 'info')}

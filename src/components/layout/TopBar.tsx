@@ -1,8 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Icon } from '../ui/Icon';
+import { RollingText } from '../ui/RollingText';
 import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
 import { AddMenu } from '../ui/AddMenu';
@@ -19,7 +20,7 @@ import {
 
 export function TopBar() {
   const { theme } = useTheme();
-  const { title, subtitle, icon, primaryAction, onBack } = useHeader();
+  const { title, subtitle, breadcrumbs, icon, primaryAction, onBack, hideBack } = useHeader();
   const { isRevealed, toggle } = usePullToRevealContext();
   const { isEditing, toggleEditMode } = useEditMode();
   const router = useRouter();
@@ -33,32 +34,100 @@ export function TopBar() {
   const pencilIcon = isEditing ? mdiCheck : mdiPencil;
   const pencilLabel = isEditing ? 'Done' : 'Edit';
 
-  const titleContent = subtitle ? (
+  // Keep one persistent RollingText (and its flex-col shell) across the
+  // subtitle/no-subtitle change so navigating settings↔home rolls the title
+  // instead of remounting it. The size flexes with whether a subtitle shows.
+  const titleContent = (
     <div className="flex flex-col leading-none gap-0.5 text-left">
-      {subtitle.trim() && <span className="text-xs text-text-secondary capitalize">{subtitle}</span>}
-      <span className="text-base font-semibold text-text-primary capitalize">{title}</span>
+      {subtitle?.trim() && <span className="text-xs text-text-secondary capitalize">{subtitle}</span>}
+      <RollingText
+        text={title}
+        className={`${subtitle ? 'text-base' : 'text-lg'} font-semibold text-text-primary capitalize`}
+      />
     </div>
-  ) : (
-    <span className="text-lg font-semibold text-text-primary capitalize">{title}</span>
   );
 
-  const desktopTitleContent = subtitle ? (
+  const hasTrail = !!breadcrumbs && breadcrumbs.length > 0;
+  const desktopEyebrow = hasTrail ? (
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-text-secondary">
+      {breadcrumbs!.map((crumb, i) => (
+        <span key={`${crumb.label}-${i}`} className="flex items-center gap-1">
+          {i > 0 && <span aria-hidden className="text-text-tertiary">›</span>}
+          {crumb.onClick ? (
+            <button
+              type="button"
+              onClick={crumb.onClick}
+              className="capitalize rounded-sm transition-colors hover:text-text-primary hover:underline underline-offset-2"
+            >
+              {crumb.label}
+            </button>
+          ) : (
+            <span className="capitalize">{crumb.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  ) : subtitle?.trim() ? (
+    <span className="text-xs text-text-secondary capitalize">{subtitle}</span>
+  ) : null;
+
+  // Pick the title roll axis from how the breadcrumb trail is changing:
+  // entering a detail screen (trail appears) → horizontal in from the right;
+  // leaving it via back (trail disappears) → horizontal in from the left;
+  // detail→detail keeps the forward slide; section↔section children stay
+  // vertical (the dashboard-value roll). prevHasTrail is read during render and
+  // updated after paint, so it reflects the *previous* title at change time.
+  const prevHasTrail = useRef(hasTrail);
+  let titleDirection: 'vertical' | 'horizontal' = 'vertical';
+  let titleReverse = false;
+  if (hasTrail) {
+    titleDirection = 'horizontal'; // into / between detail screens
+  } else if (prevHasTrail.current) {
+    titleDirection = 'horizontal'; // backing out of a detail screen
+    titleReverse = true;
+  }
+  useEffect(() => {
+    prevHasTrail.current = hasTrail;
+  }, [hasTrail]);
+
+  // Single persistent flex-col + RollingText for every header shape, so the
+  // title rolls (rather than hard-remounts) when moving between a standalone
+  // page like Home and a subtitled/breadcrumbed one like Settings. Standalone
+  // gets the larger 2xl size; eyebrow/breadcrumb shapes use xl.
+  const desktopStandalone = !hasTrail && !subtitle;
+  const desktopTitleSize = desktopStandalone ? 'text-2xl' : 'text-xl';
+  const desktopTitleContent = (
     <div className="flex flex-col leading-none gap-0.5 text-left">
-      {subtitle.trim() && <span className="text-xs text-text-secondary capitalize">{subtitle}</span>}
-      <span className="text-xl font-semibold text-text-primary capitalize">{title}</span>
+      {desktopEyebrow}
+      <h1 className={`${desktopTitleSize} font-semibold text-text-primary capitalize`}>
+        <RollingText
+          text={title}
+          direction={titleDirection}
+          reverse={titleReverse}
+          className={`${desktopTitleSize} font-semibold capitalize`}
+        />
+      </h1>
     </div>
-  ) : (
-    <h1 className="text-2xl font-semibold text-text-primary capitalize">
-      {title}
-    </h1>
   );
 
   return (
-    <header className="flex items-center justify-between h-full py-ha-2 px-ha-0 lg:pl-4" data-component="TopBar">
+    <header className="h-full py-ha-2 px-ha-0" data-component="TopBar">
+      {/* Inner row shares the page content's box (max-w + centering + gutter) so
+          the title lines up with the content below at every width. */}
+      <div className="h-full flex items-center justify-between w-full lg:max-w-[1536px] lg:mx-auto lg:px-ha-8">
       {/* Mobile: Logo/Icon + Title with dropdown - Centered vertically on mobile */}
       <div className="flex items-center justify-between w-full lg:hidden h-full">
         <div className="flex items-center gap-ha-3">
-          {icon ? (
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              aria-label="Back"
+              className="flex h-11 w-11 -ml-2.5 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+            >
+              <Icon path={mdiArrowLeft} size={24} />
+            </button>
+          ) : icon ? (
             icon.includes(' ')
               ? <Icon path={icon} size={24} className="text-text-secondary" />
               : <MdiIcon icon={icon} size={24} className="text-text-secondary" />
@@ -122,12 +191,15 @@ export function TopBar() {
         </div>
       </div>
 
-      {/* Desktop Header Content */}
-      <div className="hidden lg:flex items-center gap-ha-2">
-        {subtitle && (
-          <button 
+      {/* Desktop Header Content. Back button is absolutely positioned to the
+          left of the row so the title stays on the content's left edge instead
+          of being pushed right by the arrow's width. */}
+      <div className="relative hidden lg:flex items-center gap-ha-2">
+        {(subtitle || hasTrail) && !hideBack && (
+          <button
             onClick={() => onBack ? onBack() : router.back()}
-            className="p-1 -ml-1 text-text-secondary hover:text-text-primary transition-colors hover:bg-surface-low rounded-full"
+            aria-label="Back"
+            className="absolute right-full mr-ha-1 top-1/2 -translate-y-1/2 p-2.5 text-text-secondary hover:text-text-primary transition-colors hover:bg-surface-low rounded-full"
           >
             <Icon path={mdiArrowLeft} size={24} />
           </button>
@@ -169,6 +241,7 @@ export function TopBar() {
             <Icon path={mdiPlus} size={24} />
           </button>
         )}
+      </div>
       </div>
 
       <AddMenu
