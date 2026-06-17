@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { clsx } from 'clsx';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
 import { DeferredCard } from '@/components/cards/DeferredCard';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { NavChevron } from '@/components/ui';
-import { useDevices, useHomeAssistant, useDeviceCardConfig } from '@/hooks';
+import { useDevices, useHomeAssistant, useDeviceCardConfig, useStickyStuck } from '@/hooks';
 import {
   entityDomain, entityLabel, stateLabel, isOn, TOGGLEABLE, domainIcon, deviceFeedEntity,
 } from '@/lib/homeassistant/entityHelpers';
@@ -23,6 +24,38 @@ export interface DeviceSection {
 
 interface DeviceSectionsViewProps {
   sections: DeviceSection[];
+}
+
+// Sticky section header with a fade that only shows while the header is pinned
+// (detected via a sentinel just above it), so cards dissolve under it only when
+// it's actually stuck to the top — not all the time.
+function StickySectionHeader({ title, href }: { title: string; href?: string }) {
+  const { sentinelRef, stuck } = useStickyStuck();
+  return (
+    <>
+      <div ref={sentinelRef} aria-hidden className="h-px -mb-px" />
+      <div
+        className="sticky z-30 -mx-ha-1 px-ha-1 py-ha-2 mb-ha-1 bg-surface-lower"
+        style={{ top: 'var(--dashboard-sticky-top, 0px)' }}
+      >
+        {href ? (
+          <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
+            <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
+            <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
+          </Link>
+        ) : (
+          <span className="text-xl font-semibold text-text-primary">{title}</span>
+        )}
+        <div
+          aria-hidden
+          className={clsx(
+            'absolute inset-x-0 top-full h-8 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent transition-opacity duration-200',
+            stuck ? 'opacity-100' : 'opacity-0',
+          )}
+        />
+      </div>
+    </>
+  );
 }
 
 function useMasonryCols() {
@@ -158,7 +191,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
             active: isOn(e),
             unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
             chart: slot.chart,
-            size: slot.size,
+            size: 'lg' as const,
             toggleable: isToggleable,
             pressable: isPressable,
             onToggle: (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
@@ -182,26 +215,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
               data-section-key={section.key}
               style={{ scrollMarginTop: 'calc(var(--dashboard-sticky-top, 0px) + var(--ha-space-2))' }}
             >
-              {/* Sticky section header — stays pinned while scrolling its section. */}
-              <div
-                className="sticky z-30 -mx-ha-1 px-ha-1 py-ha-2 mb-ha-1 bg-surface-lower"
-                style={{ top: 'var(--dashboard-sticky-top, 0px)' }}
-              >
-                {section.href ? (
-                  <Link href={section.href} prefetch={false} className="flex items-center gap-1 group w-fit">
-                    <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{section.title}</span>
-                    <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
-                  </Link>
-                ) : (
-                  <span className="text-xl font-semibold text-text-primary">{section.title}</span>
-                )}
-                {/* Fade hangs off the bottom edge of the (sticky) header so cards
-                    dissolve as they scroll under it. Tracks the pinned header. */}
-                <div
-                  aria-hidden
-                  className="absolute inset-x-0 top-full h-8 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent"
-                />
-              </div>
+              <StickySectionHeader title={section.title} href={section.href} />
               <div className="flex gap-ha-4 items-start">
                 {colArrays.map((col, ci) => (
                   <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">

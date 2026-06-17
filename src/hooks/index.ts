@@ -38,6 +38,7 @@ export { useDesktopImmersivePageLayout } from './useDesktopImmersivePageLayout';
 export { usePullToReveal } from './usePullToReveal';
 
 export { useStandaloneMode } from './useStandaloneMode';
+export { useStickyStuck } from './useStickyStuck';
 export { useDevices, useDeviceStructure, useIntegrations, useDevicesList, DEVICE_CATEGORY_LABEL } from './useDevices';
 export type { HassDevice, IntegrationSummary, IntegrationDevice, IntegrationStatus, IntegrationFlags, DeviceSummary } from './useDevices';
 export { useAutomations, useAutomationActions, formatLastTriggered } from './useAutomations';

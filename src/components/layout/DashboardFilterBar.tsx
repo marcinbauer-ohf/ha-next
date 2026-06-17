@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { mdiTune, mdiCheck } from '@mdi/js';
+import { mdiCheck } from '@mdi/js';
 import { Icon } from '@/components/ui/Icon';
 import { Chip } from '@/components/ui/Chip';
 import { SectionLabel } from '@/components/ui/SectionLabel';
@@ -18,6 +18,14 @@ const GROUP_OPTIONS: { value: DashboardGroupBy; label: string }[] = [
 
 const TOOLBAR_SPRING = { type: 'spring' as const, stiffness: 380, damping: 28, mass: 0.8 };
 const POPOVER_SPRING = { type: 'spring' as const, stiffness: 460, damping: 32, mass: 0.7 };
+
+/**
+ * A single slim, text-free pill standing in for a selector group in the
+ * minimized desktop bar. No selection state — just a compact placeholder.
+ */
+function MiniPill() {
+  return <span className="h-1.5 w-8 rounded-full bg-text-secondary/35" />;
+}
 
 interface DashboardFilterBarProps {
   floors: { floor_id: string; name: string }[];
@@ -53,8 +61,14 @@ export function DashboardFilterBar({
   const hasFilters = showFloors || hasAreas;
 
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const fabRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  const floorSegments = [
+    { value: '__all__', label: 'All' },
+    ...floors.map(f => ({ value: f.floor_id, label: f.name })),
+  ];
 
   // Reserve the FAB's footprint on the left so the corner toast slides in to
   // its right instead of overlapping. Cleared on unmount so other routes keep
@@ -142,29 +156,46 @@ export function DashboardFilterBar({
         style={{ paddingBottom: `calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))` }}
       >
         <motion.div
+          layout
           initial={{ opacity: 0, y: 28, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={TOOLBAR_SPRING}
-          className="pointer-events-auto px-ha-2 py-ha-2 rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center gap-ha-2"
+          transition={{
+            default: TOOLBAR_SPRING,
+            layout: { duration: 0.32, ease: [0.22, 1, 0.36, 1] },
+          }}
+          onMouseEnter={() => setExpanded(true)}
+          onMouseLeave={() => setExpanded(false)}
+          onFocusCapture={() => setExpanded(true)}
+          onBlurCapture={() => setExpanded(false)}
+          className={`pointer-events-auto rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center gap-ha-2 transition-[padding] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            expanded ? 'px-ha-2 py-ha-2' : 'px-ha-3 py-1.5'
+          }`}
         >
-          {showFloors && (
-            <SegmentedControl
-              segments={[
-                { value: '__all__', label: 'All' },
-                ...floors.map(f => ({ value: f.floor_id, label: f.name })),
-              ]}
-              value={activeFloorId ?? '__all__'}
-              onChange={v => setActiveFloorId(v === '__all__' ? null : v)}
-              className="max-w-[40vw] overflow-x-auto scrollbar-hide"
-            />
-          )}
-          {showFloors && hasAreas && <div className="w-px h-6 bg-border-default" />}
-          {hasAreas && (
-            <SegmentedControl
-              segments={GROUP_OPTIONS}
-              value={groupBy}
-              onChange={v => setGroupBy(v as DashboardGroupBy)}
-            />
+          {expanded ? (
+            <>
+              {showFloors && (
+                <SegmentedControl
+                  segments={floorSegments}
+                  value={activeFloorId ?? '__all__'}
+                  onChange={v => setActiveFloorId(v === '__all__' ? null : v)}
+                  className="max-w-[40vw] overflow-x-auto scrollbar-hide"
+                />
+              )}
+              {showFloors && hasAreas && <div className="w-px h-6 bg-border-default" />}
+              {hasAreas && (
+                <SegmentedControl
+                  segments={GROUP_OPTIONS}
+                  value={groupBy}
+                  onChange={v => setGroupBy(v as DashboardGroupBy)}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              {showFloors && <MiniPill />}
+              {showFloors && hasAreas && <div className="w-px h-3 bg-border-default" />}
+              {hasAreas && <MiniPill />}
+            </>
           )}
         </motion.div>
       </div>
@@ -208,8 +239,11 @@ export function DashboardFilterBar({
               : 'border-surface-low/50 bg-surface-default/95 text-text-secondary'
           }`}
         >
-          <span className="relative flex h-9 w-9 items-center justify-center">
-            <Icon path={mdiTune} size={18} />
+          {/* Compact mirror of the desktop collapsed bar: the two selector
+              groups as stacked pills inside the floating square. */}
+          <span className="relative flex h-9 w-9 flex-col items-center justify-center gap-1.5">
+            {showFloors && <MiniPill />}
+            {hasAreas && <MiniPill />}
             {activeFilterCount > 0 && (
               <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ha-blue px-1 text-[10px] font-bold leading-none text-white">
                 {activeFilterCount}

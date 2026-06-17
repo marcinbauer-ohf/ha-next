@@ -29,6 +29,16 @@ export interface FontOption {
   stack: string | null;
   /** Google Fonts family name to lazy-load via <link> when first selected. */
   google?: string;
+  /**
+   * Per-font typographic tuning applied to <body> when this face is active.
+   * Every typeface has a different ideal tracking at UI sizes — wide geometrics
+   * and tight modern grotesks both read better nudged toward 0 apparent
+   * spacing. `tracking` is a letter-spacing value (em); `features` is
+   * font-feature-settings (e.g. slashed zero on monospaces). Omit = browser
+   * default (the font's own metrics).
+   */
+  tracking?: string;
+  features?: string;
 }
 
 /** Fonts bundled at build time via next/font/google (always present). */
@@ -50,6 +60,8 @@ const BUNDLED_FONTS: FontOption[] = [
     label: 'Inter',
     caption: 'OFL · neutral UI workhorse',
     stack: 'var(--font-inter), "Inter", system-ui, sans-serif',
+    // Inter's designer recommends slight negative tracking at UI sizes.
+    tracking: '-0.011em',
   },
   {
     key: 'plex',
@@ -68,6 +80,8 @@ const BUNDLED_FONTS: FontOption[] = [
     label: 'Figtree',
     caption: 'OFL · friendly, rounded',
     stack: 'var(--font-figtree), "Figtree", system-ui, sans-serif',
+    // Tall x-height geometric — tightens up nicely.
+    tracking: '-0.006em',
   },
   {
     key: 'atkinson',
@@ -81,91 +95,85 @@ const BUNDLED_FONTS: FontOption[] = [
     caption: 'No web font — uses the OS default UI face (SF, Segoe, Roboto…)',
     stack: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   },
-  // ── Apple system faces — resident on macOS/iOS, no download. Fall back to
-  // system-ui / generic families on non-Apple platforms. ──
-  {
-    key: 'sf-pro',
-    label: 'SF Pro',
-    caption: 'Apple system · default macOS/iOS UI face',
-    stack: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
-  },
-  {
-    key: 'sf-compact',
-    label: 'SF Compact',
-    caption: 'Apple system · narrower, watchOS face',
-    stack: '"SF Compact Display", "SF Compact Text", "SF Compact", -apple-system, system-ui, sans-serif',
-  },
-  {
-    key: 'sf-mono',
-    label: 'SF Mono',
-    caption: 'Apple system · monospaced',
-    stack: 'ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, monospace',
-  },
-  {
-    key: 'new-york',
-    label: 'New York',
-    caption: 'Apple system · serif companion to SF',
-    stack: 'ui-serif, "New York", "Times New Roman", Georgia, serif',
-  },
 ];
 
 /**
- * Top ~30 Google Fonts for quick prototype experimentation. These are NOT
- * bundled — the family's stylesheet is injected on demand the first time it's
- * selected (see `ensureGoogleFont`), so adding/removing names here is free.
- * Mix of sans / serif / mono / display for variety.
+ * Ship-ready Google Fonts, lazy-loaded on first selection (see
+ * `ensureGoogleFont`). Selection criteria — every one must satisfy both:
+ *   1. License: all Google Fonts are OFL / Apache-2.0 / UFL → safe to ship in
+ *      open-source Home Assistant.
+ *   2. Script coverage: HA is translated to ~70 locales. Each face here ships
+ *      Cyrillic (Russian) at minimum; most also ship Greek. CJK (Chinese etc.)
+ *      is NOT in any Latin web font — it resolves through the `system-ui`
+ *      fallback in each stack on a CJK-configured OS.
+ * Latin-only faces (Lato, Poppins, Work Sans, DM Sans, Quicksand, Outfit, …)
+ * were dropped: they'd show fallback tofu for Russian.
+ * Varied across sans / condensed / mono / rounded / serif / display.
  */
-const GOOGLE_EXPERIMENT_FONTS: string[] = [
-  'Roboto',
-  'Open Sans',
-  'Montserrat',
-  'Lato',
-  'Poppins',
-  'Roboto Condensed',
-  'Roboto Mono',
-  'Oswald',
-  'Raleway',
-  'Nunito',
-  'Nunito Sans',
-  'Rubik',
-  'Work Sans',
-  'Mulish',
-  'DM Sans',
-  'Manrope',
-  'Quicksand',
-  'Josefin Sans',
-  'Karla',
-  'Barlow',
-  'Fira Sans',
-  'Libre Franklin',
-  'Space Grotesk',
-  'Archivo',
-  'Outfit',
-  'Playfair Display',
-  'Merriweather',
-  'Lora',
-  'PT Serif',
-  'Bricolage Grotesque',
+interface GoogleFontDef {
+  family: string;
+  /** Short style note shown as the caption. */
+  note: string;
+  /** Per-font letter-spacing (see FontOption.tracking). Omit for faces that read best at 0. */
+  tracking?: string;
+  features?: string;
+}
+
+// Tracking values follow standard UI-typography practice: wide geometrics and
+// condensed display faces are nudged toward even rhythm, tight modern grotesks
+// get slight negative tracking (the look their designers intend), monospaces
+// get a slashed zero so digits/zeros never read as the letter O. Serifs and
+// faces designed at 0 (Roboto, Open Sans) are left untouched.
+const GOOGLE_EXPERIMENT_FONTS: GoogleFontDef[] = [
+  { family: 'Roboto', note: 'sans · neutral grotesk' },
+  { family: 'Open Sans', note: 'sans · humanist' },
+  { family: 'Montserrat', note: 'geometric · urban', tracking: '-0.01em' },
+  { family: 'Roboto Condensed', note: 'condensed', tracking: '0.01em' },
+  { family: 'Roboto Mono', note: 'monospace', features: '"zero" 1' },
+  { family: 'Manrope', note: 'modern grotesk · tight', tracking: '-0.012em' },
+  { family: 'Fira Sans', note: 'sans · technical' },
+  { family: 'Nunito', note: 'rounded · friendly', tracking: '-0.005em' },
+  { family: 'Rubik', note: 'sans · rounded corners' },
+  { family: 'Oswald', note: 'display · condensed', tracking: '0.02em' },
+  { family: 'Merriweather', note: 'serif · readable' },
+  { family: 'Lora', note: 'serif · contemporary' },
+  // ── Futuristic / modern sans (all OFL, all Cyrillic-capable). Geist & Geist
+  // Mono originate from Vercel; Golos Text from ParaType — all mirrored on
+  // Google Fonts, so they load through the same lazy-loader. ──
+  { family: 'Exo 2', note: 'techno · futuristic', tracking: '-0.005em' },
+  { family: 'Jura', note: 'geometric · futuristic', tracking: '0.01em' },
+  { family: 'Geist', note: 'minimalist modern (Vercel)', tracking: '-0.012em' },
+  { family: 'Geist Mono', note: 'modern mono (Vercel)', features: '"zero" 1' },
+  { family: 'Unbounded', note: 'geometric · display', tracking: '-0.01em' },
+  { family: 'Onest', note: 'clean modern', tracking: '-0.008em' },
+  { family: 'Golos Text', note: 'modern · Russian-native', tracking: '-0.005em' },
+  { family: 'Geologica', note: 'technical · variable', tracking: '-0.006em' },
+  { family: 'Commissioner', note: 'flared grotesk', tracking: '-0.003em' },
+  { family: 'Hanken Grotesk', note: 'modern grotesk', tracking: '-0.011em' },
 ];
 
 function fontSlug(family: string): string {
   return family.toLowerCase().replace(/\s+/g, '-');
 }
 
-const DYNAMIC_FONTS: FontOption[] = GOOGLE_EXPERIMENT_FONTS.map((family) => ({
-  key: fontSlug(family),
-  label: family,
-  caption: 'Google Fonts · loaded on demand',
-  stack: `"${family}", system-ui, sans-serif`,
-  google: family,
+const DYNAMIC_FONTS: FontOption[] = GOOGLE_EXPERIMENT_FONTS.map((def) => ({
+  key: fontSlug(def.family),
+  label: def.family,
+  caption: `Google Fonts · ${def.note}`,
+  stack: `"${def.family}", system-ui, sans-serif`,
+  google: def.family,
+  tracking: def.tracking,
+  features: def.features,
 }));
 
 export const FONTS: FontOption[] = [...BUNDLED_FONTS, ...DYNAMIC_FONTS];
 
 /**
- * Inject a Google Fonts stylesheet for `family` once. Requests weights 400+700
- * (universally available across popular families; avoids a 400 on the whole
- * request that a rarer weight would trigger). No-op if already present.
+ * Inject a Google Fonts stylesheet for `family` once. Requests the four weights
+ * the UI actually uses — 400 (body), 500 (medium), 600 (semibold), 700 (bold) —
+ * so labels/headings render in real cut weights instead of faux-synthesized
+ * ones (a real legibility hit otherwise). Every curated face covers 400–700.
+ * No-op if already present.
  */
 function ensureGoogleFont(family: string): void {
   const id = `gf-${fontSlug(family)}`;
@@ -173,7 +181,7 @@ function ensureGoogleFont(family: string): void {
   const link = document.createElement('link');
   link.id = id;
   link.rel = 'stylesheet';
-  link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/\s+/g, '+')}:wght@400;700&display=swap`;
+  link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/\s+/g, '+')}:wght@400;500;600;700&display=swap`;
   document.head.appendChild(link);
 }
 
@@ -204,15 +212,24 @@ export function FontProvider({ children }: { children: ReactNode }) {
   // Brief on-screen confirmation when cycled via keyboard.
   const [flash, setFlash] = useState(false);
 
-  // Apply the selected font to the live document.
+  // Apply the selected font — plus its per-face typographic tuning — to the
+  // live document. Tracking/features are written to <body> so they cascade to
+  // all text that doesn't set its own; "Theme default" clears every override.
   useEffect(() => {
+    const body = document.body.style;
     const def = FONTS.find((f) => f.key === font);
     if (!def || def.stack === null) {
-      document.body.style.removeProperty('--ha-font-family-base');
+      body.removeProperty('--ha-font-family-base');
+      body.removeProperty('letter-spacing');
+      body.removeProperty('font-feature-settings');
       return;
     }
     if (def.google) ensureGoogleFont(def.google);
-    document.body.style.setProperty('--ha-font-family-base', def.stack);
+    body.setProperty('--ha-font-family-base', def.stack);
+    if (def.tracking) body.setProperty('letter-spacing', def.tracking);
+    else body.removeProperty('letter-spacing');
+    if (def.features) body.setProperty('font-feature-settings', def.features);
+    else body.removeProperty('font-feature-settings');
   }, [font]);
 
   const setFont = useCallback((key: FontKey) => {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { Icon } from '../ui/Icon';
-import { SectionLabel } from '../ui';
+import { SectionLabel, useIconSet, setIconSet, type IconSet } from '../ui';
 import { SimulationListModal } from '@/components/ui/SimulationListModal';
 import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
@@ -124,10 +124,10 @@ function SettingsShell({
                   <span className="flex h-9 w-9 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary transition-colors group-hover:bg-surface-low group-hover:text-text-primary">
                     <Icon path={mdiChevronLeft} size={22} />
                   </span>
-                  <h1 className="text-3xl font-bold tracking-tight text-text-primary">{title}</h1>
+                  <h1 className="text-2xl leading-none font-semibold text-text-primary capitalize">{title}</h1>
                 </button>
               ) : (
-                <h1 className="text-3xl font-bold tracking-tight text-text-primary px-ha-1">{title}</h1>
+                <h1 className="text-2xl leading-none font-semibold text-text-primary capitalize px-ha-1">{title}</h1>
               )}
               {titleAction}
             </div>
@@ -194,7 +194,7 @@ function ChoiceGroup<T extends string>({
               onClick={() => onChange(option.value)}
               className={`rounded-ha-2xl border px-ha-4 py-ha-2 text-left transition-colors ${
                 selected
-                  ? 'border-ha-blue/40 bg-fill-primary-normal text-ha-blue'
+                  ? 'border-transparent bg-surface-mid text-ha-blue'
                   : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low'
               }`}
             >
@@ -406,8 +406,9 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setContextSlug(slug);
     return () => setContextSlug(null);
   }, [slug, setContextSlug]);
-  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive } = useFeatureFlags();
+  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive, pulseMode, setPulseMode } = useFeatureFlags();
   const { theme, mode, background, setTheme, setMode, setBackground } = useTheme();
+  const iconSet = useIconSet();
   const { font, fonts, setFont } = useFont();
   const { enabled: hapticsEnabled, setEnabled: setHapticsEnabled, supported: hapticsSupported } = useHaptics();
   const {
@@ -844,6 +845,17 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
             caption: entry.caption,
           }))}
         />
+        <ChoiceGroup<IconSet>
+          label="Icon set · debug"
+          value={iconSet}
+          onChange={setIconSet}
+          options={[
+            { value: 'mdi', label: 'Material (MDI)', caption: 'Default — filled glyphs, full coverage' },
+            { value: 'phosphor', label: 'Phosphor', caption: 'Closest coverage to MDI, fewest fallbacks' },
+            { value: 'lucide', label: 'Lucide', caption: 'Thin stroke outlines — most visible contrast' },
+            { value: 'tabler', label: 'Tabler', caption: 'Stroke, consistent 24px grid' },
+          ]}
+        />
         <div className="space-y-ha-3">
           <ChoiceGroup<Background>
             label="Background"
@@ -986,6 +998,20 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
             />
           </div>
         )}
+        <ChoiceGroup
+          label="Background style"
+          value={pulseMode}
+          onChange={setPulseMode}
+          options={[
+            { value: 'classic', label: 'Classic rings', caption: 'Endless concentric rings (original)' },
+            { value: 'heartbeat', label: 'Heartbeat', caption: 'Calm lub-dub ping rings on a steady cadence' },
+            { value: 'breathing', label: 'Breathing depth', caption: 'Layered soft rings that slowly inhale and exhale' },
+            { value: 'aurora', label: 'Aurora', caption: 'Soft drifting ribbons of colour (northern lights)' },
+            { value: 'bokeh', label: 'Bokeh', caption: 'Soft light orbs drifting slowly upward' },
+            { value: 'dawn', label: 'Dawn', caption: 'A slow flowing colour wash, no hard shapes' },
+            { value: 'breathOrb', label: 'Breath orb', caption: 'One soft glow gently expanding and contracting' },
+          ]}
+        />
       </div>
     </SettingsCard>
   );

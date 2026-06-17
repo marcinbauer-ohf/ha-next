@@ -19,6 +19,32 @@ const INTENSITY = {
 } as const;
 export type PulseIntensity = keyof typeof INTENSITY;
 
+/**
+ * Background style for the ring surface. Every mode keeps the coloured event
+ * ripples (the reactive "something happened" waves) on top — they only change
+ * the *ambient* layer that reads as the steady heartbeat/ping to the server.
+ *   classic    — the original endless concentric rings
+ *   heartbeat  — discrete lub-dub ping rings on a calm cadence
+ *   breathing  — layered, soft parallax rings that slowly inhale/exhale
+ *   aurora     — soft drifting ribbons of colour (northern-lights)
+ *   bokeh      — soft light orbs drifting slowly upward
+ *   dawn       — a slow flowing colour wash, no hard shapes
+ *   breathOrb  — one soft glow gently expanding and contracting
+ */
+export type PulseMode = 'classic' | 'heartbeat' | 'breathing' | 'aurora' | 'bokeh' | 'dawn' | 'breathOrb';
+
+export const PULSE_MODES: PulseMode[] = ['classic', 'heartbeat', 'breathing', 'aurora', 'bokeh', 'dawn', 'breathOrb'];
+
+const MODE_INDEX: Record<PulseMode, number> = {
+  classic: 0,
+  heartbeat: 1,
+  breathing: 2,
+  aurora: 3,
+  bokeh: 4,
+  dawn: 5,
+  breathOrb: 6,
+};
+
 // Ring origin + reach are uniforms now (see Props.center / Props.reach) so the
 // same WebGL context can shift between centre (desktop) and bottom (mobile)
 // without recompiling. Defaults below keep the original centred look.
@@ -35,9 +61,11 @@ const VERT = `
 const MAX_PULSES = 10;
 
 // Output is premultiplied alpha (blendFunc ONE, ONE_MINUS_SRC_ALPHA) so the
-// neutral ambient rings and the coloured event ripples composite cleanly.
+// neutral ambient layer and the coloured event ripples composite cleanly.
+// u_mode selects the ambient style (see PulseMode); the coloured event ripples
+// at the bottom render in every mode.
 const FRAG = `
-  precision mediump float;
+  precision highp float;
 
   uniform float u_time;
   uniform vec2 u_resolution;
@@ -46,6 +74,8 @@ const FRAG = `
   uniform float u_wave;
   uniform vec2 u_center;  // ring origin in UV (x:0..1, y:0=bottom..1=top)
   uniform float u_reach;  // ring radius at full phase (UV-height units)
+  uniform int u_mode;     // ambient style (PulseMode → MODE_INDEX)
+  uniform float u_tinted; // 1.0 when an explicit health tint is set (skip iridescence)
 
   // Reactive event pulses: each is a coloured ring expanding from centre.
   uniform int u_pulseCount;
@@ -54,9 +84,49 @@ const FRAG = `
   uniform float u_pulseStrength; // brightness of pulse rings (intensity setting)
   uniform float u_pulseWidth;    // line thickness multiplier for pulse rings
 
-  float wobble(float angle, float phase) {
-    return (sin(angle * 5.0 + u_time * 0.6) + sin(angle * 9.0 - u_time * 0.4))
-           * 0.5 * 0.05 * phase * u_wave;
+  float hash11(float x) { return fract(sin(x * 127.1) * 43758.5453); }
+
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 345.45));
+    p += dot(p, p + 34.345);
+    return fract(p.x * p.y);
+  }
+
+  float vnoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = hash21(i);
+    float b = hash21(i + vec2(1.0, 0.0));
+    float c = hash21(i + vec2(0.0, 1.0));
+    float d = hash21(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+  }
+
+  float fbm(vec2 p) {
+    float v = 0.0;
+    float amp = 0.5;
+    for (int i = 0; i < 4; i++) {
+      v += amp * vnoise(p);
+      p *= 2.0;
+      amp *= 0.5;
+    }
+    return v;
+  }
+
+  // The original endless concentric rings — coverage 0..1.
+  float ambientRings(float dist, float angle, float px) {
+    float rings = 0.0;
+    for (int i = 0; i < 22; i++) {
+      float offset = float(i) / 22.0;
+      float phase = fract(u_time * 0.02 + offset);
+      float radius = phase * u_reach;
+      float wave = (sin(angle * 5.0 + u_time * 0.6 + offset * 6.28)
+                  + sin(angle * 9.0 - u_time * 0.4)) * 0.5 * 0.05 * phase * u_wave;
+      float fade = (1.0 - phase) * smoothstep(0.0, 0.08, phase);
+      rings += smoothstep(px, 0.0, abs(dist - radius + wave)) * fade;
+    }
+    return clamp(rings, 0.0, 1.0);
   }
 
   void main() {
@@ -65,32 +135,133 @@ const FRAG = `
     vec2 p = (uv - u_center) * vec2(aspect, 1.0);
     float dist = length(p);
     float angle = atan(p.y, p.x);
-
     float px = 1.5 / u_resolution.y;
 
-    // Ambient neutral rings.
-    float rings = 0.0;
-    for (int i = 0; i < 22; i++) {
-      float offset = float(i) / 22.0;
-      float phase = fract(u_time * 0.02 + offset);
-      float radius = phase * u_reach;
-      // Wobble ramps from 0 at spawn (perfect circle) to full at the edge.
-      float wave = (sin(angle * 5.0 + u_time * 0.6 + offset * 6.28)
-                  + sin(angle * 9.0 - u_time * 0.4)) * 0.5 * 0.05 * phase * u_wave;
-      float fade = (1.0 - phase) * smoothstep(0.0, 0.08, phase);
-      rings += smoothstep(px, 0.0, abs(dist - radius + wave)) * fade;
+    // Slight iridescence for the ambient layer: a calm hue that drifts slowly
+    // over time and shifts across the radius. Kept subtle (offsets the neutral
+    // colour, not replaces it). Skipped when a health tint is driving u_color
+    // so the green/red connection signal stays pure.
+    vec3 ambientCol = u_color;
+    if (u_tinted < 0.5) {
+      float ht = u_time * 0.03 + dist * 0.5;
+      vec3 hue = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.33, 0.67) + ht));
+      ambientCol = u_color + (hue - 0.5) * 0.3;
     }
 
-    float ambientA = clamp(rings, 0.0, 1.0) * u_alpha;
-    vec3 premul = u_color * ambientA;
-    float a = ambientA;
+    vec3 premul = vec3(0.0);
+    float a = 0.0;
 
-    // Coloured event ripples layered on top.
+    if (u_mode == 1) {
+      // HEARTBEAT — a calm lub-dub: a strong ring then a softer one, then rest.
+      float period = 2.4;            // seconds between heartbeats
+      float beat = u_time / period;
+      float cov = 0.0;
+      for (int k = 0; k < 4; k++) {  // a few recent beats still expanding
+        float bn = floor(beat) - float(k);
+        for (int j = 0; j < 2; j++) {
+          float birth = (bn + (j == 0 ? 0.0 : 0.16)) * period;
+          float age = u_time - birth;
+          if (age < 0.0) continue;
+          float ph = age / (period * 0.9);
+          if (ph >= 1.0) continue;
+          float radius = ph * u_reach;
+          float fade = (1.0 - ph) * smoothstep(0.0, 0.05, ph);
+          float amp = (j == 0 ? 1.0 : 0.55);
+          cov += smoothstep(px * 1.6, 0.0, abs(dist - radius)) * fade * amp;
+        }
+      }
+      float aa = clamp(cov, 0.0, 1.0) * u_alpha * 1.4;
+      premul = ambientCol * aa;
+      a = aa;
+    } else if (u_mode == 2) {
+      // BREATHING — layered soft rings at different depths, slowly in/exhaling.
+      float breath = 1.0 + 0.06 * sin(u_time * 0.5);
+      float soft = 0.0;
+      for (int L = 0; L < 3; L++) {
+        float lf = float(L);
+        float reach = u_reach * breath * (0.7 + 0.18 * lf);
+        float spd = 0.018 + 0.006 * lf;
+        for (int i = 0; i < 10; i++) {
+          float offset = float(i) / 10.0;
+          float phase = fract(u_time * spd + offset + lf * 0.13);
+          float radius = phase * reach;
+          float fade = (1.0 - phase) * smoothstep(0.0, 0.1, phase);
+          float d = abs(dist - radius);
+          soft += exp(-d * d * 900.0) * fade * (0.6 - 0.15 * lf);
+        }
+      }
+      float aa = clamp(soft, 0.0, 1.0) * u_alpha * 1.3;
+      premul = ambientCol * aa;
+      a = aa;
+    } else if (u_mode == 3) {
+      // AURORA — soft drifting ribbons of colour (northern-lights).
+      float cover = 0.0;
+      vec3 col = vec3(0.0);
+      for (int i = 0; i < 3; i++) {
+        float fi = float(i);
+        float yc = 0.5 + 0.16 * sin(uv.x * 3.0 + u_time * 0.3 + fi * 2.1)
+                       + 0.12 * (fbm(vec2(uv.x * 2.0 - u_time * 0.05, fi)) - 0.5);
+        float band = exp(-pow((uv.y - yc) / 0.13, 2.0));
+        vec3 bcol = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.35, 0.6) + fi * 0.18 + u_time * 0.03));
+        col += bcol * band;
+        cover += band;
+      }
+      a = clamp(cover, 0.0, 1.0) * u_alpha * 2.4;
+      premul = clamp(col * u_alpha * 2.4, 0.0, 1.0);
+    } else if (u_mode == 4) {
+      // BOKEH — soft light orbs drifting slowly upward.
+      vec2 gp = vec2(uv.x * aspect, uv.y);
+      float cover = 0.0;
+      vec3 col = vec3(0.0);
+      for (int i = 0; i < 14; i++) {
+        float fi = float(i);
+        float seed = hash11(fi * 1.7);
+        float x = hash11(fi * 2.3) * aspect;
+        float speed = 0.015 + 0.03 * seed;
+        float y = fract(hash11(fi * 3.1) + u_time * speed);
+        float size = 0.05 + 0.13 * hash11(fi * 4.7);
+        float d = length(gp - vec2(x, y));
+        float orb = smoothstep(size, size * 0.15, d);
+        float vfade = smoothstep(0.0, 0.15, y) * smoothstep(1.0, 0.82, y);
+        vec3 ocol = 0.6 + 0.4 * cos(6.2831 * (vec3(0.05, 0.25, 0.45) + seed));
+        float w = orb * vfade * (0.4 + 0.6 * seed);
+        col += ocol * w;
+        cover += w;
+      }
+      a = clamp(cover, 0.0, 1.0) * u_alpha * 2.6;
+      premul = clamp(col * u_alpha * 2.6, 0.0, 1.0);
+    } else if (u_mode == 5) {
+      // DAWN — a slow flowing colour wash, no hard shapes.
+      float n = fbm(uv * 2.0 + vec2(u_time * 0.03, u_time * 0.02));
+      float n2 = fbm(uv * 1.3 - vec2(u_time * 0.025, 0.0));
+      vec3 warm = vec3(0.98, 0.55, 0.38);
+      vec3 cool = vec3(0.32, 0.42, 0.85);
+      vec3 col = mix(cool, warm, smoothstep(0.15, 0.85, uv.y * 0.55 + n * 0.55));
+      col = mix(col, vec3(0.95, 0.72, 0.5), n2 * 0.3);
+      a = u_alpha * 2.6;
+      premul = clamp(col * a, 0.0, 1.0);
+    } else if (u_mode == 6) {
+      // BREATH ORB — one soft glow gently expanding and contracting.
+      float breath = 0.5 + 0.5 * sin(u_time * 0.4);
+      float radius = mix(0.28, 0.52, breath);
+      float glow = exp(-(dist * dist) / (radius * radius) * 3.0);
+      vec3 col = mix(ambientCol, vec3(1.0, 0.78, 0.55), 0.6);
+      a = glow * u_alpha * 2.6;
+      premul = clamp(col * a, 0.0, 1.0);
+    } else {
+      // CLASSIC
+      float aa = ambientRings(dist, angle, px) * u_alpha;
+      premul = ambientCol * aa;
+      a = aa;
+    }
+
+    // Coloured event ripples layered on top — in every mode.
     for (int i = 0; i < ${MAX_PULSES}; i++) {
       if (i >= u_pulseCount) break;
       float phase = u_pulsePhase[i];
       float radius = phase * u_reach;
-      float wave = wobble(angle, phase);
+      float wave = (sin(angle * 5.0 + u_time * 0.6) + sin(angle * 9.0 - u_time * 0.4))
+                   * 0.5 * 0.05 * phase * u_wave;
       float fade = (1.0 - phase) * smoothstep(0.0, 0.06, phase);
       float cov = smoothstep(px * u_pulseWidth, 0.0, abs(dist - radius + wave))
                   * fade * u_pulseStrength;
@@ -126,6 +297,8 @@ interface Props {
   center?: [number, number];
   /** Ring radius at full phase, UV-height units. Default 1.1 (covers from centre). */
   reach?: number;
+  /** Ambient background style. Default 'classic'. */
+  mode?: PulseMode;
 }
 
 /**
@@ -148,7 +321,7 @@ export function useRingOrigin(): { center: [number, number]; reach: number } {
     : { center: [0.5, 0.5], reach: 1.1 };
 }
 
-export function RingShaderBackground({ resolvedMode, wavy = false, reactive = false, intensity = 'subtle', tint = null, center = DEFAULT_CENTER, reach = DEFAULT_REACH }: Props) {
+export function RingShaderBackground({ resolvedMode, wavy = false, reactive = false, intensity = 'subtle', tint = null, center = DEFAULT_CENTER, reach = DEFAULT_REACH, mode = 'classic' }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modeRef = useRef<'light' | 'dark'>(resolvedMode ?? getMode());
   useEffect(() => { modeRef.current = resolvedMode ?? getMode(); }, [resolvedMode]);
@@ -167,6 +340,9 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
   useEffect(() => { centerRef.current = center; }, [center]);
   const reachRef = useRef<number>(reach);
   useEffect(() => { reachRef.current = reach; }, [reach]);
+  // Ambient style, read live so flipping modes doesn't rebuild the context.
+  const pulseModeRef = useRef<PulseMode>(mode);
+  useEffect(() => { pulseModeRef.current = mode; }, [mode]);
 
   // Active event ripples, fed by the home-pulse bus while reactive.
   const pulsesRef = useRef<ActivePulse[]>([]);
@@ -195,7 +371,9 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
     // Compile shaders
     const vert = compileShader(gl, gl.VERTEX_SHADER, VERT);
     const frag = compileShader(gl, gl.FRAGMENT_SHADER, FRAG);
-    if (!vert || !frag) return;
+    // FRAG declares highp. If a GPU can't compile it, drop to the Canvas2D
+    // fallback rather than render a blank canvas.
+    if (!vert || !frag) return startCanvas2DFallback(canvas, modeRef, wavyRef, pulsesRef, intensityRef, tintRef, centerRef);
 
     const program = gl.createProgram()!;
     gl.attachShader(program, vert);
@@ -225,6 +403,8 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
     const uWave = gl.getUniformLocation(program, 'u_wave');
     const uCenter = gl.getUniformLocation(program, 'u_center');
     const uReach = gl.getUniformLocation(program, 'u_reach');
+    const uMode = gl.getUniformLocation(program, 'u_mode');
+    const uTinted = gl.getUniformLocation(program, 'u_tinted');
     const uPulseCount = gl.getUniformLocation(program, 'u_pulseCount');
     const uPulsePhase = gl.getUniformLocation(program, 'u_pulsePhase');
     const uPulseColor = gl.getUniformLocation(program, 'u_pulseColor');
@@ -267,6 +447,8 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
       gl.uniform1f(uWave, wavyRef.current ? 1.0 : 0.0);
       gl.uniform2f(uCenter, centerRef.current[0], centerRef.current[1]);
       gl.uniform1f(uReach, reachRef.current);
+      gl.uniform1i(uMode, MODE_INDEX[pulseModeRef.current]);
+      gl.uniform1f(uTinted, tintRef.current ? 1 : 0);
 
       // Age out expired pulses (compact in place) and upload the live ones.
       const pulses = pulsesRef.current;
@@ -330,7 +512,8 @@ function compileShader(gl: WebGLRenderingContext, type: number, src: string): We
   return shader;
 }
 
-// Canvas2D fallback for environments without WebGL
+// Canvas2D fallback for environments without WebGL. Renders the classic ring
+// look only — the mode-specific styles are WebGL-only — plus event ripples.
 function startCanvas2DFallback(
   canvas: HTMLCanvasElement,
   modeRef: React.MutableRefObject<'light' | 'dark'>,

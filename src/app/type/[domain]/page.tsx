@@ -112,7 +112,7 @@ export default function TypePage({ params }: TypePageProps) {
 
             <main
               ref={el => { scrollableRef.current = el; }}
-              className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide select-none px-ha-5 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5"
+              className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide select-none px-ha-3 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5"
               data-scrollable="dashboard"
             >
               {/* Top scroll fade hangs off each sticky section header (in

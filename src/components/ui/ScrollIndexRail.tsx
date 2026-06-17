@@ -187,7 +187,15 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         aria-valuemax={count - 1}
         aria-valuenow={activeIndex}
         aria-valuetext={sections[activeIndex]?.title}
-        className="pointer-events-auto flex flex-col items-center gap-1 md:gap-1.5 lg:gap-2 py-ha-2 px-ha-1 md:px-ha-2 lg:px-2 cursor-pointer touch-none select-none"
+        className={clsx(
+          // Minimized at rest (slim, bare dots); expands to the same rounded-rect
+          // surface as the dashboard filter bar when revealed (hover / scrub).
+          'pointer-events-auto flex flex-col items-center cursor-pointer touch-none select-none',
+          'rounded-ha-3xl transition-[background-color,box-shadow,border-color,padding,gap,backdrop-filter] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          railShown
+            ? 'gap-1.5 md:gap-2 lg:gap-2 py-ha-2 px-ha-2 lg:px-2 bg-surface-default/95 backdrop-blur-md border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
+            : 'gap-1 md:gap-1.5 lg:gap-1.5 py-ha-1 px-ha-1 lg:px-ha-1 border border-transparent',
+        )}
       >
         {sections.map((s, i) => {
           const active = i === activeIndex;
@@ -205,9 +213,12 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
                   path={s.markerIcon}
                   // Slightly larger than a dot so the marker reads as an icon;
                   // colour still tracks active state like every other tick.
+                  // Shrinks while the rail is minimized at rest.
                   className={clsx(
-                    'transition-colors duration-150',
-                    'w-2.5 h-2.5 md:w-3.5 md:h-3.5 lg:w-4 lg:h-4',
+                    'transition-[width,height,color] duration-200',
+                    railShown
+                      ? 'w-2.5 h-2.5 md:w-3.5 md:h-3.5 lg:w-4 lg:h-4'
+                      : 'w-2 h-2 md:w-2.5 md:h-2.5 lg:w-3 lg:h-3',
                     active ? 'text-ha-blue' : 'text-text-tertiary/50',
                   )}
                 />
@@ -215,9 +226,11 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
                 <span
                   className={clsx(
                     // Uniform size for every dot — only the colour marks the active
-                    // section, never a size change.
-                    'rounded-full transition-colors duration-150',
-                    'w-1.5 h-1.5 md:w-2.5 md:h-2.5 lg:w-3 lg:h-3',
+                    // section, never a size change. Slimmer when minimized.
+                    'rounded-full transition-[width,height,background-color] duration-200',
+                    railShown
+                      ? 'w-1.5 h-1.5 md:w-2.5 md:h-2.5 lg:w-3 lg:h-3'
+                      : 'w-1 h-1 md:w-1.5 md:h-1.5 lg:w-2 lg:h-2',
                     active ? 'bg-ha-blue' : 'bg-text-tertiary/50',
                   )}
                 />

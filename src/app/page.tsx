@@ -47,22 +47,20 @@ import type { HassDevice } from '@/hooks';
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
-// Section only renders the sticky header; the grid is provided as children by the caller
+// Section renders a NON-sticky header that scrolls away naturally; the grid is
+// provided as children by the caller. As the header leaves the top of the
+// scroll area, the dashboard republishes its title into the top bar as a
+// reversed breadcrumb (see DashboardPage's section-tracking effect).
 function Section({ sectionKey, title, count, href, children }: { sectionKey: string; title: string; count: number; href?: string; children: React.ReactNode }) {
   if (count === 0) return null;
 
   return (
     <div
       data-section-key={sectionKey}
+      data-section-title={title}
       style={{ scrollMarginTop: 'calc(var(--dashboard-sticky-top, 0px) + var(--ha-space-2))' }}
     >
-      {/* Sticky section header — pins just below the dashboard's sticky summary
-          row so you always see which section you're scrolling. Sticks within
-          its own section, then the next section's header takes over. */}
-      <div
-        className="sticky z-30 -mx-ha-1 px-ha-1 py-ha-2 mb-ha-1 bg-surface-lower"
-        style={{ top: 'var(--dashboard-sticky-top, 0px)' }}
-      >
+      <div className="-mx-ha-1 px-ha-1 py-ha-2 mb-ha-1" data-section-header>
         {href ? (
           <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
             <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
@@ -71,12 +69,6 @@ function Section({ sectionKey, title, count, href, children }: { sectionKey: str
         ) : (
           <span className="text-xl font-semibold text-text-primary">{title}</span>
         )}
-        {/* Fade hangs off the bottom edge of the (sticky) header so cards
-            dissolve as they scroll under it. Tracks the pinned header exactly. */}
-        <div
-          aria-hidden
-          className="absolute inset-x-0 top-full h-8 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent"
-        />
       </div>
       {children}
     </div>
@@ -234,7 +226,7 @@ export default function DashboardPage() {
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
   const [dashboardReady, setDashboardReady] = useState(false);
-  const { setHeader } = useHeader();
+  const { setHeader, setSectionCrumb } = useHeader();
   const { toggleEntity, haUrl, demoMode, connecting, error: connectionError, saveCredentials, enableDemoMode } = useHomeAssistant();
   const { showToast } = useToast();
 
@@ -424,6 +416,45 @@ export default function DashboardPage() {
     obs.observe(el);
     return () => obs.disconnect();
   }, []);
+
+  // Reversed breadcrumb: track which section header has scrolled above the top
+  // of the scroll area and publish its title to the top bar (under "Home").
+  // Section headers no longer pin, so the top bar carries the "where am I"
+  // context instead. The active section is the last one whose header top has
+  // crossed above the reading line (scroll container top + any sticky chrome).
+  useEffect(() => {
+    const el = scrollableRef.current;
+    if (!el || dashboardView !== 'list') {
+      setSectionCrumb(undefined);
+      return;
+    }
+    let lastTop = el.scrollTop;
+    const update = () => {
+      const stickyTopVar = parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--dashboard-sticky-top'),
+      ) || 0;
+      const line = el.getBoundingClientRect().top + stickyTopVar + 1;
+      let active: string | undefined;
+      el.querySelectorAll<HTMLElement>('[data-section-key]').forEach((node) => {
+        if (node.getBoundingClientRect().top <= line) {
+          active = node.dataset.sectionTitle ?? undefined;
+        }
+      });
+      // Roll direction is inverted from scroll: scrolling DOWN rolls the new
+      // section in from the bottom, scrolling UP from the top.
+      const goingDown = el.scrollTop > lastTop;
+      lastTop = el.scrollTop;
+      setSectionCrumb(active, !goingDown);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      el.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+      setSectionCrumb(undefined);
+    };
+  }, [dashboardView, loading, groupBy, activeFloorId, isEditing, setSectionCrumb]);
 
   // area_id → floor_id lookup
   const areaFloorMap = useMemo<Map<string, string | null>>(
@@ -774,7 +805,7 @@ export default function DashboardPage() {
                 'pt-[var(--app-topbar-clear)] lg:pt-0',
                 dashboardView === '3d' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto',
                 dashboardView !== '3d' && 'pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-ha-5',
-                isMobileImmersive ? 'px-ha-5' : 'px-ha-3',
+                'px-ha-3',
                 'lg:px-0',
               )}
               data-scrollable="dashboard"

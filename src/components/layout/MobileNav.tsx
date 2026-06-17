@@ -1727,12 +1727,15 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
           <div className="relative rounded-[23px] bg-surface-default/95 backdrop-blur-md">
             <div className="flex flex-col px-edge pt-ha-1 pb-ha-4">
               <div className="flex justify-center py-0 mb-0 shrink-0">
+                {/* Generous, mostly-invisible grab zone so a swipe that starts
+                    anywhere near the pill's top edge reliably opens/closes the
+                    sheet — the visible pill bar itself is only 28×4px. */}
                 <button
                   ref={bottomSheetHandleRef}
                   type="button"
                   aria-label={sheetOpenProgress > 0.5 ? 'Collapse bottom panel' : 'Expand bottom panel'}
                   onClick={() => (statusExpanded ? closeExpandedSurface() : openExpandedSurface(expandedSurfaceTab))}
-                  className="h-4 w-10 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none"
+                  className="-my-ha-2 h-9 w-32 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none"
                 >
                   <span className="w-7 h-1 rounded-full bg-text-secondary/30" />
                 </button>
@@ -1819,13 +1822,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         toggleWidgetSurface('release', activeRelease.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-green-500/12 border ${
+                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-surface-low border ${
                       statusExpanded &&
                       expandedSurfaceTab === 'widget' &&
                       expandedWidgetType === 'release' &&
                       expandedWidgetId === activeRelease?.entityId
                         ? 'border-green-600 ring-2 ring-green-600/25'
-                        : 'border-green-500/25'
+                        : 'border-transparent'
                     }`}
                   >
                     <Icon path={mdiUpdate} size={16} className="text-green-600" />
@@ -1915,7 +1918,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         if (activePrinter?.entityId) toggleWidgetSurface('printer', activePrinter.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-fill-primary-normal ${
+                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-surface-low ${
                       statusExpanded &&
                       expandedSurfaceTab === 'widget' &&
                       expandedWidgetType === 'printer' &&
@@ -1969,7 +1972,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         if (activeMedia?.entityId) toggleWidgetSurface('media', activeMedia.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 bg-ha-blue transition-all ${
+                    className={`relative flex items-center justify-center rounded-full w-10 h-10 bg-surface-low transition-all ${
                       statusExpanded &&
                       expandedSurfaceTab === 'widget' &&
                       expandedWidgetType === 'media' &&
@@ -1982,7 +1985,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                       {activeMedia?.entityPicture ? (
                         <img src={getEntityPictureUrl(activeMedia.entityPicture)} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <Icon path={mdiPlay} size={18} className="text-white" />
+                        <Icon path={mdiPlay} size={18} className="text-ha-blue" />
                       )}
                     </div>
                     {/* Count badge - always on top */}
@@ -2023,9 +2026,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         if (activeTimer?.entityId) toggleWidgetSurface('timer', activeTimer.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all ${
-                    activeTimer?.isPaused ? 'bg-yellow-95' : 'bg-fill-primary-normal'
-                  } ${
+                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-surface-low ${
                     statusExpanded &&
                     expandedSurfaceTab === 'widget' &&
                     expandedWidgetType === 'timer' &&

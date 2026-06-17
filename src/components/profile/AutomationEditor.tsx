@@ -1085,7 +1085,6 @@ export function AutomationEditor({
 
   const panelHeader = selected
     ? {
-        icon: defOf(selected).icon,
         title: defOf(selected).label,
         subtitle: KIND_LABEL[selected.kind],
         onClose: () => setSelectedId(null),
@@ -1097,7 +1096,6 @@ export function AutomationEditor({
   // rail — same Sidebar chrome, only ever showing node-config.
   const canvasConfigPanel = selected ? (
     <Sidebar
-      icon={defOf(selected).icon}
       title={defOf(selected).label}
       subtitle={KIND_LABEL[selected.kind]}
       onClose={() => setSelectedId(null)}

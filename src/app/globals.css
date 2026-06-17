@@ -302,7 +302,7 @@
   --ha-color-green-500: #77d69d;
   --ha-color-green-600: #62be87;
 
-  --ha-font-family-base: var(--font-material);
+  --ha-font-family-base: var(--font-material), "Roboto", system-ui, sans-serif;
   --ha-radius-md: 6px;
   --ha-radius-lg: 10px;
   --ha-radius-xl: 14px;
@@ -336,7 +336,7 @@
   --ha-color-green-500: #2f8d53;
   --ha-color-green-600: #256f42;
 
-  --ha-font-family-base: var(--font-material);
+  --ha-font-family-base: var(--font-material), "Roboto", system-ui, sans-serif;
   --ha-radius-md: 6px;
   --ha-radius-lg: 10px;
   --ha-radius-xl: 14px;
@@ -370,7 +370,7 @@
   --ha-color-green-500: #1f1f1f;
   --ha-color-green-600: #0f0f0f;
 
-  --ha-font-family-base: var(--font-material);
+  --ha-font-family-base: var(--font-atkinson), "Atkinson Hyperlegible", "Hyperlegible Sans", system-ui, sans-serif;
   --ha-radius-md: 2px;
   --ha-radius-lg: 3px;
   --ha-radius-xl: 4px;
@@ -404,7 +404,7 @@
   --ha-color-green-500: #efefef;
   --ha-color-green-600: #ffffff;
 
-  --ha-font-family-base: var(--font-material);
+  --ha-font-family-base: var(--font-atkinson), "Atkinson Hyperlegible", "Hyperlegible Sans", system-ui, sans-serif;
   --ha-radius-md: 2px;
   --ha-radius-lg: 3px;
   --ha-radius-xl: 4px;
@@ -575,7 +575,7 @@
   --ha-teenage-chrome-bg: #ece8e1;
   --ha-teenage-chrome-border: rgba(66, 62, 57, 0.17);
 
-  --ha-font-family-base: var(--font-cyberpunk), "Quantico", "Avenir Next", "DIN Alternate", sans-serif;
+  --ha-font-family-base: var(--font-geist), "Geist", system-ui, sans-serif;
   --ha-radius-md: 8px;
   --ha-radius-lg: 11px;
   --ha-radius-xl: 14px;
@@ -614,7 +614,7 @@
   --ha-teenage-chrome-bg: #2a2f35;
   --ha-teenage-chrome-border: rgba(255, 255, 255, 0.14);
 
-  --ha-font-family-base: var(--font-cyberpunk), "Quantico", "Avenir Next", "DIN Alternate", sans-serif;
+  --ha-font-family-base: var(--font-geist), "Geist", system-ui, sans-serif;
   --ha-radius-md: 8px;
   --ha-radius-lg: 11px;
   --ha-radius-xl: 14px;
@@ -1513,13 +1513,15 @@ html[data-theme="teenage"] input,
 html[data-theme="teenage"] textarea,
 html[data-theme="teenage"] select,
 html[data-theme="teenage"] label {
-  font-family: var(--font-cyberpunk), "Quantico", "Avenir Next", "DIN Alternate", var(--ha-font-family-base), sans-serif !important;
-  letter-spacing: 0.012em;
+  font-family: var(--font-geist), "Geist", var(--ha-font-family-base), system-ui, sans-serif !important;
+  /* Geist is a tight modern grotesk — near-zero tracking reads cleaner than the
+     old cyber spacing; tabular figures keep instrument readouts aligned. */
+  letter-spacing: 0.002em;
   font-feature-settings: "tnum" 1;
 }
 
 html[data-theme="teenage"] :is(h1, h2, h3, .font-semibold, .font-bold) {
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 html[data-theme="material"] body,
@@ -1528,7 +1530,8 @@ html[data-theme="material"] input,
 html[data-theme="material"] textarea,
 html[data-theme="material"] select,
 html[data-theme="material"] label {
-  font-family: var(--font-material), var(--ha-font-family-base), system-ui, sans-serif;
+  /* Material Design's own typeface; MD3 specs body/label at 0 tracking. */
+  font-family: var(--font-material), "Roboto", var(--ha-font-family-base), system-ui, sans-serif;
   letter-spacing: 0;
 }
 
@@ -1538,7 +1541,9 @@ html[data-theme="eink"] input,
 html[data-theme="eink"] textarea,
 html[data-theme="eink"] select,
 html[data-theme="eink"] label {
-  font-family: var(--font-material), var(--ha-font-family-base), system-ui, sans-serif;
+  /* Atkinson Hyperlegible — purpose-built for maximum legibility, the right
+     call for the highest-contrast paper theme. */
+  font-family: var(--font-atkinson), "Atkinson Hyperlegible", "Hyperlegible Sans", var(--ha-font-family-base), system-ui, sans-serif;
   letter-spacing: 0;
 }
 

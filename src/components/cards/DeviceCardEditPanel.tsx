@@ -61,10 +61,6 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, h
     onSave({ ...config, slots: next });
   }
 
-  function toggleSize(entityId: string) {
-    update(slots.map(s => s.entity_id === entityId ? { ...s, size: s.size === 'lg' ? 'sm' : 'lg' } : s));
-  }
-
   // chart defaults to on (undefined = shown), so flip between false and true
   function toggleChart(entityId: string) {
     update(slots.map(s => s.entity_id === entityId ? { ...s, chart: s.chart === false } : s));
@@ -247,18 +243,6 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, h
                             >
                               <Icon path={mdiChartLineVariant} size={16} />
                             </button>
-                          )}
-                          {key === 'secondary' && (
-                            <div className="flex rounded-ha-lg overflow-hidden border border-surface-lower shrink-0">
-                              <button
-                                onClick={() => slot.size !== 'sm' && toggleSize(slot.entity_id)}
-                                className={clsx('px-ha-2 py-0.5 text-xs font-medium transition-colors', slot.size === 'sm' ? 'bg-fill-primary-normal text-ha-blue' : 'text-text-secondary hover:bg-surface-mid')}
-                              >S</button>
-                              <button
-                                onClick={() => slot.size !== 'lg' && toggleSize(slot.entity_id)}
-                                className={clsx('px-ha-2 py-0.5 text-xs font-medium transition-colors', slot.size === 'lg' ? 'bg-fill-primary-normal text-ha-blue' : 'text-text-secondary hover:bg-surface-mid')}
-                              >L</button>
-                            </div>
                           )}
                           <div className="flex items-center gap-0.5 shrink-0">
                             {quickActions(key).map(action => (

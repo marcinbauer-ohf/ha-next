@@ -1,5 +1,5 @@
-import type { Metadata } from 'next';
-import { Inter, Poppins, Quantico, Nunito, VT323, Noto_Sans, IBM_Plex_Sans, Source_Sans_3, Figtree, Atkinson_Hyperlegible } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Inter, Poppins, Quantico, Roboto, Geist, VT323, Noto_Sans, IBM_Plex_Sans, Source_Sans_3, Figtree, Atkinson_Hyperlegible } from 'next/font/google';
 import './globals.css';
 import { HomeAssistantProvider } from '@/hooks/useHomeAssistant';
 import { FeatureFlagsProvider } from '@/hooks/useFeatureFlags';
@@ -28,10 +28,17 @@ const quantico = Quantico({
   variable: '--font-cyberpunk',
 });
 
-const nunito = Nunito({
-  subsets: ['latin'],
-  weight: ['400', '600', '700'],
+// Material Design's own typeface — backs the `material` theme.
+const roboto = Roboto({
+  subsets: ['latin', 'latin-ext', 'cyrillic', 'greek'],
+  weight: ['400', '500', '700'],
   variable: '--font-material',
+});
+
+// Clean minimalist grotesk — backs the `teenage` theme's instrument-panel look.
+const geist = Geist({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-geist',
 });
 
 const vt323 = VT323({
@@ -85,6 +92,16 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  // viewport-fit=cover lets the page draw under the iOS status bar so the
+  // app background shows through it instead of iOS filling it with default gray.
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#101114' },
+    { media: '(prefers-color-scheme: light)', color: '#e6e6e6' },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -92,7 +109,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${poppins.variable} ${quantico.variable} ${nunito.variable} ${vt323.variable} ${notoSans.variable} ${ibmPlexSans.variable} ${sourceSans.variable} ${figtree.variable} ${atkinson.variable} antialiased`} suppressHydrationWarning>
+      <body className={`${inter.variable} ${poppins.variable} ${quantico.variable} ${roboto.variable} ${geist.variable} ${vt323.variable} ${notoSans.variable} ${ibmPlexSans.variable} ${sourceSans.variable} ${figtree.variable} ${atkinson.variable} antialiased`} suppressHydrationWarning>
         <ThemeProvider>
           <DogEarConfigProvider>
           <FontProvider>

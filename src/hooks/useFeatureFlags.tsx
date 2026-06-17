@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import type { ReactiveTriggerMode } from './useHomeEventReactor';
-import type { PulseIntensity } from '@/components/ui/RingShaderBackground';
+import { PULSE_MODES, type PulseIntensity, type PulseMode } from '@/components/ui/RingShaderBackground';
 
 const LS_DESKTOP_SPLIT_VIEW_KEY = 'ha-flag-desktop-split-view';
 const LS_OFFSCREEN_CHANGE_HINTS_KEY = 'ha-flag-offscreen-change-hints';
@@ -13,6 +13,7 @@ const LS_REACTIVE_TRIGGER_KEY = 'ha-flag-reactive-trigger';
 const LS_REACTIVE_INTENSITY_KEY = 'ha-flag-reactive-intensity';
 const LS_PULSE_WALLPAPER_REACTIVE_KEY = 'ha-flag-pulse-wallpaper-reactive';
 const LS_REACTIVE_TRIGGER_LABELS_KEY = 'ha-flag-reactive-trigger-labels';
+const LS_PULSE_MODE_KEY = 'ha-flag-pulse-mode';
 
 const REACTIVE_TRIGGER_MODES: ReactiveTriggerMode[] = ['toggles-errors', 'all', 'errors'];
 const PULSE_INTENSITIES: PulseIntensity[] = ['subtle', 'bold'];
@@ -45,6 +46,9 @@ interface FeatureFlagsContextValue {
   pulseWallpaperReactive: boolean;
   setPulseWallpaperReactive: (value: boolean) => void;
   togglePulseWallpaperReactive: () => void;
+  /** Ambient style of the ring background / pulse wallpaper. */
+  pulseMode: PulseMode;
+  setPulseMode: (value: PulseMode) => void;
 }
 
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue | undefined>(undefined);
@@ -178,6 +182,18 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     setPulseWallpaperReactive(!pulseWallpaperReactive);
   }, [pulseWallpaperReactive, setPulseWallpaperReactive]);
 
+  // Ambient ring style — defaults to the classic endless rings.
+  const [pulseMode, setPulseModeState] = useState<PulseMode>(() => {
+    if (typeof window === 'undefined') return 'classic';
+    const stored = localStorage.getItem(LS_PULSE_MODE_KEY);
+    return PULSE_MODES.includes(stored as PulseMode) ? (stored as PulseMode) : 'classic';
+  });
+
+  const setPulseMode = useCallback((value: PulseMode) => {
+    setPulseModeState(value);
+    localStorage.setItem(LS_PULSE_MODE_KEY, value);
+  }, []);
+
   return (
     <FeatureFlagsContext.Provider
       value={{
@@ -206,6 +222,8 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
         pulseWallpaperReactive,
         setPulseWallpaperReactive,
         togglePulseWallpaperReactive,
+        pulseMode,
+        setPulseMode,
       }}
     >
       {children}

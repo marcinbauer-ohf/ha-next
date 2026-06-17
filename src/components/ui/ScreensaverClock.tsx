@@ -84,7 +84,7 @@ function ScreensaverActivityPills({
     pills.push(
       <div
         key="release-notes"
-        className={`relative flex items-center gap-ha-3 bg-green-500/12 border border-green-500/25 rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
+        className={`relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
       >
         <div className="relative">
           <div className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
@@ -93,7 +93,7 @@ function ScreensaverActivityPills({
           <ActivityCountBadge count={activityData.activeReleaseNotes.length} variant="green" />
         </div>
         <div className="flex flex-col min-w-0 max-w-[180px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
-          <span className="text-sm font-bold text-green-600 truncate">What&apos;s New</span>
+          <span className="text-sm font-medium text-text-primary truncate">What&apos;s New</span>
           <span className="text-xs text-text-secondary truncate">{note.version}</span>
         </div>
       </div>
@@ -143,7 +143,7 @@ function ScreensaverActivityPills({
     pills.push(
       <div
         key="timer"
-        className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 ${isActive ? 'bg-fill-primary-normal' : 'bg-yellow-95'} ${mobileHide()}`}
+        className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 bg-surface-low ${mobileHide()}`}
       >
         <div className="relative">
           <ActivityCountBadge count={activityData.activeTimers.length} />
@@ -170,7 +170,7 @@ function ScreensaverActivityPills({
     pills.push(
       <div
         key="camera"
-        className={`relative flex items-center gap-ha-3 bg-red-500/10 border border-red-500/20 rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
+        className={`relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
       >
         <div className="relative w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
           <img src={picUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover animate-pulse" />
@@ -178,8 +178,8 @@ function ScreensaverActivityPills({
           <ActivityCountBadge count={activityData.activeCameras.length} />
         </div>
         <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
-          <span className="text-sm font-bold text-red-500 truncate flex items-center gap-1">
-            <Icon path={mdiDoorbellVideo} size={14} />
+          <span className="text-sm font-medium text-text-primary truncate flex items-center gap-1">
+            <Icon path={mdiDoorbellVideo} size={14} className="text-red-500 shrink-0" />
             {camera.name}
           </span>
           <span className="text-xs text-text-secondary truncate">{camera.event}</span>
@@ -250,7 +250,7 @@ function systemPrefers24HourClock(): boolean {
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
   const liveSummaryItems = useLiveSummaryItems();
   const { haUrl } = useHomeAssistant();
-  const { wavyBackgroundEnabled, reactiveBackgroundEnabled, reactiveTriggerMode, reactiveIntensity, reactiveTriggerLabelsEnabled } = useFeatureFlags();
+  const { wavyBackgroundEnabled, reactiveBackgroundEnabled, reactiveTriggerMode, reactiveIntensity, reactiveTriggerLabelsEnabled, pulseMode, setPulseMode } = useFeatureFlags();
   const ringOrigin = useRingOrigin();
   // Only watch for events while the screensaver is actually on screen.
   useHomeEventReactor(reactiveBackgroundEnabled && visible, reactiveTriggerMode);
@@ -534,6 +534,23 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     );
   };
 
+  // TEMP: cycle the wallpaper style on click (replaces the debug picker). The
+  // hint text below shows the current style; tapping it steps to the next one.
+  const PULSE_MODE_LABELS: Record<typeof pulseMode, string> = {
+    classic: 'Classic',
+    heartbeat: 'Heartbeat',
+    breathing: 'Breathing',
+    aurora: 'Aurora',
+    bokeh: 'Bokeh',
+    dawn: 'Dawn',
+    breathOrb: 'Breath orb',
+  };
+  const cyclePulseMode = () => {
+    const order = Object.keys(PULSE_MODE_LABELS) as (typeof pulseMode)[];
+    const next = order[(order.indexOf(pulseMode) + 1) % order.length];
+    setPulseMode(next);
+  };
+
   if (!shouldRender) return null;
 
   // Calculate transform based on drag
@@ -566,10 +583,12 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         intensity={reactiveIntensity}
         center={ringOrigin.center}
         reach={ringOrigin.reach}
+        mode={pulseMode}
       />
       {/* Names the entity behind each reactive ripple, bottom-center. Opt-in
           (Settings → screensaver) and only while the reactive background is on. */}
       {reactiveBackgroundEnabled && reactiveTriggerLabelsEnabled && <ScreensaverPulseLog />}
+
       {/* Build Info - Top */}
       <div className="absolute top-8 left-0 right-0 flex justify-center px-ha-6 pointer-events-none">
         <p className="text-[13px] lg:text-xs text-text-disabled opacity-40 font-mono text-center">
@@ -577,10 +596,24 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         </p>
       </div>
 
+      {/* Mobile: clickable style cycler, top of screen */}
+      <div className="lg:hidden absolute top-16 left-0 right-0 flex justify-center px-ha-6">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            cyclePulseMode();
+          }}
+          className="text-sm text-text-secondary"
+        >
+          Style: {PULSE_MODE_LABELS[pulseMode]} — tap to change
+        </button>
+      </div>
+
       {/* Main time display */}
       <div
         className="relative tabular-nums"
-        style={{ fontFamily: 'var(--font-poppins), "Poppins", system-ui, sans-serif' }}
+        style={{ fontFamily: 'var(--ha-font-family-base, var(--font-poppins)), system-ui, sans-serif' }}
       >
         <div className="flex items-center gap-1">
           <div className="flex items-center">
@@ -695,10 +728,22 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         </button>
       </div>
 
-      {/* Desktop: Hint to dismiss */}
-      <p className="hidden lg:block text-sm text-text-disabled mt-12 animate-pulse">
-        Tap anywhere to dismiss
-      </p>
+      {/* Desktop: Hint to dismiss + clickable style cycler */}
+      <div className="hidden lg:flex flex-col items-center gap-ha-2 mt-12">
+        <p className="text-sm text-text-disabled animate-pulse">
+          Tap anywhere to dismiss
+        </p>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            cyclePulseMode();
+          }}
+          className="text-sm text-text-secondary hover:text-text-primary transition-colors"
+        >
+          Style: {PULSE_MODE_LABELS[pulseMode]} — tap to change
+        </button>
+      </div>
 
       {/* Mobile: Drag handle visual at bottom */}
       <div

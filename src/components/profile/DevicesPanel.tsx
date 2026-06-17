@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
-import { SectionLabel, DataListView, ToggleSwitch, NavChevron, CountBadge, Sidebar } from '../ui';
+import { SectionLabel, DataListView, ToggleSwitch, NavChevron, Sidebar } from '../ui';
 import type { DataListConfig } from '../ui';
 import type { DeviceSummary, HassDevice } from '@/hooks';
 import { DEVICE_CATEGORY_LABEL, useDevices, useCopyToClipboard } from '@/hooks';
@@ -350,8 +350,9 @@ function EntityControlRow({
   const toggleable = TOGGLEABLE.has(domain) && entity.state !== 'unavailable';
   const on = isOn(entity);
 
+  // Border + container come from DataListView's row wrapper / section card.
   return (
-    <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3 border-b border-surface-low/40 last:border-0">
+    <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3">
       <div className={`w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 ${on ? 'bg-fill-primary-normal text-ha-blue' : 'bg-surface-mid text-text-secondary'}`}>
         <Icon path={domainIcon(entity)} size={16} />
       </div>
@@ -372,31 +373,29 @@ function EntityControlRow({
   );
 }
 
-/** A bucket of entity rows under a section label. */
-function EntitySection({
-  title,
-  entities,
-  deviceName,
-}: {
-  title: string;
-  entities: HassDevice['entities'];
-  deviceName: string;
-}) {
-  if (entities.length === 0) return null;
-  return (
-    <div className="space-y-ha-3">
-      <div className="flex items-center gap-ha-2 px-ha-1">
-        <SectionLabel>{title}</SectionLabel>
-        <CountBadge count={entities.length} />
-      </div>
-      <div className="bg-surface-default rounded-ha-2xl border border-surface-lower overflow-hidden">
-        {entities.map((e) => (
-          <EntityControlRow key={e.entity_id} entity={e} deviceName={deviceName} />
-        ))}
-      </div>
-    </div>
-  );
+type DeviceEntity = HassDevice['entities'][number];
+
+/** Bucket an entity into the HA device-page sections (by domain). */
+function entityBucket(e: DeviceEntity): { key: string; title: string } {
+  const domain = e.entity_id.split('.')[0];
+  if (
+    TOGGLEABLE.has(domain) ||
+    domain === 'climate' ||
+    domain === 'vacuum' ||
+    domain === 'number' ||
+    domain === 'select' ||
+    domain === 'button' ||
+    domain === 'alarm_control_panel'
+  ) {
+    return { key: 'controls', title: 'Controls' };
+  }
+  if (domain === 'sensor' || domain === 'binary_sensor' || domain === 'weather') {
+    return { key: 'sensors', title: 'Sensors' };
+  }
+  return { key: 'diagnostic', title: 'Diagnostic' };
 }
+
+const ENTITY_BUCKET_RANK: Record<string, number> = { controls: 0, sensors: 1, diagnostic: 2 };
 
 /**
  * Body of the "Device info" sidebar — the device summary (icon, name,
@@ -492,29 +491,32 @@ export function DeviceDetailView({
 }) {
   const { devices } = useDevices();
   const live = devices.find((d) => d.id === device.id);
+  const entities = live?.entities ?? [];
 
-  // Split entities into the three HA buckets by domain.
-  const { controls, sensors, diagnostic } = useMemo(() => {
-    const controls: HassDevice['entities'] = [];
-    const sensors: HassDevice['entities'] = [];
-    const diagnostic: HassDevice['entities'] = [];
-    for (const e of live?.entities ?? []) {
-      const domain = e.entity_id.split('.')[0];
-      if (TOGGLEABLE.has(domain) || domain === 'climate' || domain === 'vacuum' || domain === 'number' || domain === 'select' || domain === 'button' || domain === 'alarm_control_panel') {
-        controls.push(e);
-      } else if (domain === 'sensor' || domain === 'binary_sensor' || domain === 'weather') {
-        sensors.push(e);
-      } else {
-        diagnostic.push(e);
-      }
-    }
-    return { controls, sensors, diagnostic };
-  }, [live]);
-
-  const entityCount = controls.length + sensors.length + diagnostic.length;
+  // Reuse the table view (DataListView) for the entity list: it supplies the
+  // sticky search field, the Controls / Sensors / Diagnostic grouping (with
+  // per-section count badges) and the rounded section cards — same component the
+  // devices / integrations tables use.
+  const entityConfig = useMemo<DataListConfig<DeviceEntity>>(() => ({
+    keyOf: (e) => e.entity_id,
+    searchText: (e) => `${entityLabel(e, device.name)} ${e.entity_id}`,
+    searchPlaceholder: 'Search entities…',
+    groupOptions: [
+      {
+        id: 'section',
+        label: 'Section',
+        groupOf: entityBucket,
+        compareGroups: (a, b) => ENTITY_BUCKET_RANK[a.key] - ENTITY_BUCKET_RANK[b.key],
+      },
+    ],
+    defaultGroupId: 'section',
+    renderRow: (e) => <EntityControlRow entity={e} deviceName={device.name} />,
+    emptyLabel: 'No entities match.',
+    bg: 'surface-lower',
+  }), [device.name]);
 
   const infoBody = <DeviceInfoPanel device={device} />;
-  const panelHeader = { icon: mdiInformationOutline, title: 'Device info', onClose: onCloseInfo };
+  const panelHeader = { title: 'Device info', onClose: onCloseInfo };
 
   return (
     <div className="flex items-start gap-ha-5">
@@ -522,14 +524,12 @@ export function DeviceDetailView({
           Fills the settings second column (matching the list/cards views); the
           summary + metadata live in the sidebar (below). */}
       <div className="min-w-0 flex-1 space-y-ha-6">
-        <EntitySection title="Controls" entities={controls} deviceName={device.name} />
-        <EntitySection title="Sensors" entities={sensors} deviceName={device.name} />
-        <EntitySection title="Diagnostic" entities={diagnostic} deviceName={device.name} />
-
-        {entityCount === 0 && (
+        {entities.length === 0 ? (
           <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-5 text-center text-sm text-text-tertiary">
             This device has no entities.
           </div>
+        ) : (
+          <DataListView items={entities} config={entityConfig} />
         )}
 
         {/* Configure (placeholder — production opens HA's device page) */}

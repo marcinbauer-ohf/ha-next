@@ -72,19 +72,13 @@ function NavItem({
         isActive ? 'bg-surface-mid' : 'hover:bg-surface-mid/50 active:bg-surface-mid',
       )}
     >
-      {/* Colored icon tile — solid accent fill when active, translucent tint
-          otherwise. Muted gray for sections with no content yet. */}
+      {/* Bare icon — accent-colored, no background tile. Muted gray for
+          sections with no content yet. */}
       <div
-        className={`w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 ${empty ? 'bg-surface-mid' : ''}`}
-        style={
-          empty
-            ? undefined
-            : accentActive
-              ? { backgroundColor: accent, color: '#fff' }
-              : { backgroundColor: `${accent}24`, color: accent }
-        }
+        className="w-8 h-8 flex items-center justify-center flex-shrink-0"
+        style={empty ? undefined : { color: accent }}
       >
-        <Icon path={item.icon} size={16} className={empty ? 'text-text-tertiary' : undefined} />
+        <Icon path={item.icon} size={18} className={empty ? 'text-text-tertiary' : undefined} />
       </div>
       <div className="flex-1 min-w-0">
         <p

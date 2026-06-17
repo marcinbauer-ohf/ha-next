@@ -119,6 +119,30 @@ export function RollingText({ text, className = '', direction = 'vertical', reve
     );
   }
 
+  // Vertical roll. Forward (reverse=false): new line enters from BELOW — the
+  // stack is [current, next] and slides up (translateY 0 → -50%). Reverse: new
+  // line enters from ABOVE — the stack is [next, current] and slides down
+  // (translateY -50% → 0), so the visible line ends on `next`. Used so the
+  // top-bar section crumb rolls the same way the content scrolls.
+  const vReverse = anim.reverse;
+  const animating = isTransitioning || next !== null;
+  // Idle must rest at 0 (the single `current` line, first child). Only while a
+  // roll is in flight does the reverse stacking/offset apply.
+  const stackTransform = !animating
+    ? 'translateY(0)'
+    : vReverse
+      ? `translateY(${(progress - 1) * 50}%)`
+      : `translateY(${-progress * 50}%)`;
+  const currentLine = (
+    <span className="flex items-center whitespace-nowrap" style={{ height: '1em' }}>
+      {current}
+    </span>
+  );
+  const nextLine = next !== null && (
+    <span className="flex items-center whitespace-nowrap" style={{ height: '1em' }}>
+      {next}
+    </span>
+  );
   return (
     <span
       className={clsx('relative inline-block overflow-hidden align-top', className)}
@@ -132,17 +156,10 @@ export function RollingText({ text, className = '', direction = 'vertical', reve
     >
       <span
         className={clsx('flex flex-col', isTransitioning && 'transition-transform duration-500 ease-in-out-quint')}
-        style={{ transform: `translateY(${-progress * 50}%)` }}
+        style={{ transform: stackTransform }}
         onTransitionEnd={handleTransitionEnd}
       >
-        <span className="flex items-center whitespace-nowrap" style={{ height: '1em' }}>
-          {current}
-        </span>
-        {next !== null && (
-          <span className="flex items-center whitespace-nowrap" style={{ height: '1em' }}>
-            {next}
-          </span>
-        )}
+        {vReverse ? <>{nextLine}{currentLine}</> : <>{currentLine}{nextLine}</>}
       </span>
     </span>
   );

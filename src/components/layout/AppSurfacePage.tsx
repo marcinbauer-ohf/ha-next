@@ -15,7 +15,7 @@ interface AppSurfacePageProps {
 
 export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePageProps) {
   const { isRevealed } = usePullToRevealContext();
-  const { contentPaddingClasses, contentTransitionClasses, contentStyle, isMobileImmersive, surfaceRoundingClass } = useDesktopImmersivePageLayout();
+  const { contentPaddingClasses, contentTransitionClasses, contentStyle, surfaceRoundingClass } = useDesktopImmersivePageLayout();
 
   return (
     <>
@@ -34,7 +34,7 @@ export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePag
             data-scrollable="dashboard"
           >
             <main
-              className={`${isMobileImmersive ? 'px-ha-5' : 'px-ha-4'} pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
+              className={`px-ha-3 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
             >
               <ApplicationViewNotice />
               {children}

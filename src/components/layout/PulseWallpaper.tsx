@@ -19,7 +19,7 @@ import { PULSE_COLORS } from '@/lib/homePulseBus';
  * the entire AppShell on every state change when the wallpaper is off.
  */
 export function PulseWallpaper() {
-  const { wavyBackgroundEnabled, pulseWallpaperReactive } = useFeatureFlags();
+  const { wavyBackgroundEnabled, pulseWallpaperReactive, pulseMode } = useFeatureFlags();
   const { connected, connecting, demoMode } = useHomeAssistant();
   useHomeEventReactor(pulseWallpaperReactive, 'toggles-errors');
 
@@ -41,6 +41,7 @@ export function PulseWallpaper() {
         tint={tint}
         center={center}
         reach={reach}
+        mode={pulseMode}
       />
     </div>
   );

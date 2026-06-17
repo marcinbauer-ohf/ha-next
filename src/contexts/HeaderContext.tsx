@@ -20,6 +20,14 @@ interface HeaderContextType {
   /** Suppress the desktop back arrow even when a subtitle/eyebrow is shown
    *  (e.g. the settings section root, which has no meaningful "back"). */
   hideBack?: boolean;
+  /** A small secondary line shown BELOW the title (reversed breadcrumb). The
+   *  dashboard feeds it the section the reader has scrolled into, so the
+   *  scrolled-away section header re-appears under "Home" in the top bar. */
+  sectionCrumb?: string;
+  /** Direction the section crumb should roll: `true` rolls in from the top
+   *  (scrolling down), `false` from the bottom (scrolling up). */
+  sectionCrumbReverse?: boolean;
+  setSectionCrumb: (crumb: string | undefined, reverse?: boolean) => void;
   setTitle: (title: string) => void;
   setSubtitle: (subtitle: string | undefined) => void;
   setIcon: (icon: string | undefined) => void;
@@ -38,6 +46,12 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
   const [primaryAction, setPrimaryAction] = useState<{ icon: string; onClick: () => void } | undefined>(undefined);
   const [onBack, setOnBack] = useState<(() => void) | undefined>(undefined);
   const [hideBack, setHideBack] = useState<boolean | undefined>(undefined);
+  const [sectionCrumb, setSectionCrumbState] = useState<string | undefined>(undefined);
+  const [sectionCrumbReverse, setSectionCrumbReverse] = useState<boolean | undefined>(undefined);
+  const setSectionCrumb = useCallback((crumb: string | undefined, reverse?: boolean) => {
+    setSectionCrumbState(crumb);
+    if (reverse !== undefined) setSectionCrumbReverse(reverse);
+  }, []);
 
   const setHeader = useCallback((data: { title: string; subtitle?: string; breadcrumbs?: BreadcrumbItem[]; icon?: string; primaryAction?: { icon: string; onClick: () => void }; onBack?: () => void; hideBack?: boolean }) => {
     setTitle(data.title);
@@ -47,6 +61,9 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     setPrimaryAction(data.primaryAction);
     setOnBack(data.onBack ? () => data.onBack : undefined);
     setHideBack(data.hideBack);
+    // A fresh header (page navigation) drops any dashboard section crumb; the
+    // dashboard re-publishes it from its own scroll listener.
+    setSectionCrumbState(undefined);
   }, []);
 
   const value = useMemo(() => ({
@@ -57,13 +74,16 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     primaryAction,
     onBack,
     hideBack,
+    sectionCrumb,
+    sectionCrumbReverse,
+    setSectionCrumb,
     setTitle,
     setSubtitle,
     setIcon,
     setPrimaryAction,
     setOnBack,
     setHeader,
-  }), [title, subtitle, breadcrumbs, icon, primaryAction, onBack, hideBack, setHeader]);
+  }), [title, subtitle, breadcrumbs, icon, primaryAction, onBack, hideBack, sectionCrumb, sectionCrumbReverse, setSectionCrumb, setHeader]);
 
   return (
     <HeaderContext.Provider value={value}>

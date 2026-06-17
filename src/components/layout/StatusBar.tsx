@@ -1179,7 +1179,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         ? openActivityWidgetDialog(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')
                         : openActivityWidget(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')
                     )}
-                    className="relative flex items-center gap-ha-3 bg-green-500/12 border border-green-500/25 rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-green-500/20 cursor-pointer"
+                    className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer"
                   >
                     <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                       <div className="relative">
@@ -1193,12 +1193,12 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         )}
                       </div>
                       <div className="flex flex-col min-w-0 max-w-[180px]">
-                        <span className="text-sm font-bold text-green-600 truncate">What&apos;s New</span>
+                        <span className="text-sm font-medium text-text-primary truncate">What&apos;s New</span>
                         <span className="text-xs text-text-secondary truncate">{releaseNote.version}</span>
                       </div>
                     </div>
                     {showPreview && (
-                      <div className="absolute inset-0 flex items-center justify-center text-green-600 pointer-events-none">
+                      <div className="absolute inset-0 flex items-center justify-center text-text-primary pointer-events-none">
                         <Icon path={mdiOpenInNew} size={18} />
                       </div>
                     )}
@@ -1780,9 +1780,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
                       : openActivityWidget(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:opacity-90 ${
-                    timer.state === 'active' ? 'bg-fill-primary-normal' : 'bg-yellow-95'
-                  }`}
+                  className="relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer bg-surface-low hover:bg-surface-mid"
                 >
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="relative">
@@ -1813,7 +1811,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     </div>
                   </div>
                   {showPreview && (
-                    <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-700'}`}>
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-text-primary">
                       <Icon path={mdiOpenInNew} size={18} />
                     </div>
                   )}
@@ -2056,7 +2054,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
                       : openActivityWidget(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
                   )}
-                  className="relative flex items-center gap-ha-3 bg-red-500/10 border border-red-500/20 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:bg-red-500/20"
+                  className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:bg-surface-mid"
                 >
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="relative w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
@@ -2073,15 +2071,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       )}
                     </div>
                     <div className="flex flex-col min-w-0 max-w-[140px]">
-                      <span className="text-sm font-bold text-red-500 truncate flex items-center gap-1">
-                        <Icon path={mdiDoorbellVideo} size={14} />
+                      <span className="text-sm font-medium text-text-primary truncate flex items-center gap-1">
+                        <Icon path={mdiDoorbellVideo} size={14} className="text-red-500 shrink-0" />
                         {camera.name}
                       </span>
                       <span className="text-xs text-text-secondary truncate">{camera.event}</span>
                     </div>
                   </div>
                   {showPreview && (
-                    <div className="absolute inset-0 flex items-center justify-center text-red-500 pointer-events-none">
+                    <div className="absolute inset-0 flex items-center justify-center text-text-primary pointer-events-none">
                       <Icon path={mdiOpenInNew} size={18} />
                     </div>
                   )}
@@ -2474,7 +2472,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
 
           {/* Time with stacked AM/PM */}
           <div className="flex items-center gap-ha-1">
-            <span className="text-base font-semibold text-text-primary tabular-nums" style={{ fontFamily: 'system-ui' }}>
+            <span className="text-base font-semibold text-text-primary tabular-nums" style={{ fontFamily: 'var(--ha-font-family-base, system-ui)' }}>
               {currentTime.hours}
               <span className={colonVisible ? 'opacity-100' : 'opacity-0'}>:</span>
               {currentTime.minutes}
