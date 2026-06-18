@@ -158,6 +158,21 @@ export function createDemoEntities(now = new Date()): HassEntities {
       },
       timestamp
     ),
+    'weather.home': createEntity(
+      'weather.home',
+      'partlycloudy',
+      {
+        friendly_name: 'Home',
+        temperature: 18,
+        temperature_unit: '°C',
+        humidity: 57,
+        pressure: 1014,
+        wind_speed: 12,
+        wind_bearing: 220,
+        cloud_coverage: 45,
+      },
+      timestamp
+    ),
     'binary_sensor.remote_ui': createEntity(
       'binary_sensor.remote_ui',
       'on',

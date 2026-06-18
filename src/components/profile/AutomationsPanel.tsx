@@ -149,6 +149,40 @@ export function AutomationsTable({
     ],
     renderRow: (a) => <AutomationRow automation={a} onSelect={onSelect} />,
     renderCard: (a) => <AutomationTile automation={a} onSelect={onSelect} />,
+    columns: [
+      {
+        id: 'name',
+        header: 'Automation',
+        sortAccessor: (a) => a.name.toLowerCase(),
+        cell: (a) => (
+          <div className="flex items-center gap-ha-3">
+            <AutomationGlyph
+              tileClass="w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0"
+              iconSize={16}
+            />
+            <span className="min-w-0 flex items-center gap-ha-2">
+              <span className="font-semibold text-text-primary truncate">{a.name}</span>
+              <StatusPill enabled={a.enabled} />
+            </span>
+          </div>
+        ),
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        hideBelow: 'sm',
+        sortAccessor: (a) => (a.enabled ? 0 : 1),
+        cell: (a) => (a.enabled ? 'Enabled' : 'Disabled'),
+      },
+      {
+        id: 'last-triggered',
+        header: 'Last triggered',
+        sortAccessor: (a) => (a.lastTriggered ? new Date(a.lastTriggered).getTime() : 0),
+        cell: (a) => formatLastTriggered(a.lastTriggered),
+      },
+    ],
+    onRowClick: (a) => onSelect(a.id),
+    fillHeight: true,
     defaultLayout: 'list',
     emptyLabel: 'No automations match these filters.',
     bg: 'surface-lower',

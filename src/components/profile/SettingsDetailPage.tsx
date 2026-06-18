@@ -21,7 +21,8 @@ import type { EntitySlot, EntitySection } from '@/hooks/useDeviceCardConfig';
 import { THEMES, type Background, type ColorMode, type Theme } from '@/hooks/useTheme';
 import { useDogEarConfig } from '@/hooks/useDogEarConfig';
 import { DOG_EAR_ACTIONS } from '@/lib/dogEarActions';
-import { areSimulationEntitiesEqual, selectSimulationEntities } from '@/lib/homeassistant/selectors';
+import { areSimulationEntitiesEqual, selectSimulationEntities, selectWeatherOptions, areWeatherOptionsEqual } from '@/lib/homeassistant/selectors';
+import { Dropdown } from '../ui/Dropdown';
 import { useHaptics } from '@/lib/haptics';
 import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
 import { type SettingsSlug, allSettingsLinks } from './settingsNavigation';
@@ -73,6 +74,7 @@ function SettingsShell({
   title,
   titleAction,
   onBack,
+  fill,
 }: {
   children: React.ReactNode;
   panelMode?: boolean;
@@ -81,6 +83,12 @@ function SettingsShell({
   titleAction?: React.ReactNode;
   /** When set (panel mode), the title becomes a back affordance: chevron + title. */
   onBack?: () => void;
+  /**
+   * Fill the available height and let the child own its scroll (a single fixed
+   * card whose contents scroll, not the page). The child must handle scrolling —
+   * e.g. DataListView's `fillHeight`.
+   */
+  fill?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
@@ -106,7 +114,7 @@ function SettingsShell({
 
   if (panelMode) {
     return (
-      <div ref={rootRef}>
+      <div ref={rootRef} className={fill ? 'flex h-full min-h-0 flex-col' : undefined}>
         {(onBack || title) && (
           // Sticky title — stays pinned while content scrolls under it. A list's
           // own sticky search stacks just beneath via `--settings-header-h`. The
@@ -133,16 +141,20 @@ function SettingsShell({
             </div>
           </div>
         )}
-        <div className="space-y-ha-6">{children}</div>
+        <div className={fill ? 'flex min-h-0 flex-1 flex-col' : 'space-y-ha-6'}>{children}</div>
       </div>
     );
   }
 
   return (
-    <AppSurfacePage>
+    <AppSurfacePage scrollClassName={fill ? 'h-full flex flex-col min-h-0' : ''}>
       {/* `--list-top-pad` mirrors <main>'s top padding (pt-ha-4 / lg:pt-ha-5) so a
           list's sticky search can absorb it and pin under the top bar without drift. */}
-      <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full space-y-ha-6 [--list-top-pad:var(--ha-space-4)] lg:[--list-top-pad:var(--ha-space-5)]">
+      <div
+        className={`max-w-[1240px] mx-auto lg:px-ha-8 w-full [--list-top-pad:var(--ha-space-4)] lg:[--list-top-pad:var(--ha-space-5)] ${
+          fill ? 'flex min-h-0 flex-1 flex-col' : 'space-y-ha-6'
+        }`}
+      >
         {children}
       </div>
     </AppSurfacePage>
@@ -406,7 +418,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setContextSlug(slug);
     return () => setContextSlug(null);
   }, [slug, setContextSlug]);
-  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive, pulseMode, setPulseMode } = useFeatureFlags();
+  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive, pulseMode, setPulseMode, weatherEntityId, setWeatherEntityId, fastScrollLabelsEnabled, toggleFastScrollLabels } = useFeatureFlags();
   const { theme, mode, background, setTheme, setMode, setBackground } = useTheme();
   const iconSet = useIconSet();
   const { font, fonts, setFont } = useFont();
@@ -426,6 +438,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
   const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
   const { config: dogEarConfig, setCorner: setDogEarCorner } = useDogEarConfig();
   const simulationEntities = useHomeAssistantSelector(selectSimulationEntities, areSimulationEntitiesEqual);
+  const weatherOptions = useHomeAssistantSelector(selectWeatherOptions, areWeatherOptionsEqual);
 
   // Device card configuration
   const { devices } = useDeviceStructure();
@@ -689,13 +702,14 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
         setHeader({ title: activeIntegration.name, subtitle: 'Settings', breadcrumbs: detailCrumbs('Integrations'), icon: activeIntegration.icon, onBack: () => setDetailId(null) });
       } else {
         // Section root: the selected nav item owns the title with "Settings" as
-        // the eyebrow above it. No onBack — you're at the top of settings and
-        // the nav column is right there, so no back affordance.
+        // the eyebrow above it. Back returns to wherever you opened settings from
+        // (a dashboard or app) — section switches happen in the nav column and
+        // don't push history, so `router.back()` skips straight past them.
         setHeader({
           title: meta.title,
           subtitle: 'Settings',
           icon: meta.icon,
-          hideBack: true,
+          onBack: () => router.back(),
         });
       }
       return;
@@ -928,6 +942,12 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           onToggle={toggleScrollIndex}
         />
         <ToggleRow
+          label="Fast-scroll name labels · prototype"
+          description="While you flick a dashboard fast, overlay each card with just its name (large) so you can read what's flying past. Detail returns the moment you slow down."
+          checked={fastScrollLabelsEnabled}
+          onToggle={toggleFastScrollLabels}
+        />
+        <ToggleRow
           label="Desktop split view"
           description="Enable the split-workspace entry points used when comparing dashboards side by side."
           checked={desktopSplitViewEnabled}
@@ -1010,8 +1030,31 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
             { value: 'bokeh', label: 'Bokeh', caption: 'Soft light orbs drifting slowly upward' },
             { value: 'dawn', label: 'Dawn', caption: 'A slow flowing colour wash, no hard shapes' },
             { value: 'breathOrb', label: 'Breath orb', caption: 'One soft glow gently expanding and contracting' },
+            { value: 'weather', label: 'Weather', caption: 'Abstract, reactive ambience driven by a weather entity' },
           ]}
         />
+        {pulseMode === 'weather' && (
+          <div className="space-y-ha-3 rounded-ha-2xl border border-surface-lower bg-surface-low/40 px-ha-4 py-ha-4">
+            <div className="flex items-center justify-between gap-ha-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-text-primary">Weather entity</p>
+                <p className="text-[13px] text-text-secondary">
+                  Drives the abstract weather wallpaper — temperature, clouds, rain, snow and wind.
+                </p>
+              </div>
+              {weatherOptions.length > 0 ? (
+                <Dropdown
+                  options={weatherOptions}
+                  value={weatherEntityId ?? weatherOptions[0].value}
+                  onChange={setWeatherEntityId}
+                  align="right"
+                />
+              ) : (
+                <span className="shrink-0 text-sm text-text-disabled">No weather entities</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </SettingsCard>
   );
@@ -1134,6 +1177,9 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     // can't scroll. In panelMode the wrapper lives inside a ScrollColumn and
     // needs no sizing.
     const paneFill = panelMode ? '' : 'flex flex-col flex-1 min-h-0';
+    // The list view fills the column and scrolls internally (fixed card); in
+    // panelMode it fills `h-full`, on the full-page route `flex-1`.
+    const listFill = panelMode ? 'flex flex-col h-full min-h-0' : 'flex flex-col flex-1 min-h-0';
     // Re-key on drill so the pane animates: detail slides in from the right,
     // the list slides back in from the left when you go back.
     if (activeIntegration) {
@@ -1148,8 +1194,8 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
       );
     }
     return (
-      <div key="list" className={`ha-pane-in ha-pane-in--back ${paneFill}`}>
-        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
+      <div key="list" className={`ha-pane-in ha-pane-in--back ${listFill}`}>
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title} fill>
           <IntegrationsTable integrations={integrations} onSelect={openDetail} lastOpenedId={lastOpenedId} />
         </SettingsShell>
       </div>
@@ -1161,6 +1207,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
   // entities split into Controls / Sensors / Diagnostic).
   if (slug === 'devices') {
     const paneFill = panelMode ? '' : 'flex flex-col flex-1 min-h-0';
+    const listFill = panelMode ? 'flex flex-col h-full min-h-0' : 'flex flex-col flex-1 min-h-0';
     if (activeDevice) {
       return (
         <div key={`detail:${activeDevice.id}`} className={`ha-pane-in ${paneFill}`}>
@@ -1171,8 +1218,8 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
       );
     }
     return (
-      <div key="list" className={`ha-pane-in ha-pane-in--back ${paneFill}`}>
-        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
+      <div key="list" className={`ha-pane-in ha-pane-in--back ${listFill}`}>
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title} fill>
           <DevicesTable devices={deviceList} onSelect={openDetail} lastOpenedId={lastOpenedId} />
         </SettingsShell>
       </div>
@@ -1184,6 +1231,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
   // When / And if / Then do editor with its node-config sidebar.
   if (slug === 'automations') {
     const paneFill = panelMode ? '' : 'flex flex-col flex-1 min-h-0';
+    const listFill = panelMode ? 'flex flex-col h-full min-h-0' : 'flex flex-col flex-1 min-h-0';
     if (activeAutomation) {
       return (
         <div key={`detail:${activeAutomation.id}`} className={`ha-pane-in ${paneFill}`}>
@@ -1194,8 +1242,8 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
       );
     }
     return (
-      <div key="list" className={`ha-pane-in ha-pane-in--back ${paneFill}`}>
-        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
+      <div key="list" className={`ha-pane-in ha-pane-in--back ${listFill}`}>
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title} fill>
           <AutomationsTable automations={automations} onSelect={openDetail} lastOpenedId={lastOpenedId} />
         </SettingsShell>
       </div>

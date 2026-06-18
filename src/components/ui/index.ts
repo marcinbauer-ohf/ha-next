@@ -20,6 +20,7 @@ export type {
   DataListGroupOption,
   DataListFilterGroup,
   DataListFilterChip,
+  DataListColumn,
   DataListLayout,
 } from './DataListView';
 export { SegmentedControl } from './SegmentedControl';

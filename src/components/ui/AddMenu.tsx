@@ -104,7 +104,7 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="lg:hidden fixed inset-0 z-[199] bg-black/40 backdrop-blur-[2px]"
+            className="lg:hidden fixed inset-0 z-[199] bg-black/40-[2px]"
             onClick={onClose}
           />
           {/* Desktop click-outside capture */}

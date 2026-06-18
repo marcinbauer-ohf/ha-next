@@ -26,19 +26,27 @@ export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePag
         } ${contentPaddingClasses} ${contentTransitionClasses}`}
         style={contentStyle}
       >
-        <div id="app-surface-root" className={`ha-surface-enter relative h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
-          <ImmersiveDogEar />
-          <ScreensaverDogEar />
-          <div
-            className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide"
-            data-scrollable="dashboard"
-          >
-            <main
-              className={`px-ha-3 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
+        {/* Static surface-lower backdrop (paints instantly, no enter animation)
+            sitting behind the animating surface. Without it the surface fades in
+            from opacity 0 and briefly reveals the shell's surface-default behind
+            it — a contrast flash on every page switch (most visible leaving the
+            full-bleed settings workspace). Matching colour + rounding here means
+            the fade reveals the same colour, so the transition reads as smooth. */}
+        <div className={`relative h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
+          <div id="app-surface-root" className={`ha-surface-enter relative h-full bg-surface-lower overflow-hidden ${surfaceRoundingClass}`}>
+            <ImmersiveDogEar />
+            <ScreensaverDogEar />
+            <div
+              className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide"
+              data-scrollable="dashboard"
             >
-              <ApplicationViewNotice />
-              {children}
-            </main>
+              <main
+                className={`px-ha-3 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
+              >
+                <ApplicationViewNotice />
+                {children}
+              </main>
+            </div>
           </div>
         </div>
       </div>

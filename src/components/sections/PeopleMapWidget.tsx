@@ -128,7 +128,7 @@ export default function PeopleMapWidget() {
       </MapContainer>
 
       {/* Status pill — count away */}
-      <div className="absolute top-ha-3 left-ha-3 z-[500] flex items-center gap-ha-2 rounded-ha-pill bg-surface-default/85 backdrop-blur-md border border-white/10 px-ha-3 py-ha-1.5 pointer-events-none">
+      <div className="absolute top-ha-3 left-ha-3 z-[500] flex items-center gap-ha-2 rounded-ha-pill bg-surface-default/85 border border-white/10 px-ha-3 py-ha-1.5 pointer-events-none">
         <Icon path={mdiMapMarkerAccount} size={16} className="text-ha-blue" />
         <span className="text-sm font-medium text-text-primary">
           {resolved.length - peopleHome.length} away · {peopleHome.length} home

@@ -747,3 +747,23 @@ export function selectMatchingEntities(entities: HassEntities, query: string): E
 export function areEntitySearchMatchesEqual(previous: EntitySearchMatch[], next: EntitySearchMatch[]): boolean {
   return areArraysEqual(previous, next, areEntitySearchMatchesItemEqual);
 }
+
+// Weather entities (domain `weather.`), for the wallpaper config picker.
+export interface WeatherOption {
+  value: string; // entity_id
+  label: string; // friendly name
+}
+
+export function selectWeatherOptions(entities: HassEntities): WeatherOption[] {
+  return Object.entries(entities)
+    .filter(([entityId]) => entityId.startsWith('weather.'))
+    .map(([entityId, entity]) => ({
+      value: entityId,
+      label: (entity.attributes.friendly_name as string | undefined) || entityId,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export function areWeatherOptionsEqual(previous: WeatherOption[], next: WeatherOption[]): boolean {
+  return areArraysEqual(previous, next, (a, b) => a.value === b.value && a.label === b.label);
+}

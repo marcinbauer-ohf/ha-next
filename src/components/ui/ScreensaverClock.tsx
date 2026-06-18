@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { RollingDigit } from './RollingDigit';
-import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor, useHomeCenterPrefs } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor, useHomeCenterPrefs, useWeatherParams } from '@/hooks';
+import { deriveWeatherParams } from '@/lib/weatherVisual';
+import type { HassEntity } from '@/types';
 import { useNotificationCenter } from '@/contexts';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import {
@@ -247,10 +249,36 @@ function systemPrefers24HourClock(): boolean {
   }
 }
 
+// TEMP: weather conditions the on-screen debug control can force, with a
+// representative temp/wind so each preview reads distinctly (warm sun, cold
+// snow, windy rain). null = follow the live weather entity.
+const WEATHER_PREVIEWS: { cond: string; label: string; temp: number; wind: number }[] = [
+  { cond: 'sunny', label: 'Sunny', temp: 28, wind: 6 },
+  { cond: 'partlycloudy', label: 'Partly', temp: 20, wind: 10 },
+  { cond: 'cloudy', label: 'Cloudy', temp: 14, wind: 12 },
+  { cond: 'fog', label: 'Fog', temp: 9, wind: 3 },
+  { cond: 'rainy', label: 'Rain', temp: 11, wind: 20 },
+  { cond: 'pouring', label: 'Pour', temp: 9, wind: 28 },
+  { cond: 'snowy', label: 'Snow', temp: -2, wind: 10 },
+  { cond: 'clear-night', label: 'Night', temp: 12, wind: 6 },
+];
+
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
   const liveSummaryItems = useLiveSummaryItems();
   const { haUrl } = useHomeAssistant();
   const { wavyBackgroundEnabled, reactiveBackgroundEnabled, reactiveTriggerMode, reactiveIntensity, reactiveTriggerLabelsEnabled, pulseMode, setPulseMode } = useFeatureFlags();
+  const weatherParams = useWeatherParams();
+  // Manual weather override for previewing on the screensaver (debug). null = live.
+  const [weatherPreview, setWeatherPreview] = useState<string | null>(null);
+  const effectiveWeather = useMemo(() => {
+    if (!weatherPreview) return weatherParams;
+    const p = WEATHER_PREVIEWS.find((w) => w.cond === weatherPreview);
+    if (!p) return weatherParams;
+    return deriveWeatherParams({
+      state: p.cond,
+      attributes: { temperature: p.temp, wind_speed: p.wind },
+    } as unknown as HassEntity);
+  }, [weatherPreview, weatherParams]);
   const ringOrigin = useRingOrigin();
   // Only watch for events while the screensaver is actually on screen.
   useHomeEventReactor(reactiveBackgroundEnabled && visible, reactiveTriggerMode);
@@ -544,6 +572,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     bokeh: 'Bokeh',
     dawn: 'Dawn',
     breathOrb: 'Breath orb',
+    weather: 'Weather',
   };
   const cyclePulseMode = () => {
     const order = Object.keys(PULSE_MODE_LABELS) as (typeof pulseMode)[];
@@ -584,10 +613,46 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         center={ringOrigin.center}
         reach={ringOrigin.reach}
         mode={pulseMode}
+        weather={effectiveWeather}
       />
       {/* Names the entity behind each reactive ripple, bottom-center. Opt-in
           (Settings → screensaver) and only while the reactive background is on. */}
       {reactiveBackgroundEnabled && reactiveTriggerLabelsEnabled && <ScreensaverPulseLog />}
+
+      {/* TEMP: weather preview control — only in weather mode. Forces a
+          condition locally for previewing; doesn't touch the real entity.
+          Clicks don't dismiss (stopPropagation). */}
+      {pulseMode === 'weather' && (
+        <div
+          className="absolute top-6 left-6 z-10 max-w-[60vw] flex flex-wrap items-center gap-ha-2 rounded-ha-2xl border border-white/10 bg-surface-mid/70 px-ha-3 py-ha-2 pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-disabled mr-ha-1">
+            Weather
+          </span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setWeatherPreview(null); }}
+            className={`rounded-ha-pill px-ha-2 py-1 text-xs font-medium transition-colors ${
+              weatherPreview === null ? 'bg-ha-blue text-white' : 'bg-surface-low text-text-secondary hover:bg-surface-lower'
+            }`}
+          >
+            Live
+          </button>
+          {WEATHER_PREVIEWS.map((w) => (
+            <button
+              key={w.cond}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setWeatherPreview(w.cond); }}
+              className={`rounded-ha-pill px-ha-2 py-1 text-xs font-medium transition-colors ${
+                weatherPreview === w.cond ? 'bg-ha-blue text-white' : 'bg-surface-low text-text-secondary hover:bg-surface-lower'
+              }`}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Build Info - Top */}
       <div className="absolute top-8 left-0 right-0 flex justify-center px-ha-6 pointer-events-none">
@@ -715,7 +780,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             const hasWorkspace = typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches;
             router.push(hasWorkspace ? '/settings?section=home-center' : '/settings/home-center');
           }}
-          className="flex items-center gap-ha-2 lg:gap-ha-3 rounded-ha-pill px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 border border-white/10 backdrop-blur-md transition-colors bg-surface-mid/65 hover:bg-surface-mid/80"
+          className="flex items-center gap-ha-2 lg:gap-ha-3 rounded-ha-pill px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 border border-white/10 transition-colors bg-surface-mid/65 hover:bg-surface-mid/80"
         >
           {/* Compact below lg — the desktop pill reads oversized on a phone */}
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" className="lg:hidden" />

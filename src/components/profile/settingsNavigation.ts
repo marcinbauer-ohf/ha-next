@@ -2,7 +2,6 @@
 
 import {
   mdiAccountCircle,
-  mdiAccountGroup,
   mdiAccountKey,
   mdiAlphaDBox,
   mdiHomeVariant,
@@ -12,6 +11,7 @@ import {
   mdiCalendarClock,
   mdiChartLine,
   mdiChip,
+  mdiCloud,
   mdiCodeBraces,
   mdiCodeJson,
   mdiCog,
@@ -19,19 +19,15 @@ import {
   mdiDevices,
   mdiHarddisk,
   mdiLightbulbGroup,
-  mdiLightningBolt,
   mdiMap,
   mdiMapMarker,
-  mdiMessageText,
   mdiMicrophone,
   mdiNetwork,
   mdiPuzzle,
-  mdiRestart,
   mdiRobot,
   mdiScriptText,
   mdiShape,
   mdiSitemap,
-  mdiSolarPanel,
   mdiTag,
   mdiTextBox,
   mdiUpdate,
@@ -42,8 +38,8 @@ import {
 
 export type SettingsSlug =
   | 'home-center'
-  // Notifications lives in the System group; updates/repairs/connectivity stay
-  // routable but hidden from the sidebar (reached from Home Center).
+  // Notifications sits at the top, above the prototype tools; updates/repairs/
+  // connectivity stay routable but hidden from the sidebar (reached from Home Center).
   | 'notifications'
   | 'updates'
   | 'repairs'
@@ -52,11 +48,13 @@ export type SettingsSlug =
   | 'profile'
   // Prototype & debug tools (single consolidated page)
   | 'developer'
-  // My Home
+  // Nabu Casa Cloud
+  | 'cloud'
+  // My Home (Dashboards is grouped here, at the top)
+  | 'manage-dashboards'
   | 'areas'
   | 'zones'
   | 'floors'
-  | 'people'
   | 'users'
   // Devices
   | 'integrations'
@@ -70,10 +68,6 @@ export type SettingsSlug =
   | 'blueprints'
   // Voice & AI
   | 'voice-assistants'
-  | 'conversation-agents'
-  // Energy
-  | 'energy-dashboard'
-  | 'energy-config'
   // System
   | 'system-general'
   | 'system-network'
@@ -81,7 +75,6 @@ export type SettingsSlug =
   | 'system-logs'
   | 'system-info'
   | 'backups'
-  | 'restart'
   // HA Developer Tools
   | 'dev-states'
   | 'dev-services'
@@ -89,8 +82,7 @@ export type SettingsSlug =
   | 'dev-events'
   | 'dev-statistics'
   | 'dev-yaml'
-  // Dashboards & Tags
-  | 'manage-dashboards'
+  // Tags (now grouped under My Home)
   | 'tags';
 
 export interface SettingsNavLink {
@@ -121,11 +113,10 @@ export const categoryAccents: Record<string, string> = {
   Devices: '#18bcf2',
   Automation: '#8b5cf6',
   'Voice & AI': '#14b8a6',
-  Energy: '#eab308',
   System: '#64748b',
   'Developer Tools': '#6366f1',
-  'Dashboards & Tags': '#ec4899',
   'Prototype Debugging Tools': '#f97316',
+  Cloud: '#00aef0',
 };
 
 export const settingsNavSections: SettingsNavSection[] = [
@@ -133,6 +124,7 @@ export const settingsNavSections: SettingsNavSection[] = [
     title: '',
     items: [
       { slug: 'home-center', icon: mdiHomeVariant, label: 'Home Center', description: 'Notifications, updates, repairs, backups and connectivity' },
+      { slug: 'notifications', icon: mdiBell, label: 'Notifications', description: 'Active notifications from your home' },
     ],
   },
   {
@@ -142,12 +134,19 @@ export const settingsNavSections: SettingsNavSection[] = [
     ],
   },
   {
+    title: 'Cloud',
+    items: [
+      { slug: 'cloud', icon: mdiCloud, label: 'Nabu Casa Cloud', description: 'Remote access, voice, and cloud services', haPath: '/config/cloud' },
+    ],
+  },
+  {
     title: 'My Home',
     items: [
+      { slug: 'manage-dashboards', icon: mdiViewDashboard, label: 'Dashboards', description: 'Create and manage Lovelace and energy dashboards', haPath: '/config/lovelace/dashboards', addLabel: 'Dashboard' },
       { slug: 'areas', icon: mdiMap, label: 'Areas & Floors', description: 'Rooms, spaces, and the floors they sit on', haPath: '/config/areas', addLabel: 'Area' },
       { slug: 'zones', icon: mdiMapMarker, label: 'Zones', description: 'Geographic zones for presence detection', haPath: '/config/zones', addLabel: 'Zone' },
-      { slug: 'people', icon: mdiAccountGroup, label: 'People', description: 'Household members and presence tracking', haPath: '/config/people', addLabel: 'Person' },
       { slug: 'users', icon: mdiAccountKey, label: 'Users', description: 'User accounts and permissions', haPath: '/config/users', addLabel: 'User' },
+      { slug: 'tags', icon: mdiTag, label: 'Tags', description: 'NFC tags and QR codes for automations', haPath: '/config/tags', addLabel: 'Tag' },
     ],
   },
   {
@@ -172,14 +171,6 @@ export const settingsNavSections: SettingsNavSection[] = [
     title: 'Voice & AI',
     items: [
       { slug: 'voice-assistants', icon: mdiMicrophone, label: 'Voice Assistants', description: 'Assist pipelines and wake words', haPath: '/config/voice-assistants', addLabel: 'Voice Assistant' },
-      { slug: 'conversation-agents', icon: mdiMessageText, label: 'Conversation Agents', description: 'AI agents and conversation config', haPath: '/config/voice-assistants', addLabel: 'Conversation Agent' },
-    ],
-  },
-  {
-    title: 'Energy',
-    items: [
-      { slug: 'energy-dashboard', icon: mdiLightningBolt, label: 'Energy Dashboard', description: 'Monitor consumption and generation', haPath: '/energy' },
-      { slug: 'energy-config', icon: mdiSolarPanel, label: 'Energy Configuration', description: 'Meters, solar, battery, and pricing', haPath: '/config/energy' },
     ],
   },
   {
@@ -190,9 +181,7 @@ export const settingsNavSections: SettingsNavSection[] = [
       { slug: 'system-storage', icon: mdiHarddisk, label: 'Storage', description: 'Disk usage and storage management', haPath: '/config/system/storage' },
       { slug: 'system-logs', icon: mdiTextBox, label: 'Logs', description: 'System logs and debug information', haPath: '/config/system/logs' },
       { slug: 'system-info', icon: mdiChip, label: 'System Info', description: 'Hardware, OS, and version details', haPath: '/config/system/info' },
-      { slug: 'notifications', icon: mdiBell, label: 'Notifications', description: 'Active notifications from your home' },
       { slug: 'backups', icon: mdiBackupRestore, label: 'Backups', description: 'Create, restore, and manage backups', haPath: '/config/backup', addLabel: 'Backup' },
-      { slug: 'restart', icon: mdiRestart, label: 'Restart / Shutdown', description: 'Restart or shut down Home Assistant', haPath: '/config/system/general' },
     ],
   },
   {
@@ -204,13 +193,6 @@ export const settingsNavSections: SettingsNavSection[] = [
       { slug: 'dev-events', icon: mdiCalendarClock, label: 'Events', description: 'Fire and listen to HA events', haPath: '/developer-tools/event' },
       { slug: 'dev-statistics', icon: mdiChartLine, label: 'Statistics', description: 'View and adjust long-term statistics', haPath: '/developer-tools/statistics' },
       { slug: 'dev-yaml', icon: mdiCodeJson, label: 'YAML', description: 'Check config and reload components', haPath: '/developer-tools/yaml' },
-    ],
-  },
-  {
-    title: 'Dashboards & Tags',
-    items: [
-      { slug: 'manage-dashboards', icon: mdiViewDashboard, label: 'Dashboards', description: 'Create and manage Lovelace dashboards', haPath: '/config/lovelace/dashboards', addLabel: 'Dashboard' },
-      { slug: 'tags', icon: mdiTag, label: 'Tags', description: 'NFC tags and QR codes for automations', haPath: '/config/tags', addLabel: 'Tag' },
     ],
   },
 ];

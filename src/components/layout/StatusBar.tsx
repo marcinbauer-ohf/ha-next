@@ -1882,7 +1882,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     <>
                       <div className="w-full aspect-video bg-black relative">
                         <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[13px] text-white font-mono border border-white/10">
+                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 rounded text-[13px] text-white font-mono border border-white/10">
                           LIVE • 2026-02-12 23:38:00
                         </div>
                       </div>
@@ -1936,7 +1936,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     </div>
                     <div className="w-full aspect-video bg-black relative">
                       <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 backdrop-blur-md rounded text-[13px] text-white font-mono border border-white/10">
+                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 rounded text-[13px] text-white font-mono border border-white/10">
                         LIVE • 2026-02-12 23:38:00
                       </div>
                     </div>
@@ -2158,7 +2158,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     <div className="p-ha-4 flex flex-col items-center">
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
                         <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
+                        <div className="absolute bottom-2 right-2 bg-black/60 rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
                           <Icon path={mdiLayers} size={14} className="text-ha-blue" />
                           <span className="text-[13px] font-bold text-white font-mono">Layer 142/208</span>
                         </div>
@@ -2231,7 +2231,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
 
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
                         <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
+                        <div className="absolute bottom-2 right-2 bg-black/60 rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
                           <Icon path={mdiLayers} size={14} className="text-ha-blue" />
                           <span className="text-[13px] font-bold text-white font-mono">Layer 142/208</span>
                         </div>

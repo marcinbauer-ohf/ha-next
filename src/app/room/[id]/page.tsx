@@ -13,7 +13,7 @@ import { Icon } from '@/components/ui/Icon';
 import { HALoader } from '@/components/ui/HALoader';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import { usePullToRevealContext, useHeader } from '@/contexts';
-import { useDevices, useDesktopImmersivePageLayout, useFeatureFlags } from '@/hooks';
+import { useDevices, useDesktopImmersivePageLayout, useFeatureFlags, useFastScrollLabels } from '@/hooks';
 import { entityDomain, SECTION_ORDER, SECTION_TITLES, domainTypeIcon } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -48,10 +48,12 @@ export default function RoomPage({ params }: RoomPageProps) {
   const { isRevealed } = usePullToRevealContext();
   const { setHeader } = useHeader();
   const { devices, areas, loading } = useDevices();
-  const { scrollIndexEnabled } = useFeatureFlags();
+  const { scrollIndexEnabled, fastScrollLabelsEnabled } = useFeatureFlags();
   const { contentPaddingClasses, contentTransitionClasses, contentStyle, surfaceRoundingClass } = useDesktopImmersivePageLayout();
 
   const scrollableRef = useRef<HTMLElement | null>(null);
+  // Prototype: big card-name overlay while flicking fast (see useFastScrollLabels).
+  useFastScrollLabels(scrollableRef, fastScrollLabelsEnabled);
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
 

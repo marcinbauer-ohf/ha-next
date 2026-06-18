@@ -123,7 +123,7 @@ export function HomeCenterSectionsModal({ open, onClose }: { open: boolean; onCl
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
         >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+          <div className="absolute inset-0 bg-black/50" onClick={onClose} />
           <motion.div
             role="dialog"
             aria-modal="true"

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { clsx } from 'clsx';
 import { Icon } from '@/components/ui/Icon';
+import { setNavAutoHideFrozen } from '@/lib/navAutoHideBus';
 
 // ── Tuning ──────────────────────────────────────────────────────────────────
 const IDLE_HIDE_MS = 1400;      // fade the rail out this long after the last scroll
@@ -98,7 +99,10 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
     return () => scroller.removeEventListener('scroll', onScroll);
   }, [scrollRef, sections, show, flash, isHoverDevice]);
 
-  useEffect(() => () => { if (idleTimer.current) clearTimeout(idleTimer.current); }, []);
+  useEffect(() => () => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    setNavAutoHideFrozen(false);
+  }, []);
 
   // Map a client Y position over the rail to a section index and jump there.
   const scrubToY = useCallback((clientY: number) => {
@@ -117,6 +121,9 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     setScrubbing(true);
     setHoverIndex(null);
+    // Scrubbing jumps the scroller programmatically; hold the mobile nav at its
+    // current state so those jumps don't toggle its scroll-driven auto-hide.
+    setNavAutoHideFrozen(true);
     scrubToY(e.clientY);
   };
   const onPointerMove = (e: React.PointerEvent) => {
@@ -127,6 +134,7 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
     if (!scrubbing) return;
     (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
     setScrubbing(false);
+    setNavAutoHideFrozen(false);
     flash();
   };
 
@@ -143,7 +151,12 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         // Container ignores pointers (so the bubble never blocks cards); the
         // rail itself stays grabbable even when faded, so a touch on the right
         // edge can always start a scrub.
-        'pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 z-40 flex items-center pr-ha-1',
+        'pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 z-40 flex items-center',
+        // Mobile bleeds the rail 12px off the right edge (cut off / tucked into
+        // the edge) instead of floating with a gap; desktop keeps a small inset.
+        // The rail's right padding is +12px over its left (see below) so the
+        // dots stay centered in the *visible* width despite the clip.
+        'translate-x-[12px] pr-0 lg:translate-x-0 lg:pr-ha-1',
         'transition-opacity duration-300',
         // Touch devices keep a faint always-on rail; hover desktops stay very
         // faintly visible at rest and reveal fully when the pointer nears the rail.
@@ -156,7 +169,7 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
         className={clsx(
           'absolute right-full mr-ha-2 flex items-center gap-ha-2 whitespace-nowrap rounded-ha-xl px-ha-3 py-1.5',
           'bg-surface-default text-text-primary text-sm font-semibold shadow-lg',
-          'backdrop-blur-md transition-opacity duration-150',
+          ' transition-opacity duration-150',
           bubbleShown ? 'opacity-100' : 'opacity-0',
         )}
         style={{
@@ -191,10 +204,12 @@ export function ScrollIndexRail({ scrollRef, sections, enabled }: ScrollIndexRai
           // Minimized at rest (slim, bare dots); expands to the same rounded-rect
           // surface as the dashboard filter bar when revealed (hover / scrub).
           'pointer-events-auto flex flex-col items-center cursor-pointer touch-none select-none',
-          'rounded-ha-3xl transition-[background-color,box-shadow,border-color,padding,gap,backdrop-filter] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          'rounded-ha-3xl transition-[background-color,box-shadow,border-color,padding,gap] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          // Horizontal padding is directional so the +12px right bias (centering
+          // the dots against the mobile edge-bleed) survives the desktop reset.
           railShown
-            ? 'gap-1.5 md:gap-2 lg:gap-2 py-ha-2 px-ha-2 lg:px-2 bg-surface-default/95 backdrop-blur-md border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
-            : 'gap-1 md:gap-1.5 lg:gap-1.5 py-ha-1 px-ha-1 lg:px-ha-1 border border-transparent',
+            ? 'gap-1.5 md:gap-2 lg:gap-2 py-ha-2 pl-ha-3 pr-ha-6 lg:pl-2 lg:pr-2 bg-surface-default/95 border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
+            : 'gap-1 md:gap-1.5 lg:gap-1.5 py-ha-1 pl-ha-2 pr-ha-5 lg:pl-ha-1 lg:pr-ha-1 border border-transparent',
         )}
       >
         {sections.map((s, i) => {

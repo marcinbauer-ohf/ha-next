@@ -20,6 +20,8 @@ export { useAreasFloors, type AreasFloorsModel, type AreaWithCounts, type FloorW
 export { ThemeProvider, useTheme } from './useTheme';
 export { FontProvider, useFont, FONTS, type FontKey, type FontOption } from './useFont';
 export { FeatureFlagsProvider, useFeatureFlags } from './useFeatureFlags';
+export { useFastScrollLabels } from './useFastScrollLabels';
+export { useWeatherParams } from './useWeatherParams';
 export { HomeCenterPrefsProvider, useHomeCenterPrefs } from './useHomeCenterPrefs';
 
 export { useIdleTimer } from './useIdleTimer';

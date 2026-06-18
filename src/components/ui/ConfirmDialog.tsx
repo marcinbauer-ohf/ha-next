@@ -57,7 +57,7 @@ export function ConfirmDialog({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
         >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+          <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
           <motion.div
             role="alertdialog"
             aria-modal="true"

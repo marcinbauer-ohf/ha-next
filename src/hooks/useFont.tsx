@@ -274,7 +274,7 @@ export function FontProvider({ children }: { children: ReactNode }) {
       {flash && (
         <div
           aria-hidden
-          className="fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 rounded-ha-pill border border-surface-lower bg-surface-default/95 px-ha-4 py-ha-2 text-sm font-semibold text-text-primary shadow-lg backdrop-blur"
+          className="fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 rounded-ha-pill border border-surface-lower bg-surface-default/95 px-ha-4 py-ha-2 text-sm font-semibold text-text-primary shadow-lg"
         >
           Aa · {activeLabel}
         </div>

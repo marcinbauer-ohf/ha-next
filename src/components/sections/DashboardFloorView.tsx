@@ -121,8 +121,6 @@ function RoomBox({
         <div
           style={{
             background: 'rgba(2, 8, 24, 0.9)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
             borderRadius: '8px',
             padding: '3px 10px',
             whiteSpace: 'nowrap',

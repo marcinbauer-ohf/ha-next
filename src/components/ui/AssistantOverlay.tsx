@@ -79,7 +79,7 @@ export function AssistantOverlay() {
     <div className="fixed inset-0 z-[100] flex flex-col">
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/50 backdrop-blur-md ${
+        className={`absolute inset-0 bg-black/50 ${
           visible ? 'opacity-100' : 'opacity-0'
         }`}
         onClick={closeAssistant}

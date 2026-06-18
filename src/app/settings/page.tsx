@@ -119,8 +119,11 @@ function SettingsWorkspace() {
           </ScrollColumn>
         </div>
         <ScrollColumn className="flex-1 min-w-0">
-          {/* Re-keyed per section so the pane fades/slides in instead of snapping. */}
-          <div key={activeSlug} className="ha-pane-in">
+          {/* Re-keyed per section so the pane fades/slides in instead of snapping.
+              `h-full` lets a fill section (devices/integrations/automations) own
+              its own scroll; flowing sections just overflow it and the column
+              scrolls as before. */}
+          <div key={activeSlug} className="ha-pane-in h-full">
             <SettingsDetailPage slug={activeSlug} panelMode onEditorFocusChange={setEditorFocus} onSelectSection={setActiveSlug} />
           </div>
         </ScrollColumn>

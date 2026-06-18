@@ -12,6 +12,7 @@ import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { Preloader } from '@/components/ui/Preloader';
 import { emitSettingsReset } from '@/lib/settingsResetBus';
+import { RouteTransition } from '@/components/layout/RouteTransition';
 import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
 import { AnimatePresence, motion } from 'framer-motion';
 type ConnectionStatus = 'connecting' | 'connected' | 'error' | null;
@@ -465,7 +466,7 @@ function AppShellContent({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-[100svh] lg:min-h-screen bg-surface-default" data-component="AppShell">
+    <div className="min-h-[100dvh] lg:min-h-screen bg-surface-default" data-component="AppShell">
       {/* Pulse wallpaper — animated ring background painted behind the whole
           shell, rippling on live device toggles. */}
       {pulseWallpaper && <PulseWallpaper />}
@@ -479,7 +480,7 @@ function AppShellContent({ children }: AppShellProps) {
 
       {/* Main app shell — fades in as preloader exits */}
       <div
-        className={`relative h-[100svh] lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge transition-opacity duration-700 ${
+        className={`relative h-[100dvh] lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge transition-opacity duration-700 ${
           showPreloader ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={layoutStyle}
@@ -494,18 +495,13 @@ function AppShellContent({ children }: AppShellProps) {
         {/* TopBar - Desktop & Mobile persistent header */}
         <div
           data-component="MobileTopBar"
-          className={`h-16 bg-transparent lg:bg-transparent px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 pointer-events-auto ${desktopTopBarStateClass}`}
+          className={`h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] lg:h-16 lg:pt-0 bg-transparent lg:bg-transparent px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 pointer-events-auto ${desktopTopBarStateClass}`}
           style={mobileTopBarStyle}
         >
-            {/* Mobile backdrop — frosted blend instead of a solid cutoff: the
-                content surface scrolls beneath, gets progressively blurred, and
-                the white tint dissolves toward the bottom. Both layers extend
-                below the bar so the readable white backing spans lower before
-                fading out — no hard line between the bar and the surface. */}
-          <div
-            className="lg:hidden absolute top-0 inset-x-0 h-[125%] pointer-events-none backdrop-blur-xl [mask-image:linear-gradient(to_bottom,black,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_bottom,black,black_55%,transparent)]"
-            aria-hidden
-          />
+            {/* Mobile backdrop — the bar's own gradient fades the content out:
+                solid surface tint at the top dissolving to transparent below,
+                extending past the bar so the readable backing spans lower with
+                no hard line between the bar and the surface. */}
           <div
             className="lg:hidden absolute top-0 inset-x-0 h-[125%] pointer-events-none bg-gradient-to-b from-surface-default from-45% via-surface-default/65 via-80% to-transparent"
             aria-hidden
@@ -548,7 +544,7 @@ function AppShellContent({ children }: AppShellProps) {
               />
             ) : (
               <>
-                {children}
+                <RouteTransition>{children}</RouteTransition>
                 {desktopSplitViewEnabled && <DesktopSplitHotspots onSplit={handleWorkspaceSplitStart} />}
                 {desktopSplitViewEnabled && rootSplitMenu && (
                   <DesktopSplitViewMenu
@@ -560,6 +556,30 @@ function AppShellContent({ children }: AppShellProps) {
                   />
                 )}
               </>
+            )}
+
+            {/* Device fold guide — in edit mode while previewing a phone/tablet
+                on a large screen, the content column is clamped to the device's
+                CSS width but keeps the full window height. Draw a dashed line at
+                the device's screen height (the dimension perpendicular to the
+                clamped width) so it's clear where content drops below the fold
+                on that device. Stays fixed in the frame while content scrolls. */}
+            {isLgScreen && isEditing && previewViewport !== 'desktop' && (
+              <div
+                aria-hidden
+                className="absolute inset-x-0 z-[60] flex items-center gap-2 px-2 pointer-events-none"
+                style={{
+                  top: previewViewport === 'tablet'
+                    ? (previewOrientation === 'landscape' ? 768 : 1024)
+                    : (previewOrientation === 'landscape' ? 390 : 844),
+                }}
+              >
+                <div className="flex-1 border-t-2 border-dashed border-orange-500/80" />
+                <span className="rounded-full bg-orange-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white whitespace-nowrap">
+                  Screen edge
+                </span>
+                <div className="flex-1 border-t-2 border-dashed border-orange-500/80" />
+              </div>
             )}
           </div>
 

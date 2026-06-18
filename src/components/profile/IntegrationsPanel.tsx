@@ -262,6 +262,51 @@ export function IntegrationsTable({
     ],
     renderRow: (i) => <IntegrationRow integration={i} onSelect={onSelect} />,
     renderCard: (i) => <IntegrationTile integration={i} onSelect={onSelect} />,
+    columns: [
+      {
+        id: 'name',
+        header: 'Integration',
+        sortAccessor: (i) => i.name.toLowerCase(),
+        cell: (i) => (
+          <div className="flex items-center gap-ha-3">
+            <IntegrationLogo
+              domain={i.id}
+              fallbackIcon={i.icon}
+              tileClass="w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 overflow-hidden"
+              iconSize={16}
+            />
+            <span className="min-w-0 flex items-center gap-ha-2">
+              <span className="font-semibold text-text-primary truncate">{i.name}</span>
+              <StatusPill status={i.status} />
+            </span>
+          </div>
+        ),
+      },
+      { id: 'category', header: 'Category', sortAccessor: (i) => i.category.toLowerCase(), cell: (i) => i.category, hideBelow: 'sm' },
+      {
+        id: 'devices',
+        header: 'Devices',
+        align: 'right',
+        hideBelow: 'md',
+        sortAccessor: (i) => i.deviceCount,
+        cell: (i) => <span className="tabular-nums">{i.deviceCount}</span>,
+      },
+      {
+        id: 'entities',
+        header: 'Entities',
+        align: 'right',
+        sortAccessor: (i) => i.entityCount,
+        cell: (i) => <span className="tabular-nums">{i.entityCount}</span>,
+      },
+      {
+        id: 'flags',
+        header: 'Flags',
+        hideBelow: 'lg',
+        cell: (i) => <IntegrationFlagIcons flags={i.flags} />,
+      },
+    ],
+    onRowClick: (i) => onSelect(i.id),
+    fillHeight: true,
     defaultLayout: 'list',
     emptyLabel: 'No integrations match these filters.',
     bg: 'surface-lower',

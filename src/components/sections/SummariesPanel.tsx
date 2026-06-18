@@ -222,7 +222,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
     return (
       <div className={clsx(
         'flex items-center rounded-ha-pill whitespace-nowrap flex-shrink-0 transition-all',
-        translucent ? 'bg-surface-mid/65 border border-white/10 backdrop-blur-md' : 'bg-surface-low',
+        translucent ? 'bg-surface-mid/65 border border-white/10' : 'bg-surface-low',
         isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-ha-2.5' : 'gap-ha-2 px-ha-2 py-ha-1'
       )}>
         <div className={clsx(
@@ -401,7 +401,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
         ref={extraRef}
         className={clsx(
           !noSticky && 'sticky top-[var(--app-topbar-clear)] lg:top-0 z-[60]',
-          'lg:mx-0 lg:px-0 pt-ha-1 pb-ha-2 backdrop-blur-md w-full',
+          'lg:mx-0 lg:px-0 pt-ha-1 pb-ha-2 w-full',
           fullBleed ? '' : '-mx-ha-1 px-ha-1'
         )}
         style={containerStyle}

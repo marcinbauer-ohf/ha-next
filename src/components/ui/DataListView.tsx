@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { CountBadge } from './CountBadge';
 import { Chip } from './Chip';
 import { ModalSheet } from '../layout/ModalSheet';
 import { SearchField } from './SearchField';
 import { SectionLabel } from './SectionLabel';
-import { mdiSortVariant, mdiViewAgendaOutline, mdiCheck, mdiChevronDown, mdiFormatListBulleted, mdiViewGridOutline, mdiTune, mdiClose } from '@mdi/js';
+import { NavChevron } from './NavChevron';
+import { mdiSortVariant, mdiViewAgendaOutline, mdiCheck, mdiChevronDown, mdiFormatListBulleted, mdiViewGridOutline, mdiTableLarge, mdiTune, mdiClose, mdiArrowUp, mdiArrowDown } from '@mdi/js';
 
-export type DataListLayout = 'list' | 'grid';
+export type DataListLayout = 'list' | 'grid' | 'table';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Generic, config-driven list view: search + sort + group + facet filters, all
@@ -53,6 +54,25 @@ export interface DataListFilterGroup<T> {
   chips: DataListFilterChip<T>[];
 }
 
+/** One column in the tabular layout. */
+export interface DataListColumn<T> {
+  id: string;
+  /** Heading text shown in the table's top row. */
+  header: string;
+  /** Cell content for a given item. */
+  cell: (item: T) => React.ReactNode;
+  /** Extra classes on both the <th> and <td> (width, alignment, etc.). */
+  className?: string;
+  align?: 'left' | 'right' | 'center';
+  /** Hide this column below the given breakpoint — keeps tables usable on mobile. */
+  hideBelow?: 'sm' | 'md' | 'lg';
+  /**
+   * When set, the column header becomes a sort toggle (asc ⇄ desc). The accessor
+   * returns the value to order by — numbers compare numerically, strings A→Z.
+   */
+  sortAccessor?: (item: T) => string | number;
+}
+
 export interface DataListConfig<T> {
   /** Stable React key per item. */
   keyOf: (item: T) => string;
@@ -71,10 +91,27 @@ export interface DataListConfig<T> {
    * "grid" lays tiles out responsively. Without it, only the list layout exists.
    */
   renderCard?: (item: T) => React.ReactNode;
+  /**
+   * Optional column definitions. When provided, a "table" mode is offered in the
+   * layout toggle and renders a real <table> (heading row + columns + rows).
+   */
+  columns?: DataListColumn<T>[];
+  /**
+   * Invoked when a table row is clicked. When set, rows are interactive (hover +
+   * pointer) and a trailing chevron column is appended — mirroring the list rows.
+   */
+  onRowClick?: (item: T) => void;
   defaultLayout?: DataListLayout;
   /** Tailwind grid-cols classes for the tiled layout. */
   gridColsClassName?: string;
   emptyLabel?: string;
+  /**
+   * Fill the parent's height and scroll internally: the search/filter controls
+   * stay fixed at the top and only the rows scroll beneath them (the table's
+   * heading row stays pinned too). Requires a height-bounded parent. Without it
+   * the whole view flows and the page scrolls.
+   */
+  fillHeight?: boolean;
   /** Background token for the sticky header gradient. Default surface-default. */
   bg?: 'surface-default' | 'surface-lower';
   /**
@@ -92,6 +129,29 @@ interface Bucket<T> {
 }
 
 const NONE_GROUP_ID = 'none';
+
+const ALIGN_CLASS: Record<NonNullable<DataListColumn<unknown>['align']>, string> = {
+  left: 'text-left',
+  center: 'text-center',
+  right: 'text-right',
+};
+
+const HIDE_BELOW_CLASS: Record<NonNullable<DataListColumn<unknown>['hideBelow']>, string> = {
+  sm: 'hidden sm:table-cell',
+  md: 'hidden md:table-cell',
+  lg: 'hidden lg:table-cell',
+};
+
+/** Shared th/td classes for a column (alignment, responsive hiding, custom). */
+function colClass<T>(col: DataListColumn<T>): string {
+  return [
+    col.align ? ALIGN_CLASS[col.align] : 'text-left',
+    col.hideBelow ? HIDE_BELOW_CLASS[col.hideBelow] : '',
+    col.className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 
 /** A chip that opens a radio-style popover of options below it. */
 function SelectChip({
@@ -152,12 +212,23 @@ function SelectChip({
   );
 }
 
-/** Segmented list/grid layout switch. */
-function LayoutToggle({ layout, onChange }: { layout: DataListLayout; onChange: (l: DataListLayout) => void }) {
-  const modes: Array<{ id: DataListLayout; icon: string; label: string }> = [
-    { id: 'list', icon: mdiFormatListBulleted, label: 'List view' },
-    { id: 'grid', icon: mdiViewGridOutline, label: 'Grid view' },
-  ];
+const LAYOUT_META: Record<DataListLayout, { icon: string; label: string }> = {
+  list: { icon: mdiFormatListBulleted, label: 'List view' },
+  grid: { icon: mdiViewGridOutline, label: 'Grid view' },
+  table: { icon: mdiTableLarge, label: 'Table view' },
+};
+
+/** Segmented layout switch over the modes the config actually supports. */
+function LayoutToggle({
+  layout,
+  onChange,
+  available,
+}: {
+  layout: DataListLayout;
+  onChange: (l: DataListLayout) => void;
+  available: DataListLayout[];
+}) {
+  const modes = available.map((id) => ({ id, ...LAYOUT_META[id] }));
   return (
     <div className="ml-auto inline-flex h-10 items-center rounded-ha-xl border border-surface-lower bg-surface-default p-0.5">
       {modes.map((mode) => (
@@ -189,9 +260,12 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
     filterGroups = [],
     renderRow,
     renderCard,
+    columns,
+    onRowClick,
     defaultLayout = 'list',
     gridColsClassName = 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3',
     emptyLabel = 'Nothing to show.',
+    fillHeight = false,
     bg = 'surface-default',
     highlightKey,
   } = config;
@@ -200,8 +274,18 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
   const [sortId, setSortId] = useState(sortOptions[0]?.id ?? '');
   const [groupId, setGroupId] = useState(defaultGroupId);
   const [layout, setLayout] = useState<DataListLayout>(defaultLayout);
+  // Table-only: sort driven by clicking a column header (asc ⇄ desc). Overrides
+  // the "Sort" chip while set; picking the chip clears it.
+  const [columnSort, setColumnSort] = useState<{ id: string; dir: 'asc' | 'desc' } | null>(null);
   // Mobile: filters live in a bottom sheet instead of the inline row.
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  const toggleColumnSort = (id: string) =>
+    setColumnSort((prev) => (prev && prev.id === id ? { id, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { id, dir: 'asc' }));
+  const selectSort = (id: string) => {
+    setSortId(id);
+    setColumnSort(null);
+  };
 
   // The chip keys ("groupId:chipId") enabled on first render — also the target
   // for "Reset" and the baseline the mobile badge counts deviations from.
@@ -248,7 +332,17 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
     }),
   );
 
-  const hasControls = sortOptions.length > 0 || groupOptions.length > 0 || filterGroups.length > 0 || !!renderCard;
+  const hasTable = !!columns && columns.length > 0;
+  const tableColSpan = (columns?.length ?? 0) + (onRowClick ? 1 : 0);
+  // The modes the layout toggle offers — list is always available.
+  const availableLayouts: DataListLayout[] = [
+    'list',
+    ...(renderCard ? (['grid'] as const) : []),
+    ...(hasTable ? (['table'] as const) : []),
+  ];
+  const showLayoutToggle = availableLayouts.length > 1;
+
+  const hasControls = sortOptions.length > 0 || groupOptions.length > 0 || filterGroups.length > 0 || showLayoutToggle;
   const hasFilterableControls = sortOptions.length > 0 || groupOptions.length > 0 || filterGroups.length > 0;
 
   const groups = useMemo<Bucket<T>[]>(() => {
@@ -269,9 +363,22 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
       }
     }
 
-    // 3. sort
-    const sort = sortOptions.find((s) => s.id === sortId);
-    if (sort) rows.sort(sort.compare);
+    // 3. sort — a clicked table column wins over the "Sort" chip when active.
+    const sortCol = columnSort ? columns?.find((c) => c.id === columnSort.id) : undefined;
+    if (layout === 'table' && columnSort && sortCol?.sortAccessor) {
+      const acc = sortCol.sortAccessor;
+      const dir = columnSort.dir === 'asc' ? 1 : -1;
+      rows.sort((a, b) => {
+        const av = acc(a);
+        const bv = acc(b);
+        const cmp =
+          typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
+        return cmp * dir;
+      });
+    } else {
+      const sort = sortOptions.find((s) => s.id === sortId);
+      if (sort) rows.sort(sort.compare);
+    }
 
     // 4. group
     const groupOpt = groupOptions.find((g) => g.id === groupId);
@@ -290,7 +397,7 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
         : (a, b) => a.title.localeCompare(b.title),
     );
     return ordered;
-  }, [items, query, enabled, filterGroups, sortId, sortOptions, groupId, groupOptions, searchText]);
+  }, [items, query, enabled, filterGroups, sortId, sortOptions, groupId, groupOptions, searchText, layout, columnSort, columns]);
 
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   const grouped = groupId !== NONE_GROUP_ID && groupOptions.length > 0;
@@ -323,28 +430,188 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
     highlightRef.current?.scrollIntoView({ block: 'nearest' });
   }, [highlightKey]);
 
-  return (
-    <div ref={rootRef}>
-      {/* Controls — sticky so they stay reachable on long lists. In settings'
-          second column the title pins above, so offset by its measured height
-          (`--settings-header-h`); 0 everywhere else.
+  // Where sticky table/group headers pin. When the controls scroll with the page
+  // (default) they sit below the pinned title + controls; in fillHeight the
+  // controls are fixed outside the scroller, so headers pin at its top (0).
+  const headerStickyTop = fillHeight
+    ? '0px'
+    : 'calc(var(--settings-header-h, 0px) + var(--datalist-controls-h, 0px))';
 
-          When this is the page's top element (mobile/full-page settings route),
-          the scroll container's top padding (`--list-top-pad`, set by the shell)
-          is scrollable space *above* the sticky, so it would drift ~16px before
-          pinning. A negative margin cancels that gap (pins with no drift) and an
-          equal inner padding keeps the search in place, its opaque bg covering
-          the band so scrolled rows can't peek through. Both collapse to 0 in the
-          two-column panel, where the title already absorbs the gap. The `+ha-1`
-          is the original top breathing room shared with the nav column search. */}
+  const resultsBody =
+    total === 0 ? (
+      <p className="text-sm text-text-tertiary text-center py-ha-8">{emptyLabel}</p>
+    ) : layout === 'table' && hasTable ? (
+      /* One table across every group with a pinned heading row.
+         - fillHeight: the card itself is the scroll container, so it stays a
+           static rounded frame and the sticky header pins at its (rounded) top.
+         - page-scroll: `overflow-clip` rounds the corners without becoming a
+           scroll container, which would trap the sticky header inside it. */
+      <div
+        className={`bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] ${
+          fillHeight ? 'flex-1 min-h-0 overflow-y-auto scrollbar-hide' : 'mt-ha-2 overflow-clip'
+        }`}
+      >
+        <table className="w-full border-separate border-spacing-0 text-left">
+          <thead>
+            <tr>
+              {columns!.map((col) => {
+                const sortable = !!col.sortAccessor;
+                const active = columnSort?.id === col.id;
+                return (
+                  <th
+                    key={col.id}
+                    scope="col"
+                    aria-sort={active ? (columnSort!.dir === 'asc' ? 'ascending' : 'descending') : undefined}
+                    className={`sticky z-20 bg-surface-default border-b border-surface-lower px-ha-4 py-ha-3 text-[12px] font-semibold uppercase tracking-wide whitespace-nowrap ${active ? 'text-text-primary' : 'text-text-tertiary'} ${colClass(col)}`}
+                    style={{ top: headerStickyTop }}
+                  >
+                    {sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleColumnSort(col.id)}
+                        className={`group inline-flex items-center gap-ha-1 uppercase tracking-wide transition-colors hover:text-text-primary ${col.align === 'right' ? 'flex-row-reverse' : ''}`}
+                      >
+                        <span>{col.header}</span>
+                        <Icon
+                          path={active && columnSort!.dir === 'asc' ? mdiArrowUp : mdiArrowDown}
+                          size={13}
+                          className={active ? '' : 'opacity-0 transition-opacity group-hover:opacity-40'}
+                        />
+                      </button>
+                    ) : (
+                      col.header
+                    )}
+                  </th>
+                );
+              })}
+              {onRowClick && (
+                <th
+                  aria-hidden
+                  className="sticky z-20 bg-surface-default border-b border-surface-lower w-10"
+                  style={{ top: headerStickyTop }}
+                />
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((bucket) => (
+              <Fragment key={bucket.key}>
+                {grouped && bucket.title && (
+                  <tr>
+                    <td
+                      colSpan={tableColSpan}
+                      className="bg-surface-lower/60 px-ha-4 py-ha-2 border-b border-surface-lower"
+                    >
+                      <span className="flex items-center gap-ha-2">
+                        <SectionLabel>{bucket.title}</SectionLabel>
+                        <CountBadge count={bucket.items.length} />
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                {bucket.items.map((item) => {
+                  const hl = highlightKey != null && keyOf(item) === highlightKey;
+                  return (
+                    <tr
+                      key={keyOf(item)}
+                      ref={hl ? (highlightRef as unknown as React.RefObject<HTMLTableRowElement>) : undefined}
+                      onClick={onRowClick ? () => onRowClick(item) : undefined}
+                      className={`transition-colors${
+                        onRowClick ? ' cursor-pointer hover:bg-surface-mid/50 active:bg-surface-mid' : ''
+                      }${hl ? ' ha-last-opened' : ''}`}
+                    >
+                      {columns!.map((col) => (
+                        <td
+                          key={col.id}
+                          className={`px-ha-4 py-ha-3 text-[13px] text-text-secondary align-middle border-b border-surface-low/40 ${colClass(col)}`}
+                        >
+                          {col.cell(item)}
+                        </td>
+                      ))}
+                      {onRowClick && (
+                        <td className="pr-ha-3 align-middle border-b border-surface-low/40">
+                          <NavChevron size={16} className="text-text-disabled" />
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <div className="space-y-ha-5 pt-ha-2">
+        {groups.map((bucket) => (
+          <div key={bucket.key} className="space-y-ha-2">
+            {grouped && bucket.title && (
+              <div
+                className={`sticky z-20 ${solidBg} flex items-center gap-ha-2 px-ha-1 py-ha-1`}
+                style={{ top: headerStickyTop }}
+              >
+                <SectionLabel>{bucket.title}</SectionLabel>
+                <CountBadge count={bucket.items.length} />
+              </div>
+            )}
+            {layout === 'grid' && renderCard ? (
+              <div className={`grid gap-ha-3 ${gridColsClassName}`}>
+                {bucket.items.map((item) => {
+                  const hl = highlightKey != null && keyOf(item) === highlightKey;
+                  return (
+                    <div
+                      key={keyOf(item)}
+                      ref={hl ? highlightRef : undefined}
+                      className={hl ? 'rounded-ha-2xl ha-last-opened' : undefined}
+                    >
+                      {renderCard(item)}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden">
+                {bucket.items.map((item) => {
+                  const hl = highlightKey != null && keyOf(item) === highlightKey;
+                  return (
+                    <div
+                      key={keyOf(item)}
+                      ref={hl ? highlightRef : undefined}
+                      className={`border-b border-surface-low/40 last:border-0${hl ? ' ha-last-opened' : ''}`}
+                    >
+                      {renderRow(item)}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+
+  return (
+    <div ref={rootRef} className={fillHeight ? 'flex h-full min-h-0 flex-col' : undefined}>
+      {/* Controls. Default: sticky so they stay reachable as the page scrolls. In
+          settings' second column the title pins above, so offset by its measured
+          height (`--settings-header-h`); 0 everywhere else. The negative margin /
+          inner padding cancel the scroll container's top padding so the bar pins
+          with no drift (see `--list-top-pad`).
+
+          fillHeight: the rows scroll in their own container below, so the bar is
+          just a fixed flex header — no sticky, no offset hacks. */}
       <div
         ref={controlsRef}
-        className={`sticky z-30 ${solidBg} pb-ha-2`}
-        style={{
-          top: 'var(--settings-header-h, 0px)',
-          marginTop: 'calc(-1 * var(--list-top-pad, 0px))',
-          paddingTop: 'calc(var(--list-top-pad, 0px) + var(--ha-space-1))',
-        }}
+        className={fillHeight ? `flex-shrink-0 ${solidBg} pb-ha-2` : `sticky z-30 ${solidBg} pb-ha-2`}
+        style={
+          fillHeight
+            ? undefined
+            : {
+                top: 'var(--settings-header-h, 0px)',
+                marginTop: 'calc(-1 * var(--list-top-pad, 0px))',
+                paddingTop: 'calc(var(--list-top-pad, 0px) + var(--ha-space-1))',
+              }
+        }
       >
         <SearchField
           value={query}
@@ -363,8 +630,8 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
                   prefix="Sort"
                   valueLabel={sortOptions.find((s) => s.id === sortId)?.label ?? ''}
                   options={sortOptions.map((s) => ({ id: s.id, label: s.label }))}
-                  selectedId={sortId}
-                  onSelect={setSortId}
+                  selectedId={columnSort ? '' : sortId}
+                  onSelect={selectSort}
                 />
               )}
               {groupOptions.length > 0 && (
@@ -383,7 +650,7 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
                   {filterChips}
                 </>
               )}
-              {renderCard && <LayoutToggle layout={layout} onChange={setLayout} />}
+              {showLayoutToggle && <LayoutToggle layout={layout} onChange={setLayout} available={availableLayouts} />}
             </div>
 
             {/* Mobile: a single "Filters" trigger (sort/group/facets live in the
@@ -400,12 +667,15 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
                   )}
                 </Chip>
               )}
-              {renderCard && <LayoutToggle layout={layout} onChange={setLayout} />}
+              {showLayoutToggle && <LayoutToggle layout={layout} onChange={setLayout} available={availableLayouts} />}
             </div>
           </>
         )}
-        {/* fade for rows scrolling under the sticky controls */}
-        <div className={`h-4 bg-gradient-to-b ${fromBg} to-transparent pointer-events-none -mb-4`} />
+        {/* fade for rows scrolling under the sticky controls (page-scroll mode
+            only — fillHeight's own scroller draws its own fades). */}
+        {!fillHeight && (
+          <div className={`h-4 bg-gradient-to-b ${fromBg} to-transparent pointer-events-none -mb-4`} />
+        )}
       </div>
 
       {/* Mobile filter sheet — reuses the app's ModalSheet (springs up, portals
@@ -444,8 +714,8 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
                   <SectionLabel>Sort</SectionLabel>
                   <div className="mt-ha-2 flex flex-wrap gap-ha-2">
                     {sortOptions.map((s) => (
-                      <Chip key={s.id} active={s.id === sortId} onClick={() => setSortId(s.id)}>
-                        {s.id === sortId && <Icon path={mdiCheck} size={13} />}
+                      <Chip key={s.id} active={!columnSort && s.id === sortId} onClick={() => selectSort(s.id)}>
+                        {!columnSort && s.id === sortId && <Icon path={mdiCheck} size={13} />}
                         {s.label}
                       </Chip>
                     ))}
@@ -476,55 +746,17 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
         </ModalSheet>
       )}
 
-      {total === 0 ? (
-        <p className="text-sm text-text-tertiary text-center py-ha-8">{emptyLabel}</p>
+      {fillHeight ? (
+        // The controls above stay fixed; only the rows scroll. The table renders
+        // its own card as the scroller (so its frame/heading stay put); list and
+        // grid scroll in a plain region. No gradient fades — they'd mask rows.
+        layout === 'table' && hasTable ? (
+          resultsBody
+        ) : (
+          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">{resultsBody}</div>
+        )
       ) : (
-        <div className="space-y-ha-5 pt-ha-2">
-          {groups.map((bucket) => (
-            <div key={bucket.key} className="space-y-ha-2">
-              {grouped && bucket.title && (
-                <div
-                  className={`sticky z-20 ${solidBg} flex items-center gap-ha-2 px-ha-1 py-ha-1`}
-                  style={{ top: 'calc(var(--settings-header-h, 0px) + var(--datalist-controls-h, 0px))' }}
-                >
-                  <SectionLabel>{bucket.title}</SectionLabel>
-                  <CountBadge count={bucket.items.length} />
-                </div>
-              )}
-              {layout === 'grid' && renderCard ? (
-                <div className={`grid gap-ha-3 ${gridColsClassName}`}>
-                  {bucket.items.map((item) => {
-                    const hl = highlightKey != null && keyOf(item) === highlightKey;
-                    return (
-                      <div
-                        key={keyOf(item)}
-                        ref={hl ? highlightRef : undefined}
-                        className={hl ? 'rounded-ha-2xl ha-last-opened' : undefined}
-                      >
-                        {renderCard(item)}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden">
-                  {bucket.items.map((item) => {
-                    const hl = highlightKey != null && keyOf(item) === highlightKey;
-                    return (
-                      <div
-                        key={keyOf(item)}
-                        ref={hl ? highlightRef : undefined}
-                        className={`border-b border-surface-low/40 last:border-0${hl ? ' ha-last-opened' : ''}`}
-                      >
-                        {renderRow(item)}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+        resultsBody
       )}
     </div>
   );

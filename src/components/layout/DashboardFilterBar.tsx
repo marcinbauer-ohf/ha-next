@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { mdiCheck } from '@mdi/js';
 import { Icon } from '@/components/ui/Icon';
 import { Chip } from '@/components/ui/Chip';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { GlowCanvas } from '@/components/ui/GlowCanvas';
 
 export type DashboardGroupBy = 'area' | 'type' | 'category';
 
@@ -25,6 +27,45 @@ const POPOVER_SPRING = { type: 'spring' as const, stiffness: 460, damping: 32, m
  */
 function MiniPill() {
   return <span className="h-1.5 w-8 rounded-full bg-text-secondary/35" />;
+}
+
+// Dark ambient-glow colour (0–1 RGB) — matches the edit-mode dashboard glow
+// (rgba(0,0,0,0.14)): a soft shadow tint, not a brand hue.
+const GLOW_COLOR: [number, number, number] = [0, 0, 0];
+
+/**
+ * Ambient hover glow for the desktop filter pill — the dark mirror of the
+ * connected toast's corner glow. Portaled into #filter-glow-root, a layer that
+ * sits BEHIND the dashboard cards (inside the surface's rounded clip), so the
+ * bloom pools behind the content instead of washing over it. Anchored to the
+ * panel's bottom-LEFT corner where the pill sits.
+ */
+function FilterGlow({ show }: { show: boolean }) {
+  const [root, setRoot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setRoot(document.getElementById('filter-glow-root'));
+  }, [show]);
+
+  if (!root) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          className="hidden lg:block absolute bottom-0 left-0 pointer-events-none"
+          style={{ width: 'min(88%, 44rem)', height: '19rem', transformOrigin: '0% 100%' }}
+          initial={{ scale: 0.15, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.4, opacity: 0 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <GlowCanvas className="w-full h-full" color={GLOW_COLOR} origin={[0, 1]} radius={[0.9, 0.62]} intensity={0.28} />
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    root,
+  );
 }
 
 interface DashboardFilterBarProps {
@@ -150,9 +191,15 @@ export function DashboardFilterBar({
 
   return (
     <>
-      {/* Desktop: centered floating pill, same bottom offset as EditingToolbar. */}
+      {/* Ambient hover glow — mirror of the connected-toast corner glow, clipped
+          to the dashboard panel's bottom-left corner. */}
+      <FilterGlow show={expanded} />
+
+      {/* Desktop: floating pill pinned to the left, same bottom offset as
+          EditingToolbar. Sits just past the nav rail, aligned with the content
+          gutter. */}
       <div
-        className="hidden lg:flex fixed z-[55] pointer-events-none inset-x-0 bottom-20 left-[76px] right-0 justify-center"
+        className="hidden lg:flex fixed z-[55] pointer-events-none bottom-20 left-[76px] right-0 justify-start pl-ha-8"
         style={{ paddingBottom: `calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))` }}
       >
         <motion.div
@@ -167,7 +214,7 @@ export function DashboardFilterBar({
           onMouseLeave={() => setExpanded(false)}
           onFocusCapture={() => setExpanded(true)}
           onBlurCapture={() => setExpanded(false)}
-          className={`pointer-events-auto rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center gap-ha-2 transition-[padding] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          className={`pointer-events-auto rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center gap-ha-2 transition-[padding] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
             expanded ? 'px-ha-2 py-ha-2' : 'px-ha-3 py-1.5'
           }`}
         >
@@ -219,7 +266,7 @@ export function DashboardFilterBar({
               exit={{ opacity: 0, y: 12, scale: 0.96 }}
               transition={POPOVER_SPRING}
               style={{ transformOrigin: 'bottom left' }}
-              className="absolute bottom-full mb-ha-2 left-0 w-[min(78vw,20rem)] rounded-ha-3xl bg-surface-default/95 backdrop-blur-md border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] p-ha-4"
+              className="absolute bottom-full mb-ha-2 left-0 w-[min(78vw,20rem)] rounded-ha-3xl bg-surface-default/95 border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] p-ha-4"
             >
               {optionGroups}
             </motion.div>
@@ -233,7 +280,7 @@ export function DashboardFilterBar({
           aria-label="Filters"
           aria-expanded={open}
           onClick={() => setOpen(o => !o)}
-          className={`flex items-center justify-center p-ha-2 rounded-ha-3xl backdrop-blur-md border transition-colors shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] ${
+          className={`flex items-center justify-center p-ha-2 rounded-ha-3xl border transition-colors shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] ${
             open || activeFilterCount > 0
               ? 'border-ha-blue/40 bg-fill-primary-normal text-ha-blue'
               : 'border-surface-low/50 bg-surface-default/95 text-text-secondary'

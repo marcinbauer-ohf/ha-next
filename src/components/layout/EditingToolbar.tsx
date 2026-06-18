@@ -81,7 +81,7 @@ export function EditingToolbar() {
           {/* Mobile: full-width pill matching MobileNav style */}
           <div className="lg:hidden px-edge pointer-events-auto">
             <div className="relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)]">
-              <div className="relative rounded-[23px] bg-surface-default/95 backdrop-blur-md px-edge py-ha-3">
+              <div className="relative rounded-[23px] bg-surface-default/95 px-edge py-ha-3">
                 <div className="flex items-center gap-ha-2">
                   <button aria-label="Undo" className="w-11 h-11 rounded-full flex items-center justify-center text-text-disabled opacity-40 cursor-default">
                     <Icon path={mdiUndo} size={20} />
@@ -105,7 +105,7 @@ export function EditingToolbar() {
 
           {/* Desktop: centered floating pill */}
           <div className="hidden lg:flex justify-center pointer-events-auto">
-            <div className="px-ha-2 py-ha-2 rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center gap-ha-1">
+            <div className="px-ha-2 py-ha-2 rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center gap-ha-1">
               <ViewportButtons
                 id="desktop"
                 active={previewViewport}

@@ -90,7 +90,7 @@ export function EditableCard({
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.15, delay: 0.03 }}
-              className="absolute top-1.5 right-1.5 z-30 w-6 h-6 rounded-full bg-black/20 text-white flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing backdrop-blur-sm"
+              className="absolute top-1.5 right-1.5 z-30 w-6 h-6 rounded-full bg-black/20 text-white flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing"
             >
               <Icon path={mdiDragVariant} size={14} />
             </motion.div>
@@ -104,7 +104,7 @@ export function EditableCard({
               transition={{ duration: 0.15, delay: 0.06 }}
               onClick={(e) => { e.stopPropagation(); onResize(colSpan === 2 ? 1 : 2, rowSpan); }}
               aria-label={colSpan === 2 ? 'Make card narrower' : 'Make card wider'}
-              className="absolute bottom-1.5 right-1.5 z-30 w-7 h-7 rounded-full bg-black/20 text-white flex items-center justify-center shadow-md backdrop-blur-sm"
+              className="absolute bottom-1.5 right-1.5 z-30 w-7 h-7 rounded-full bg-black/20 text-white flex items-center justify-center shadow-md"
             >
               <Icon
                 path={colSpan === 2 ? mdiArrowCollapseHorizontal : mdiArrowExpandHorizontal}

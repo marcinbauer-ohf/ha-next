@@ -14,6 +14,8 @@ const LS_REACTIVE_INTENSITY_KEY = 'ha-flag-reactive-intensity';
 const LS_PULSE_WALLPAPER_REACTIVE_KEY = 'ha-flag-pulse-wallpaper-reactive';
 const LS_REACTIVE_TRIGGER_LABELS_KEY = 'ha-flag-reactive-trigger-labels';
 const LS_PULSE_MODE_KEY = 'ha-flag-pulse-mode';
+const LS_WEATHER_ENTITY_KEY = 'ha-flag-weather-entity';
+const LS_FAST_SCROLL_LABELS_KEY = 'ha-flag-fast-scroll-labels';
 
 const REACTIVE_TRIGGER_MODES: ReactiveTriggerMode[] = ['toggles-errors', 'all', 'errors'];
 const PULSE_INTENSITIES: PulseIntensity[] = ['subtle', 'bold'];
@@ -49,6 +51,14 @@ interface FeatureFlagsContextValue {
   /** Ambient style of the ring background / pulse wallpaper. */
   pulseMode: PulseMode;
   setPulseMode: (value: PulseMode) => void;
+  /** Weather entity (entity_id) driving the 'weather' wallpaper. Null = auto/first. */
+  weatherEntityId: string | null;
+  setWeatherEntityId: (value: string | null) => void;
+  /** Prototype: while flicking a dashboard fast, overlay each device card with
+   *  just its name (large) so you can read what's flying past. */
+  fastScrollLabelsEnabled: boolean;
+  setFastScrollLabelsEnabled: (value: boolean) => void;
+  toggleFastScrollLabels: () => void;
 }
 
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue | undefined>(undefined);
@@ -194,6 +204,34 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(LS_PULSE_MODE_KEY, value);
   }, []);
 
+  // Chosen weather entity for the 'weather' wallpaper. Null → consumers fall
+  // back to the first weather.* entity they find.
+  const [weatherEntityId, setWeatherEntityIdState] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(LS_WEATHER_ENTITY_KEY) || null;
+  });
+
+  const setWeatherEntityId = useCallback((value: string | null) => {
+    setWeatherEntityIdState(value);
+    if (value) localStorage.setItem(LS_WEATHER_ENTITY_KEY, value);
+    else localStorage.removeItem(LS_WEATHER_ENTITY_KEY);
+  }, []);
+
+  // Fast-scroll name labels — prototype, off by default. Only explicit '1' enables.
+  const [fastScrollLabelsEnabled, setFastScrollLabelsEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(LS_FAST_SCROLL_LABELS_KEY) === '1';
+  });
+
+  const setFastScrollLabelsEnabled = useCallback((value: boolean) => {
+    setFastScrollLabelsEnabledState(value);
+    localStorage.setItem(LS_FAST_SCROLL_LABELS_KEY, value ? '1' : '0');
+  }, []);
+
+  const toggleFastScrollLabels = useCallback(() => {
+    setFastScrollLabelsEnabled(!fastScrollLabelsEnabled);
+  }, [fastScrollLabelsEnabled, setFastScrollLabelsEnabled]);
+
   return (
     <FeatureFlagsContext.Provider
       value={{
@@ -224,6 +262,11 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
         togglePulseWallpaperReactive,
         pulseMode,
         setPulseMode,
+        weatherEntityId,
+        setWeatherEntityId,
+        fastScrollLabelsEnabled,
+        setFastScrollLabelsEnabled,
+        toggleFastScrollLabels,
       }}
     >
       {children}

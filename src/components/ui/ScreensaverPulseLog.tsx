@@ -55,7 +55,7 @@ export function ScreensaverPulseLog() {
         return (
           <div
             key={e.id}
-            className="flex items-center gap-ha-2 rounded-ha-pill bg-surface-mid/55 backdrop-blur-md border border-white/10 pl-ha-2 pr-ha-3 py-ha-1 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            className="flex items-center gap-ha-2 rounded-ha-pill bg-surface-mid/55 border border-white/10 pl-ha-2 pr-ha-3 py-ha-1 animate-in fade-in slide-in-from-bottom-2 duration-300"
           >
             <span
               className="w-2 h-2 rounded-full shrink-0 animate-pulse"

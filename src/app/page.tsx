@@ -29,7 +29,7 @@ import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
 import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { DashboardFilterBar } from '@/components/layout/DashboardFilterBar';
 import { PullToRevealPanel } from '@/components/sections';
-import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags, useFavorites } from '@/hooks';
+import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags, useFavorites, useFastScrollLabels } from '@/hooks';
 import { usePullToRevealContext, useHeader, useEditMode, useToast } from '@/contexts';
 import { NavChevron } from '@/components/ui';
 import { HALoader } from '@/components/ui/HALoader';
@@ -58,7 +58,9 @@ function Section({ sectionKey, title, count, href, children }: { sectionKey: str
     <div
       data-section-key={sectionKey}
       data-section-title={title}
-      style={{ scrollMarginTop: 'calc(var(--dashboard-sticky-top, 0px) + var(--ha-space-2))' }}
+      // Land jumps (scroll rail) below the top scroll fade, not under it. The
+      // fade is h-12 (3rem) anchored at --app-topbar-clear, so clear both.
+      style={{ scrollMarginTop: 'calc(var(--app-topbar-clear, 0px) + var(--dashboard-sticky-top, 0px) + 3rem + var(--ha-space-2))' }}
     >
       <div className="-mx-ha-1 px-ha-1 py-ha-2 mb-ha-1" data-section-header>
         {href ? (
@@ -194,7 +196,11 @@ export default function DashboardPage() {
   const [dashboardView, setDashboardView] = useState<'list' | '3d'>('list');
   const { isRevealed } = usePullToRevealContext();
   const { isEditing, toggleEditMode, previewViewport, previewOrientation } = useEditMode();
-  const { offscreenChangeHintsEnabled, scrollIndexEnabled } = useFeatureFlags();
+  const { offscreenChangeHintsEnabled, scrollIndexEnabled, fastScrollLabelsEnabled } = useFeatureFlags();
+
+  // Prototype: overlay each card with its name while flicking fast (list view,
+  // not editing). Toggles a class on the scroll container — no per-card renders.
+  useFastScrollLabels(scrollableRef, fastScrollLabelsEnabled && dashboardView === 'list' && !isEditing);
 
   // Edit-mode grid must match the non-edit masonry column counts
   // (useMasonryCols: ≥1024px=3, below=2) so the layout doesn't reflow when
@@ -784,14 +790,26 @@ export default function DashboardPage() {
               isMobileImmersive ? 'bg-surface-lower rounded-none lg:rounded-ha-3xl' : 'bg-surface-lower rounded-ha-3xl',
             )}
           >
+            {/* Ambient-glow layer for the filter pill's hover bloom. First child
+                so it paints behind the cards (DashboardFilterBar portals into it);
+                inherits the surface's rounded overflow clip. */}
+            <div id="filter-glow-root" className="absolute inset-0 overflow-hidden pointer-events-none" />
+
             {/* Immersive toggle — desktop-only "dog-ear" fold. Hidden while
                 editing the dashboard grid. See ImmersiveDogEar. */}
             {!isEditing && <ImmersiveDogEar />}
             {!isEditing && <ScreensaverDogEar />}
 
-            {/* Bottom scroll fade — blends overflowing content into the surface.
-                (The TOP fade lives inside <main> below, so it sits under the
-                sticky section headers instead of painting over them.) */}
+            {/* Top + bottom scroll fades — blend overflowing content into the
+                surface. Top fade is desktop-only: on mobile the top bar's own
+                gradient already fades the content, so this would double up. */}
+            <div
+              className={clsx(
+                'hidden lg:block absolute left-0 right-0 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300',
+                showTopGradient ? 'opacity-100' : 'opacity-0',
+              )}
+              style={{ top: 'var(--app-topbar-clear, 0px)' }}
+            />
             <div className={clsx(
               'absolute bottom-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300',
               showBottomGradient ? 'opacity-100' : 'opacity-0',
@@ -817,9 +835,6 @@ export default function DashboardPage() {
                   noSticky={dashboardView === '3d'}
                 />
 
-              {/* Top scroll fade now hangs off each sticky section header (see the
-                  Section component) so it tracks the pinned header instead of a
-                  fixed offset. No standalone top-fade element needed. */}
 
               {dashboardView === '3d' ? (
                 <div className="flex-1 min-h-0">

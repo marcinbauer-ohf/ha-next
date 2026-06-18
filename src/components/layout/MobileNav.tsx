@@ -34,6 +34,7 @@ import { isSettingsSlug, type SettingsSlug } from '@/components/profile/settings
 import { usePullToRevealContext, useSearchContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, useMobileToolbar, type SidebarItem } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import { subscribeStatusPulse } from '@/lib/statusPulseBus';
+import { isNavAutoHideFrozen, subscribeNavAutoHideFrozen } from '@/lib/navAutoHideBus';
 import { haptic } from '@/lib/haptics';
 import {
   areActivityDataEqual,
@@ -341,6 +342,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const [timerProgress, setTimerProgress] = useState<number>(0);
   const [scrollHideProgress, setScrollHideProgress] = useState(0);
   const [hideFromInactivity, setHideFromInactivity] = useState(false);
+  // Held by transient interactions (e.g. scrubbing the scroll-index rail) that
+  // scroll the dashboard programmatically — see navAutoHideBus.
+  const [navFrozenExternally, setNavFrozenExternally] = useState(false);
   const [showBottomEdgeGradient, setShowBottomEdgeGradient] = useState(false);
   const [showExpandedSurfaceTopGradient, setShowExpandedSurfaceTopGradient] = useState(false);
   const [showExpandedSurfaceBottomGradient, setShowExpandedSurfaceBottomGradient] = useState(false);
@@ -463,6 +467,16 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     };
   }, [onNavAutoHiddenChange]);
 
+  // Track the external freeze flag (scroll-index rail scrubbing, etc.).
+  useEffect(() => {
+    setNavFrozenExternally(isNavAutoHideFrozen());
+    return subscribeNavAutoHideFrozen(setNavFrozenExternally);
+  }, []);
+
+  // Hold the nav at its current state while a toast is up OR an external
+  // interaction (rail scrub) is driving programmatic scrolls.
+  const freezeAuto = freezeAutoHide || navFrozenExternally;
+
   // Scroll behavior
   useEffect(() => {
     let scrollable: HTMLElement | null = null;
@@ -478,8 +492,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       clearScrollSnapTimer();
     };
 
-    // Freeze: hold the current progress, ignore scroll while a toast is up.
-    if (freezeAutoHide) {
+    // Freeze: hold the current progress, ignore scroll while a toast is up or
+    // the rail is scrubbing.
+    if (freezeAuto) {
       resetScrollTracking();
       return;
     }
@@ -519,6 +534,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
 
     const handleScroll = () => {
       if (!scrollable) return;
+      // A scroll event can fire after a scrub starts but before the freeze
+      // re-runs this effect — bail on the live flag so no jump leaks through.
+      if (isNavAutoHideFrozen()) return;
 
       const now = Date.now();
       const isNewGesture = now - lastScrollTime > GESTURE_GAP_MS;
@@ -585,12 +603,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       }
       resetScrollTracking();
     };
-  }, [disableAutoHide, freezeAutoHide, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
+  }, [disableAutoHide, freezeAuto, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
 
   // Inactivity detection for hiding bottom row after 10s
   useEffect(() => {
-    // Freeze: don't start the inactivity timer or alter state while a toast is up.
-    if (freezeAutoHide) return;
+    // Freeze: don't start the inactivity timer or alter state while a toast is
+    // up or the rail is scrubbing.
+    if (freezeAuto) return;
 
     if (disableAutoHide || isRevealed || isBottomSurfaceEngaged) {
       queueMicrotask(() => {
@@ -603,6 +622,8 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     let attachRetryRaf: number | null = null;
 
     const resetInactivityTimer = () => {
+      // Don't reveal / restart the timer off scrub-driven touch + scroll events.
+      if (isNavAutoHideFrozen()) return;
       if (inactivityTimer.current) {
         clearTimeout(inactivityTimer.current);
       }
@@ -661,7 +682,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         scrollable.removeEventListener('scroll', resetInactivityTimer);
       }
     };
-  }, [disableAutoHide, freezeAutoHide, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
+  }, [disableAutoHide, freezeAuto, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
 
   // Publish the nav's rendered height so the corner toast can sit just above it.
   useEffect(() => {
@@ -967,8 +988,22 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
 
     const getDragRangePx = () => {
       if (typeof window === 'undefined') return 280;
-      return Math.max(180, Math.min(380, window.innerHeight * 0.35));
+      // Match the sheet's open height (100svh - 15rem, see the content div
+      // below) so a px of finger travel moves the sheet a px — the handle
+      // tracks the finger 1:1 instead of racing ahead of it.
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      return Math.max(120, window.innerHeight - 15 * rem);
     };
+
+    // A finger must clear this before the gesture counts as a drag instead of a
+    // tap. Below it we leave the synthesized click intact so the handle's
+    // onClick toggle fires — taps no longer depend on a perfectly still finger.
+    const TAP_SLOP_PX = 10;
+    // Absolute finger travel (in the open/close direction) that commits the
+    // sheet. Decoupled from the 1:1 visual range so a normal swipe is enough —
+    // the old fractional threshold needed ~200px of travel to open.
+    const COMMIT_DISTANCE_PX = 72;
+    let gestureMoved = false;
 
     const reset = () => {
       bottomSheetTouchStartY.current = null;
@@ -980,49 +1015,54 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       if (!touch) return;
       bottomSheetTouchStartY.current = touch.clientY;
       bottomSheetPullDistance.current = 0;
-      setIsBottomSheetDragging(true);
-      setBottomSheetDragProgressClamped(statusExpanded ? 1 : 0);
+      gestureMoved = false;
     };
 
     const onTouchMove = (e: TouchEvent) => {
       if (bottomSheetTouchStartY.current === null) return;
       const touch = e.touches[0];
       if (!touch) return;
-      const currentY = touch.clientY;
-      const deltaY = currentY - bottomSheetTouchStartY.current;
-      const dragRange = getDragRangePx();
+      const deltaY = touch.clientY - bottomSheetTouchStartY.current;
 
+      // Stay a tap until the finger clears the slop: don't move the sheet and
+      // don't preventDefault, so the browser still fires the click that drives
+      // the onClick toggle.
+      if (!gestureMoved) {
+        if (Math.abs(deltaY) <= TAP_SLOP_PX) return;
+        gestureMoved = true;
+        setIsBottomSheetDragging(true);
+        setBottomSheetDragProgressClamped(statusExpanded ? 1 : 0);
+      }
+
+      const dragRange = getDragRangePx();
       if (statusExpanded) {
         const downwardPull = Math.max(0, deltaY);
         bottomSheetPullDistance.current = downwardPull;
         setBottomSheetDragProgressClamped(1 - downwardPull / dragRange);
-        if (downwardPull > 0) {
-          if (e.cancelable) e.preventDefault();
-        }
       } else {
         const upwardPull = Math.max(0, -deltaY);
         bottomSheetPullDistance.current = upwardPull;
         setBottomSheetDragProgressClamped(upwardPull / dragRange);
-        if (upwardPull > 0) {
-          if (e.cancelable) e.preventDefault();
-        }
       }
+
+      // A real drag swallows the synthesized click so it can't double-toggle.
+      if (e.cancelable) e.preventDefault();
     };
 
     const onTouchEnd = () => {
       if (bottomSheetTouchStartY.current === null) return;
-      const nextOpen = statusExpanded
-        ? bottomSheetDragProgressRef.current > 0.5
-        : bottomSheetDragProgressRef.current >= 0.35;
-
-      if (nextOpen) {
-        if (!statusExpanded) {
-          openExpandedSurface(expandedSurfaceTab);
-        }
-      } else {
-        closeExpandedSurface();
-      }
+      const moved = gestureMoved;
+      const pull = bottomSheetPullDistance.current;
       reset();
+      gestureMoved = false;
+
+      // Tap: leave it to the handle's onClick toggle.
+      if (!moved) return;
+
+      if (pull >= COMMIT_DISTANCE_PX) {
+        if (statusExpanded) closeExpandedSurface();
+        else openExpandedSurface(expandedSurfaceTab);
+      }
       requestAnimationFrame(() => {
         setIsBottomSheetDragging(false);
         setBottomSheetDragProgressClamped(0);
@@ -1031,6 +1071,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
 
     const onTouchCancel = () => {
       reset();
+      gestureMoved = false;
       setIsBottomSheetDragging(false);
       setBottomSheetDragProgressClamped(0);
     };
@@ -1698,7 +1739,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     <nav
       ref={navRef}
       className={`lg:hidden fixed inset-x-0 bottom-0 z-50 ${editModeFade || toolbarActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-      style={{ paddingBottom: 'calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))' }}
+      style={{ paddingBottom: 'var(--ha-edge-padding)' }}
       data-component="MobileNav"
       data-connection-status={connectionStatus ?? 'unknown'}
       onMouseEnter={() => {
@@ -1715,7 +1756,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         type="button"
         aria-label="Close expanded panel"
         onClick={closeExpandedSurface}
-        className={`fixed inset-0 backdrop-blur-[1px] transition-opacity duration-300 ${
+        className={`fixed inset-0-[1px] transition-opacity duration-300 ${
           isSheetVisible ? 'z-0' : '-z-10'
         } ${
           statusExpanded && !isBottomSheetDragging ? '' : 'pointer-events-none'
@@ -1724,7 +1765,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       />
       <div className="relative z-10 px-edge">
         <div className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden">
-          <div className="relative rounded-[23px] bg-surface-default/95 backdrop-blur-md">
+          <div className="relative rounded-[23px] bg-surface-default/95">
             <div className="flex flex-col px-edge pt-ha-1 pb-ha-4">
               <div className="flex justify-center py-0 mb-0 shrink-0">
                 {/* Generous, mostly-invisible grab zone so a swipe that starts
@@ -2220,7 +2261,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
           <div className="fixed inset-0 z-[100] flex flex-col justify-end lg:hidden">
             {/* Backdrop */}
             <div
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/40"
               onClick={() => setActivityListType(null)}
             />
             {/* Sheet */}

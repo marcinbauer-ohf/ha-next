@@ -239,6 +239,38 @@ export function DevicesTable({
     ],
     renderRow: (d) => <DeviceRow device={d} onSelect={onSelect} />,
     renderCard: (d) => <DeviceTile device={d} onSelect={onSelect} />,
+    columns: [
+      {
+        id: 'name',
+        header: 'Device',
+        sortAccessor: (d) => d.name.toLowerCase(),
+        cell: (d) => (
+          <div className="flex items-center gap-ha-3">
+            <DeviceIconTile
+              icon={d.icon}
+              thumbnail={d.thumbnail}
+              tileClass="w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 overflow-hidden"
+              iconSize={16}
+            />
+            <span className="min-w-0 flex items-center gap-ha-2">
+              <span className="font-semibold text-text-primary truncate">{d.name}</span>
+              <AvailabilityPill available={d.available} />
+            </span>
+          </div>
+        ),
+      },
+      { id: 'area', header: 'Area', sortAccessor: (d) => (d.areaName ?? '￿').toLowerCase(), cell: (d) => d.areaName ?? 'No area', hideBelow: 'sm' },
+      { id: 'integration', header: 'Integration', sortAccessor: (d) => (d.integrationName ?? '￿').toLowerCase(), cell: (d) => d.integrationName ?? '—', hideBelow: 'md' },
+      {
+        id: 'entities',
+        header: 'Entities',
+        align: 'right',
+        sortAccessor: (d) => d.entityCount,
+        cell: (d) => <span className="tabular-nums">{d.entityCount}</span>,
+      },
+    ],
+    onRowClick: (d) => onSelect(d.id),
+    fillHeight: true,
     defaultLayout: 'list',
     emptyLabel: 'No devices match these filters.',
     bg: 'surface-lower',

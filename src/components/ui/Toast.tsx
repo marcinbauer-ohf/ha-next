@@ -49,7 +49,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
       tabIndex={clickable ? 0 : undefined}
       onClick={onClick}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!(); } } : undefined}
-      className={`w-full px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 rounded-ha-3xl bg-surface-default/95 backdrop-blur-md shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50${clickable ? ' cursor-pointer hover:bg-surface-lower/95 active:scale-[0.99] transition-[background-color,transform]' : ''}`}
+      className={`w-full px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50${clickable ? ' cursor-pointer hover:bg-surface-lower/95 active:scale-[0.99] transition-[background-color,transform]' : ''}`}
     >
       <div className="flex items-center gap-ha-3">
         <div className="shrink-0 relative w-9 h-9 lg:w-11 lg:h-11">
@@ -231,7 +231,7 @@ function StackedCards({ toasts }: { toasts: ToastStackItem[] }) {
             transition={SPRING_STACK}
             aria-hidden
           >
-            <div className="h-full rounded-ha-3xl bg-surface-default/95 backdrop-blur-md border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]" />
+            <div className="h-full rounded-ha-3xl bg-surface-default/95 border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]" />
           </motion.div>
         ))}
       </AnimatePresence>

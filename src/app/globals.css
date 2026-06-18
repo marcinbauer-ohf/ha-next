@@ -112,7 +112,7 @@
    content and sticky headers reserve its height to sit beneath it. */
 @media (max-width: 1023.98px) {
   :root {
-    --app-topbar-clear: 4rem;
+    --app-topbar-clear: calc(4rem + env(safe-area-inset-top, 0px));
     --app-bottomnav-clear: calc(7rem + env(safe-area-inset-bottom, 0px));
   }
 }
@@ -844,7 +844,7 @@
   background-size: cover;
   background-position: center bottom; /* Anchor to bottom center often looks better for interiors */
   background-repeat: no-repeat;
-  filter: blur(8px);
+  filter: none;
   pointer-events: none;
 }
 
@@ -911,7 +911,7 @@
   background-image: url("https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=3840&auto=format&fit=crop");
   background-size: cover;
   background-position: center;
-  filter: blur(8px);
+  filter: none;
   background-attachment: fixed;
   background-repeat: no-repeat;
   border-radius: inherit;
@@ -980,8 +980,8 @@
 [data-theme="glass"] .bg-surface-default,
 [data-theme="glass"] .bg-surface-low,
 [data-theme="glass"] .bg-surface-lower {
-  backdrop-filter: blur(32px) saturate(180%);
-  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: none !important;
 }
 
@@ -1042,8 +1042,8 @@
 @media (max-width: 1023px) {
   [data-theme="glass"] [data-component="MobileTopBar"] {
     background-color: transparent !important;
-    backdrop-filter: blur(24px) saturate(180%) !important;
-    -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
     box-shadow: 0 1px 16px -4px rgba(0, 0, 0, 0.15) !important;
   }
@@ -1073,8 +1073,8 @@
 /* Glass Theme - Mobile Bottom Navigation */
 [data-theme="glass"] [data-component="MobileNav"] .mobile-nav-pill {
   background: transparent !important;
-  backdrop-filter: blur(28px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 [data-theme="glass"][data-mode="dark"]
@@ -1100,8 +1100,8 @@
 /* Glass Theme - Bottom Nav tab strip (the rounded pill row) */
 [data-theme="glass"] [data-component="MobileNav"] .mobile-nav-tabs {
   background: transparent !important;
-  backdrop-filter: blur(20px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 [data-theme="glass"][data-mode="dark"]
@@ -1122,14 +1122,14 @@
 [data-theme="glass"][data-mode="dark"] [data-component="AppShell"] > div > main,
 [data-theme="glass"][data-mode="dark"] [data-component="dashboard-surface"] {
   background-color: rgba(30, 30, 30, 0.6);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 [data-theme="glass"][data-mode="dark"] .bg-surface-default {
   background-color: var(--ha-color-surface-default); /* Now 0.92 opaque */
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 [data-theme="glass"][data-mode="light"]
@@ -1138,21 +1138,21 @@
   > main,
 [data-theme="glass"][data-mode="light"] [data-component="dashboard-surface"] {
   background-color: rgba(255, 255, 255, 0.4);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 [data-theme="glass"][data-mode="light"] .bg-surface-default {
   background-color: var(--ha-color-surface-default); /* Now 0.92 opaque */
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* Screensaver in Glass Mode - More glassy and blurry */
 [data-theme="glass"] [data-component="Screensaver"] {
   background-color: rgba(0, 0, 0, 0.5) !important;
-  backdrop-filter: blur(40px) saturate(180%);
-  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* Light Glass Screensaver - Lighter but still glassy/blurry */
@@ -1274,7 +1274,7 @@
 [data-theme="glass"][data-mode="light"] .bg-yellow-95,
 [data-theme="glass"][data-mode="light"] .bg-fill-primary-quiet {
   background-color: rgba(255, 255, 255, 0.9) !important;
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
 }
 
@@ -1623,6 +1623,56 @@ html {
 .ha-selected {
   outline: 2px solid var(--ha-color-blue);
   outline-offset: 2px;
+}
+
+/* Fast-scroll gist labels (prototype) — every DeviceCardV2 carries a hidden
+   top-left name overlay. The dashboard scroll container exposes a 0..1
+   `--ha-fast-scroll` intensity tracking scroll velocity (see useFastScrollLabels);
+   the overlay fades in PROPORTIONALLY, so a slow drag only lightly veils the
+   card while a hard fling fully replaces detail with the big name. Driven by a
+   CSS var so velocity changes never re-render the cards. */
+[data-card-fast-label] {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.125rem;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  pointer-events: none;
+  /* Continuous reveal — both fill and blur ride the same intensity value, so
+     the card stays partly visible until you really fling it. */
+  opacity: var(--ha-fast-scroll, 0);
+  background: color-mix(in srgb, var(--ha-color-surface-default) 86%, transparent);
+  backdrop-filter: blur(calc(var(--ha-fast-scroll, 0) * 3px));
+  -webkit-backdrop-filter: blur(calc(var(--ha-fast-scroll, 0) * 3px));
+}
+/* Small muted "where" kicker above the name — only present when the card knows
+   its area (grouped by type/category, or favorites). */
+[data-fast-label-area] {
+  max-width: 100%;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--ha-color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-fast-label-name] {
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  font-size: clamp(1.05rem, 4.5vw, 1.6rem);
+  color: var(--ha-color-text-primary);
+  /* Clamp long names to three lines so the label never overflows a short card. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* "Last opened" marker — a brief, faint wash (like a hover tint) that flashes

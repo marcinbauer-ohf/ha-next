@@ -64,11 +64,12 @@ function NavItem({
       type="button"
       onClick={onSelect}
       data-settings-slug={item.slug}
+      title={empty ? "This view isn't designed or built yet" : undefined}
       style={accentActive ? { backgroundColor: `${accent}1a` } : undefined}
       className={clsx(
         'group w-full flex items-center gap-ha-3 px-ha-4 text-left transition-colors border-b border-surface-low/40 last:border-0 py-ha-2',
         subtitle && 'min-h-[48px]',
-        empty && 'opacity-45',
+        empty && 'opacity-45 cursor-not-allowed',
         isActive ? 'bg-surface-mid' : 'hover:bg-surface-mid/50 active:bg-surface-mid',
       )}
     >
@@ -179,6 +180,11 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
       .filter(section => section.items.length > 0);
   }, [searchQuery]);
 
+  // Developer Tools gets its own labeled card (like System), so split it out of
+  // the unified categories card while keeping it in the search-filtered set.
+  const navCardSections = visibleSections.filter((s) => s.title !== 'Developer Tools');
+  const devToolsSection = visibleSections.find((s) => s.title === 'Developer Tools');
+
   return (
     <div ref={rootRef}>
       {/* Search — sticky at top, pinned with no drift. Mirrors DataListView's
@@ -228,9 +234,9 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
       <div className="pb-ha-5">
         {visibleSections.length === 0 ? (
           <p className="text-sm text-text-tertiary text-center py-ha-6">No results for &ldquo;{searchQuery}&rdquo;</p>
-        ) : (
+        ) : navCardSections.length > 0 && (
           <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden py-ha-2">
-            {visibleSections.map((section, idx) => {
+            {navCardSections.map((section, idx) => {
               const accent = categoryAccents[section.title] ?? '#64748b';
               return (
                 <div key={section.title || '__top'} className={idx > 0 ? 'pt-ha-4' : ''}>
@@ -250,6 +256,28 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
           </div>
         )}
       </div>
+
+      {/* Developer Tools — broken out as its own labeled part, like System.
+          Still searchable, so it follows the filtered `devToolsSection`. */}
+      {devToolsSection && (
+        <div className="pb-ha-4">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-text-tertiary px-ha-3 pb-ha-2">
+            {devToolsSection.title}
+          </p>
+          <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden py-ha-2">
+            {devToolsSection.items.map((item) => (
+              <NavItem
+                key={item.slug}
+                item={item}
+                subtitle={subtitles[item.slug] ?? ''}
+                isActive={activeSlug === item.slug}
+                onSelect={() => onSelect(item.slug)}
+                accent={categoryAccents[devToolsSection.title] ?? '#64748b'}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* System power controls — hidden while searching to keep results clean. */}
       {!searchQuery.trim() && (

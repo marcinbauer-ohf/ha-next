@@ -1,7 +1,7 @@
 'use client';
 
 import { RingShaderBackground, useRingOrigin } from '@/components/ui/RingShaderBackground';
-import { useFeatureFlags, useHomeEventReactor, useHomeAssistant } from '@/hooks';
+import { useFeatureFlags, useHomeEventReactor, useHomeAssistant, useWeatherParams } from '@/hooks';
 import { PULSE_COLORS } from '@/lib/homePulseBus';
 
 /**
@@ -20,6 +20,7 @@ import { PULSE_COLORS } from '@/lib/homePulseBus';
  */
 export function PulseWallpaper() {
   const { wavyBackgroundEnabled, pulseWallpaperReactive, pulseMode } = useFeatureFlags();
+  const weatherParams = useWeatherParams();
   const { connected, connecting, demoMode } = useHomeAssistant();
   useHomeEventReactor(pulseWallpaperReactive, 'toggles-errors');
 
@@ -42,6 +43,7 @@ export function PulseWallpaper() {
         center={center}
         reach={reach}
         mode={pulseMode}
+        weather={weatherParams}
       />
     </div>
   );

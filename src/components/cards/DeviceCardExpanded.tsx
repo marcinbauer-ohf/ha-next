@@ -79,14 +79,14 @@ export function DeviceCardExpanded({
         {onEditCard && (
           <button
             onClick={onEditCard}
-            className="p-1.5 rounded-ha-lg bg-surface-default/80 backdrop-blur text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+            className="p-1.5 rounded-ha-lg bg-surface-default/80 text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
           >
             <Icon path={mdiPencilOutline} size={16} />
           </button>
         )}
         <button
           onClick={onClose}
-          className="p-1.5 rounded-ha-lg bg-surface-default/80 backdrop-blur text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+          className="p-1.5 rounded-ha-lg bg-surface-default/80 text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
         >
           <Icon path={mdiClose} size={16} />
         </button>

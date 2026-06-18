@@ -30,10 +30,11 @@ export type PulseIntensity = keyof typeof INTENSITY;
  *   bokeh      — soft light orbs drifting slowly upward
  *   dawn       — a slow flowing colour wash, no hard shapes
  *   breathOrb  — one soft glow gently expanding and contracting
+ *   weather    — abstract, reactive ambience driven by a weather entity
  */
-export type PulseMode = 'classic' | 'heartbeat' | 'breathing' | 'aurora' | 'bokeh' | 'dawn' | 'breathOrb';
+export type PulseMode = 'classic' | 'heartbeat' | 'breathing' | 'aurora' | 'bokeh' | 'dawn' | 'breathOrb' | 'weather';
 
-export const PULSE_MODES: PulseMode[] = ['classic', 'heartbeat', 'breathing', 'aurora', 'bokeh', 'dawn', 'breathOrb'];
+export const PULSE_MODES: PulseMode[] = ['classic', 'heartbeat', 'breathing', 'aurora', 'bokeh', 'dawn', 'breathOrb', 'weather'];
 
 const MODE_INDEX: Record<PulseMode, number> = {
   classic: 0,
@@ -43,7 +44,20 @@ const MODE_INDEX: Record<PulseMode, number> = {
   bokeh: 4,
   dawn: 5,
   breathOrb: 6,
+  weather: 7,
 };
+
+/** Shader-ready weather parameters (see @/lib/weatherVisual WeatherParams). */
+export interface WeatherUniforms {
+  clouds: number;
+  rain: number;
+  snow: number;
+  wind: number;
+  temp: number;
+  day: number;
+}
+
+const NEUTRAL_WEATHER_UNIFORMS: WeatherUniforms = { clouds: 0.3, rain: 0, snow: 0, wind: 0.2, temp: 0, day: 1 };
 
 // Ring origin + reach are uniforms now (see Props.center / Props.reach) so the
 // same WebGL context can shift between centre (desktop) and bottom (mobile)
@@ -76,6 +90,14 @@ const FRAG = `
   uniform float u_reach;  // ring radius at full phase (UV-height units)
   uniform int u_mode;     // ambient style (PulseMode → MODE_INDEX)
   uniform float u_tinted; // 1.0 when an explicit health tint is set (skip iridescence)
+
+  // Weather params for the 'weather' mode (all 0..1, temp -1..1).
+  uniform float u_wxClouds;
+  uniform float u_wxRain;
+  uniform float u_wxSnow;
+  uniform float u_wxWind;
+  uniform float u_wxTemp;
+  uniform float u_wxDay;
 
   // Reactive event pulses: each is a coloured ring expanding from centre.
   uniform int u_pulseCount;
@@ -248,6 +270,67 @@ const FRAG = `
       vec3 col = mix(ambientCol, vec3(1.0, 0.78, 0.55), 0.6);
       a = glow * u_alpha * 2.6;
       premul = clamp(col * a, 0.0, 1.0);
+    } else if (u_mode == 7) {
+      // WEATHER — abstract, reactive ambience from the chosen weather entity.
+      vec2 wuv = vec2(uv.x * aspect, uv.y);
+      float wind = 0.3 + u_wxWind;
+
+      // Base wash: temperature → warm/cool, day/night → brightness, with a
+      // gentle vertical gradient (brighter toward the top "sky").
+      vec3 warm = vec3(0.95, 0.6, 0.4);
+      vec3 cool = vec3(0.4, 0.55, 0.85);
+      vec3 sky = mix(cool, warm, 0.5 + 0.5 * u_wxTemp);
+      sky = mix(sky * 0.28, sky, u_wxDay);
+      sky *= mix(0.7, 1.1, uv.y);
+      vec3 col = sky;
+      float A = u_alpha * 2.2;
+
+      // Clouds — drifting soft fog.
+      float clouds = fbm(uv * 2.2 + vec2(u_time * 0.02 * wind, u_time * 0.008));
+      clouds = smoothstep(0.4, 0.95, clouds) * u_wxClouds;
+      col = mix(col, mix(vec3(0.62), sky, 0.3), clouds * 0.6);
+      A += clouds * u_alpha * 1.4;
+
+      // Rain — diagonal streaks falling, slanted by wind.
+      if (u_wxRain > 0.01) {
+        float slant = (u_wxWind - 0.2) * 0.6;
+        vec2 rp = wuv * vec2(60.0, 18.0);
+        rp.x += rp.y * slant;
+        rp.y += u_time * (6.0 + 8.0 * wind);
+        float cx2 = floor(rp.x);
+        float streak = fract(rp.y + hash11(cx2) * 7.0);
+        float drop = smoothstep(0.0, 0.06, streak) * smoothstep(0.55, 0.0, streak);
+        float rain = drop * step(0.55, hash11(cx2 + 3.0)) * u_wxRain;
+        col += vec3(0.6, 0.7, 0.9) * rain * 0.5;
+        A += rain * u_alpha * 2.0;
+      }
+
+      // Snow — drifting flakes.
+      if (u_wxSnow > 0.01) {
+        vec2 sp = wuv * 14.0;
+        sp.x += sin(u_time * 0.5 + sp.y) * 0.3 * wind;
+        sp.y += u_time * (0.6 + wind);
+        vec2 cell = floor(sp);
+        vec2 f = fract(sp);
+        vec2 c = vec2(hash11(cell.x * 1.3 + cell.y * 2.1), hash11(cell.x * 2.7 + cell.y * 1.1));
+        float flake = smoothstep(0.18, 0.0, length(f - c))
+                      * step(0.5, hash11(cell.x * 3.1 + cell.y * 4.7));
+        float snow = flake * u_wxSnow;
+        col += vec3(1.0) * snow;
+        A += snow * u_alpha * 2.2;
+      }
+
+      // Sun glow — only when clear and daytime.
+      float clarity = (1.0 - u_wxClouds) * u_wxDay;
+      if (clarity > 0.01) {
+        float d = length(wuv - vec2(0.7 * aspect, 0.78));
+        float glow = exp(-d * d * 5.0);
+        col += vec3(1.0, 0.85, 0.6) * glow * clarity * 0.8;
+        A += glow * clarity * u_alpha * 2.0;
+      }
+
+      a = clamp(A, 0.0, 1.0);
+      premul = clamp(col * a, 0.0, 1.0);
     } else {
       // CLASSIC
       float aa = ambientRings(dist, angle, px) * u_alpha;
@@ -299,6 +382,8 @@ interface Props {
   reach?: number;
   /** Ambient background style. Default 'classic'. */
   mode?: PulseMode;
+  /** Live weather params for the 'weather' mode. */
+  weather?: WeatherUniforms;
 }
 
 /**
@@ -321,7 +406,7 @@ export function useRingOrigin(): { center: [number, number]; reach: number } {
     : { center: [0.5, 0.5], reach: 1.1 };
 }
 
-export function RingShaderBackground({ resolvedMode, wavy = false, reactive = false, intensity = 'subtle', tint = null, center = DEFAULT_CENTER, reach = DEFAULT_REACH, mode = 'classic' }: Props) {
+export function RingShaderBackground({ resolvedMode, wavy = false, reactive = false, intensity = 'subtle', tint = null, center = DEFAULT_CENTER, reach = DEFAULT_REACH, mode = 'classic', weather = NEUTRAL_WEATHER_UNIFORMS }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modeRef = useRef<'light' | 'dark'>(resolvedMode ?? getMode());
   useEffect(() => { modeRef.current = resolvedMode ?? getMode(); }, [resolvedMode]);
@@ -343,6 +428,9 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
   // Ambient style, read live so flipping modes doesn't rebuild the context.
   const pulseModeRef = useRef<PulseMode>(mode);
   useEffect(() => { pulseModeRef.current = mode; }, [mode]);
+  // Weather params, read live so condition changes recolour without rebuilding.
+  const weatherRef = useRef<WeatherUniforms>(weather);
+  useEffect(() => { weatherRef.current = weather; }, [weather]);
 
   // Active event ripples, fed by the home-pulse bus while reactive.
   const pulsesRef = useRef<ActivePulse[]>([]);
@@ -405,6 +493,12 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
     const uReach = gl.getUniformLocation(program, 'u_reach');
     const uMode = gl.getUniformLocation(program, 'u_mode');
     const uTinted = gl.getUniformLocation(program, 'u_tinted');
+    const uWxClouds = gl.getUniformLocation(program, 'u_wxClouds');
+    const uWxRain = gl.getUniformLocation(program, 'u_wxRain');
+    const uWxSnow = gl.getUniformLocation(program, 'u_wxSnow');
+    const uWxWind = gl.getUniformLocation(program, 'u_wxWind');
+    const uWxTemp = gl.getUniformLocation(program, 'u_wxTemp');
+    const uWxDay = gl.getUniformLocation(program, 'u_wxDay');
     const uPulseCount = gl.getUniformLocation(program, 'u_pulseCount');
     const uPulsePhase = gl.getUniformLocation(program, 'u_pulsePhase');
     const uPulseColor = gl.getUniformLocation(program, 'u_pulseColor');
@@ -449,6 +543,13 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
       gl.uniform1f(uReach, reachRef.current);
       gl.uniform1i(uMode, MODE_INDEX[pulseModeRef.current]);
       gl.uniform1f(uTinted, tintRef.current ? 1 : 0);
+      const wx = weatherRef.current;
+      gl.uniform1f(uWxClouds, wx.clouds);
+      gl.uniform1f(uWxRain, wx.rain);
+      gl.uniform1f(uWxSnow, wx.snow);
+      gl.uniform1f(uWxWind, wx.wind);
+      gl.uniform1f(uWxTemp, wx.temp);
+      gl.uniform1f(uWxDay, wx.day);
 
       // Age out expired pulses (compact in place) and upload the live ones.
       const pulses = pulsesRef.current;

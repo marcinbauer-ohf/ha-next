@@ -324,6 +324,15 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           })}
         </div>
       )}
+
+      {/* Fast-scroll gist label — always in the DOM, invisible until an ancestor
+          scroll container gains `.ha-fast-scroll` (see useFastScrollLabels). The
+          reveal is pure CSS so flinging never re-renders the card. Clipped to the
+          card's rounded shape by the outer overflow-hidden. */}
+      <div data-card-fast-label aria-hidden>
+        {areaName && <span data-fast-label-area>{areaName}</span>}
+        <span data-fast-label-name>{primary.name}</span>
+      </div>
     </div>
   );
 }

@@ -24,7 +24,7 @@ const iconColorClasses = {
 
 
 export function SummaryCard({ icon, title, state, color = 'default', compact = false, variant = 'filled', size = 'sm', translucent = false, onClick }: SummaryCardProps) {
-  const translucentFill = 'bg-surface-mid/65 border border-white/10 backdrop-blur-md';
+  const translucentFill = 'bg-surface-mid/65 border border-white/10';
   // Interactive glances render as a button with hover/press affordance.
   const Tag = onClick ? 'button' : 'div';
   const interactive = onClick ? 'cursor-pointer hover:brightness-110 active:scale-95' : '';
