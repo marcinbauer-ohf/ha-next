@@ -29,7 +29,7 @@ import { areSimulationEntitiesEqual, selectSimulationEntities, selectWeatherOpti
 import { Dropdown } from '../ui/Dropdown';
 import { useHaptics } from '@/lib/haptics';
 import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
-import { type SettingsSlug, allSettingsLinks, isAdminOnlySlug } from './settingsNavigation';
+import { type SettingsSlug, allSettingsLinks, isAdminOnlySlug, homeCenterSectionTarget } from './settingsNavigation';
 import {
   mdiAlphaDBox,
   mdiCctv,
@@ -1472,18 +1472,9 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
   }
 
   if (slug === 'home-center') {
-    // Each Home Center section deep-links to its settings home. Device-health
-    // sections point at Devices/Entities (where you triage them); notifications,
-    // updates, repairs and connectivity have their own status pages.
-    const sectionSlug: Record<HomeCenterSection, SettingsSlug> = {
-      notifications: 'notifications',
-      updates: 'updates',
-      repairs: 'repairs',
-      issues: 'devices',
-      battery: 'entities',
-      backups: 'backups',
-      connectivity: 'connectivity',
-    };
+    // Each Home Center section deep-links to its settings home (shared map, so
+    // the panel filters non-admin sections against the same destinations).
+    const sectionSlug: Record<HomeCenterSection, SettingsSlug> = homeCenterSectionTarget;
     const sectionsHeader = {
       title: 'Customize sections',
       subtitle: 'Reorder & toggle status sections',
@@ -1500,10 +1491,10 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           <div className="flex items-start gap-ha-5">
             <div className="min-w-0 flex-1 space-y-ha-6">
               <HomeHero
-                onEdit={() => {
+                onEdit={isAdmin ? () => {
                   if (onSelectSection) onSelectSection('system-general');
                   else router.push('/settings/system-general');
-                }}
+                } : undefined}
               />
               <SystemStatusPanel
                 onNavigate={(target) => {
@@ -1514,16 +1505,19 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
                   else router.push(`/settings/${targetSlug}`);
                 }}
               />
-              {/* "Customize sections" — a subtle secondary button at the bottom of
-                  the Home Center content. Opens the editor in the right sidebar. */}
-              <button
-                type="button"
-                onClick={() => setSectionsEditorOpen((v) => !v)}
-                className="w-full flex items-center justify-center gap-ha-2 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary active:bg-surface-mid"
-              >
-                <Icon path={mdiCog} size={18} />
-                Customize sections
-              </button>
+              {/* "Customize sections" reorders/toggles the status sections above.
+                  Admin-only: a non-admin has just Notifications left, and the
+                  editor would otherwise re-expose the admin section names. */}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setSectionsEditorOpen((v) => !v)}
+                  className="w-full flex items-center justify-center gap-ha-2 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary active:bg-surface-mid"
+                >
+                  <Icon path={mdiCog} size={18} />
+                  Customize sections
+                </button>
+              )}
             </div>
 
             {/* Docked editor rail (lg+), sticky below the pinned title. Reuses the

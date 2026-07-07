@@ -35,6 +35,7 @@ import {
   mdiWeb,
   mdiWrench,
 } from '@mdi/js';
+import type { HomeCenterSectionId } from '@/lib/homeCenter';
 
 export type SettingsSlug =
   | 'home-center'
@@ -208,12 +209,31 @@ export const allSettingsLinks: SettingsNavLink[] = [
 
 // Allow-list of settings slugs a non-admin user may see, mirroring real HA
 // (Settings + Developer Tools are entirely admin-gated there; only a user's
-// own profile and notifications stay reachable). New slugs default to
-// admin-only unless explicitly added here.
-const publicSettingsSlugs = new Set<SettingsSlug>(['notifications', 'profile']);
+// own profile, notifications and the Home Center overview stay reachable). New
+// slugs default to admin-only unless explicitly added here.
+const publicSettingsSlugs = new Set<SettingsSlug>(['notifications', 'profile', 'home-center']);
 
 export function isAdminOnlySlug(slug: SettingsSlug): boolean {
   return !publicSettingsSlugs.has(slug);
+}
+
+// Each Home Center status section deep-links to a settings destination. Single
+// source of truth for that mapping (SettingsDetailPage + the status widgets).
+export const homeCenterSectionTarget: Record<HomeCenterSectionId, SettingsSlug> = {
+  notifications: 'notifications',
+  updates: 'updates',
+  repairs: 'repairs',
+  issues: 'devices',
+  battery: 'entities',
+  backups: 'backups',
+  connectivity: 'connectivity',
+};
+
+// A Home Center section is visible to a non-admin only when its destination
+// isn't admin-gated — so the overview hides exactly what the settings root does
+// (for a non-admin that leaves just Notifications).
+export function isHomeCenterSectionVisible(id: HomeCenterSectionId, isAdmin: boolean): boolean {
+  return isAdmin || !isAdminOnlySlug(homeCenterSectionTarget[id]);
 }
 
 /** Settings sections + items visible to the current user; drops sections left empty after filtering. */

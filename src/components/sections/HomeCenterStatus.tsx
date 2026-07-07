@@ -7,6 +7,7 @@ import { useHomeAssistant, useHomeAssistantSelector, useHomeCenterPrefs } from '
 import { useNotificationCenter } from '@/contexts';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
+import { isHomeCenterSectionVisible } from '@/components/profile/settingsNavigation';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
   mdiAlertCircle,
@@ -28,9 +29,12 @@ import {
 // stays aligned: same sections, same order (Home Center prefs), same markup.
 
 function useHomeCenterStatusData() {
-  const { haUrl, demoMode, connected, connecting } = useHomeAssistant();
+  const { haUrl, demoMode, connected, connecting, isAdmin } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
-  const { visibleSections } = useHomeCenterPrefs();
+  const { visibleSections: allSections } = useHomeCenterPrefs();
+  // Drop sections whose settings destination is admin-only, so a non-admin sees
+  // the same reduced set here as in the Home Center overview / settings root.
+  const visibleSections = allSections.filter((id) => isHomeCenterSectionVisible(id, isAdmin));
 
   return { haUrl, demoMode, connected, connecting, activityData, visibleSections };
 }

@@ -31,7 +31,7 @@ function getServerHomeName() {
  * name over the render with an "Edit home" control. In demo mode there is no
  * real home to represent, so it falls back to an empty "add your image" prompt.
  */
-export function HomeHero({ onEdit }: { onEdit: () => void }) {
+export function HomeHero({ onEdit }: { onEdit?: () => void }) {
   const homeName = useSyncExternalStore(subscribe, getHomeName, getServerHomeName);
   const { demoMode, hydrated } = useHomeAssistant();
 
@@ -68,14 +68,16 @@ export function HomeHero({ onEdit }: { onEdit: () => void }) {
       eyebrow="Your home"
       title={homeName}
       action={
-        <button
-          type="button"
-          onClick={onEdit}
-          className="inline-flex items-center gap-ha-1 rounded-ha-pill bg-black/35 px-ha-3 py-1.5 text-xs font-semibold text-white ring-1 ring-inset ring-white/25 backdrop-blur-md transition-colors hover:bg-black/55 active:bg-black/65"
-        >
-          <Icon path={mdiPencilOutline} size={15} />
-          Edit home
-        </button>
+        onEdit ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex items-center gap-ha-1 rounded-ha-pill bg-black/35 px-ha-3 py-1.5 text-xs font-semibold text-white ring-1 ring-inset ring-white/25 backdrop-blur-md transition-colors hover:bg-black/55 active:bg-black/65"
+          >
+            <Icon path={mdiPencilOutline} size={15} />
+            Edit home
+          </button>
+        ) : undefined
       }
     />
   );

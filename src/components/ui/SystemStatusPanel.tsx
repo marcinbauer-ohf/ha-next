@@ -4,6 +4,7 @@ import { useHomeAssistant, useHomeAssistantSelector, useHomeCenterPrefs } from '
 import { useNotificationCenter } from '@/contexts';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
+import { isHomeCenterSectionVisible } from '@/components/profile/settingsNavigation';
 import { Icon } from './Icon';
 import { NavChevron } from './NavChevron';
 import { CountBadge } from './CountBadge';
@@ -172,7 +173,7 @@ export function SystemStatusPanel({
   /** When set, renders only that section (full-page view). */
   focus?: HomeCenterSection;
 } = {}) {
-  const { connected, connecting, demoMode } = useHomeAssistant();
+  const { connected, connecting, demoMode, isAdmin } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const { visibleSections } = useHomeCenterPrefs();
   const { notifications: centerNotifications, removeNotification } = useNotificationCenter();
@@ -198,8 +199,12 @@ export function SystemStatusPanel({
     onNavigate ? () => onNavigate(section) : undefined;
 
   // When focused (single full-page view), show only that section in default order.
-  // Otherwise honour the user's configured order + enabled set.
-  const sections: HomeCenterSectionId[] = focus ? [focus] : visibleSections;
+  // Otherwise honour the user's configured order + enabled set, minus any section
+  // whose settings destination is admin-only (hidden for a non-admin, matching
+  // what the settings root hides).
+  const sections: HomeCenterSectionId[] = focus
+    ? [focus]
+    : visibleSections.filter((id) => isHomeCenterSectionVisible(id, isAdmin));
 
   const renderSection = (id: HomeCenterSectionId) => {
     switch (id) {
