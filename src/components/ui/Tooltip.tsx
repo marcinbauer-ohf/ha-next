@@ -5,13 +5,15 @@ import { createPortal } from 'react-dom';
 
 interface TooltipProps {
   content: string;
+  /** Keyboard shortcut hint rendered as a key cap after the label (e.g. 'E', '⌘K'). */
+  shortcut?: string;
   children: ReactNode;
   delay?: number;
   hideDelay?: number;
   placement?: 'top' | 'bottom' | 'left' | 'right';
 }
 
-export function Tooltip({ content, children, delay = 300, hideDelay = 0, placement = 'top' }: TooltipProps) {
+export function Tooltip({ content, shortcut, children, delay = 300, hideDelay = 0, placement = 'top' }: TooltipProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -140,7 +142,7 @@ export function Tooltip({ content, children, delay = 300, hideDelay = 0, placeme
       </div>
       {typeof document !== 'undefined' && isVisible && createPortal(
         <div
-          className="fixed z-[200] px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 pointer-events-none"
+          className="fixed z-[200] flex items-center gap-ha-2 px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 pointer-events-none"
           style={{
             top: `${position.top}px`,
             left: `${position.left}px`,
@@ -149,6 +151,11 @@ export function Tooltip({ content, children, delay = 300, hideDelay = 0, placeme
           <span className="text-xs text-text-primary whitespace-nowrap font-medium">
             {content}
           </span>
+          {shortcut && (
+            <kbd className="px-ha-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[11px] leading-4 font-medium text-text-secondary whitespace-nowrap">
+              {shortcut}
+            </kbd>
+          )}
         </div>,
         document.body
       )}

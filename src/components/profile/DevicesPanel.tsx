@@ -7,6 +7,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { SectionLabel, DataListView, ToggleSwitch, NavChevron, Sidebar } from '../ui';
 import type { DataListConfig } from '../ui';
+import { ModalSheet } from '../layout/ModalSheet';
+import { EntityDetailPanel, type PanelEntity } from '../cards/EntityDetailPanel';
 import type { DeviceSummary, HassDevice } from '@/hooks';
 import { DEVICE_CATEGORY_LABEL, useDevices, useCopyToClipboard } from '@/hooks';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
@@ -159,7 +161,7 @@ function DeviceTile({
           </p>
           <div className="mt-0.5 flex items-center gap-ha-2">
             <span className="text-[13px] text-text-tertiary truncate">
-              {device.areaName ?? 'No area'}
+              {device.areaName ?? (device.isService ? 'Service' : 'No area')}
             </span>
             <AvailabilityPill available={device.available} />
           </div>
@@ -194,8 +196,8 @@ export function DevicesTable({
 }) {
   const config = useMemo<DataListConfig<DeviceSummary>>(() => ({
     keyOf: (d) => d.id,
-    searchText: (d) => `${d.name} ${d.manufacturer ?? ''} ${d.model ?? ''} ${d.areaName ?? ''} ${d.integrationName ?? ''}`,
-    searchPlaceholder: 'Search devices…',
+    searchText: (d) => `${d.name} ${d.manufacturer ?? ''} ${d.model ?? ''} ${d.areaName ?? ''} ${d.integrationName ?? ''} ${d.isService ? 'service' : ''}`,
+    searchPlaceholder: 'Search devices & services…',
     sortOptions: [
       { id: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
       { id: 'entities', label: 'Entities', compare: (a, b) => b.entityCount - a.entityCount || a.name.localeCompare(b.name) },
@@ -205,12 +207,14 @@ export function DevicesTable({
       {
         id: 'area',
         label: 'Area',
-        groupOf: (d) => ({ key: d.areaId ?? '∅', title: d.areaName ?? 'No area' }),
+        groupOf: (d) =>
+          d.isService
+            ? { key: '⚙', title: 'Services' }
+            : { key: d.areaId ?? '∅', title: d.areaName ?? 'No area' },
         compareGroups: (a, b) => {
-          // Real areas A→Z; the "No area" bucket sinks to the bottom.
-          if (a.key === '∅') return 1;
-          if (b.key === '∅') return -1;
-          return a.title.localeCompare(b.title);
+          // Real areas A→Z; "No area" sinks below them; "Services" sinks last.
+          const rank = (k: string) => (k === '⚙' ? 2 : k === '∅' ? 1 : 0);
+          return rank(a.key) - rank(b.key) || a.title.localeCompare(b.title);
         },
       },
       {
@@ -228,6 +232,16 @@ export function DevicesTable({
     ],
     defaultGroupId: 'area',
     filterGroups: [
+      {
+        // Both chips on by default (show everything); toggle one off to see
+        // only physical devices or only service entries.
+        id: 'kind',
+        mode: 'facet',
+        chips: [
+          { id: 'devices', label: 'Devices', predicate: (d) => !d.isService, defaultActive: true },
+          { id: 'services', label: 'Services', predicate: (d) => d.isService, defaultActive: true },
+        ],
+      },
       {
         id: 'availability',
         mode: 'facet',
@@ -259,7 +273,7 @@ export function DevicesTable({
           </div>
         ),
       },
-      { id: 'area', header: 'Area', sortAccessor: (d) => (d.areaName ?? '￿').toLowerCase(), cell: (d) => d.areaName ?? 'No area', hideBelow: 'sm' },
+      { id: 'area', header: 'Area', sortAccessor: (d) => (d.areaName ?? '￿').toLowerCase(), cell: (d) => d.areaName ?? (d.isService ? 'Service' : 'No area'), hideBelow: 'sm' },
       { id: 'integration', header: 'Integration', sortAccessor: (d) => (d.integrationName ?? '￿').toLowerCase(), cell: (d) => d.integrationName ?? '—', hideBelow: 'md' },
       {
         id: 'entities',
@@ -369,13 +383,17 @@ function CopyInfoRow({ icon, label, value }: { icon: string; label: string; valu
   );
 }
 
-/** A controllable entity row — toggle for switchables, state label otherwise. */
+/** A controllable entity row — toggle for switchables, state label otherwise.
+ *  The row itself opens the entity's more-info dialog (same as a dashboard card);
+ *  the toggle stops propagation so flipping it never opens the dialog. */
 function EntityControlRow({
   entity,
   deviceName,
+  onOpen,
 }: {
   entity: HassDevice['entities'][number];
   deviceName: string;
+  onOpen: () => void;
 }) {
   const { toggleEntity } = useHomeAssistant();
   const domain = entity.entity_id.split('.')[0];
@@ -384,7 +402,18 @@ function EntityControlRow({
 
   // Border + container come from DataListView's row wrapper / section card.
   return (
-    <div className="flex items-center gap-ha-3 px-ha-4 py-ha-3">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="flex items-center gap-ha-3 px-ha-4 py-ha-3 cursor-pointer transition-colors hover:bg-surface-mid/40"
+    >
       <div className={`w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 ${on ? 'bg-fill-primary-normal text-ha-blue' : 'bg-surface-mid text-text-secondary'}`}>
         <Icon path={domainIcon(entity)} size={16} />
       </div>
@@ -395,7 +424,9 @@ function EntityControlRow({
         <p className="text-[13px] text-text-tertiary truncate mt-0.5">{entity.entity_id}</p>
       </div>
       {toggleable ? (
-        <ToggleSwitch on={on} onToggle={() => toggleEntity(entity.entity_id, entity.state)} />
+        <span onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+          <ToggleSwitch on={on} onToggle={() => toggleEntity(entity.entity_id, entity.state)} />
+        </span>
       ) : (
         <span className="text-[13px] font-medium text-text-secondary flex-shrink-0">
           {stateLabel(entity)}
@@ -477,7 +508,11 @@ function DeviceInfoPanel({ device }: { device: DeviceSummary }) {
               onClick={() => router.push(`/room/${device.areaId}`)}
             />
           ) : (
-            <InfoRow icon={mdiMapMarkerOutline} label="Area" value="Not assigned" />
+            <InfoRow
+              icon={mdiMapMarkerOutline}
+              label="Area"
+              value={device.isService ? 'Service — no area' : 'Not assigned'}
+            />
           )}
           {device.integrationName ? (
             <NavInfoRow
@@ -521,9 +556,34 @@ export function DeviceDetailView({
   /** Close the info sidebar (its X), kept in sync with the top-bar toggle. */
   onCloseInfo?: () => void;
 }) {
-  const { devices } = useDevices();
-  const live = devices.find((d) => d.id === device.id);
+  const { devices, services } = useDevices();
+  const { haUrl, toggleEntity } = useHomeAssistant();
+  // Services are kept out of `devices` (the dashboard set) — fall back to the
+  // service list so drilling into a service row still shows its entities.
+  const live = devices.find((d) => d.id === device.id) ?? services.find((d) => d.id === device.id);
   const entities = live?.entities ?? [];
+
+  // Clicking an entity row opens its more-info dialog — the same EntityDetailPanel
+  // the dashboard device cards use, in the shared ModalSheet.
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const panelEntities = useMemo<PanelEntity[]>(() => entities.map((e) => {
+    const dom = e.entity_id.split('.')[0];
+    const isToggleable = TOGGLEABLE.has(dom);
+    const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
+    const p = e.attributes.entity_picture as string | undefined;
+    return {
+      entityId: e.entity_id,
+      icon: domainIcon(e),
+      name: entityLabel(e, device.name),
+      state: stateLabel(e),
+      active: isOn(e),
+      toggleable: isToggleable,
+      pressable: isPressable,
+      unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
+      entityPicture: p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined,
+      onToggle: (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
+    };
+  }), [entities, device.name, haUrl, toggleEntity]);
 
   // Reuse the table view (DataListView) for the entity list: it supplies the
   // sticky search field, the Controls / Sensors / Diagnostic grouping (with
@@ -542,7 +602,13 @@ export function DeviceDetailView({
       },
     ],
     defaultGroupId: 'section',
-    renderRow: (e) => <EntityControlRow entity={e} deviceName={device.name} />,
+    renderRow: (e) => (
+      <EntityControlRow
+        entity={e}
+        deviceName={device.name}
+        onOpen={() => setSelectedEntityId(e.entity_id)}
+      />
+    ),
     emptyLabel: 'No entities match.',
     bg: 'surface-lower',
   }), [device.name]);
@@ -610,7 +676,7 @@ export function DeviceDetailView({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="lg:hidden fixed inset-0 z-[100] bg-black/40"
+                className="lg:hidden fixed inset-0 z-[100] bg-black/70"
                 onClick={() => onCloseInfo?.()}
               />
               <motion.div
@@ -634,6 +700,34 @@ export function DeviceDetailView({
         </AnimatePresence>,
         document.body,
       )}
+
+      {/* Entity more-info dialog — same panel the dashboard device cards open. */}
+      <ModalSheet
+        open={selectedEntityId !== null}
+        onClose={() => setSelectedEntityId(null)}
+        maxWidth={640}
+      >
+        {selectedEntityId !== null && panelEntities.length > 0 && (
+          <EntityDetailPanel
+            initialEntityId={selectedEntityId}
+            entities={panelEntities}
+            deviceName={device.name}
+            deviceMeta={{
+              deviceId: device.id,
+              manufacturer: device.manufacturer,
+              model: device.model,
+              areaName: device.areaName,
+              thumbnail: device.thumbnail,
+              allEntities: entities.map((e) => ({
+                entityId: e.entity_id,
+                name: (e.attributes.friendly_name as string | undefined) ?? e.entity_id.split('.')[1],
+                domain: e.entity_id.split('.')[0],
+              })),
+            }}
+            onClose={() => setSelectedEntityId(null)}
+          />
+        )}
+      </ModalSheet>
     </div>
   );
 }

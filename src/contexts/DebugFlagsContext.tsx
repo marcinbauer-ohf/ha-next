@@ -10,15 +10,19 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
  */
 
 const LS_DEBUG_BADGES_KEY = 'ha-flag-debug-badges';
-const LS_MOCK_LATENCY_KEY = 'ha-flag-mock-latency';
+// Device-card layout experiment. Unlike the two flags above this defaults ON
+// (only an explicit '0' opts out) — the new "hero" layout is the current design,
+// the toggle exists so the previous layout can be compared.
+const LS_HERO_CARD_LAYOUT_KEY = 'ha-flag-hero-card-layout';
 
 interface DebugFlagsContextValue {
   debugBadgesEnabled: boolean;
   setDebugBadgesEnabled: (value: boolean) => void;
   toggleDebugBadges: () => void;
-  mockLatencyEnabled: boolean;
-  setMockLatencyEnabled: (value: boolean) => void;
-  toggleMockLatency: () => void;
+  /** true = new hero layout (name top-left, image right, toggle bottom-left); false = previous layout. */
+  heroCardLayoutEnabled: boolean;
+  setHeroCardLayoutEnabled: (value: boolean) => void;
+  toggleHeroCardLayout: () => void;
 }
 
 const DebugFlagsContext = createContext<DebugFlagsContextValue | undefined>(undefined);
@@ -29,9 +33,10 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem(LS_DEBUG_BADGES_KEY) === '1';
   });
 
-  const [mockLatencyEnabled, setMockLatencyEnabledState] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(LS_MOCK_LATENCY_KEY) === '1';
+  // Opt-out flag: default on unless localStorage explicitly holds '0'.
+  const [heroCardLayoutEnabled, setHeroCardLayoutEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(LS_HERO_CARD_LAYOUT_KEY) !== '0';
   });
 
   const setDebugBadgesEnabled = useCallback((value: boolean) => {
@@ -47,15 +52,15 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const setMockLatencyEnabled = useCallback((value: boolean) => {
-    setMockLatencyEnabledState(value);
-    localStorage.setItem(LS_MOCK_LATENCY_KEY, value ? '1' : '0');
+  const setHeroCardLayoutEnabled = useCallback((value: boolean) => {
+    setHeroCardLayoutEnabledState(value);
+    localStorage.setItem(LS_HERO_CARD_LAYOUT_KEY, value ? '1' : '0');
   }, []);
 
-  const toggleMockLatency = useCallback(() => {
-    setMockLatencyEnabledState((prev) => {
+  const toggleHeroCardLayout = useCallback(() => {
+    setHeroCardLayoutEnabledState((prev) => {
       const next = !prev;
-      localStorage.setItem(LS_MOCK_LATENCY_KEY, next ? '1' : '0');
+      localStorage.setItem(LS_HERO_CARD_LAYOUT_KEY, next ? '1' : '0');
       return next;
     });
   }, []);
@@ -66,9 +71,9 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
         debugBadgesEnabled,
         setDebugBadgesEnabled,
         toggleDebugBadges,
-        mockLatencyEnabled,
-        setMockLatencyEnabled,
-        toggleMockLatency,
+        heroCardLayoutEnabled,
+        setHeroCardLayoutEnabled,
+        toggleHeroCardLayout,
       }}
     >
       {children}

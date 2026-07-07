@@ -11,6 +11,12 @@ interface UseIdleTimerOptions {
 export function useIdleTimer({ timeout, onIdle, onActive }: UseIdleTimerOptions) {
   const [isIdle, setIsIdle] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Mirror of isIdle readable from the stable resetTimer callback. Depending on
+  // the state directly would recreate resetTimer when idle fires, re-running the
+  // listener effect — which restarts the timer and bounces isIdle back to false,
+  // so onIdle would re-fire every `timeout` ms for as long as the user is away
+  // (and onActive would fire with no activity at all).
+  const isIdleRef = useRef(false);
   const onIdleRef = useRef(onIdle);
   const onActiveRef = useRef(onActive);
 
@@ -25,16 +31,18 @@ export function useIdleTimer({ timeout, onIdle, onActive }: UseIdleTimerOptions)
       clearTimeout(timeoutRef.current);
     }
 
-    if (isIdle) {
+    if (isIdleRef.current) {
+      isIdleRef.current = false;
       setIsIdle(false);
       onActiveRef.current?.();
     }
 
     timeoutRef.current = setTimeout(() => {
+      isIdleRef.current = true;
       setIsIdle(true);
       onIdleRef.current?.();
     }, timeout);
-  }, [timeout, isIdle]);
+  }, [timeout]);
 
   useEffect(() => {
     const events = [
@@ -66,12 +74,10 @@ export function useIdleTimer({ timeout, onIdle, onActive }: UseIdleTimerOptions)
   }, [resetTimer]);
 
   const wake = useCallback(() => {
-    if (isIdle) {
-      setIsIdle(false);
-      onActiveRef.current?.();
+    if (isIdleRef.current) {
       resetTimer();
     }
-  }, [isIdle, resetTimer]);
+  }, [resetTimer]);
 
   return { isIdle, wake, resetTimer };
 }

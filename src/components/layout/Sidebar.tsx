@@ -25,8 +25,8 @@ import { HALogo } from '../ui/HALogo';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { ContextMenu, type ContextMenuAction } from '../ui/ContextMenu';
 import { useSidebarItems, useLongPress } from '@/hooks';
-import { useSearchContext, useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
-import { mdiMagnify, mdiClose, mdiCheck, mdiDragVariant, mdiDeleteOutline } from '@mdi/js';
+import { useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
+import { mdiClose, mdiCheck, mdiDragVariant, mdiDeleteOutline } from '@mdi/js';
 import { clsx } from 'clsx';
 import { haptic } from '@/lib/haptics';
 
@@ -63,7 +63,7 @@ interface RailItemProps {
   onEnterArrange: () => void;
   onRequestDelete: (item: SidebarItem) => void;
   onOpenMenu: (item: SidebarItem, x: number, y: number) => void;
-  onHoverShow: (trigger: HTMLElement, content: string) => void;
+  onHoverShow: (trigger: HTMLElement, content: string, shortcut?: string) => void;
   onHoverHide: () => void;
 }
 
@@ -137,7 +137,7 @@ function RailItem({
           onMouseEnter={
             arranging
               ? undefined
-              : (event) => onHoverShow(event.currentTarget, formatTooltipLabel(item.title))
+              : (event) => onHoverShow(event.currentTarget, formatTooltipLabel(item.title), isHome ? 'H' : undefined)
           }
           onMouseLeave={arranging ? undefined : onHoverHide}
           className={clsx(
@@ -185,7 +185,7 @@ function RailItem({
           }}
           className="ha-arrange-badge absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-2 ring-surface-default"
         >
-          <Icon path={mdiClose} size={12} />
+          <Icon path={mdiClose} size={10} />
         </button>
       )}
     </div>
@@ -201,7 +201,6 @@ export function Sidebar({
 } = {}) {
   const pathname = usePathname();
   const { items, loading } = useSidebarItems();
-  const { searchOpen, toggleSearch } = useSearchContext();
   const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, reorderVisible } =
     useSidebarArrange();
 
@@ -215,6 +214,7 @@ export function Sidebar({
   const [menu, setMenu] = useState<{ item: SidebarItem; x: number; y: number } | null>(null);
   const [tooltip, setTooltip] = useState({
     content: '',
+    shortcut: undefined as string | undefined,
     top: 0,
     left: 0,
     visible: false,
@@ -269,7 +269,7 @@ export function Sidebar({
     return { top, left };
   };
 
-  const showTooltip = (trigger: HTMLElement, content: string) => {
+  const showTooltip = (trigger: HTMLElement, content: string, shortcut?: string) => {
     clearHideTooltipTimeout();
     hoveredItemRef.current = trigger;
     const nextPosition = getTooltipPosition(trigger);
@@ -277,6 +277,7 @@ export function Sidebar({
     setTooltip((prev) => ({
       ...prev,
       content,
+      shortcut,
       top: nextPosition.top,
       left: nextPosition.left,
       visible: true,
@@ -363,29 +364,44 @@ export function Sidebar({
         data-component="Sidebar"
         onMouseLeave={hideTooltipNow}
       >
-        {/* Search — becomes a Done button while arranging */}
+        {/* Pinned home / HA logo — stays put while the rest of the rail scrolls.
+            Its center sits 32px below the sidebar top (py-ha-2 + half the 48px
+            tile), matching the app bar title's vertical center so the two align.
+            While arranging, this slot becomes the save/done check button. */}
         {arranging ? (
-          <button
-            onClick={exitArrange}
-            aria-label="Done arranging"
-            className="p-ha-3 rounded-ha-xl transition-colors mb-ha-4 bg-ha-blue text-white"
-          >
-            <Icon path={mdiCheck} size={24} />
-          </button>
+          <div className="flex-shrink-0 mb-ha-2">
+            <button
+              onClick={exitArrange}
+              aria-label="Done arranging"
+              className="w-12 h-12 rounded-ha-xl transition-colors flex items-center justify-center bg-ha-blue text-white"
+            >
+              <Icon path={mdiCheck} size={24} />
+            </button>
+          </div>
         ) : (
-          <button
-            onClick={toggleSearch}
-            className={`p-ha-3 rounded-ha-xl transition-colors mb-ha-4 ${
-              searchOpen
-                ? 'bg-surface-mid text-text-primary'
-                : 'hover:bg-surface-low text-text-secondary'
-            }`}
-          >
-            <Icon path={mdiMagnify} size={24} />
-          </button>
+          !loading &&
+          homeItem && (
+            <div className="flex-shrink-0 mb-ha-2">
+              <RailItem
+                item={homeItem}
+                index={-1}
+                isActive={pathname === '/'}
+                arranging={arranging}
+                pinned
+                splitNavigationEnabled={splitNavigationEnabled}
+                onNavigate={onNavigate}
+                onEnterArrange={enterArrange}
+                onRequestDelete={setPendingDelete}
+                onOpenMenu={(item, x, y) => setMenu({ item, x, y })}
+                onHoverShow={showTooltip}
+                onHoverHide={hideTooltipSoon}
+              />
+            </div>
+          )
         )}
 
-        {/* All items listed one-by-one with scroll gradients */}
+        {/* The rest of the rail (dashboards + apps) scrolls, with the top/bottom
+            fades preserved and applied to the scrolling items only. */}
         <div className="flex-1 relative w-full min-h-0 mask-linear-fade flex flex-col items-center">
           {/* Top gradient */}
           <div
@@ -417,54 +433,36 @@ export function Sidebar({
                 ))}
               </>
             ) : (
-              <>
-                {homeItem && (
-                  <RailItem
-                    item={homeItem}
-                    index={-1}
-                    isActive={pathname === '/'}
-                    arranging={arranging}
-                    pinned
-                    splitNavigationEnabled={splitNavigationEnabled}
-                    onNavigate={onNavigate}
-                    onEnterArrange={enterArrange}
-                    onRequestDelete={setPendingDelete}
-                    onOpenMenu={(item, x, y) => setMenu({ item, x, y })}
-                    onHoverShow={showTooltip}
-                    onHoverHide={hideTooltipSoon}
-                  />
-                )}
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-                    {displayItems.map((item, index) => {
-                      const isActive =
-                        pathname === item.urlPath ||
-                        (item.urlPath !== '/' && pathname?.startsWith(item.urlPath));
-                      return (
-                        <RailItem
-                          key={item.id}
-                          item={item}
-                          index={index}
-                          isActive={!!isActive}
-                          arranging={arranging}
-                          pinned={false}
-                          splitNavigationEnabled={splitNavigationEnabled}
-                          onNavigate={onNavigate}
-                          onEnterArrange={enterArrange}
-                          onRequestDelete={setPendingDelete}
-                          onOpenMenu={(item, x, y) => setMenu({ item, x, y })}
-                          onHoverShow={showTooltip}
-                          onHoverHide={hideTooltipSoon}
-                        />
-                      );
-                    })}
-                  </SortableContext>
-                </DndContext>
-              </>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                  {displayItems.map((item, index) => {
+                    const isActive =
+                      pathname === item.urlPath ||
+                      (item.urlPath !== '/' && pathname?.startsWith(item.urlPath));
+                    return (
+                      <RailItem
+                        key={item.id}
+                        item={item}
+                        index={index}
+                        isActive={!!isActive}
+                        arranging={arranging}
+                        pinned={false}
+                        splitNavigationEnabled={splitNavigationEnabled}
+                        onNavigate={onNavigate}
+                        onEnterArrange={enterArrange}
+                        onRequestDelete={setPendingDelete}
+                        onOpenMenu={(item, x, y) => setMenu({ item, x, y })}
+                        onHoverShow={showTooltip}
+                        onHoverHide={hideTooltipSoon}
+                      />
+                    );
+                  })}
+                </SortableContext>
+              </DndContext>
             )}
           </div>
 
@@ -482,7 +480,7 @@ export function Sidebar({
             <div
               ref={tooltipRef}
               className={clsx(
-                'fixed z-[200] px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 pointer-events-none text-xs text-text-primary whitespace-nowrap font-medium',
+                'fixed z-[200] flex items-center gap-ha-2 px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 pointer-events-none text-xs text-text-primary whitespace-nowrap font-medium',
                 tooltip.visible ? 'opacity-100' : 'opacity-0'
               )}
               style={{
@@ -491,6 +489,11 @@ export function Sidebar({
               }}
             >
               {tooltip.content}
+              {tooltip.shortcut && (
+                <kbd className="px-ha-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[11px] leading-4 font-medium text-text-secondary">
+                  {tooltip.shortcut}
+                </kbd>
+              )}
             </div>,
             document.body
           )}

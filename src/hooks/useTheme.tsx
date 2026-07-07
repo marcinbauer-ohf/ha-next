@@ -11,12 +11,16 @@ interface ThemeContextType {
   theme: Theme;
   mode: ColorMode;
   background: Background;
+  /** Superellipse ("squircle") corner smoothing on every radiused element. */
+  squircle: boolean;
   toggleTheme: () => void;
   toggleMode: () => void;
   toggleBackground: () => void;
+  toggleSquircle: () => void;
   setTheme: (theme: Theme) => void;
   setMode: (mode: ColorMode) => void;
   setBackground: (bg: Background) => void;
+  setSquircle: (on: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -42,6 +46,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return 'gradient';
     const stored = localStorage.getItem('ha-bg-pref') as Background | null;
     return stored || 'gradient';
+  });
+
+  // Squircle corners are on by default; only an explicit '0' disables them.
+  const [squircle, setSquircleState] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('ha-squircle-pref') !== '0';
   });
 
   function triggerTransition() {
@@ -76,6 +86,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [theme, mode, background]);
 
+  // Squircle toggle → data-squircle attribute; CSS keys corner-shape off it.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-squircle', squircle ? 'on' : 'off');
+  }, [squircle]);
+
   const setTheme = useCallback((newTheme: Theme) => {
     triggerTransition();
     setThemeState(newTheme);
@@ -92,6 +107,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     triggerTransition();
     setBackgroundState(newBg);
     localStorage.setItem('ha-bg-pref', newBg);
+  }, []);
+
+  const setSquircle = useCallback((on: boolean) => {
+    setSquircleState(on);
+    localStorage.setItem('ha-squircle-pref', on ? '1' : '0');
+  }, []);
+
+  const toggleSquircle = useCallback(() => {
+    setSquircleState((prev) => {
+      const next = !prev;
+      localStorage.setItem('ha-squircle-pref', next ? '1' : '0');
+      return next;
+    });
   }, []);
 
   const toggleTheme = useCallback(() => {
@@ -126,14 +154,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         e.preventDefault();
         toggleTheme();
       }
+      // Cmd/Ctrl + Shift + U to toggle SQUIRCLE corners
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'u') {
+        e.preventDefault();
+        toggleSquircle();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleMode, toggleTheme]);
+  }, [toggleMode, toggleTheme, toggleSquircle]);
 
   return (
-    <ThemeContext.Provider value={{ theme, mode, background, toggleTheme, toggleMode, toggleBackground, setTheme, setMode, setBackground }}>
+    <ThemeContext.Provider value={{ theme, mode, background, squircle, toggleTheme, toggleMode, toggleBackground, toggleSquircle, setTheme, setMode, setBackground, setSquircle }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -4,3 +4,5 @@ export { StatusBar } from './StatusBar';
 export { MobileNav } from './MobileNav';
 export { AppShell } from './AppShell';
 export { EditingToolbar } from './EditingToolbar';
+export { EditorToolbarShell } from './EditorToolbarShell';
+export { DashboardEditBorder } from './DashboardEditBorder';

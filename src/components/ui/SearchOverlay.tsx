@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
 import { SectionLabel } from './SectionLabel';
 import { useSearchContext } from '@/contexts/SearchContext';
-import { useCloseOnScreensaver } from '@/contexts';
+import { useCloseOnScreensaver, useAssistantContext } from '@/contexts';
 import { useCommands, type CommandItem } from '@/hooks/useCommands';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useScrollFades } from '@/hooks/useScrollFades';
+import { clsx } from 'clsx';
 import {
   mdiMagnify,
   mdiLightbulb,
@@ -30,6 +33,7 @@ import {
   mdiConsoleLine,
   mdiArrowRightThin,
   mdiBugOutline,
+  mdiCreation,
 } from '@mdi/js';
 
 // ── Unified palette item ──────────────────────────────────────────────
@@ -39,7 +43,8 @@ type PaletteGroup =
   | 'debug'
   | 'entity'
   | 'room'
-  | 'automation';
+  | 'automation'
+  | 'ask';
 
 interface PaletteItem {
   id: string;
@@ -68,6 +73,7 @@ const GROUP_ORDER: PaletteGroup[] = [
   'room',
   'automation',
   'debug',
+  'ask',
 ];
 
 const groupLabels: Record<PaletteGroup, string> = {
@@ -77,6 +83,7 @@ const groupLabels: Record<PaletteGroup, string> = {
   entity: 'Entities',
   room: 'Rooms',
   automation: 'Automations',
+  ask: 'Assistant',
 };
 
 const groupAccent: Record<PaletteGroup, string> = {
@@ -86,6 +93,7 @@ const groupAccent: Record<PaletteGroup, string> = {
   entity: 'text-text-secondary',
   room: 'text-ha-blue',
   automation: 'text-green-500',
+  ask: 'text-ha-blue',
 };
 
 // Curated default suggestions shown on an empty, un-prefixed query.
@@ -181,6 +189,7 @@ const demoItems: DemoItem[] = [
 
 export function SearchOverlay() {
   const { searchOpen, closeSearch } = useSearchContext();
+  const { openAssistant } = useAssistantContext();
   const router = useRouter();
   const commands = useCommands();
 
@@ -193,6 +202,10 @@ export function SearchOverlay() {
   const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listFades = useScrollFades<HTMLDivElement>();
+
+  useFocusTrap(searchOpen, containerRef);
 
   // Detect a leading prefix to scope the search.
   const prefixChar = query.charAt(0);
@@ -272,8 +285,26 @@ export function SearchOverlay() {
       if (items?.length) ordered.push({ group: g, items });
     }
 
+    // Merged assistant entry — always available as the last row when the
+    // palette isn't prefix-scoped: with a query it hands the question over
+    // to the assistant, empty it's the plain "ask anything" entry point.
+    if (!mode) {
+      ordered.push({
+        group: 'ask',
+        items: [{
+          id: 'ask.home',
+          group: 'ask',
+          icon: mdiCreation,
+          label: term ? `Ask Home — “${term}”` : 'Ask Home anything…',
+          subtitle: term ? 'Hand this question to your assistant' : 'Questions and commands, by voice or text',
+          closeOnRun: true,
+          run: () => openAssistant(term || undefined),
+        }],
+      });
+    }
+
     return { sections: ordered, flatItems: ordered.flatMap((s) => s.items) };
-  }, [allItems, byId, mode, term]);
+  }, [allItems, byId, mode, term, openAssistant]);
 
   // Recents resolved to live items (only when empty + un-prefixed).
   const showRecents = !term && !mode;
@@ -357,7 +388,8 @@ export function SearchOverlay() {
 
   let flatIndex = 0;
   const modeLabel = mode ? groupLabels[mode] : null;
-  const noResults = (term || mode) && flatItems.length === 0;
+  // The ask fallback row doesn't count as a search result.
+  const noResults = (term || mode) && flatItems.filter((i) => i.group !== 'ask').length === 0;
 
   const renderRow = (item: PaletteItem) => {
     const currentIndex = flatIndex++;
@@ -368,8 +400,8 @@ export function SearchOverlay() {
         data-selected={isSelected}
         onClick={() => activate(item)}
         onMouseEnter={() => setSelectedIndex(currentIndex)}
-        className={`w-full flex items-center gap-ha-3 px-ha-3 py-ha-2 rounded-ha-xl transition-colors text-left ${
-          isSelected ? 'bg-fill-primary-quiet' : 'hover:bg-surface-lower'
+        className={`w-full flex items-center gap-ha-3 px-ha-3 py-ha-3 rounded-ha-xl transition-colors text-left ${
+          isSelected ? 'bg-fill-primary-quiet' : 'hover:bg-surface-mid/50'
         }`}
       >
         <div
@@ -377,18 +409,18 @@ export function SearchOverlay() {
             isSelected ? 'bg-fill-primary-normal text-ha-blue' : groupAccent[item.group]
           }`}
         >
-          <Icon path={item.icon} size={20} />
+          <Icon path={item.icon} size={18} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className={`text-sm truncate ${isSelected ? 'text-ha-blue font-medium' : 'text-text-primary'}`}>
+          <div className={`text-[13px] font-semibold leading-tight truncate ${isSelected ? 'text-ha-blue' : 'text-text-primary'}`}>
             {item.label}
           </div>
-          {item.subtitle && <div className="text-xs text-text-secondary truncate">{item.subtitle}</div>}
+          {item.subtitle && <div className="text-xs text-text-secondary truncate mt-0.5">{item.subtitle}</div>}
         </div>
         {/* Live state pill for toggles/values */}
         {item.state && (
           <span
-            className={`flex-shrink-0 inline-flex items-center text-xs font-semibold tracking-wide px-ha-2.5 py-1 rounded-ha-lg ${
+            className={`flex-shrink-0 inline-flex items-center text-xs font-semibold tracking-wide px-ha-3 py-1.5 rounded-full ${
               item.active
                 ? 'bg-ha-blue/15 text-ha-blue'
                 : 'bg-surface-lower text-text-secondary'
@@ -407,7 +439,13 @@ export function SearchOverlay() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] lg:pt-[16vh]">
+    <div
+      ref={containerRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Search and commands"
+      className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] lg:pt-[16vh]"
+    >
       {/* Backdrop */}
       <div
         className={`absolute inset-0 bg-black/40 ${visible ? 'opacity-100' : 'opacity-0'}`}
@@ -416,7 +454,7 @@ export function SearchOverlay() {
 
       {/* Palette */}
       <div
-        className={`relative w-[calc(100%-2rem)] max-w-[640px] bg-surface-default rounded-ha-2xl shadow-2xl overflow-hidden border border-surface-lower transition-[opacity,transform] duration-200 ease-out ${
+        className={`relative w-[calc(100%-2rem)] max-w-[640px] bg-surface-default rounded-ha-2xl shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden border border-surface-lower transition-[opacity,transform] duration-200 ease-out ${
           visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
         onKeyDown={handleKeyDown}
@@ -429,14 +467,14 @@ export function SearchOverlay() {
             className={`flex-shrink-0 ${mode ? 'text-ha-blue' : 'text-text-secondary'}`}
           />
           {modeLabel && (
-            <span className="flex-shrink-0 text-xs font-semibold text-ha-blue bg-ha-blue/15 px-ha-2 py-0.5 rounded-ha-md">
+            <span className="flex-shrink-0 text-xs font-semibold text-ha-blue bg-ha-blue/15 px-ha-3 py-1 rounded-full">
               {modeLabel}
             </span>
           )}
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search, > commands, / navigate, ? debug"
+            placeholder="Search or ask anything, > commands, / navigate"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-base text-text-primary placeholder-text-tertiary outline-none"
@@ -446,8 +484,17 @@ export function SearchOverlay() {
           </kbd>
         </div>
 
-        {/* Results */}
-        <div ref={listRef} className="max-h-[min(60vh,480px)] overflow-y-auto py-ha-2">
+        {/* Results — wrapped so the standard scroll fades can overlay the list */}
+        <div className="relative">
+          <div className={clsx('absolute top-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', listFades.showTop ? 'opacity-100' : 'opacity-0')} />
+          <div className={clsx('absolute bottom-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-t from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', listFades.showBottom ? 'opacity-100' : 'opacity-0')} />
+        <div
+          ref={(el) => {
+            listRef.current = el;
+            listFades.attach(el);
+          }}
+          className="max-h-[min(60vh,480px)] overflow-y-auto py-ha-2"
+        >
           {/* Recents (empty + un-prefixed) */}
           {showRecents && recentItems.length > 0 && (
             <div className="px-ha-2 mb-ha-1">
@@ -456,10 +503,10 @@ export function SearchOverlay() {
                 <button
                   key={`recent-${item.id}`}
                   onClick={() => activate(item)}
-                  className="w-full flex items-center gap-ha-3 px-ha-3 py-ha-2 rounded-ha-xl hover:bg-surface-lower transition-colors text-left"
+                  className="w-full flex items-center gap-ha-3 px-ha-3 py-ha-3 rounded-ha-xl hover:bg-surface-mid/50 transition-colors text-left"
                 >
                   <Icon path={mdiHistory} size={18} className="text-text-tertiary flex-shrink-0" />
-                  <span className="flex-1 text-sm text-text-secondary truncate">{item.label}</span>
+                  <span className="flex-1 text-[13px] font-medium text-text-secondary truncate">{item.label}</span>
                   {item.state && (
                     <span className="text-[11px] text-text-tertiary uppercase tracking-wide">{item.state}</span>
                   )}
@@ -468,24 +515,25 @@ export function SearchOverlay() {
             </div>
           )}
 
-          {/* Grouped results */}
-          {sections.map((section) => (
-            <div key={section.group} className="px-ha-2 mb-ha-1">
-              <SectionLabel className="px-ha-3 py-ha-1">
-                {showRecents ? 'Suggestions' : groupLabels[section.group]}
-              </SectionLabel>
-              {section.items.map(renderRow)}
-            </div>
-          ))}
-
-          {/* No results */}
+          {/* No results — shown above the ask fallback row so "ask instead" reads as the next step */}
           {noResults && (
             <div className="text-center py-ha-8 px-ha-4">
               <Icon path={mdiMagnify} size={36} className="text-text-tertiary mx-auto mb-ha-2" />
               <p className="text-sm text-text-secondary">No results{term ? ` for “${term}”` : ''}</p>
-              <p className="text-xs text-text-tertiary mt-ha-1">Try a different term or prefix</p>
+              <p className="text-xs text-text-tertiary mt-ha-1">Try a different term or prefix — or ask instead</p>
             </div>
           )}
+
+          {/* Grouped results */}
+          {sections.map((section) => (
+            <div key={section.group} className="px-ha-2 mb-ha-1">
+              <SectionLabel className="px-ha-3 py-ha-1">
+                {showRecents && section.group !== 'ask' ? 'Suggestions' : groupLabels[section.group]}
+              </SectionLabel>
+              {section.items.map(renderRow)}
+            </div>
+          ))}
+        </div>
         </div>
 
         {/* Footer hints */}

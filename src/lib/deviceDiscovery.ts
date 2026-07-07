@@ -36,6 +36,7 @@ export const DISCOVERABLE_DEVICES: DiscoverableDevice[] = [
   { name: 'Contact Sensor', image: '/devices/contact_sensor.png',       manufacturer: 'SONOFF',      model: 'SNZB-04',   protocol: 'Zigbee',    protocolIcon: mdiZigbee },
   { name: 'Smart Bulb',     image: '/devices/bulb_e27.png',             manufacturer: 'Philips Hue', model: 'A60',       protocol: 'Zigbee',    protocolIcon: mdiZigbee },
   { name: 'Wall Switch',    image: '/devices/wall_switch.png',          manufacturer: 'Inovelli',    model: 'Blue 2-1',  protocol: 'Z-Wave',    protocolIcon: mdiZWave },
+  { name: 'E-Bike',         image: '/devices/ebike.png',                manufacturer: 'VanMoof',     model: 'S5',        protocol: 'Bluetooth', protocolIcon: mdiBluetooth },
 ];
 
 /** Announce a single discovered device as a toast. */

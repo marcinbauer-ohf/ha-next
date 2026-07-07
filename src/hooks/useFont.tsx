@@ -95,6 +95,12 @@ const BUNDLED_FONTS: FontOption[] = [
     caption: 'No web font — uses the OS default UI face (SF, Segoe, Roboto…)',
     stack: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   },
+  {
+    key: 'papyrus',
+    label: 'Papyrus',
+    caption: 'For shits & giggles · the Avatar font (preinstalled on macOS/Windows)',
+    stack: '"Papyrus", "Papyrus Condensed", fantasy',
+  },
 ];
 
 /**

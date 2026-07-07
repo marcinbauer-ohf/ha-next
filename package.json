@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "start:proxy": "NODE_ENV=production node server.js",
-    "lint": "eslint"
+    "lint": "eslint",
+    "capture:previews": "node scripts/capture-previews.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -23,7 +24,6 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.34.0",
     "home-assistant-js-websocket": "^9.6.0",
-    "html-to-image": "^1.11.13",
     "http-proxy-middleware": "^3.0.5",
     "leaflet": "^1.9.4",
     "lottie-react": "^2.4.1",
@@ -42,6 +42,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "playwright": "^1.61.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

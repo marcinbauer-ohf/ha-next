@@ -15,6 +15,7 @@ import {
   mdiNewspaperVariantOutline,
   mdiPlayCircleOutline,
   mdiPrinter3d,
+  mdiRobotVacuum,
   mdiTimerOutline,
 } from '@mdi/js';
 
@@ -103,6 +104,19 @@ export function SettingsOverview() {
         panelClassName: 'bg-surface-low border-surface-low/80',
         iconClassName: 'text-text-primary', badgeClassName: 'bg-surface-default text-text-primary',
         count: activityData.activePrinters.length > 1 ? activityData.activePrinters.length : undefined,
+      });
+    }
+
+    if (activityData.activeVacuums.length > 0) {
+      const vacuum = activityData.activeVacuums[0];
+      const progress = `${Math.round(vacuum.progress)}% cleaned`;
+      cards.push({
+        id: 'vacuum', icon: mdiRobotVacuum, label: 'Vacuum',
+        headline: vacuum.area ? `Cleaning ${vacuum.area}` : vacuum.name,
+        detail: vacuum.battery !== undefined ? `${progress} · ${vacuum.battery}% battery` : progress,
+        panelClassName: 'bg-fill-primary-normal/45 border-fill-primary-quiet/80',
+        iconClassName: 'text-ha-blue', badgeClassName: 'bg-fill-primary-normal text-ha-blue',
+        count: activityData.activeVacuums.length > 1 ? activityData.activeVacuums.length : undefined,
       });
     }
 

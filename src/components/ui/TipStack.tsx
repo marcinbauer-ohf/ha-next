@@ -62,6 +62,8 @@ export function TipStack({ tips }: { tips: TipStackTip[] }) {
           transition={EXIT}
           className="overflow-hidden"
         >
+          {/* Inside the height-animated clip so the gap collapses with the stack */}
+          <div className="pt-ha-3">
           <motion.div
             className="relative"
             animate={{ paddingBottom: peekCount > 0 ? peekCount * PEEK_STEP + 2 : 0 }}
@@ -96,23 +98,23 @@ export function TipStack({ tips }: { tips: TipStackTip[] }) {
                 transition={SPRING}
               >
                 <TipSurface>
-                  <div className="p-ha-4 flex items-start gap-ha-3">
-                    <div className="w-9 h-9 rounded-ha-xl bg-ha-blue/15 flex items-center justify-center shrink-0 mt-0.5">
-                      <Icon path={front.icon} size={20} className="text-ha-blue" />
+                  <div className="p-ha-3 flex items-start gap-ha-3">
+                    <div className="w-8 h-8 rounded-ha-lg bg-ha-blue/15 flex items-center justify-center shrink-0">
+                      <Icon path={front.icon} size={18} className="text-ha-blue" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-text-primary">{front.title}</p>
-                      <p className="text-sm text-text-secondary mt-0.5 leading-snug">{front.body}</p>
+                      <p className="text-xs text-text-secondary mt-0.5 leading-snug">{front.body}</p>
                       {front.actions && front.actions.length > 0 && (
-                        <div className="flex gap-ha-2 mt-ha-3">
+                        <div className="flex gap-ha-2 mt-ha-2">
                           {front.actions.map(action => (
                             <button
                               key={action.label}
                               onClick={action.onClick}
                               className={
                                 action.primary
-                                  ? 'text-sm font-semibold text-white bg-ha-blue rounded-ha-xl px-ha-3 py-1.5 hover:bg-ha-blue/90 active:scale-95 transition-all'
-                                  : 'text-sm text-text-secondary hover:text-text-primary transition-colors px-ha-2 py-1.5'
+                                  ? 'text-xs font-semibold text-white bg-ha-blue rounded-ha-lg px-ha-3 py-1 hover:bg-ha-blue/90 active:scale-95 transition-all'
+                                  : 'text-xs text-text-secondary hover:text-text-primary transition-colors px-ha-2 py-1'
                               }
                             >
                               {action.label}
@@ -126,13 +128,14 @@ export function TipStack({ tips }: { tips: TipStackTip[] }) {
                       aria-label="Dismiss tip"
                       className="text-text-tertiary hover:text-text-secondary transition-colors shrink-0 p-0.5"
                     >
-                      <Icon path={mdiClose} size={18} />
+                      <Icon path={mdiClose} size={16} />
                     </button>
                   </div>
                 </TipSurface>
               </motion.div>
             </AnimatePresence>
           </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

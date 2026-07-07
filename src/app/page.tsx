@@ -18,27 +18,31 @@ import { mdiHomeAssistant, mdiViewGrid, mdiCube, mdiAutoFix, mdiStar, mdiViewAge
 import { clsx } from 'clsx';
 
 const DashboardFloorView = dynamic(() => import('@/components/sections/DashboardFloorView'), { ssr: false });
+const DashboardMapView = dynamic(() => import('@/components/sections/DashboardMapView').then(m => m.DashboardMapView), { ssr: false });
+import { loadAreaGeometry } from '@/lib/areaGeometry';
+import { canFireBareShortcut, matchShortcut } from '@/lib/keyboardShortcuts';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
 import { DeferredCard } from '@/components/cards/DeferredCard';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { ModalSheet } from '@/components/layout/ModalSheet';
-import { MobileSummaryRow } from '@/components/sections';
+import { MobileSummaryRow, DeviceGridSkeleton } from '@/components/sections';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
+import { DashboardEditBorder } from '@/components/layout';
 import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
 import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { DashboardFilterBar } from '@/components/layout/DashboardFilterBar';
 import { PullToRevealPanel } from '@/components/sections';
-import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags, useFavorites, useFastScrollLabels } from '@/hooks';
+import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags, useFavorites, useFastScrollLabels, useIdleMarquee, useSectionCrumb, useScrollToEdges } from '@/hooks';
+import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
 import { usePullToRevealContext, useHeader, useEditMode, useToast } from '@/contexts';
 import { NavChevron } from '@/components/ui';
-import { HALoader } from '@/components/ui/HALoader';
 import { TipStack, type TipStackTip } from '@/components/ui/TipStack';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { OffscreenChangeHints } from '@/components/ui/OffscreenChangeHints';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import {
-  entityDomain, friendlyName, entityLabel, stateLabel, isOn, TOGGLEABLE,
+  entityDomain, friendlyName, entityLabel, stateLabel, isOn, TOGGLEABLE, primaryCornerBadge,
   domainIcon, deviceThumbnail, deviceFeedEntity, SECTION_ORDER, SECTION_TITLES,
   entityCategory, CATEGORY_ORDER, CATEGORY_TITLES,
   AREA_ICON, domainTypeIcon, CATEGORY_ICONS, type DeviceCategory,
@@ -192,15 +196,28 @@ export default function DashboardPage() {
   const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
   const router = useRouter();
   const scrollableRef = useRef<HTMLElement | null>(null);
+  const { scrollToTop, scrollToBottom } = useScrollToEdges(scrollableRef);
   const stickyHeaderRef = useRef<HTMLDivElement>(null);
   const [dashboardView, setDashboardView] = useState<'list' | '3d'>('list');
+  // List ↔ Map view of the dashboard (Map = the floor plan with device chips).
+  const [listMapView, setListMapView] = useState<'list' | 'map'>('list');
+  // Map view only: focus chips on one device category (areas are already spatial).
+  const [mapCategory, setMapCategory] = useState<DeviceCategory | 'all'>('all');
   const { isRevealed } = usePullToRevealContext();
   const { isEditing, toggleEditMode, previewViewport, previewOrientation } = useEditMode();
   const { offscreenChangeHintsEnabled, scrollIndexEnabled, fastScrollLabelsEnabled } = useFeatureFlags();
 
+  // True only for the scrolling card list — excludes the 3D and Map views, where
+  // there are no sections to scroll/index/label.
+  const isListView = dashboardView === 'list' && listMapView === 'list';
+
   // Prototype: overlay each card with its name while flicking fast (list view,
   // not editing). Toggles a class on the scroll container — no per-card renders.
-  useFastScrollLabels(scrollableRef, fastScrollLabelsEnabled && dashboardView === 'list' && !isEditing);
+  useFastScrollLabels(scrollableRef, fastScrollLabelsEnabled && isListView && !isEditing);
+
+  // Truncated card names marquee while the list is idle or scrolling slowly;
+  // a fast fling reverts them to the plain ellipsis (see useIdleMarquee).
+  useIdleMarquee(scrollableRef, isListView && !isEditing);
 
   // Edit-mode grid must match the non-edit masonry column counts
   // (useMasonryCols: ≥1024px=3, below=2) so the layout doesn't reflow when
@@ -209,6 +226,16 @@ export default function DashboardPage() {
   const gridCols = isEditing
     ? editColCount === 3 ? 'grid-cols-3' : 'grid-cols-2'
     : 'grid-cols-2 lg:grid-cols-3';
+
+  // Previewing a viewport narrower than the lg breakpoint (mobile either
+  // orientation, or tablet portrait at 768px). The real window is still ≥lg, so
+  // Tailwind's lg: utilities stay active — we must suppress the desktop-only
+  // horizontal gutters here so the framed content matches the real mobile edge
+  // padding instead of inheriting the wide desktop insets. Tablet landscape
+  // (1024px) sits at the lg boundary, so it keeps the desktop layout.
+  const previewingBelowLg =
+    isEditing &&
+    (previewViewport === 'mobile' || (previewViewport === 'tablet' && previewOrientation === 'portrait'));
 
   // Per-section card placement. Entries may be null — an intentional empty
   // grid slot (sparse layout). Dense arrays (old format) still parse fine.
@@ -232,7 +259,7 @@ export default function DashboardPage() {
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
   const [dashboardReady, setDashboardReady] = useState(false);
-  const { setHeader, setSectionCrumb } = useHeader();
+  const { setHeader } = useHeader();
   const { toggleEntity, haUrl, demoMode, connecting, error: connectionError, saveCredentials, enableDemoMode } = useHomeAssistant();
   const { showToast } = useToast();
 
@@ -253,7 +280,31 @@ export default function DashboardPage() {
     localStorage.setItem('ha_group_by', next);
     setGroupBy(next);
   }, []);
-  const activeFilterCount = (activeFloorId ? 1 : 0) + (groupBy !== 'area' ? 1 : 0);
+  // List ↔ Map view of the dashboard (Map = the floor plan with device chips).
+  const setListMapViewPersisted = useCallback((next: 'list' | 'map') => {
+    localStorage.setItem('ha_dashboard_view', next);
+    setListMapView(next);
+  }, []);
+  const setMapCategoryPersisted = useCallback((next: DeviceCategory | 'all') => {
+    localStorage.setItem('ha_map_category', next);
+    setMapCategory(next);
+  }, []);
+  // True once at least one room is drawn — gates the Map toggle. Read post-mount
+  // to avoid an SSR/client hydration mismatch.
+  const [hasMap, setHasMap] = useState(false);
+  // Hydrate view + map availability from localStorage after mount (an external
+  // system) — deliberate setState in an effect, kept out of useState to avoid an
+  // SSR/client hydration mismatch.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setListMapView(localStorage.getItem('ha_dashboard_view') === 'map' ? 'map' : 'list');
+    const mc = localStorage.getItem('ha_map_category');
+    if (mc) setMapCategory(mc as DeviceCategory | 'all');
+    setHasMap(Object.keys(loadAreaGeometry()).length > 0);
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  const activeFilterCount = (activeFloorId ? 1 : 0)
+    + (listMapView === 'map' ? (mapCategory !== 'all' ? 1 : 0) : (groupBy !== 'area' ? 1 : 0));
   const { getConfig, setConfig } = useDeviceCardConfig();
   const { isFavorite, toggleFavorite } = useFavorites();
 
@@ -366,7 +417,7 @@ export default function DashboardPage() {
   }, [floors, activeFloorId]);
 
   useEffect(() => {
-    setHeader({ title: 'Home' });
+    setHeader({ title: 'Home', contentGutter: true });
   }, [setHeader]);
 
   // Dashboard entrance animation
@@ -375,14 +426,33 @@ export default function DashboardPage() {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  // Keyboard shortcut — immersive mode
+  // Keyboard shortcuts — immersive mode (⌘\), grouping (G), floor plan (M),
+  // and floor switching (1–9, 0 = all). Single keys skip text fields and open
+  // dialogs; the registry in src/lib/keyboardShortcuts.ts documents them.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === '\\') { e.preventDefault(); toggleImmersiveMode(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === '\\') { e.preventDefault(); toggleImmersiveMode(); return; }
+      if (!canFireBareShortcut(e) || isEditing) return;
+      if (matchShortcut(e, 'dashboard.grouping') && dashboardView === 'list' && listMapView === 'list') {
+        e.preventDefault();
+        const order = ['area', 'type', 'category'] as const;
+        setGroupByPersisted(order[(order.indexOf(groupBy) + 1) % order.length]);
+        return;
+      }
+      if (matchShortcut(e, 'dashboard.map') && hasMap && dashboardView === 'list') {
+        e.preventDefault();
+        setListMapViewPersisted(listMapView === 'map' ? 'list' : 'map');
+        return;
+      }
+      if (/^[0-9]$/.test(e.key) && !e.shiftKey && floors.length >= 2) {
+        if (e.key === '0') { e.preventDefault(); setActiveFloorId(null); return; }
+        const floor = floors[Number(e.key) - 1];
+        if (floor) { e.preventDefault(); setActiveFloorId(floor.floor_id); }
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [toggleImmersiveMode]);
+  }, [toggleImmersiveMode, isEditing, dashboardView, listMapView, groupBy, setGroupByPersisted, hasMap, setListMapViewPersisted, floors]);
 
   // Scroll gradients — re-measured on scroll, resize, and content-size changes
   useEffect(() => {
@@ -423,44 +493,10 @@ export default function DashboardPage() {
     return () => obs.disconnect();
   }, []);
 
-  // Reversed breadcrumb: track which section header has scrolled above the top
-  // of the scroll area and publish its title to the top bar (under "Home").
-  // Section headers no longer pin, so the top bar carries the "where am I"
-  // context instead. The active section is the last one whose header top has
-  // crossed above the reading line (scroll container top + any sticky chrome).
-  useEffect(() => {
-    const el = scrollableRef.current;
-    if (!el || dashboardView !== 'list') {
-      setSectionCrumb(undefined);
-      return;
-    }
-    let lastTop = el.scrollTop;
-    const update = () => {
-      const stickyTopVar = parseFloat(
-        getComputedStyle(document.documentElement).getPropertyValue('--dashboard-sticky-top'),
-      ) || 0;
-      const line = el.getBoundingClientRect().top + stickyTopVar + 1;
-      let active: string | undefined;
-      el.querySelectorAll<HTMLElement>('[data-section-key]').forEach((node) => {
-        if (node.getBoundingClientRect().top <= line) {
-          active = node.dataset.sectionTitle ?? undefined;
-        }
-      });
-      // Roll direction is inverted from scroll: scrolling DOWN rolls the new
-      // section in from the bottom, scrolling UP from the top.
-      const goingDown = el.scrollTop > lastTop;
-      lastTop = el.scrollTop;
-      setSectionCrumb(active, !goingDown);
-    };
-    update();
-    el.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-    return () => {
-      el.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
-      setSectionCrumb(undefined);
-    };
-  }, [dashboardView, loading, groupBy, activeFloorId, isEditing, setSectionCrumb]);
+  // Reversed breadcrumb: as section headers scroll above the top of the scroll
+  // area, republish the active one's title to the top bar (under "Home").
+  // Section headers don't pin; the top bar carries the "where am I" context.
+  useSectionCrumb(scrollableRef, dashboardView === 'list');
 
   // area_id → floor_id lookup
   const areaFloorMap = useMemo<Map<string, string | null>>(
@@ -474,13 +510,30 @@ export default function DashboardPage() {
     return devices.filter(d => areaFloorMap.get(d.areaId ?? '') === activeFloorId);
   }, [devices, activeFloorId, floors, areaFloorMap]);
 
+  // A card has nothing to show when every entity was moved to Hidden/Disabled
+  // (and there's no camera/media feed to fall back on). Common for a single-
+  // entity device the user hid. Such cards drop off the dashboard in view mode
+  // but stay in the grid while editing, so they can still be un-hidden.
+  const isCardEmpty = useCallback((device: HassDevice): boolean => {
+    const config = getConfig(device.id);
+    if (config.slots.length === 0) return false;
+    if (config.slots.some(s => s.section === 'primary' || s.section === 'secondary')) return false;
+    return !deviceFeedEntity(device.entities);
+  }, [getConfig]);
+
+  // Layout source: hide empty cards in view mode, keep them while editing.
+  const gridDevices = useMemo(
+    () => (isEditing ? floorDevices : floorDevices.filter(d => !isCardEmpty(d))),
+    [floorDevices, isEditing, isCardEmpty],
+  );
+
   const sections = useMemo(() => {
     type Sec = { key: string; title: string; devices: HassDevice[]; kind: 'area' | 'type' | 'category' };
     const ordered: Sec[] = [];
 
     if (areas.size > 0 && groupBy === 'area') {
       const byArea = new Map<string, HassDevice[]>();
-      for (const device of floorDevices) {
+      for (const device of gridDevices) {
         const key = device.areaId ?? '__none__';
         if (!byArea.has(key)) byArea.set(key, []);
         byArea.get(key)!.push(device);
@@ -491,7 +544,7 @@ export default function DashboardPage() {
       if (byArea.has('__none__')) ordered.push({ key: '__none__', title: 'Other', devices: byArea.get('__none__')!, kind: 'area' });
     } else if (groupBy === 'category') {
       const byCat = new Map<string, HassDevice[]>();
-      for (const device of floorDevices) {
+      for (const device of gridDevices) {
         if (!device.primaryEntity) continue;
         const cat = entityCategory(device.primaryEntity);
         if (!byCat.has(cat)) byCat.set(cat, []);
@@ -502,7 +555,7 @@ export default function DashboardPage() {
       }
     } else {
       const byDomain = new Map<string, HassDevice[]>();
-      for (const device of floorDevices) {
+      for (const device of gridDevices) {
         if (!device.primaryEntity) continue;
         const domain = entityDomain(device.primaryEntity);
         if (!byDomain.has(domain)) byDomain.set(domain, []);
@@ -519,19 +572,20 @@ export default function DashboardPage() {
       }
     }
     return ordered;
-  }, [floorDevices, areas, groupBy]);
+  }, [gridDevices, areas, groupBy]);
 
   const visibleSections = sections;
 
   // Favorites — a flat band pinned above the grouped sections. Built from
-  // floorDevices so it respects the active floor filter, but ignores groupBy
-  // (it's its own section, not a grouping mode). Ordered like other sections.
+  // gridDevices so it respects the active floor filter and drops empty cards
+  // in view mode, but ignores groupBy (it's its own section). Ordered like
+  // other sections.
   const favoriteDevices = useMemo(
     () => resolveSlots(
-      floorDevices.filter(d => d.primaryEntity && isFavorite(d.id)),
+      gridDevices.filter(d => d.primaryEntity && isFavorite(d.id)),
       sectionOrders['__favorites__'],
     ).filter((d): d is HassDevice => d !== null),
-    [floorDevices, isFavorite, sectionOrders],
+    [gridDevices, isFavorite, sectionOrders],
   );
 
   // Devices for any section key (favorites included) — used by the shared
@@ -617,6 +671,10 @@ export default function DashboardPage() {
 
   const renderCard = useCallback((device: HassDevice, opts?: { forceArea?: boolean }) => {
     if (!device.primaryEntity) return null;
+    // All entities hidden/disabled: gone from the dashboard, but rendered as a
+    // dimmed placeholder in edit mode so it stays reachable to un-hide.
+    const empty = isCardEmpty(device);
+    if (empty && !isEditing) return null;
     const config = getConfig(device.id);
     const primarySlot = config.slots.find(s => s.section === 'primary');
     const secondarySlots = config.slots.filter(s => s.section === 'secondary');
@@ -635,11 +693,14 @@ export default function DashboardPage() {
       ? (() => { const p = feedEntity.attributes.entity_picture as string; return p.startsWith('http') ? p : `${haUrl}${p}`; })()
       : undefined;
     const openEntity = feedEntity ?? primaryEntity;
+    // Glanceable top-right badge (brightness / speed / power / last-changed).
+    const corner = primaryCornerBadge(primaryEntity);
 
     return (
       <DeviceCardV2
         selected={selectedDeviceId === device.id}
         editMode={isEditing}
+        className={empty ? 'opacity-50' : undefined}
         areaName={(opts?.forceArea || groupBy !== 'area') ? (areas.get(device.areaId ?? '') ?? undefined) : undefined}
         feedImage={feedImage}
         onLongPress={!isEditing ? () => { selectDeviceForEdit(device.id); toggleEditMode(); } : undefined}
@@ -648,8 +709,9 @@ export default function DashboardPage() {
           icon: domainIcon(primaryEntity),
           // Thumbnail represents the DEVICE, not the chosen primary
           // slot — so a TV whose card is set to show its battery
-          // entity still renders the television image.
-          thumbnail: deviceThumbnail(device.primaryEntity),
+          // entity still renders the television image. A manual override
+          // from the edit panel wins (null = force the icon, no thumbnail).
+          thumbnail: config.thumbnail !== undefined ? config.thumbnail : deviceThumbnail(device.primaryEntity),
           name: device.name,
           state: stateLabel(primaryEntity),
           lastChanged: primaryEntity.last_changed,
@@ -657,6 +719,8 @@ export default function DashboardPage() {
           entityPicture: (() => { const p = primaryEntity.attributes.entity_picture as string | undefined; return p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined; })(),
           unit: (primaryEntity.attributes.unit_of_measurement as string | undefined) ?? undefined,
           toggleable: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)),
+          corner: corner?.text,
+          cornerLabel: corner?.label,
           onToggle: !isEditing && TOGGLEABLE.has(entityDomain(primaryEntity)) ? () => toggleEntity(primaryEntity.entity_id, primaryEntity.state) : undefined,
           onClick: isEditing ? () => selectDeviceForEdit(device.id) : () => selectEntity(device.id, openEntity.entity_id),
         }}
@@ -683,7 +747,7 @@ export default function DashboardPage() {
         })}
       />
     );
-  }, [getConfig, haUrl, selectedDeviceId, isEditing, groupBy, areas, toggleEntity, toggleEditMode]);
+  }, [getConfig, haUrl, selectedDeviceId, isEditing, groupBy, areas, toggleEntity, toggleEditMode, isCardEmpty]);
 
   const selectedDevice = useMemo(
     () => devices.find(d => d.id === selectedDeviceId) ?? null,
@@ -767,6 +831,11 @@ export default function DashboardPage() {
           groupBy={groupBy}
           setGroupBy={setGroupByPersisted}
           activeFilterCount={activeFilterCount}
+          listMapView={listMapView}
+          setListMapView={setListMapViewPersisted}
+          hasMap={hasMap}
+          mapCategory={mapCategory}
+          setMapCategory={setMapCategoryPersisted}
         />
       )}
 
@@ -790,41 +859,46 @@ export default function DashboardPage() {
               isMobileImmersive ? 'bg-surface-lower rounded-none lg:rounded-ha-3xl' : 'bg-surface-lower rounded-ha-3xl',
             )}
           >
-            {/* Ambient-glow layer for the filter pill's hover bloom. First child
-                so it paints behind the cards (DashboardFilterBar portals into it);
-                inherits the surface's rounded overflow clip. */}
-            <div id="filter-glow-root" className="absolute inset-0 overflow-hidden pointer-events-none" />
-
             {/* Immersive toggle — desktop-only "dog-ear" fold. Hidden while
                 editing the dashboard grid. See ImmersiveDogEar. */}
             {!isEditing && <ImmersiveDogEar />}
             {!isEditing && <ScreensaverDogEar />}
 
             {/* Top + bottom scroll fades — blend overflowing content into the
-                surface. Top fade is desktop-only: on mobile the top bar's own
-                gradient already fades the content, so this would double up. */}
-            <div
-              className={clsx(
-                'hidden lg:block absolute left-0 right-0 h-12 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300',
-                showTopGradient ? 'opacity-100' : 'opacity-0',
-              )}
+                surface, and double as tap targets that scroll to that edge. Top
+                fade is desktop-only: on mobile the top bar's own gradient
+                already fades the content, so this would double up. */}
+            <ScrollFadeEdge
+              edge="top"
+              visible={showTopGradient}
+              onClick={scrollToTop}
+              className="hidden lg:block absolute left-0 right-0 h-12 bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300"
               style={{ top: 'var(--app-topbar-clear, 0px)' }}
             />
-            <div className={clsx(
-              'absolute bottom-0 left-0 right-0 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300',
-              showBottomGradient ? 'opacity-100' : 'opacity-0',
-            )} />
+            <ScrollFadeEdge
+              edge="bottom"
+              visible={showBottomGradient}
+              onClick={scrollToBottom}
+              className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300"
+            />
 
             <main
               ref={el => { scrollableRef.current = el; }}
               className={clsx(
                 'h-full overscroll-none touch-pan-y scrollbar-hide select-none',
+                // Own compositing layer — without it, iOS Safari blanks the
+                // scroller's content while rubber-banding because it sits
+                // inside a transformed + overflow-clipped rounded ancestor
+                // (the surface wrapper above).
+                '[transform:translateZ(0)]',
                 // Clear the frosted overlay bar on mobile (0 on desktop).
                 'pt-[var(--app-topbar-clear)] lg:pt-0',
-                dashboardView === '3d' ? 'overflow-hidden flex flex-col' : 'overflow-y-auto',
-                dashboardView !== '3d' && 'pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-ha-5',
+                (dashboardView === '3d' || listMapView === 'map') ? 'overflow-hidden flex flex-col' : 'overflow-y-auto',
+                !(dashboardView === '3d' || listMapView === 'map') && 'pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-ha-5',
                 'px-ha-3',
-                'lg:px-0',
+                // Desktop drops the scroller's own gutter (the grid wrapper below
+                // supplies it), but a below-lg preview keeps the mobile gutter.
+                !previewingBelowLg && 'lg:px-0',
               )}
               data-scrollable="dashboard"
             >
@@ -832,7 +906,8 @@ export default function DashboardPage() {
                   floating DashboardFilterBar (desktop pill / mobile FAB). */}
               <MobileSummaryRow
                   fullBleed={isMobileImmersive}
-                  noSticky={dashboardView === '3d'}
+                  noSticky={dashboardView === '3d' || listMapView === 'map'}
+                  narrowPreview={previewingBelowLg}
                 />
 
 
@@ -843,9 +918,24 @@ export default function DashboardPage() {
                     onRoomClick={key => { if (key !== '__none__') router.push(`/room/${key}`); }}
                   />
                 </div>
+              ) : listMapView === 'map' ? (
+                <div className="flex-1 min-h-0 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-24">
+                  <DashboardMapView
+                    devices={devices}
+                    areaReg={areaReg}
+                    floors={floors}
+                    activeFloorId={activeFloorId}
+                    category={mapCategory}
+                    onSelectEntity={selectEntity}
+                  />
+                </div>
               ) : (
                 <div className={clsx(
-                  'max-w-[1536px] mx-auto lg:px-ha-8 w-full space-y-ha-6',
+                  'max-w-[1536px] mx-auto w-full space-y-ha-6',
+                  // Desktop-only gutters (asymmetric: rail clearance left, gap
+                  // right). Suppressed in a below-lg preview so the frame shows
+                  // the symmetric mobile edge padding instead.
+                  !previewingBelowLg && 'lg:pl-14 lg:pr-ha-8',
                   // Clearance for the floating DashboardFilterBar pill on desktop.
                   !isEditing && (floors.length >= 2 || areas.size > 0) && 'lg:pb-28',
                   // Reserve room for the scroll-index rail so its dots never
@@ -858,24 +948,7 @@ export default function DashboardPage() {
                   {/* Dismissible tip stack — connect-instance prompt, onboarding, … */}
                   {!loading && !isEditing && <TipStack tips={tips} />}
 
-                  {loading && <HALoader className="mb-ha-5" />}
-
-                  {loading && (() => {
-                    const skeletons = [140, 88, 88, 88, 140, 88];
-                    const colArrays: number[][] = Array.from({ length: masonryCols }, () => []);
-                    skeletons.forEach((h, i) => colArrays[i % masonryCols].push(h));
-                    return (
-                      <div className="flex gap-ha-4 items-start">
-                        {colArrays.map((col, ci) => (
-                          <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">
-                            {col.map((h, j) => (
-                              <div key={j} className="rounded-ha-2xl bg-surface-low animate-pulse" style={{ height: h }} />
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
+                  {loading && <DeviceGridSkeleton />}
 
                   {!loading && visibleSections.length === 0 && (
                     <p className="text-sm text-text-secondary text-center py-ha-8">
@@ -1006,7 +1079,7 @@ export default function DashboardPage() {
 
             <OffscreenChangeHints
               scrollRef={scrollableRef}
-              enabled={offscreenChangeHintsEnabled && dashboardView === 'list' && !isEditing}
+              enabled={offscreenChangeHintsEnabled && isListView && !isEditing}
             />
 
             <ScrollIndexRail
@@ -1026,9 +1099,20 @@ export default function DashboardPage() {
                   icon: s.kind === 'category' ? CATEGORY_ICONS[s.key as DeviceCategory]
                     : s.kind === 'type' ? domainTypeIcon(s.key)
                     : AREA_ICON,
+                  // Same target as the section header link — swipe right on the
+                  // rail opens the section's own page.
+                  href: s.key === '__none__' ? undefined
+                    : s.kind === 'area' ? `/room/${s.key}`
+                    : s.kind === 'category' ? `/category/${s.key}`
+                    : `/type/${s.key}`,
                 })),
               ]}
-              enabled={scrollIndexEnabled && dashboardView === 'list' && !isEditing}
+              enabled={scrollIndexEnabled && isListView && !isEditing}
+            />
+
+            {/* Blue accent border fades in around the surface while editing */}
+            <DashboardEditBorder
+              roundedClassName={isMobileImmersive ? 'rounded-none lg:rounded-ha-3xl' : 'rounded-ha-3xl'}
             />
           </div>
 
@@ -1044,6 +1128,11 @@ export default function DashboardPage() {
                   manufacturer: selectedDevice.manufacturer,
                   model: selectedDevice.model,
                   areaName: selectedDevice.areaId ? areas.get(selectedDevice.areaId) : undefined,
+                  thumbnail: (() => {
+                    const cfg = getConfig(selectedDevice.id);
+                    if (cfg.thumbnail !== undefined) return cfg.thumbnail;
+                    return selectedDevice.primaryEntity ? deviceThumbnail(selectedDevice.primaryEntity) : null;
+                  })(),
                   allEntities: selectedDevice.entities.map(e => ({
                     entityId: e.entity_id,
                     name: (e.attributes.friendly_name as string | undefined) ?? e.entity_id.split('.')[1],

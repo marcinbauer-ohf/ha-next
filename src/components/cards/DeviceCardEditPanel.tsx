@@ -3,22 +3,32 @@
 import { useState } from 'react';
 import {
   mdiArrowLeft,
+  mdiAutoFix,
   mdiCancel,
   mdiChartLineVariant,
   mdiCheck,
+  mdiChevronDown,
   mdiClose,
   mdiDragVertical,
   mdiEyeOffOutline,
   mdiEyeOutline,
+  mdiImageOffOutline,
   mdiRestore,
   mdiStar,
   mdiStarOutline,
 } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon } from '../ui/Icon';
-import { domainIcon, friendlyName } from '@/lib/homeassistant/entityHelpers';
+import { domainIcon, friendlyName, deviceThumbnail } from '@/lib/homeassistant/entityHelpers';
+import { DEVICE_THUMBNAIL_GROUPS, deviceThumbnailPath } from '@/lib/deviceThumbnails';
 import type { HassDevice } from '@/hooks/useDevices';
 import type { EntitySlot, EntitySection, DeviceCardConfig } from '@/hooks/useDeviceCardConfig';
+
+// Catalog label keyed by /devices/*.png path — labels the auto pick and the
+// current selection in the thumbnail picker.
+const THUMB_LABEL_BY_PATH: Record<string, string> = Object.fromEntries(
+  DEVICE_THUMBNAIL_GROUPS.flatMap(g => g.items.map(it => [deviceThumbnailPath(it.file), it.label])),
+);
 
 interface DeviceCardEditPanelProps {
   device: HassDevice;
@@ -41,6 +51,15 @@ const SECTIONS: Array<{
   { key: 'disabled', label: 'Disabled', accent: 'border-surface-lower', hint: 'Turned off in Home Assistant' },
 ];
 
+// Selected-badge for a thumbnail tile — a ha-blue check in the top-right corner.
+function ThumbCheck() {
+  return (
+    <span className="absolute top-0.5 right-0.5 size-4 rounded-full bg-ha-blue flex items-center justify-center shadow">
+      <Icon path={mdiCheck} size={11} className="text-white" />
+    </span>
+  );
+}
+
 export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, hideBack }: DeviceCardEditPanelProps) {
   // Initialise slots — if empty, put first entity as primary, rest as hidden
   const [slots, setSlots] = useState<EntitySlot[]>(() => {
@@ -55,11 +74,30 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, h
   const [dragId, setDragId] = useState<string | null>(null);
   const [overSection, setOverSection] = useState<EntitySection | null>(null);
   const [insertBeforeId, setInsertBeforeId] = useState<string | null>(null);
+  const [thumbPickerOpen, setThumbPickerOpen] = useState(false);
 
   function update(next: EntitySlot[]) {
     setSlots(next);
     onSave({ ...config, slots: next });
   }
+
+  // Thumbnail override. undefined = auto (deviceThumbnail picks off the entity),
+  // null = none (mdi icon), string = a chosen /devices/*.png. Slots are left
+  // untouched — the parent re-passes a fresh config after save.
+  function setThumbnail(thumbnail: string | null | undefined) {
+    onSave({ ...config, thumbnail });
+  }
+
+  // Auto pick + current resolved selection, for the picker's preview + labels.
+  const autoThumb = device.primaryEntity ? deviceThumbnail(device.primaryEntity) : null;
+  const primaryIcon = device.primaryEntity ? domainIcon(device.primaryEntity) : mdiImageOffOutline;
+  const thumbMode: 'auto' | 'none' | 'custom' =
+    config.thumbnail === undefined ? 'auto' : config.thumbnail === null ? 'none' : 'custom';
+  const currentThumbSrc = thumbMode === 'auto' ? autoThumb : thumbMode === 'custom' ? config.thumbnail! : null;
+  const currentThumbLabel =
+    thumbMode === 'none' ? 'No image'
+      : thumbMode === 'auto' ? (autoThumb ? `Auto · ${THUMB_LABEL_BY_PATH[autoThumb] ?? 'matched'}` : 'Auto · icon (no match)')
+        : (THUMB_LABEL_BY_PATH[config.thumbnail!] ?? 'Custom');
 
   // chart defaults to on (undefined = shown), so flip between false and true
   function toggleChart(entityId: string) {
@@ -178,6 +216,101 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, h
 
       {/* Sections */}
       <div className="flex-1 overflow-y-auto scrollbar-hide px-ha-3 pb-ha-3 flex flex-col gap-ha-1">
+        {/* Thumbnail — product render shown top-left of the card. */}
+        <div className="px-ha-1 mt-ha-3 mb-ha-2">
+          <p className="text-xs font-semibold text-text-primary uppercase tracking-wider">Thumbnail</p>
+          <p className="text-xs text-text-tertiary mt-0.5">Product image shown on the card</p>
+        </div>
+
+        <button
+          onClick={() => setThumbPickerOpen(o => !o)}
+          className="flex items-center gap-ha-3 rounded-ha-xl px-ha-3 py-ha-2 bg-surface-low hover:bg-surface-mid transition-colors text-left"
+        >
+          <div className="shrink-0 size-11 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden">
+            {currentThumbSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={currentThumbSrc} alt="" className="size-full object-contain" />
+            ) : (
+              <Icon path={thumbMode === 'none' ? mdiImageOffOutline : primaryIcon} size={20} className="text-text-tertiary" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-text-primary truncate">{currentThumbLabel}</p>
+            <p className="text-xs text-text-tertiary">{thumbPickerOpen ? 'Tap an image below' : 'Tap to change'}</p>
+          </div>
+          <Icon path={mdiChevronDown} size={20} className={clsx('shrink-0 text-text-tertiary transition-transform', thumbPickerOpen && 'rotate-180')} />
+        </button>
+
+        {thumbPickerOpen && (
+          <div className="mt-ha-2 rounded-ha-xl border-2 border-surface-lower p-ha-2 flex flex-col gap-ha-3">
+            {/* Auto + None — the two non-catalog choices. */}
+            <div className="flex flex-wrap gap-ha-2">
+              <button
+                onClick={() => setThumbnail(undefined)}
+                title="Auto — pick from the entity type"
+                className={clsx(
+                  'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden border-2 transition-colors',
+                  thumbMode === 'auto' ? 'border-ha-blue' : 'border-transparent hover:border-surface-mid',
+                )}
+              >
+                {autoThumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={autoThumb} alt="Auto" className="size-full object-contain p-1" />
+                ) : (
+                  <Icon path={primaryIcon} size={22} className="text-text-tertiary" />
+                )}
+                <span className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-0.5 bg-black/45 py-0.5 text-[9px] font-semibold text-white">
+                  <Icon path={mdiAutoFix} size={9} className="text-white" />Auto
+                </span>
+                {thumbMode === 'auto' && <ThumbCheck />}
+              </button>
+
+              <button
+                onClick={() => setThumbnail(null)}
+                title="None — show the icon instead"
+                className={clsx(
+                  'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden border-2 transition-colors',
+                  thumbMode === 'none' ? 'border-ha-blue' : 'border-transparent hover:border-surface-mid',
+                )}
+              >
+                <Icon path={mdiImageOffOutline} size={22} className="text-text-tertiary" />
+                <span className="absolute bottom-0 inset-x-0 text-center bg-black/45 py-0.5 text-[9px] font-semibold text-white">None</span>
+                {thumbMode === 'none' && <ThumbCheck />}
+              </button>
+            </div>
+
+            {/* Catalog, grouped. */}
+            {DEVICE_THUMBNAIL_GROUPS.map(({ group, items }) => (
+              <div key={group} className="flex flex-col gap-ha-1">
+                <p className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider px-0.5">{group}</p>
+                <div className="flex flex-wrap gap-ha-2">
+                  {items.map(({ file, label }) => {
+                    const path = deviceThumbnailPath(file);
+                    const selected = config.thumbnail === path;
+                    return (
+                      <button
+                        key={file}
+                        onClick={() => setThumbnail(path)}
+                        title={label}
+                        className={clsx(
+                          'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden border-2 transition-colors',
+                          selected ? 'border-ha-blue' : 'border-transparent hover:border-surface-mid',
+                        )}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={path} alt={label} className="size-full object-contain p-1" />
+                        {selected && <ThumbCheck />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="h-px bg-surface-lower mx-ha-1 mt-ha-3" />
+
         {SECTIONS.map(({ key, label, accent, hint }) => {
           const sectionSlots = slots.filter(s => s.section === key);
           const isOver = overSection === key;

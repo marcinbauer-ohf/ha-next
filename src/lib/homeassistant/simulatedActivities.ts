@@ -1,6 +1,15 @@
 import type { HassEntity } from '@/types';
 
-export type SimulationType = 'release' | 'media' | 'timer' | 'camera' | 'printer';
+export type SimulationType =
+  | 'release'
+  | 'media'
+  | 'timer'
+  | 'camera'
+  | 'printer'
+  | 'vacuum'
+  | 'update_install'
+  | 'backup_run'
+  | 'alarm';
 
 export const simulationPrefixes: Record<SimulationType, string> = {
   release: 'update.home_assistant_release_notes_simulated',
@@ -8,7 +17,15 @@ export const simulationPrefixes: Record<SimulationType, string> = {
   timer: 'timer.simulated',
   camera: 'binary_sensor.camera_simulated',
   printer: 'sensor.printer_simulated',
+  vacuum: 'vacuum.simulated',
+  update_install: 'update.simulated_install',
+  backup_run: 'backup.simulated_running',
+  alarm: 'alarm_control_panel.simulated',
 };
+
+// Rooms a simulated vacuum reports cleaning. Also reused by the random-activation
+// simulator so its cycles read like a real robot working through the house.
+export const VACUUM_AREAS = ['Living Room', 'Kitchen', 'Hallway', 'Bedroom', 'Office', 'Dining Room'];
 
 export function createSimulatedActivityEntity(type: SimulationType, entityId: string): HassEntity {
   const now = new Date().toISOString();
@@ -84,6 +101,57 @@ export function createSimulatedActivityEntity(type: SimulationType, entityId: st
           progress: Math.floor(Math.random() * 100),
           file_name: 'test_print.stl',
           time_remaining: '00:45:00',
+        },
+        last_changed: now,
+        last_updated: now,
+      };
+    case 'vacuum':
+      return {
+        entity_id: entityId,
+        state: 'cleaning',
+        attributes: {
+          friendly_name: `Robot Vacuum${nameSuffix}`,
+          progress: Math.floor(Math.random() * 100),
+          current_area: VACUUM_AREAS[Math.floor(Math.random() * VACUUM_AREAS.length)],
+          battery_level: 40 + Math.floor(Math.random() * 60),
+          fan_speed: 'Balanced',
+          time_remaining: '00:18:00',
+        },
+        last_changed: now,
+        last_updated: now,
+      };
+    case 'update_install':
+      return {
+        entity_id: entityId,
+        state: 'on',
+        attributes: {
+          friendly_name: `Home Assistant Core${nameSuffix}`,
+          in_progress: true,
+          update_percentage: 35 + Math.floor(Math.random() * 40),
+          installed_version: '2026.1.0',
+          latest_version: `2026.2.${releaseNumber}`,
+        },
+        last_changed: now,
+        last_updated: now,
+      };
+    case 'backup_run':
+      return {
+        entity_id: entityId,
+        state: 'in_progress',
+        attributes: {
+          friendly_name: `Backup${nameSuffix}`,
+          progress: 20 + Math.floor(Math.random() * 60),
+          stage: 'Uploading to Google Drive',
+        },
+        last_changed: now,
+        last_updated: now,
+      };
+    case 'alarm':
+      return {
+        entity_id: entityId,
+        state: 'arming',
+        attributes: {
+          friendly_name: `Home Alarm${nameSuffix}`,
         },
         last_changed: now,
         last_updated: now,

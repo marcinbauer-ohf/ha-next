@@ -2,16 +2,15 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { clsx } from 'clsx';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
 import { DeferredCard } from '@/components/cards/DeferredCard';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { NavChevron } from '@/components/ui';
-import { useDevices, useHomeAssistant, useDeviceCardConfig, useStickyStuck } from '@/hooks';
+import { useDevices, useHomeAssistant, useDeviceCardConfig } from '@/hooks';
 import {
-  entityDomain, entityLabel, stateLabel, isOn, TOGGLEABLE, domainIcon, deviceFeedEntity,
+  entityDomain, entityLabel, stateLabel, isOn, TOGGLEABLE, primaryCornerBadge, domainIcon, deviceFeedEntity, deviceThumbnail,
 } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -26,35 +25,22 @@ interface DeviceSectionsViewProps {
   sections: DeviceSection[];
 }
 
-// Sticky section header with a fade that only shows while the header is pinned
-// (detected via a sentinel just above it), so cards dissolve under it only when
-// it's actually stuck to the top — not all the time.
-function StickySectionHeader({ title, href }: { title: string; href?: string }) {
-  const { sentinelRef, stuck } = useStickyStuck();
+// Non-sticky section header that scrolls away naturally. As it leaves the top
+// of the scroll area, the page republishes its title into the top bar as a
+// reversed breadcrumb (see useSectionCrumb) — same pattern as the home
+// dashboard's Section.
+function SectionHeader({ title, href }: { title: string; href?: string }) {
   return (
-    <>
-      <div ref={sentinelRef} aria-hidden className="h-px -mb-px" />
-      <div
-        className="sticky z-30 -mx-ha-1 px-ha-1 py-ha-2 mb-ha-1 bg-surface-lower"
-        style={{ top: 'var(--dashboard-sticky-top, 0px)' }}
-      >
-        {href ? (
-          <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
-            <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
-            <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
-          </Link>
-        ) : (
-          <span className="text-xl font-semibold text-text-primary">{title}</span>
-        )}
-        <div
-          aria-hidden
-          className={clsx(
-            'absolute inset-x-0 top-full h-8 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent transition-opacity duration-200',
-            stuck ? 'opacity-100' : 'opacity-0',
-          )}
-        />
-      </div>
-    </>
+    <div className="-mx-ha-1 px-ha-1 py-ha-2 mb-ha-1" data-section-header>
+      {href ? (
+        <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
+          <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
+          <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
+        </Link>
+      ) : (
+        <span className="text-xl font-semibold text-text-primary">{title}</span>
+      )}
+    </div>
   );
 }
 
@@ -139,6 +125,27 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
     lastOpenedCardRef.current?.scrollIntoView({ block: 'nearest' });
   }, [selectedDeviceId, lastOpenedDeviceId]);
 
+  // Primary-slot entity id mirrored onto the DeferredCard placeholder's
+  // data-entity-id, so entity-locating features find offscreen cards while
+  // unmounted — same as the home dashboard's cardPrimaryEntityId.
+  const cardPrimaryEntityId = (device: HassDevice): string | undefined => {
+    if (!device.primaryEntity) return undefined;
+    const config = getConfig(device.id);
+    const primarySlot = config.slots.find(s => s.section === 'primary');
+    const firstId = config.slots.length === 0 ? device.primaryEntity.entity_id : primarySlot?.entity_id;
+    return device.entities.find(e => e.entity_id === firstId)?.entity_id ?? device.primaryEntity.entity_id;
+  };
+
+  // Every entity hidden/disabled (and no camera/media feed) → nothing to show.
+  // Drop the card so it isn't a dead tile that opens an empty detail sheet.
+  // Un-hiding is done from the home dashboard's edit mode.
+  const isCardEmpty = (device: HassDevice): boolean => {
+    const config = getConfig(device.id);
+    if (config.slots.length === 0) return false;
+    if (config.slots.some(s => s.section === 'primary' || s.section === 'secondary')) return false;
+    return !deviceFeedEntity(device.entities);
+  };
+
   const renderCard = (device: HassDevice) => {
     if (!device.primaryEntity) return null;
     const config = getConfig(device.id);
@@ -158,6 +165,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
       ? (() => { const fp = feedEntity.attributes.entity_picture as string; return fp.startsWith('http') ? fp : `${haUrl}${fp}`; })()
       : undefined;
     const openEntity = feedEntity ?? primaryEntity;
+    const corner = primaryCornerBadge(primaryEntity);
     return (
       <DeviceCardV2
         key={device.id}
@@ -167,6 +175,10 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
         primary={{
           entityId: primaryEntity.entity_id,
           icon: domainIcon(primaryEntity),
+          // Thumbnail represents the DEVICE, not the chosen primary slot —
+          // same rule as the home dashboard's renderCard. A manual override
+          // from the edit panel wins (null = force the icon, no thumbnail).
+          thumbnail: config.thumbnail !== undefined ? config.thumbnail : deviceThumbnail(device.primaryEntity),
           name: device.name,
           state: stateLabel(primaryEntity),
           lastChanged: primaryEntity.last_changed,
@@ -174,6 +186,8 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
           entityPicture: p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined,
           unit: (primaryEntity.attributes.unit_of_measurement as string | undefined) ?? undefined,
           toggleable: TOGGLEABLE.has(entityDomain(primaryEntity)),
+          corner: corner?.text,
+          cornerLabel: corner?.label,
           onToggle: TOGGLEABLE.has(entityDomain(primaryEntity)) ? () => toggleEntity(primaryEntity.entity_id, primaryEntity.state) : undefined,
           onClick: () => selectEntity(device.id, openEntity.entity_id),
         }}
@@ -191,7 +205,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
             active: isOn(e),
             unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
             chart: slot.chart,
-            size: 'lg' as const,
+            size: slot.size,
             toggleable: isToggleable,
             pressable: isPressable,
             onToggle: (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
@@ -206,16 +220,20 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
     <>
       <div className="space-y-ha-8">
         {sections.map(section => {
-          if (section.devices.length === 0) return null;
+          const visibleDevices = section.devices.filter(d => !isCardEmpty(d));
+          if (visibleDevices.length === 0) return null;
           const colArrays: HassDevice[][] = Array.from({ length: masonryCols }, () => []);
-          section.devices.forEach((d, i) => colArrays[i % masonryCols].push(d));
+          visibleDevices.forEach((d, i) => colArrays[i % masonryCols].push(d));
           return (
             <div
               key={section.key}
               data-section-key={section.key}
-              style={{ scrollMarginTop: 'calc(var(--dashboard-sticky-top, 0px) + var(--ha-space-2))' }}
+              data-section-title={section.title}
+              // Land jumps (scroll rail) below the top scroll fade, not under
+              // it. The fade is h-12 (3rem) anchored at --app-topbar-clear.
+              style={{ scrollMarginTop: 'calc(var(--app-topbar-clear, 0px) + var(--dashboard-sticky-top, 0px) + 3rem + var(--ha-space-2))' }}
             >
-              <StickySectionHeader title={section.title} href={section.href} />
+              <SectionHeader title={section.title} href={section.href} />
               <div className="flex gap-ha-4 items-start">
                 {colArrays.map((col, ci) => (
                   <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">
@@ -224,7 +242,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
                         key={device.id}
                         ref={device.id === lastOpenedDeviceId ? lastOpenedCardRef : undefined}
                       >
-                        <DeferredCard>{renderCard(device)}</DeferredCard>
+                        <DeferredCard entityId={cardPrimaryEntityId(device)}>{renderCard(device)}</DeferredCard>
                       </div>
                     ))}
                   </div>
@@ -246,6 +264,11 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
               manufacturer: selectedDevice.manufacturer,
               model: selectedDevice.model,
               areaName: selectedDevice.areaId ? areas.get(selectedDevice.areaId) : undefined,
+              thumbnail: (() => {
+                const cfg = getConfig(selectedDevice.id);
+                if (cfg.thumbnail !== undefined) return cfg.thumbnail;
+                return selectedDevice.primaryEntity ? deviceThumbnail(selectedDevice.primaryEntity) : null;
+              })(),
               allEntities: selectedDevice.entities.map(e => ({
                 entityId: e.entity_id,
                 name: (e.attributes.friendly_name as string | undefined) ?? e.entity_id.split('.')[1],

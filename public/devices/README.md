@@ -6,6 +6,8 @@ in `src/lib/homeassistant/entityHelpers.ts` off `domain` + `device_class` +
 entity_id/name keyword hints.
 
 Source art: `~/Desktop/smart-devices-v1/` (copied + renamed). 51 files.
+`ebike.png` added later from a separate render (background removed, reframed
+to the same 2048×2048 / ~13% margin convention).
 
 Most appliance / infrastructure renders (washer, fridge, printer, router, hub,
 dongles, watch…) are matched by **name keyword regardless of domain** — they
@@ -72,6 +74,7 @@ rather than a dedicated one. See the keyword block at the top of
 | `tv.png`                     | media_player · tv / "television"/"webos"/"tv"            |
 | `streaming_box.png`          | media_player · "apple tv"/"chromecast"/"roku"/"fire tv"  |
 | `soundbar.png`               | media_player · receiver / "soundbar"/"beam"/"arc"        |
+| `ebike.png`                  | keyword "e-bike"/"ebike"/"bicycle"/"bike"/"vanmoof"       |
 
 Missing file → the card silently falls back to the mdi domain icon (img
 `onError` in `DeviceCardV2`). Add a new mapping by extending `deviceThumbnail()`.

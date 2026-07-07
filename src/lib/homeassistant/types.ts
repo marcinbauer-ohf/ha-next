@@ -145,6 +145,14 @@ export interface AutomationConfig {
   [key: string]: unknown;
 }
 
+/** Result of the `auth/current_user` WS command — the connecting account's identity + role. */
+export interface HassUser {
+  id: string;
+  name: string;
+  is_owner: boolean;
+  is_admin: boolean;
+}
+
 export interface CallServiceParams {
   domain: string;
   service: string;

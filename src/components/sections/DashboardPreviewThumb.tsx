@@ -1,56 +1,76 @@
 'use client';
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import { getCachedPreview, requestPreview, subscribePreview } from '@/lib/dashboardPreview';
+// Abstract placeholder tile for the dashboard selector. Echoes the app's
+// mobile layout — a greeting row above a two-column card masonry — using pure
+// shapes instead of a live snapshot. The variant is derived from the path so
+// tiles differ from one another but stay stable between opens.
 
 interface DashboardPreviewThumbProps {
   urlPath: string;
-  /** Only fires snapshot requests while the panel is actually open. */
-  active: boolean;
 }
 
-// The grey-bar skeleton that previously stood in for every dashboard. Shown
-// until a real snapshot is cached.
-function Skeleton() {
+// One-time sweep of the snapshot blobs cached by the removed live-preview
+// pipeline — they were large PNG data URLs and would otherwise linger forever.
+if (typeof window !== 'undefined') {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('ha-dash-preview:')) localStorage.removeItem(key);
+    }
+  } catch {
+    // Private mode / storage access errors — nothing to clean.
+  }
+}
+
+const LAYOUTS: Array<{ left: number[]; right: number[] }> = [
+  { left: [40, 26, 34], right: [26, 40, 30] },
+  { left: [26, 40, 30], right: [40, 26, 34] },
+  { left: [34, 26, 40], right: [30, 34, 26] },
+  { left: [30, 40, 26], right: [34, 30, 40] },
+];
+
+function hashPath(path: string): number {
+  let h = 0;
+  for (let i = 0; i < path.length; i++) h = (h * 31 + path.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function CardBlock({ height, accent }: { height: number; accent: boolean }) {
   return (
-    <div className="p-ha-2 space-y-ha-1">
-      <div className="h-2 bg-surface-low rounded-full w-full" />
-      <div className="h-2 bg-surface-low rounded-full w-3/4" />
-      <div className="h-3 bg-surface-low rounded-ha-lg w-full mt-ha-2" />
-      <div className="h-3 bg-surface-low rounded-ha-lg w-full" />
+    <div
+      style={{ height }}
+      className={`shrink-0 rounded-ha-lg p-1.5 flex flex-col justify-between ${
+        accent ? 'bg-ha-blue/15' : 'bg-surface-default'
+      }`}
+    >
+      <div className={`w-2.5 h-2.5 rounded-full ${accent ? 'bg-ha-blue/50' : 'bg-surface-lower'}`} />
+      <div className={`h-1 w-3/5 rounded-full ${accent ? 'bg-ha-blue/40' : 'bg-surface-lower'}`} />
     </div>
   );
 }
 
-export function DashboardPreviewThumb({ urlPath, active }: DashboardPreviewThumbProps) {
-  // Re-read the cache whenever this path's snapshot is (re)generated.
-  const dataUrl = useSyncExternalStore(
-    (cb) => subscribePreview(urlPath, cb),
-    () => getCachedPreview(urlPath)?.dataUrl ?? null,
-    () => null,
-  );
-  const [loaded, setLoaded] = useState(false);
-
-  // Kick off a snapshot when the panel opens (no-op if a fresh one is cached).
-  useEffect(() => {
-    if (active) requestPreview(urlPath);
-  }, [active, urlPath]);
+export function DashboardPreviewThumb({ urlPath }: DashboardPreviewThumbProps) {
+  const seed = hashPath(urlPath);
+  const layout = LAYOUTS[seed % LAYOUTS.length];
+  const accentIndex = seed % (layout.left.length + layout.right.length);
 
   return (
-    <>
-      {dataUrl && (
-        // eslint-disable-next-line @next/next/no-img-element -- data URL, next/image can't optimize it
-        <img
-          src={dataUrl}
-          alt=""
-          aria-hidden
-          onLoad={() => setLoaded(true)}
-          className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-300 ${
-            loaded ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
-      )}
-      {(!dataUrl || !loaded) && <Skeleton />}
-    </>
+    <div className="absolute inset-0 p-ha-2 flex flex-col gap-1.5 overflow-hidden" aria-hidden>
+      {/* Greeting row */}
+      <div className="flex items-center px-0.5">
+        <div className="h-1.5 w-2/5 rounded-full bg-surface-default" />
+        <div className="ml-auto w-3 h-3 rounded-full bg-surface-default" />
+      </div>
+      {/* Two-column card masonry */}
+      <div className="flex-1 flex gap-1.5 min-h-0">
+        {[layout.left, layout.right].map((col, ci) => (
+          <div key={ci} className="flex-1 flex flex-col gap-1.5 min-w-0">
+            {col.map((height, i) => {
+              const cardIndex = ci === 0 ? i : layout.left.length + i;
+              return <CardBlock key={i} height={height} accent={cardIndex === accentIndex} />;
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

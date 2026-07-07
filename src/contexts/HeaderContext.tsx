@@ -20,6 +20,11 @@ interface HeaderContextType {
   /** Suppress the desktop back arrow even when a subtitle/eyebrow is shown
    *  (e.g. the settings section root, which has no meaningful "back"). */
   hideBack?: boolean;
+  /** Detail pages that render a left "back gutter" in their content surface
+   *  (room/type/category). When set, the top bar mirrors that gutter: the back
+   *  arrow sits centered in it (stacked over the surface's faint back arrow) and
+   *  the title indents to the content's left edge to its right. */
+  contentGutter?: boolean;
   /** A small secondary line shown BELOW the title (reversed breadcrumb). The
    *  dashboard feeds it the section the reader has scrolled into, so the
    *  scrolled-away section header re-appears under "Home" in the top bar. */
@@ -33,7 +38,7 @@ interface HeaderContextType {
   setIcon: (icon: string | undefined) => void;
   setPrimaryAction: (action: { icon: string; onClick: () => void } | undefined) => void;
   setOnBack: (fn: (() => void) | undefined) => void;
-  setHeader: (data: { title: string; subtitle?: string; breadcrumbs?: BreadcrumbItem[]; icon?: string; primaryAction?: { icon: string; onClick: () => void }; onBack?: () => void; hideBack?: boolean }) => void;
+  setHeader: (data: { title: string; subtitle?: string; breadcrumbs?: BreadcrumbItem[]; icon?: string; primaryAction?: { icon: string; onClick: () => void }; onBack?: () => void; hideBack?: boolean; contentGutter?: boolean }) => void;
 }
 
 const HeaderContext = createContext<HeaderContextType | null>(null);
@@ -46,6 +51,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
   const [primaryAction, setPrimaryAction] = useState<{ icon: string; onClick: () => void } | undefined>(undefined);
   const [onBack, setOnBack] = useState<(() => void) | undefined>(undefined);
   const [hideBack, setHideBack] = useState<boolean | undefined>(undefined);
+  const [contentGutter, setContentGutter] = useState<boolean | undefined>(undefined);
   const [sectionCrumb, setSectionCrumbState] = useState<string | undefined>(undefined);
   const [sectionCrumbReverse, setSectionCrumbReverse] = useState<boolean | undefined>(undefined);
   const setSectionCrumb = useCallback((crumb: string | undefined, reverse?: boolean) => {
@@ -53,7 +59,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     if (reverse !== undefined) setSectionCrumbReverse(reverse);
   }, []);
 
-  const setHeader = useCallback((data: { title: string; subtitle?: string; breadcrumbs?: BreadcrumbItem[]; icon?: string; primaryAction?: { icon: string; onClick: () => void }; onBack?: () => void; hideBack?: boolean }) => {
+  const setHeader = useCallback((data: { title: string; subtitle?: string; breadcrumbs?: BreadcrumbItem[]; icon?: string; primaryAction?: { icon: string; onClick: () => void }; onBack?: () => void; hideBack?: boolean; contentGutter?: boolean }) => {
     setTitle(data.title);
     setSubtitle(data.subtitle);
     setBreadcrumbs(data.breadcrumbs);
@@ -61,6 +67,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     setPrimaryAction(data.primaryAction);
     setOnBack(data.onBack ? () => data.onBack : undefined);
     setHideBack(data.hideBack);
+    setContentGutter(data.contentGutter);
     // A fresh header (page navigation) drops any dashboard section crumb; the
     // dashboard re-publishes it from its own scroll listener.
     setSectionCrumbState(undefined);
@@ -74,6 +81,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     primaryAction,
     onBack,
     hideBack,
+    contentGutter,
     sectionCrumb,
     sectionCrumbReverse,
     setSectionCrumb,
@@ -83,7 +91,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     setPrimaryAction,
     setOnBack,
     setHeader,
-  }), [title, subtitle, breadcrumbs, icon, primaryAction, onBack, hideBack, sectionCrumb, sectionCrumbReverse, setSectionCrumb, setHeader]);
+  }), [title, subtitle, breadcrumbs, icon, primaryAction, onBack, hideBack, contentGutter, sectionCrumb, sectionCrumbReverse, setSectionCrumb, setHeader]);
 
   return (
     <HeaderContext.Provider value={value}>

@@ -23,8 +23,13 @@ const iconColorClasses = {
 };
 
 
+// Shared glass fill for the translucent chips/pills floating over the
+// screensaver canvas — keep the whole family on this exact string so their
+// transparency can't drift apart.
+export const TRANSLUCENT_CHIP_FILL = 'bg-surface-mid/65 border border-white/10';
+
 export function SummaryCard({ icon, title, state, color = 'default', compact = false, variant = 'filled', size = 'sm', translucent = false, onClick }: SummaryCardProps) {
-  const translucentFill = 'bg-surface-mid/65 border border-white/10';
+  const translucentFill = TRANSLUCENT_CHIP_FILL;
   // Interactive glances render as a button with hover/press affordance.
   const Tag = onClick ? 'button' : 'div';
   const interactive = onClick ? 'cursor-pointer hover:brightness-110 active:scale-95' : '';

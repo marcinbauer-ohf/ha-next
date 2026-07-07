@@ -31,21 +31,30 @@ import {
   createArea as createAreaAction,
   updateArea as updateAreaAction,
   deleteArea as deleteAreaAction,
+  reorderAreas as reorderAreasAction,
   createFloor as createFloorAction,
   updateFloor as updateFloorAction,
   deleteFloor as deleteFloorAction,
+  reorderFloors as reorderFloorsAction,
   createLabel as createLabelAction,
   updateLabel as updateLabelAction,
   deleteLabel as deleteLabelAction,
+  getCurrentUser as getCurrentUserAction,
 } from '@/lib/homeassistant';
-import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields } from '@/lib/homeassistant';
+import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields, HassUser } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
+import { emitHomePulse, PULSE_COLORS, type PulseColor, type PulseMeta } from '@/lib/homePulseBus';
 
 const LS_URL_KEY = 'ha_url';
 const LS_TOKEN_KEY = 'ha_token';
 const LS_DEMO_MODE_KEY = 'ha_demo_mode';
+const LS_PREVIEW_NON_ADMIN_KEY = 'ha_dev_preview_non_admin';
 const EMPTY_ENTITIES: HassEntities = {};
+
+// Demo mode has no real HA connection to ask, so it gets a synthetic admin
+// user — keeps today's full-access demo experience unchanged.
+const DEMO_USER: HassUser = { id: 'demo-user', name: 'Demo User', is_owner: true, is_admin: true };
 
 type EntityStoreListener = () => void;
 
@@ -57,6 +66,11 @@ interface HomeAssistantContextValue {
   configured: boolean;
   demoMode: boolean;
   hydrated: boolean;
+  currentUser: HassUser | null;
+  /** Single source of truth for gating admin-only UI — never true for a real non-admin user. */
+  isAdmin: boolean;
+  previewAsNonAdmin: boolean;
+  setPreviewAsNonAdmin: (value: boolean) => void;
   toggleEntity: (entityId: string, currentState?: string) => Promise<void>;
   callService: (params: CallServiceParams) => Promise<void>;
   getEntityRegistry: () => Promise<EntityRegistryEntry[]>;
@@ -67,9 +81,11 @@ interface HomeAssistantContextValue {
   createArea: (fields: AreaWriteFields) => Promise<AreaRegistryEntry>;
   updateArea: (areaId: string, fields: AreaWriteFields) => Promise<AreaRegistryEntry>;
   deleteArea: (areaId: string) => Promise<void>;
+  reorderAreas: (areaIds: string[]) => Promise<void>;
   createFloor: (fields: FloorWriteFields) => Promise<FloorRegistryEntry>;
   updateFloor: (floorId: string, fields: FloorWriteFields) => Promise<FloorRegistryEntry>;
   deleteFloor: (floorId: string) => Promise<void>;
+  reorderFloors: (floorIds: string[]) => Promise<void>;
   createLabel: (fields: LabelWriteFields) => Promise<LabelRegistryEntry>;
   updateLabel: (labelId: string, fields: LabelWriteFields) => Promise<LabelRegistryEntry>;
   deleteLabel: (labelId: string) => Promise<void>;
@@ -171,6 +187,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<HassUser | null>(null);
+  const [previewAsNonAdmin, setPreviewAsNonAdminState] = useState(false);
   const hasAutoConnected = useRef(false);
 
   // Load credentials from localStorage on mount
@@ -191,6 +209,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     setConfigured(shouldUseDemoMode || hasStoredCredentials);
     setLiveEntities(EMPTY_ENTITIES);
     setMockEntities(shouldUseDemoMode ? createDemoEntities() : EMPTY_ENTITIES);
+    setCurrentUser(shouldUseDemoMode ? DEMO_USER : null);
+    setPreviewAsNonAdminState(localStorage.getItem(LS_PREVIEW_NON_ADMIN_KEY) === '1');
     setHydrated(true);
   }, []);
 
@@ -201,6 +221,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     try {
       await connect({ url, token });
       setConnected(true);
+      getCurrentUserAction().then(setCurrentUser);
 
       // A live instance pushes a state_changed event per entity — many per
       // second. Propagating each one to React individually re-runs every store
@@ -239,6 +260,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
       setError(err instanceof Error ? err.message : 'Connection failed');
       setConnected(false);
       setLiveEntities(EMPTY_ENTITIES);
+      setCurrentUser(null);
       throw err;
     } finally {
       setConnecting(false);
@@ -273,12 +295,18 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     setError(null);
     setLiveEntities(EMPTY_ENTITIES);
     setMockEntities(createDemoEntities());
+    setCurrentUser(DEMO_USER);
     hasAutoConnected.current = false;
   }, []);
 
   const clearCredentials = useCallback(() => {
     enableDemoMode();
   }, [enableDemoMode]);
+
+  const setPreviewAsNonAdmin = useCallback((value: boolean) => {
+    localStorage.setItem(LS_PREVIEW_NON_ADMIN_KEY, value ? '1' : '0');
+    setPreviewAsNonAdminState(value);
+  }, []);
 
   const reconnect = useCallback(async () => {
     disconnect();
@@ -310,7 +338,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     } catch (err) {
       console.error('Failed to call service:', err instanceof Error ? err.message : err);
     }
-  }, []);
+  }, [demoMode, connected]);
 
   const getEntityRegistry = useCallback(() => getEntityRegistryAction(), []);
   const getDeviceRegistry = useCallback(() => getDeviceRegistryAction(), []);
@@ -329,9 +357,11 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const createArea = useCallback(async (fields: AreaWriteFields) => { assertWritable(); return createAreaAction(fields); }, [assertWritable]);
   const updateArea = useCallback(async (areaId: string, fields: AreaWriteFields) => { assertWritable(); return updateAreaAction(areaId, fields); }, [assertWritable]);
   const deleteArea = useCallback(async (areaId: string) => { assertWritable(); return deleteAreaAction(areaId); }, [assertWritable]);
+  const reorderAreas = useCallback(async (areaIds: string[]) => { assertWritable(); return reorderAreasAction(areaIds); }, [assertWritable]);
   const createFloor = useCallback(async (fields: FloorWriteFields) => { assertWritable(); return createFloorAction(fields); }, [assertWritable]);
   const updateFloor = useCallback(async (floorId: string, fields: FloorWriteFields) => { assertWritable(); return updateFloorAction(floorId, fields); }, [assertWritable]);
   const deleteFloor = useCallback(async (floorId: string) => { assertWritable(); return deleteFloorAction(floorId); }, [assertWritable]);
+  const reorderFloors = useCallback(async (floorIds: string[]) => { assertWritable(); return reorderFloorsAction(floorIds); }, [assertWritable]);
   const createLabel = useCallback(async (fields: LabelWriteFields) => { assertWritable(); return createLabelAction(fields); }, [assertWritable]);
   const updateLabel = useCallback(async (labelId: string, fields: LabelWriteFields) => { assertWritable(); return updateLabelAction(labelId, fields); }, [assertWritable]);
   const deleteLabel = useCallback(async (labelId: string) => { assertWritable(); return deleteLabelAction(labelId); }, [assertWritable]);
@@ -363,6 +393,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     });
   }, [configured, haUrl, haToken, doConnect, demoMode, connected, connecting]);
 
+  const isAdmin = !!currentUser?.is_admin && !previewAsNonAdmin;
+
   const contextValue = useMemo<HomeAssistantContextValue>(() => ({
     connected,
     connecting,
@@ -371,6 +403,10 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     configured,
     demoMode,
     hydrated,
+    currentUser,
+    isAdmin,
+    previewAsNonAdmin,
+    setPreviewAsNonAdmin,
     toggleEntity,
     callService,
     getEntityRegistry,
@@ -381,9 +417,11 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     createArea,
     updateArea,
     deleteArea,
+    reorderAreas,
     createFloor,
     updateFloor,
     deleteFloor,
+    reorderFloors,
     createLabel,
     updateLabel,
     deleteLabel,
@@ -405,6 +443,10 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     configured,
     demoMode,
     hydrated,
+    currentUser,
+    isAdmin,
+    previewAsNonAdmin,
+    setPreviewAsNonAdmin,
     toggleEntity,
     callService,
     getEntityRegistry,
@@ -415,9 +457,11 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     createArea,
     updateArea,
     deleteArea,
+    reorderAreas,
     createFloor,
     updateFloor,
     deleteFloor,
+    reorderFloors,
     createLabel,
     updateLabel,
     deleteLabel,
@@ -529,41 +573,80 @@ export function useHomeAssistantSelector<T>(
   );
 }
 
-export function useEntity(entityId: string): HassEntity | undefined {
-  return useHomeAssistantSelector(
-    (entities) => entities[entityId],
-    (previous, next) =>
-      previous === next ||
-      (
-        !!previous &&
-        !!next &&
-        previous.entity_id === next.entity_id &&
-        previous.state === next.state &&
-        previous.last_updated === next.last_updated
-      )
+// Stable comparators + per-id selector cache: the selector cache above keys on
+// function identity, so inline closures would re-select (and re-allocate) on
+// every render. The id-keyed maps stay bounded by the entity population.
+const isSameEntitySnapshot = (previous: HassEntity | undefined, next: HassEntity | undefined) =>
+  previous === next ||
+  (
+    !!previous &&
+    !!next &&
+    previous.entity_id === next.entity_id &&
+    previous.state === next.state &&
+    previous.last_updated === next.last_updated
   );
+
+const areEntityArraysEqual = (previous: (HassEntity | undefined)[], next: (HassEntity | undefined)[]) => {
+  if (previous.length !== next.length) return false;
+  for (let index = 0; index < previous.length; index += 1) {
+    if (!isSameEntitySnapshot(previous[index], next[index])) return false;
+  }
+  return true;
+};
+
+const entitySelectors = new Map<string, (entities: HassEntities) => HassEntity | undefined>();
+function selectorForEntity(entityId: string) {
+  let selector = entitySelectors.get(entityId);
+  if (!selector) {
+    selector = (entities) => entities[entityId];
+    entitySelectors.set(entityId, selector);
+  }
+  return selector;
+}
+
+const entityListSelectors = new Map<string, (entities: HassEntities) => (HassEntity | undefined)[]>();
+function selectorForEntityList(entityIds: string[]) {
+  const key = entityIds.join('|');
+  let selector = entityListSelectors.get(key);
+  if (!selector) {
+    const ids = [...entityIds];
+    selector = (entities) => ids.map((id) => entities[id]);
+    entityListSelectors.set(key, selector);
+  }
+  return selector;
+}
+
+export function useEntity(entityId: string): HassEntity | undefined {
+  return useHomeAssistantSelector(selectorForEntity(entityId), isSameEntitySnapshot);
 }
 
 export function useEntities(entityIds: string[]): (HassEntity | undefined)[] {
-  return useHomeAssistantSelector(
-    (entities) => entityIds.map((id) => entities[id]),
-    (previous, next) => {
-      if (previous.length !== next.length) return false;
-      for (let index = 0; index < previous.length; index += 1) {
-        const previousEntity = previous[index];
-        const nextEntity = next[index];
+  return useHomeAssistantSelector(selectorForEntityList(entityIds), areEntityArraysEqual);
+}
 
-        if (previousEntity === nextEntity) continue;
-        if (!previousEntity || !nextEntity) return false;
-        if (
-          previousEntity.entity_id !== nextEntity.entity_id ||
-          previousEntity.state !== nextEntity.state ||
-          previousEntity.last_updated !== nextEntity.last_updated
-        ) {
-          return false;
-        }
-      }
-      return true;
+// ── Dev/capture-only bridge ─────────────────────────────────────────────────
+// The preview-capture harness (scripts/capture-previews.mjs) records the
+// prototype features as GIFs. Two of them — the reactive screensaver ripples
+// and the off-screen change hints — need a state change injected to fire, which
+// the harness drives through this bridge. It is INERT unless explicitly opted
+// in (localStorage `ha-capture-bridge` = '1', set by the harness before load)
+// and is dead-code-eliminated from production builds via the NODE_ENV guard, so
+// it never ships to users.
+if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+  try {
+    if (window.localStorage.getItem('ha-capture-bridge') === '1') {
+      (window as unknown as { __haCapture?: unknown }).__haCapture = {
+        /** Current merged entity store (live + mock) without subscribing. */
+        peek: (): HassEntities => mergedEntitiesStore,
+        /** Override (or clear, with null) an entity so a card visibly changes. */
+        setMock: (entityId: string, entity: HassEntity | null): void =>
+          updateMockEntityInStore(entityId, entity),
+        /** Spawn a reactive ring ripple of a semantic kind ('on'|'off'|'error'|'alert'|'link'). */
+        emitPulse: (kind: PulseMeta['kind'], label = 'Living Room'): void =>
+          emitHomePulse(PULSE_COLORS[kind] as PulseColor, { label, kind }),
+      };
     }
-  );
+  } catch {
+    // localStorage can throw in locked-down contexts — bridge simply stays off.
+  }
 }

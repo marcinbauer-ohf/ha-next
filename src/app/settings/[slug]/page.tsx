@@ -1,12 +1,10 @@
 'use client';
 
-import { use } from 'react';
-import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
+import { Suspense, use, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { SettingsDetailPage } from '@/components/profile/SettingsDetailPage';
-import { ProfileContent } from '@/components/profile';
-import { isSettingsSlug } from '@/components/profile/settingsNavigation';
-import { useHeader } from '@/contexts';
-import { useEffect } from 'react';
+import { isSettingsSlug, isAdminOnlySlug } from '@/components/profile/settingsNavigation';
+import { useHomeAssistant } from '@/hooks';
 
 interface SettingsDetailRouteProps {
   params: Promise<{ slug: string }>;
@@ -14,32 +12,23 @@ interface SettingsDetailRouteProps {
 
 export default function SettingsDetailRoute({ params }: SettingsDetailRouteProps) {
   const { slug } = use(params);
-  const { setHeader } = useHeader();
+  const router = useRouter();
+  const { isAdmin } = useHomeAssistant();
+  const valid = isSettingsSlug(slug) && (isAdmin || !isAdminOnlySlug(slug));
 
+  // Unknown or (for a non-admin) admin-only slug → land on the settings home
+  // instead of stacking an error card, or rendering a page they can't use.
   useEffect(() => {
-    if (!isSettingsSlug(slug)) {
-      setHeader({
-        title: 'Settings',
-        subtitle: undefined,
-      });
-    }
-  }, [setHeader, slug]);
+    if (!valid) router.replace('/settings');
+  }, [valid, router]);
 
-  if (!isSettingsSlug(slug)) {
-    return (
-      <AppSurfacePage>
-        <div className="max-w-[1240px] mx-auto lg:px-ha-8 w-full space-y-ha-6">
-            <div className="rounded-ha-3xl border border-surface-lower bg-surface-default p-ha-6 lg:p-ha-8">
-              <h2 className="text-2xl font-semibold text-text-primary">Settings page not found</h2>
-              <p className="mt-ha-2 text-sm text-text-secondary">
-                This settings route is not configured yet, so the settings home is shown below instead.
-              </p>
-            </div>
-            <ProfileContent />
-        </div>
-      </AppSurfacePage>
-    );
-  }
+  if (!valid) return null;
 
-  return <SettingsDetailPage slug={slug} />;
+  // SettingsDetailPage reads useSearchParams (deep-link ?device=), which needs a
+  // Suspense boundary during static rendering.
+  return (
+    <Suspense fallback={null}>
+      <SettingsDetailPage slug={slug} />
+    </Suspense>
+  );
 }

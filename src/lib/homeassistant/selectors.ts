@@ -11,12 +11,20 @@ const SIMULATION_PREFIXES = [
   'binary_sensor.camera_simulated',
   'sensor.printer.simulated',
   'sensor.printer_simulated',
+  'vacuum.simulated',
 ] as const;
 
 export interface PersonSummary {
   id: string;
   name: string;
   state: string;
+  /**
+   * True when the person is inside the home zone. The state alone is not
+   * enough: with overlapping zones HA sets the state to the smallest zone's
+   * name and lists every containing zone in the `in_zones` attribute — so
+   * someone standing in the kitchen can have state "Garden" yet still be home.
+   */
+  isHome: boolean;
   picture?: string;
   initials: string;
   /** GPS latitude from the backing device_tracker, when exposed. */
@@ -36,7 +44,7 @@ export interface PeopleMap {
   home: HomeLocation | null;
   /** Everyone with resolvable coordinates (home people may also carry coords). */
   people: PersonSummary[];
-  /** True when at least one person is away (state !== 'home'). */
+  /** True when at least one person is away (not in the home zone). */
   anyoneAway: boolean;
 }
 
@@ -86,6 +94,8 @@ export interface CameraSummary {
   state: string;
   event?: string;
   entityPicture?: string;
+  /** ISO timestamp of the state change that raised this event (last_changed). */
+  since: string;
 }
 
 export interface PrinterSummary {
@@ -96,6 +106,49 @@ export interface PrinterSummary {
   fileName?: string;
   remainingTime?: string;
   entityPicture?: string;
+}
+
+export interface VacuumSummary {
+  entityId: string;
+  name: string;
+  /** 'cleaning' or 'returning' — the two states that count as active. */
+  state: string;
+  /** Cleaning progress 0–100 (simulated attribute). */
+  progress: number;
+  /** Area currently being cleaned, when reported. */
+  area?: string;
+  /** Battery percentage, when reported. */
+  battery?: number;
+  fanSpeed?: string;
+  remainingTime?: string;
+  entityPicture?: string;
+}
+
+export interface UpdateInstallSummary {
+  entityId: string;
+  name: string;
+  /** 0–100, or null while HA hasn't reported a percentage yet. */
+  percentage: number | null;
+  installedVersion?: string;
+  latestVersion?: string;
+  entityPicture?: string;
+}
+
+export interface BackupRunningSummary {
+  entityId: string;
+  name: string;
+  /** 0–100, or null when the backend doesn't report progress. */
+  progress: number | null;
+  stage?: string;
+}
+
+export interface AlarmSummary {
+  entityId: string;
+  name: string;
+  /** 'arming' | 'pending' | 'triggered' — the three transient alarm states. */
+  state: string;
+  /** ISO timestamp this state began (last_changed) — drives the elapsed-time display. */
+  since: string;
 }
 
 export interface OfflineDeviceSummary {
@@ -133,6 +186,10 @@ export interface ActivityData {
   activeTimers: TimerSummary[];
   activeCameras: CameraSummary[];
   activePrinters: PrinterSummary[];
+  activeVacuums: VacuumSummary[];
+  activeUpdateInstalls: UpdateInstallSummary[];
+  activeBackups: BackupRunningSummary[];
+  activeAlarms: AlarmSummary[];
   offlineDevices: OfflineDeviceSummary[];
   repairs: RepairSummary[];
   lowBatteryDevices: BatterySummary[];
@@ -236,6 +293,7 @@ function arePersonSummariesEqual(previous: PersonSummary, next: PersonSummary): 
     previous.id === next.id &&
     previous.name === next.name &&
     previous.state === next.state &&
+    previous.isHome === next.isHome &&
     previous.picture === next.picture &&
     previous.initials === next.initials &&
     previous.lat === next.lat &&
@@ -299,7 +357,8 @@ function areCameraSummariesEqual(previous: CameraSummary, next: CameraSummary): 
     previous.name === next.name &&
     previous.state === next.state &&
     previous.event === next.event &&
-    previous.entityPicture === next.entityPicture
+    previous.entityPicture === next.entityPicture &&
+    previous.since === next.since
   );
 }
 
@@ -310,6 +369,20 @@ function arePrinterSummariesEqual(previous: PrinterSummary, next: PrinterSummary
     previous.state === next.state &&
     previous.progress === next.progress &&
     previous.fileName === next.fileName &&
+    previous.remainingTime === next.remainingTime &&
+    previous.entityPicture === next.entityPicture
+  );
+}
+
+function areVacuumSummariesEqual(previous: VacuumSummary, next: VacuumSummary): boolean {
+  return (
+    previous.entityId === next.entityId &&
+    previous.name === next.name &&
+    previous.state === next.state &&
+    previous.progress === next.progress &&
+    previous.area === next.area &&
+    previous.battery === next.battery &&
+    previous.fanSpeed === next.fanSpeed &&
     previous.remainingTime === next.remainingTime &&
     previous.entityPicture === next.entityPicture
   );
@@ -327,6 +400,18 @@ function areEntitySearchMatchesItemEqual(previous: EntitySearchMatch, next: Enti
   );
 }
 
+/** Zone references appear as entity ids ('zone.home'), slugs ('home') or
+ *  friendly names ('Home') depending on source — normalise before comparing. */
+function isHomeZoneRef(zone: unknown): boolean {
+  return typeof zone === 'string' && zone.toLowerCase().replace(/^zone\./, '') === 'home';
+}
+
+function isPersonHome(entity: HassEntities[string]): boolean {
+  if (entity.state === 'home') return true;
+  const inZones = entity.attributes.in_zones;
+  return Array.isArray(inZones) && inZones.some(isHomeZoneRef);
+}
+
 function toPersonSummary(entityId: string, entity: HassEntities[string]): PersonSummary {
   const friendlyName = (entity.attributes.friendly_name as string | undefined) || 'User';
   const lat = entity.attributes.latitude;
@@ -336,6 +421,7 @@ function toPersonSummary(entityId: string, entity: HassEntities[string]): Person
     id: entityId,
     name: friendlyName,
     state: entity.state,
+    isHome: isPersonHome(entity),
     picture: entity.attributes.entity_picture as string | undefined,
     initials: buildInitials(friendlyName),
     lat: typeof lat === 'number' ? lat : undefined,
@@ -359,8 +445,8 @@ export function selectPeoplePresence(entities: HassEntities): PeoplePresence {
     .map(([entityId, entity]) => toPersonSummary(entityId, entity));
 
   return {
-    peopleHome: allPeople.filter((person) => person.state === 'home'),
-    peopleAway: allPeople.filter((person) => person.state !== 'home'),
+    peopleHome: allPeople.filter((person) => person.isHome),
+    peopleAway: allPeople.filter((person) => !person.isHome),
   };
 }
 
@@ -387,7 +473,7 @@ export function selectPeopleMap(entities: HassEntities): PeopleMap {
   return {
     home,
     people,
-    anyoneAway: people.some((person) => person.state !== 'home'),
+    anyoneAway: people.some((person) => !person.isHome),
   };
 }
 
@@ -490,6 +576,10 @@ export function selectActivityData(entities: HassEntities): ActivityData {
   const activeTimers: TimerSummary[] = [];
   const activeCameras: CameraSummary[] = [];
   const activePrinters: PrinterSummary[] = [];
+  const activeVacuums: VacuumSummary[] = [];
+  const activeUpdateInstalls: UpdateInstallSummary[] = [];
+  const activeBackups: BackupRunningSummary[] = [];
+  const activeAlarms: AlarmSummary[] = [];
   const offlineDevices: OfflineDeviceSummary[] = [];
   const repairs: RepairSummary[] = [];
   const lowBatteryDevices: BatterySummary[] = [];
@@ -508,6 +598,25 @@ export function selectActivityData(entities: HassEntities): ActivityData {
         id: entityId,
         name: (entity.attributes.friendly_name as string | undefined) || entityId,
         picture: entity.attributes.entity_picture as string | undefined,
+      });
+    }
+
+    // An update actively installing — distinct from "update available" above.
+    // `in_progress` is a bool on modern HA update entities (older cores briefly
+    // used a percentage there); either form counts as installing.
+    if (
+      entityId.startsWith('update.') &&
+      entityId !== RELEASE_NOTES_PREFIX &&
+      (entity.attributes.in_progress === true || typeof entity.attributes.in_progress === 'number')
+    ) {
+      const rawPercentage = Number(entity.attributes.update_percentage);
+      activeUpdateInstalls.push({
+        entityId,
+        name: (entity.attributes.friendly_name as string | undefined) || entityId,
+        percentage: Number.isFinite(rawPercentage) ? Math.max(0, Math.min(100, rawPercentage)) : null,
+        installedVersion: entity.attributes.installed_version as string | undefined,
+        latestVersion: entity.attributes.latest_version as string | undefined,
+        entityPicture: entity.attributes.entity_picture as string | undefined,
       });
     }
 
@@ -573,6 +682,7 @@ export function selectActivityData(entities: HassEntities): ActivityData {
         state: entity.state,
         event: (entity.attributes.event_type as string | undefined) || 'Movement detected',
         entityPicture: entity.attributes.entity_picture as string | undefined,
+        since: entity.last_changed,
       });
     }
 
@@ -596,6 +706,25 @@ export function selectActivityData(entities: HassEntities): ActivityData {
           entityPicture: entity.attributes.entity_picture as string | undefined,
         });
       }
+    }
+
+    // Vacuums — active while cleaning or returning to dock. `progress` is a
+    // simulated attribute driving the circular gauge (real robots don't expose
+    // a clean %); `current_area` / `battery_level` are optional.
+    if (entityId.startsWith('vacuum.') && (entity.state === 'cleaning' || entity.state === 'returning')) {
+      const progressRaw = Number(entity.attributes.progress);
+      const batteryRaw = Number(entity.attributes.battery_level);
+      activeVacuums.push({
+        entityId,
+        name: String(entity.attributes.friendly_name || entityId),
+        state: entity.state,
+        progress: Number.isFinite(progressRaw) ? Math.max(0, Math.min(100, progressRaw)) : 0,
+        area: entity.attributes.current_area as string | undefined,
+        battery: Number.isFinite(batteryRaw) ? Math.round(batteryRaw) : undefined,
+        fanSpeed: entity.attributes.fan_speed as string | undefined,
+        remainingTime: entity.attributes.time_remaining as string | undefined,
+        entityPicture: entity.attributes.entity_picture as string | undefined,
+      });
     }
 
     if (entityId === 'cloud.cloud' && entity.state === 'connected') {
@@ -630,6 +759,28 @@ export function selectActivityData(entities: HassEntities): ActivityData {
           || entity.last_changed
           || null,
       };
+
+      // A backup actively running — distinct from the last-completed summary above.
+      if (entity.state === 'in_progress' || entity.state === 'creating' || entity.attributes.in_progress === true) {
+        const rawProgress = Number(entity.attributes.progress);
+        activeBackups.push({
+          entityId,
+          name: (entity.attributes.friendly_name as string | undefined) || 'Backup',
+          progress: Number.isFinite(rawProgress) ? Math.max(0, Math.min(100, rawProgress)) : null,
+          stage: entity.attributes.stage as string | undefined,
+        });
+      }
+    }
+
+    // Alarm panel actively arming, in exit/entry delay, or triggered — the
+    // three transient states with a defined end (armed/disarmed).
+    if (entityId.startsWith('alarm_control_panel.') && ['arming', 'pending', 'triggered'].includes(entity.state)) {
+      activeAlarms.push({
+        entityId,
+        name: (entity.attributes.friendly_name as string | undefined) || entityId,
+        state: entity.state,
+        since: entity.last_changed,
+      });
     }
 
     // Low battery — any battery sensor reporting below the threshold.
@@ -664,6 +815,10 @@ export function selectActivityData(entities: HassEntities): ActivityData {
   activeTimers.sort(compareByEntityId);
   activeCameras.sort(compareByEntityId);
   activePrinters.sort(compareByEntityId);
+  activeVacuums.sort(compareByEntityId);
+  activeUpdateInstalls.sort(compareByEntityId);
+  activeBackups.sort(compareByEntityId);
+  activeAlarms.sort(compareByEntityId);
   offlineDevices.sort(compareById);
   repairs.sort(compareById);
   // Lowest battery first — most urgent at the top.
@@ -677,6 +832,10 @@ export function selectActivityData(entities: HassEntities): ActivityData {
     activeTimers,
     activeCameras,
     activePrinters,
+    activeVacuums,
+    activeUpdateInstalls,
+    activeBackups,
+    activeAlarms,
     offlineDevices,
     repairs,
     lowBatteryDevices,
@@ -684,6 +843,35 @@ export function selectActivityData(entities: HassEntities): ActivityData {
     user,
     isRemoteConnected: cloudConnected || remoteUiConnected,
   };
+}
+
+function areUpdateInstallSummariesEqual(previous: UpdateInstallSummary, next: UpdateInstallSummary): boolean {
+  return (
+    previous.entityId === next.entityId &&
+    previous.name === next.name &&
+    previous.percentage === next.percentage &&
+    previous.installedVersion === next.installedVersion &&
+    previous.latestVersion === next.latestVersion &&
+    previous.entityPicture === next.entityPicture
+  );
+}
+
+function areBackupRunningSummariesEqual(previous: BackupRunningSummary, next: BackupRunningSummary): boolean {
+  return (
+    previous.entityId === next.entityId &&
+    previous.name === next.name &&
+    previous.progress === next.progress &&
+    previous.stage === next.stage
+  );
+}
+
+function areAlarmSummariesEqual(previous: AlarmSummary, next: AlarmSummary): boolean {
+  return (
+    previous.entityId === next.entityId &&
+    previous.name === next.name &&
+    previous.state === next.state &&
+    previous.since === next.since
+  );
 }
 
 function areRepairSummariesEqual(previous: RepairSummary, next: RepairSummary): boolean {
@@ -713,6 +901,10 @@ export function areActivityDataEqual(previous: ActivityData, next: ActivityData)
     areArraysEqual(previous.activeTimers, next.activeTimers, areTimerSummariesEqual) &&
     areArraysEqual(previous.activeCameras, next.activeCameras, areCameraSummariesEqual) &&
     areArraysEqual(previous.activePrinters, next.activePrinters, arePrinterSummariesEqual) &&
+    areArraysEqual(previous.activeVacuums, next.activeVacuums, areVacuumSummariesEqual) &&
+    areArraysEqual(previous.activeUpdateInstalls, next.activeUpdateInstalls, areUpdateInstallSummariesEqual) &&
+    areArraysEqual(previous.activeBackups, next.activeBackups, areBackupRunningSummariesEqual) &&
+    areArraysEqual(previous.activeAlarms, next.activeAlarms, areAlarmSummariesEqual) &&
     areArraysEqual(previous.offlineDevices, next.offlineDevices, areOfflineDevicesEqual) &&
     areArraysEqual(previous.repairs, next.repairs, areRepairSummariesEqual) &&
     areArraysEqual(previous.lowBatteryDevices, next.lowBatteryDevices, areBatterySummariesEqual) &&

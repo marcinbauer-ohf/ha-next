@@ -5,3 +5,4 @@ export { DeviceSectionsView, type DeviceSection } from './DeviceSectionsView';
 export { AutomationsDashboardSection } from './AutomationsDashboardSection';
 export { PowerAttributionChart } from './PowerAttributionChart';
 export { AutomationActivityChart } from './AutomationActivityChart';
+export { DeviceGridSkeleton } from './DeviceGridSkeleton';

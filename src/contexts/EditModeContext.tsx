@@ -42,11 +42,13 @@ export function EditModeProvider({ children }: { children: ReactNode }) {
     return 'mobile';
   };
 
-  // Switching to a different device always starts in portrait; a second tap
-  // on the already-active device flips orientation (handled by the toolbar).
+  // Selecting a device starts in that device's natural orientation (tablet →
+  // landscape, phone → portrait) so its toolbar glyph doesn't rotate on the
+  // first tap; a second tap on the already-active device flips orientation
+  // (handled by the toolbar).
   const setPreviewViewport = (v: PreviewViewport) => {
     setPreviewViewportState(v);
-    setPreviewOrientation('portrait');
+    setPreviewOrientation(v === 'tablet' ? 'landscape' : 'portrait');
   };
 
   const togglePreviewOrientation = () =>

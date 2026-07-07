@@ -14,6 +14,7 @@ export { ListSection } from './ListSection';
 export { SectionLabel } from './SectionLabel';
 export { SearchField } from './SearchField';
 export { DataListView } from './DataListView';
+export { HeroImage } from './HeroImage';
 export type {
   DataListConfig,
   DataListSortOption,
@@ -37,6 +38,7 @@ export type { SidebarProps, SidebarHeaderInfo } from './Sidebar';
 export { TipStack } from './TipStack';
 export type { TipStackTip, TipStackAction } from './TipStack';
 export { ContextMenu } from './ContextMenu';
+export { KeyboardShortcutsDialog, ShortcutList, ShortcutKeycaps } from './KeyboardShortcutsDialog';
 export type { ContextMenuAction } from './ContextMenu';
 export { IconPicker, iconPathFor } from './IconPicker';
 export { AliasInput } from './AliasInput';

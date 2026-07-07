@@ -129,7 +129,7 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40" />
+      <div className="absolute inset-0 bg-black/70" />
 
       {/* Sheet */}
       <motion.div

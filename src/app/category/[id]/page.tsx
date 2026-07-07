@@ -8,12 +8,12 @@ import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice
 import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
 import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { PullToRevealPanel } from '@/components/sections';
-import { DeviceSectionsView, type DeviceSection } from '@/components/sections';
+import { DeviceSectionsView, DeviceGridSkeleton, type DeviceSection } from '@/components/sections';
 import { Icon } from '@/components/ui/Icon';
-import { HALoader } from '@/components/ui/HALoader';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
+import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
 import { usePullToRevealContext, useHeader } from '@/contexts';
-import { useDevices, useDesktopImmersivePageLayout, useFeatureFlags, useFastScrollLabels } from '@/hooks';
+import { useDevices, useDesktopImmersivePageLayout, useFeatureFlags, useFastScrollLabels, useIdleMarquee, useSectionCrumb, useScrollToEdges } from '@/hooks';
 import { entityCategory, CATEGORY_TITLES, AREA_ICON, type DeviceCategory } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -30,15 +30,21 @@ export default function CategoryPage({ params }: CategoryPageProps) {
   const { contentPaddingClasses, contentTransitionClasses, contentStyle, surfaceRoundingClass } = useDesktopImmersivePageLayout();
 
   const scrollableRef = useRef<HTMLElement | null>(null);
+  const { scrollToTop, scrollToBottom } = useScrollToEdges(scrollableRef);
   // Prototype: big card-name overlay while flicking fast (see useFastScrollLabels).
   useFastScrollLabels(scrollableRef, fastScrollLabelsEnabled);
+  // Truncated card names marquee while idle / scrolling slowly (see useIdleMarquee).
+  useIdleMarquee(scrollableRef, true);
+  // Section headers scroll away; the scrolled-past section's title reappears
+  // in the top bar as a reversed breadcrumb (same pattern as the dashboard).
+  useSectionCrumb(scrollableRef, !loading);
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
 
   const categoryName = CATEGORY_TITLES[id as DeviceCategory] ?? id.replace(/\b\w/g, c => c.toUpperCase());
 
   useEffect(() => {
-    setHeader({ title: categoryName, subtitle: 'Home' });
+    setHeader({ title: categoryName, subtitle: 'Home', contentGutter: true });
   }, [setHeader, categoryName]);
 
   // Devices whose primary entity belongs to this category, grouped into sections by area
@@ -94,22 +100,29 @@ export default function CategoryPage({ params }: CategoryPageProps) {
           <div className={`flex-1 min-w-0 bg-surface-lower overflow-hidden relative ${surfaceRoundingClass}`}>
             <ImmersiveDogEar />
             <ScreensaverDogEar />
-            {/* Bottom scroll fade. (Top fade lives inside <main> below so it sits
-                under the sticky section headers instead of over them.) */}
-            <div className={clsx('absolute bottom-0 left-0 right-0 lg:left-14 lg:right-14 h-12 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300', showBottomGradient ? 'opacity-100' : 'opacity-0')} />
+            {/* Top + bottom scroll fades. Top fade is desktop-only: on mobile
+                the top bar's own gradient already fades the content. */}
+            <ScrollFadeEdge edge="top" visible={showTopGradient} onClick={scrollToTop} className="hidden lg:block absolute top-0 left-14 right-14 h-12 bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />
+            <ScrollFadeEdge edge="bottom" visible={showBottomGradient} onClick={scrollToBottom} className="absolute bottom-0 left-0 right-0 lg:left-14 lg:right-14 h-12 bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />
 
 
-            {/* Back arrow — desktop left gutter */}
+            {/* Back arrow — desktop left gutter. Dog-ear style: a persistent
+                subtle edge gradient hints something's there; the icon itself
+                only fades in on hover. */}
             <Link
               href="/"
               prefetch={false}
+              aria-label="Back to Home"
               className="hidden lg:flex group absolute inset-y-0 left-0 w-14 z-10 items-center justify-center"
             >
-              <div className="absolute inset-0 rounded-l-ha-3xl bg-gradient-to-r from-transparent to-transparent group-hover:from-ha-blue/[0.06] group-hover:to-transparent transition-all duration-500 delay-0 group-hover:delay-150" />
+              <span
+                aria-hidden
+                className="absolute inset-y-0 left-0 w-9 rounded-l-ha-3xl bg-gradient-to-r from-text-tertiary/20 via-text-tertiary/[0.06] to-transparent opacity-70 transition-all duration-300 ease-out group-hover:w-14 group-hover:opacity-100"
+              />
               <Icon
                 path={mdiArrowLeft}
                 size={16}
-                className="relative opacity-15 group-hover:opacity-100 group-hover:text-ha-blue group-hover:-translate-x-0.5 transition-all duration-500 delay-0 group-hover:delay-150 text-text-primary"
+                className="relative text-text-secondary opacity-0 group-hover:opacity-100 group-hover:text-ha-blue group-hover:-translate-x-0.5 transition-all duration-300 ease-out"
               />
             </Link>
 
@@ -118,12 +131,10 @@ export default function CategoryPage({ params }: CategoryPageProps) {
               className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide select-none px-ha-3 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5"
               data-scrollable="dashboard"
             >
-              {/* Top scroll fade hangs off each sticky section header (in
-                  DeviceSectionsView) so it tracks the pinned header. */}
-              <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full">
+              <div className="max-w-[1536px] mx-auto lg:pl-14 lg:pr-ha-8 w-full">
                 <ApplicationViewNotice />
 
-                {loading && <HALoader className="mb-ha-5" />}
+                {loading && <DeviceGridSkeleton />}
 
                 {!loading && deviceCount === 0 && (
                   <p className="text-sm text-text-secondary text-center py-ha-8">
@@ -137,7 +148,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
 
             <ScrollIndexRail
               scrollRef={scrollableRef}
-              sections={sections.map(s => ({ key: s.key, title: s.title, icon: AREA_ICON }))}
+              sections={sections.map(s => ({ key: s.key, title: s.title, icon: AREA_ICON, href: s.href }))}
               enabled={scrollIndexEnabled && !loading}
             />
           </div>

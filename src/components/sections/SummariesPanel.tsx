@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { SummaryCard } from '../cards/SummaryCard';
+import { SummaryCard, TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities } from '@/hooks';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -222,7 +222,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
     return (
       <div className={clsx(
         'flex items-center rounded-ha-pill whitespace-nowrap flex-shrink-0 transition-all',
-        translucent ? 'bg-surface-mid/65 border border-white/10' : 'bg-surface-low',
+        translucent ? TRANSLUCENT_CHIP_FILL : 'bg-surface-low',
         isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-ha-2.5' : 'gap-ha-2 px-ha-2 py-ha-1'
       )}>
         <div className={clsx(
@@ -344,9 +344,16 @@ interface MobileSummaryRowProps {
   extraContent?: React.ReactNode;
   /** Ref to the sticky filters block, for measuring its height (--dashboard-sticky-top) */
   extraRef?: React.Ref<HTMLDivElement>;
+  /**
+   * Editing a below-lg viewport (phone / tablet portrait) on a desktop window:
+   * lg: utilities still fire off the real window width, so drop the desktop-only
+   * horizontal gutters and keep the mobile ones — otherwise the chips sit inset
+   * ~32px past the dashboard cards inside the preview frame.
+   */
+  narrowPreview?: boolean;
 }
 
-export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraContent, extraRef }: MobileSummaryRowProps) {
+export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraContent, extraRef, narrowPreview = false }: MobileSummaryRowProps) {
   const liveSummaryItems = useLiveSummaryItems();
 
   const summaryBackground = 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent) 0%, transparent 80%)';
@@ -368,12 +375,13 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
     <div
       data-section-key="__summaries__"
       className={clsx(
-        'lg:mx-0 lg:px-0 pt-ha-4 pb-ha-1 w-full',
+        'pt-ha-4 pb-ha-1 w-full',
+        !narrowPreview && 'lg:mx-0 lg:px-0',
         fullBleed ? '' : '-mx-ha-1 px-ha-1'
       )}
       style={containerStyle}
     >
-      <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full">
+      <div className={clsx('max-w-[1536px] mx-auto w-full', !narrowPreview && 'lg:pl-14 lg:pr-ha-8')}>
         {/* Wrapping bento row — chips flow onto new lines instead of scrolling */}
         <div className="flex flex-wrap items-center gap-ha-2 px-1">
           <PeopleBadge compact />
@@ -401,12 +409,13 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
         ref={extraRef}
         className={clsx(
           !noSticky && 'sticky top-[var(--app-topbar-clear)] lg:top-0 z-[60]',
-          'lg:mx-0 lg:px-0 pt-ha-1 pb-ha-2 w-full',
+          'pt-ha-1 pb-ha-2 w-full',
+          !narrowPreview && 'lg:mx-0 lg:px-0',
           fullBleed ? '' : '-mx-ha-1 px-ha-1'
         )}
         style={containerStyle}
       >
-        <div className="max-w-[1536px] mx-auto lg:px-ha-8 w-full">
+        <div className={clsx('max-w-[1536px] mx-auto w-full', !narrowPreview && 'lg:pl-14 lg:pr-ha-8')}>
           {extraContent}
         </div>
       </div>

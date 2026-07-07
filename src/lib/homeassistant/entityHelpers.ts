@@ -65,6 +65,83 @@ export const TOGGLEABLE = new Set([
   'light', 'switch', 'fan', 'input_boolean', 'media_player', 'cover', 'lock',
 ]);
 
+/** Compact "time ago" for a last-changed timestamp (now, 5m, 3h, 2d, 1w). */
+function relativeTimeShort(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(diffMs) || diffMs < 0) return null;
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d`;
+  return `${Math.floor(days / 7)}w`;
+}
+
+/** Instantaneous power draw in watts from common attribute names, else null. */
+function powerWatts(entity: HassEntity): number | null {
+  const a = entity.attributes;
+  const raw = a.current_power_w ?? a.power ?? a.power_w;
+  const n = Number(raw);
+  return raw != null && Number.isFinite(n) ? n : null;
+}
+
+export interface CornerBadge {
+  text: string;
+  /** Accessible label / tooltip naming the value. */
+  label: string;
+}
+
+/**
+ * The single most useful at-a-glance value for a device card's (freed) top-right
+ * corner, derived from the primary entity. Priority:
+ *   1. a domain-specific live sub-metric while the device is on
+ *      (brightness / fan speed / cover position / current temp / volume),
+ *   2. power draw, when the entity reports it,
+ *   3. how long ago it last changed.
+ * Returns null when none apply.
+ */
+export function primaryCornerBadge(entity: HassEntity): CornerBadge | null {
+  const domain = entityDomain(entity);
+  const a = entity.attributes;
+
+  if (isOn(entity)) {
+    if (domain === 'light' && a.brightness != null) {
+      const pct = Math.round((Number(a.brightness) / 255) * 100);
+      if (Number.isFinite(pct)) return { text: `${pct}%`, label: 'Brightness' };
+    }
+    if (domain === 'fan' && a.percentage != null) {
+      const pct = Math.round(Number(a.percentage));
+      if (Number.isFinite(pct)) return { text: `${pct}%`, label: 'Fan speed' };
+    }
+    if (domain === 'cover' && a.current_position != null) {
+      const pct = Math.round(Number(a.current_position));
+      if (Number.isFinite(pct)) return { text: `${pct}%`, label: 'Position' };
+    }
+    if (domain === 'climate' && a.current_temperature != null) {
+      const t = Math.round(Number(a.current_temperature));
+      if (Number.isFinite(t)) return { text: `${t}°`, label: 'Current temperature' };
+    }
+    if (domain === 'media_player' && a.volume_level != null) {
+      const pct = Math.round(Number(a.volume_level) * 100);
+      if (Number.isFinite(pct)) return { text: `${pct}%`, label: 'Volume' };
+    }
+  }
+
+  const watts = powerWatts(entity);
+  if (watts != null) {
+    const text = watts >= 1000 ? `${(watts / 1000).toFixed(1)} kW` : `${Math.round(watts)} W`;
+    return { text, label: 'Power draw' };
+  }
+
+  const rel = relativeTimeShort(entity.last_changed);
+  if (rel) return { text: rel, label: 'Last changed' };
+
+  return null;
+}
+
 /**
  * The entity whose picture should front a device card — a camera snapshot feed
  * first, else a media_player's current artwork. Returns undefined when the
@@ -110,6 +187,16 @@ export function domainIcon(entity: HassEntity): string {
 }
 
 /**
+ * Official brand image for an integration platform — the same artwork Home
+ * Assistant's own frontend shows for config entries. Served by the HA brands
+ * CDN, keyed by the integration domain from the live registry (e.g. "hue",
+ * "met"). Callers must keep an onError fallback: unknown domains 404.
+ */
+export function integrationBrandIcon(platform: string): string {
+  return `https://brands.home-assistant.io/${platform}/icon.png`;
+}
+
+/**
  * Best-guess product thumbnail for an entity, keyed off domain + device_class
  * with entity_id / friendly_name keyword refinement. Returns a path under
  * /public/devices, or null when no good match exists (caller falls back to the
@@ -135,6 +222,10 @@ export function deviceThumbnail(entity: HassEntity): string | null {
   if (has('3d printer', 'octoprint') || hasWord('printer')) return img('printer_3d');
   if (hasWord('ups') || has('uninterruptible', 'battery backup')) return img('ups');
   if (has('inverter', 'solar')) return img('inverter');
+  // E-bikes (VanMoof, Cowboy, companion trackers) surface as device_tracker +
+  // battery/range sensors + lock. Checked before EV charger and tracker so
+  // "E-bike charger" / "Bike tracker" still get the bike render.
+  if (has('e-bike', 'ebike', 'bicycle', 'vanmoof') || hasWord('bike')) return img('ebike');
   if (has('ev charger', 'wallbox', 'charge point') || hasWord('ev')) return img('ev_charger');
   if (has('laptop', 'macbook', 'notebook')) return img('laptop');
   if (has('tablet', 'ipad')) return img('wall_tablet');

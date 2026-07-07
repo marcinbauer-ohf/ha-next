@@ -7,6 +7,7 @@ import { Icon } from '../ui/Icon';
 import { RollingNumericValue } from '../ui/RollingNumericValue';
 import { EntityMiniSparkline, type MiniSparklinePoint } from '../ui/EntityMiniSparkline';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
+import { useDebugFlags } from '@/contexts';
 import { formatHoverTime } from './EntityDetailPanel';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -32,6 +33,13 @@ export interface DeviceCardV2Entity {
   size?: 'sm' | 'lg';
   onToggle?: () => void;
   onClick?: () => void;
+  /**
+   * Glanceable value for the freed top-right corner of toggleable cards — a live
+   * sub-metric, power draw, or last-changed time. See `primaryCornerBadge`.
+   */
+  corner?: string;
+  /** Accessible label / tooltip describing `corner`. */
+  cornerLabel?: string;
 }
 
 function formatUnavailableDuration(lastChanged: string | undefined): string | null {
@@ -104,6 +112,52 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   // place of the live value, like the detail panel
   const [hoverPoint, setHoverPoint] = useState<MiniSparklinePoint | null>(null);
 
+  // Layout experiment (settings → Prototype & Debug → Developer flags). `hero`
+  // is the current design (name top-left, image right, toggle bottom-left);
+  // `classic` is the previous layout (image left, name/state + toggle bottom).
+  const { heroCardLayoutEnabled } = useDebugFlags();
+
+  // Read-only text block (area eyebrow → prominent name → state / unavailable /
+  // hover-scrubbed value). Shared by both layouts; `hero` only tweaks type sizes
+  // and reserves right padding to clear the right-anchored thumbnail.
+  const renderNameState = (hero: boolean) => (
+    <div className={clsx(
+      'flex-1 min-w-0',
+      hero && showThumb && !showFeed && 'pr-[38%] md:pr-[42%]',
+      showFeed && '[text-shadow:0_1px_3px_rgba(0,0,0,0.7)]',
+    )}>
+      {areaName && (
+        <p className={clsx('font-medium leading-none truncate ha-card-marquee', hero ? 'text-[12px] mb-1' : 'text-[13px] mb-0.5', showFeed ? 'text-white/75' : 'text-text-tertiary')}><span data-marquee>{areaName}</span></p>
+      )}
+      <p className={clsx('font-semibold leading-tight truncate ha-card-marquee', hero ? 'text-[15px]' : 'text-sm', showFeed ? 'text-white' : 'text-text-primary')}><span data-marquee>{primary.name}</span></p>
+      {isUnavailable ? (
+        <div className={clsx('flex items-baseline gap-1.5', hero ? 'mt-1' : 'mt-0.5')}>
+          <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-amber-500/90">Unavailable</span>
+          {formatUnavailableDuration(primary.lastChanged) && (
+            <span className="text-[12px] font-medium font-mono text-amber-500/60">
+              {formatUnavailableDuration(primary.lastChanged) === 'just now'
+                ? 'just now'
+                : `for ${formatUnavailableDuration(primary.lastChanged)}`}
+            </span>
+          )}
+        </div>
+      ) : (
+        // State sits under the name. For numeric sensors this is the reading
+        // (and scrubs to the hovered sparkline point on desktop).
+        <p className={clsx('font-medium font-mono mt-0.5 truncate', hero ? 'text-[13px]' : 'text-sm', showFeed ? 'text-white/85' : 'text-text-secondary')}>
+          {hoverPoint
+            ? `${Number.isInteger(hoverPoint.value) ? hoverPoint.value : hoverPoint.value.toFixed(1)}${primary.unit ? ` ${primary.unit}` : ''}`
+            : primary.state}
+          {hoverPoint?.ts != null && (
+            <span className={clsx('ml-1.5 text-[11px] font-semibold uppercase tracking-wide', showFeed ? 'text-white/60' : 'text-text-tertiary')}>
+              {formatHoverTime(hoverPoint.ts)}
+            </span>
+          )}
+        </p>
+      )}
+    </div>
+  );
+
   const handlePointerDown = useCallback(() => {
     if (!onLongPress) return;
     longPressTimer.current = setTimeout(() => { onLongPress(); }, 500);
@@ -147,7 +201,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         className={clsx(
           'flex flex-col justify-between px-3 pt-3 pb-3 relative overflow-hidden transition-colors',
           hasSecondary ? 'rounded-t-ha-2xl' : 'rounded-ha-2xl',
-          'min-h-[128px] md:min-h-[136px]',
+          'min-h-[104px] md:min-h-[136px]',
           editMode
             ? 'bg-surface-default hover:bg-surface-low'
             : isUnavailable
@@ -173,96 +227,114 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             className="absolute inset-0 w-full h-full object-cover opacity-20" />
         )}
 
-        {/* Product thumbnail — a left-anchored background graphic sitting BEHIND
-            the name/state (which render on top). Faded toward the bottom with a
-            gradient mask so the text stays legible on any card background (incl.
-            the green "on" tint). The card keeps its size. */}
-        {showThumb && !showFeed && (
+        {heroCardLayoutEnabled ? (
+          /* ── HERO layout ── screenshot-style: text top-left, product image
+             right-centered, control bottom-left. */
           <>
-            {/* Fades the sparkline out left-to-right so the thumbnail sits on a
-                calm backdrop — only needed when a graph renders under it */}
-            {primary.unit && !isUnavailable && (
-              <div
+            {/* Thumbnail — right-anchored, vertically centered, sitting BEHIND the
+                text. Left edge masked to transparent so name/state stay legible. */}
+            {showThumb && !showFeed && (
+              <img
+                src={primary.thumbnail!}
+                alt=""
                 aria-hidden
-                className="pointer-events-none absolute inset-y-0 left-0 w-3/5 z-[1] bg-gradient-to-r from-surface-default to-transparent"
+                onError={() => setThumb((t) => ({ ...t, ok: false }))}
+                className={clsx(
+                  'pointer-events-none select-none absolute right-1 top-1/2 -translate-y-1/2 z-[2] h-[52%] w-[40%] md:h-[64%] md:w-[44%] object-contain object-right',
+                  isUnavailable && 'opacity-50 grayscale',
+                )}
+                style={{
+                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 28%)',
+                  maskImage: 'linear-gradient(to right, transparent 0%, #000 28%)',
+                }}
               />
             )}
-            <img
-              src={primary.thumbnail!}
-              alt=""
-              aria-hidden
-              onError={() => setThumb((t) => ({ ...t, ok: false }))}
-              className={clsx(
-                'pointer-events-none select-none absolute left-2 top-2 z-[1] h-[50%] md:h-[52%] w-auto object-contain object-left',
-                isUnavailable && 'opacity-50 grayscale',
+
+            {/* Top: name-prominent text on the LEFT; icon/alert tucked top-right. */}
+            <div className="relative z-[2] flex items-start justify-between gap-2">
+              {renderNameState(true)}
+              {!showThumb && !showFeed && !isUnavailable && (
+                <Icon path={primary.icon} size={20} className="text-text-tertiary shrink-0" />
               )}
-              style={{
-                WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 42%, transparent 92%)',
-                maskImage: 'linear-gradient(to bottom, #000 0%, #000 42%, transparent 92%)',
-              }}
-            />
+              {isUnavailable && (
+                <Icon path={mdiAlertCircleOutline} size={20} className="text-amber-500 shrink-0" />
+              )}
+            </div>
+
+            {/* Sparkline — sensor entities only. Full width, but painted BEHIND
+                the thumbnail (z-[1] < image z-[2]) so the line disappears exactly
+                where the device pixels begin — the graph "ends" at the image no
+                matter how big the thumbnail is. */}
+            {primary.unit && !isUnavailable && (
+              <div className="relative z-[1] w-full">
+                <EntityMiniSparkline entityId={primary.entityId} onHover={setHoverPoint} />
+              </div>
+            )}
+
+            {/* Bottom: control anchored bottom-LEFT. Empty for read-only. */}
+            <div className="relative z-[2] flex items-center">
+              {!isUnavailable && primary.toggleable && primary.onToggle && (
+                <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
+              )}
+            </div>
+          </>
+        ) : (
+          /* ── CLASSIC layout (previous) ── product image left, name/state + toggle
+             along the bottom row. Kept behind the toggle for comparison. */
+          <>
+            {/* Product thumbnail — left-anchored background graphic BEHIND the
+                name/state, faded toward the bottom so text stays legible. */}
+            {showThumb && !showFeed && (
+              <>
+                {/* Fade the sparkline out left-to-right so the thumbnail sits on a
+                    calm backdrop — only needed when a graph renders under it */}
+                {primary.unit && !isUnavailable && (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 left-0 w-3/5 z-[1] bg-gradient-to-r from-surface-default to-transparent"
+                  />
+                )}
+                <img
+                  src={primary.thumbnail!}
+                  alt=""
+                  aria-hidden
+                  onError={() => setThumb((t) => ({ ...t, ok: false }))}
+                  className={clsx(
+                    'pointer-events-none select-none absolute left-2 top-2 z-[1] h-[42%] md:h-[52%] w-auto object-contain object-left',
+                    isUnavailable && 'opacity-50 grayscale',
+                  )}
+                  style={{
+                    WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 42%, transparent 92%)',
+                    maskImage: 'linear-gradient(to bottom, #000 0%, #000 42%, transparent 92%)',
+                  }}
+                />
+              </>
+            )}
+
+            {/* Top row: icon (hidden when the product thumbnail is shown). */}
+            <div className={clsx('relative z-[2] flex items-center', (showThumb || showFeed) ? 'justify-end' : 'justify-between')}>
+              {!showThumb && !showFeed && (
+                <Icon path={primary.icon} size={20} className={isUnavailable ? 'text-amber-500/70' : 'text-text-tertiary'} />
+              )}
+              {isUnavailable && (
+                <Icon path={mdiAlertCircleOutline} size={20} className="text-amber-500 shrink-0" />
+              )}
+            </div>
+
+            {/* Sparkline — sensor entities only */}
+            {primary.unit && !isUnavailable && (
+              <EntityMiniSparkline entityId={primary.entityId} onHover={setHoverPoint} />
+            )}
+
+            {/* Bottom: name + state on the left, the toggle on the right. */}
+            <div className="relative z-[2] flex items-center justify-between gap-3">
+              {renderNameState(false)}
+              {!isUnavailable && primary.toggleable && primary.onToggle && (
+                <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
+              )}
+            </div>
           </>
         )}
-
-        {/* Top row: icon (hidden when the product thumbnail is shown) + control */}
-        <div className={clsx('relative z-[2] flex items-center', (showThumb || showFeed) ? 'justify-end' : 'justify-between')}>
-          {!showThumb && !showFeed && (
-            <Icon path={primary.icon} size={20} className={isUnavailable ? 'text-amber-500/70' : 'text-text-tertiary'} />
-          )}
-          {isUnavailable ? (
-            <Icon path={mdiAlertCircleOutline} size={20} className="text-amber-500 shrink-0" />
-          ) : primary.toggleable && primary.onToggle ? (
-            <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
-          ) : (
-            <div className="relative flex items-baseline gap-0.5 shrink-0">
-              <RollingNumericValue
-                value={hoverPoint
-                  ? (Number.isInteger(hoverPoint.value) ? String(hoverPoint.value) : hoverPoint.value.toFixed(1))
-                  : primary.unit ? String(parseFloat(primary.state) || primary.state) : primary.state}
-                className={clsx(
-                  'font-bold font-mono leading-none',
-                  showFeed ? 'text-white' : 'text-text-primary',
-                  primary.unit ? 'text-2xl' : 'text-lg',
-                )}
-              />
-              {primary.unit && (
-                <span className="text-sm font-mono text-text-secondary">{primary.unit}</span>
-              )}
-              {hoverPoint?.ts != null && (
-                <span className="absolute right-0 top-full mt-1 text-[10px] font-semibold uppercase tracking-wider text-text-secondary whitespace-nowrap">
-                  {formatHoverTime(hoverPoint.ts)}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Sparkline — sensor entities only */}
-        {primary.unit && !isUnavailable && (
-          <EntityMiniSparkline entityId={primary.entityId} onHover={setHoverPoint} />
-        )}
-
-        {/* Bottom: name + state — render on top of the background thumbnail */}
-        <div className={clsx('relative z-[2]', showFeed && '[text-shadow:0_1px_3px_rgba(0,0,0,0.7)]')}>
-          {areaName && (
-            <p className={clsx('text-[13px] font-medium leading-none truncate mb-0.5', showFeed ? 'text-white/75' : 'text-text-tertiary')}>{areaName}</p>
-          )}
-          <p className={clsx('text-sm font-semibold leading-tight truncate', showFeed ? 'text-white' : 'text-text-primary')}>{primary.name}</p>
-          {isUnavailable ? (
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-amber-500/90">Unavailable</span>
-              {formatUnavailableDuration(primary.lastChanged) && (
-                <span className="text-[12px] font-medium font-mono text-amber-500/60">
-                  {formatUnavailableDuration(primary.lastChanged) === 'just now'
-                    ? 'just now'
-                    : `for ${formatUnavailableDuration(primary.lastChanged)}`}
-                </span>
-              )}
-            </div>
-          ) : primary.toggleable ? (
-            <p className={clsx('text-sm font-medium font-mono mt-0.5', showFeed ? 'text-white/85' : 'text-text-secondary')}>{primary.state}</p>
-          ) : null}
-        </div>
       </div>
 
       {/* Secondary entity rows */}
@@ -297,10 +369,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                 )}
 
                 <span className={clsx(
-                  'flex-1 truncate',
+                  'flex-1 truncate ha-card-marquee',
                   entity.size === 'sm' ? 'text-xs text-text-secondary' : 'text-sm text-text-primary',
                 )}>
-                  {entity.name}
+                  <span data-marquee>{entity.name}</span>
                 </span>
 
                 {entityUnavailable ? (
@@ -359,7 +431,9 @@ function entityFieldsEqual(a?: DeviceCardV2Entity, b?: DeviceCardV2Entity): bool
     a.thumbnail === b.thumbnail &&
     a.toggleable === b.toggleable &&
     a.pressable === b.pressable &&
-    a.lastChanged === b.lastChanged
+    a.lastChanged === b.lastChanged &&
+    a.corner === b.corner &&
+    a.cornerLabel === b.cornerLabel
   );
 }
 

@@ -6,8 +6,10 @@ import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { SettingsNavPanel } from '@/components/profile';
 import { SettingsDetailPage } from '@/components/profile/SettingsDetailPage';
 import { useHeader } from '@/contexts';
-import { type SettingsSlug, isSettingsSlug } from '@/components/profile/settingsNavigation';
+import { type SettingsSlug, isSettingsSlug, isAdminOnlySlug, getDefaultSettingsSlug, getVisibleSettingsNavSections } from '@/components/profile/settingsNavigation';
+import { useHomeAssistant } from '@/hooks';
 import { subscribeSettingsReset } from '@/lib/settingsResetBus';
+import { canFireBareShortcut, matchShortcut } from '@/lib/keyboardShortcuts';
 
 function ScrollColumn({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -48,12 +50,20 @@ function ScrollColumn({ children, className = '' }: { children: React.ReactNode;
 function SettingsWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { isAdmin } = useHomeAssistant();
   // Honour a `?section=<slug>` deep-link (e.g. the clock pop-up's "Open Home
   // Center") so callers can open the two-column layout focused on a section.
+  // Ignore it if it points at an admin-only section the current user can't see.
   const requestedSection = searchParams.get('section');
+  const requestedSlugValid = requestedSection && isSettingsSlug(requestedSection) && (isAdmin || !isAdminOnlySlug(requestedSection));
   const [activeSlug, setActiveSlug] = useState<SettingsSlug>(
-    requestedSection && isSettingsSlug(requestedSection) ? requestedSection : 'home-center',
+    requestedSlugValid ? (requestedSection as SettingsSlug) : getDefaultSettingsSlug(isAdmin),
   );
+
+  // If the preview-as-non-admin toggle flips while an admin-only section is
+  // open, render the default instead of the gated page — computed rather than
+  // synced back into state via an effect, to avoid an extra render.
+  const effectiveActiveSlug = !isAdmin && isAdminOnlySlug(activeSlug) ? getDefaultSettingsSlug(isAdmin) : activeSlug;
   // True while a focused editor (automation editor) is open in column 2 — the
   // nav column slides away so the editor gets the full workspace width.
   const [editorFocus, setEditorFocus] = useState(false);
@@ -86,7 +96,35 @@ function SettingsWorkspace() {
   // Re-tapping the settings entry point while already here resets to the
   // default view (Home Center). Setting the section also clears any drill-down,
   // since SettingsDetailPage resets its detail when the active slug changes.
-  useEffect(() => subscribeSettingsReset(() => setActiveSlug('home-center')), []);
+  useEffect(() => subscribeSettingsReset(() => setActiveSlug(getDefaultSettingsSlug(isAdmin))), [isAdmin]);
+
+  // Keyboard shortcuts — [ / ] step through the sidebar sections, D jumps to
+  // Prototype & Debug Tools. Single keys skip text fields (the nav search) and
+  // open dialogs; paused while a focused editor owns the workspace.
+  useEffect(() => {
+    if (editorFocus) return;
+    const slugs = getVisibleSettingsNavSections(isAdmin).flatMap((section) => section.items.map((item) => item.slug));
+    const handler = (e: KeyboardEvent) => {
+      if (!canFireBareShortcut(e)) return;
+      if (matchShortcut(e, 'settings.debug')) {
+        if (!isAdmin) return;
+        e.preventDefault();
+        if (isDesktop) setActiveSlug('developer');
+        else router.push('/settings/developer');
+        return;
+      }
+      if (!isDesktop) return; // section stepping needs the two-column workspace
+      const step = matchShortcut(e, 'settings.next') ? 1 : matchShortcut(e, 'settings.prev') ? -1 : 0;
+      if (step === 0) return;
+      e.preventDefault();
+      setActiveSlug((current) => {
+        const index = slugs.indexOf(current);
+        return slugs[(index + step + slugs.length) % slugs.length] ?? current;
+      });
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [editorFocus, isDesktop, router, isAdmin]);
 
   return (
     <AppSurfacePage scrollClassName="xl:h-full">
@@ -115,7 +153,7 @@ function SettingsWorkspace() {
           aria-hidden={editorFocus}
         >
           <ScrollColumn className="w-[340px] mr-ha-8">
-            <SettingsNavPanel activeSlug={activeSlug} onSelect={setActiveSlug} />
+            <SettingsNavPanel activeSlug={effectiveActiveSlug} onSelect={setActiveSlug} />
           </ScrollColumn>
         </div>
         <ScrollColumn className="flex-1 min-w-0">
@@ -123,8 +161,8 @@ function SettingsWorkspace() {
               `h-full` lets a fill section (devices/integrations/automations) own
               its own scroll; flowing sections just overflow it and the column
               scrolls as before. */}
-          <div key={activeSlug} className="ha-pane-in h-full">
-            <SettingsDetailPage slug={activeSlug} panelMode onEditorFocusChange={setEditorFocus} onSelectSection={setActiveSlug} />
+          <div key={effectiveActiveSlug} className="ha-pane-in h-full">
+            <SettingsDetailPage slug={effectiveActiveSlug} panelMode onEditorFocusChange={setEditorFocus} onSelectSection={setActiveSlug} />
           </div>
         </ScrollColumn>
       </div>

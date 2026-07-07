@@ -11,7 +11,7 @@ import {
   selectPrimaryPerson,
   selectSimulationEntities,
 } from '@/lib/homeassistant/selectors';
-import { getSettingsHref, settingsNavSections, type SettingsNavLink } from './settingsNavigation';
+import { getSettingsHref, getVisibleSettingsNavSections, type SettingsNavLink } from './settingsNavigation';
 import { mdiInformationOutline } from '@mdi/js';
 import { Tooltip } from '../ui/Tooltip';
 import { useScreensaver } from '@/contexts';
@@ -86,10 +86,11 @@ const SIM_DEFS: Array<{ type: Exclude<SimulationType, 'release'>; label: string 
   { type: 'timer', label: 'Timer' },
   { type: 'camera', label: 'Camera' },
   { type: 'printer', label: 'Printer' },
+  { type: 'vacuum', label: 'Vacuum' },
 ];
 
 export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
-  const { haUrl, demoMode, setMockEntity, enableDemoMode } = useHomeAssistant();
+  const { haUrl, demoMode, setMockEntity, enableDemoMode, currentUser, isAdmin, previewAsNonAdmin, setPreviewAsNonAdmin } = useHomeAssistant();
   const { mode, setTheme, setMode, setBackground } = useTheme();
   const { immersiveMode, toggleImmersiveMode } = useImmersiveMode();
   const { desktopSplitViewEnabled, toggleDesktopSplitView } = useFeatureFlags();
@@ -111,6 +112,10 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
   const itemSummaries = React.useMemo<Partial<Record<SettingsNavLink['slug'], string>>>(() => ({
     developer: demoMode ? 'Mock data and preview tools ready' : 'Feature flags and connection diagnostics',
   }), [demoMode]);
+
+  // Gated by the effective role, so previewing as non-admin actually hides
+  // admin-only sections here too — mirrors real HA hiding Settings entirely.
+  const visibleSections = React.useMemo(() => getVisibleSettingsNavSections(isAdmin), [isAdmin]);
 
   const getSimCount = useCallback((prefix: string) =>
     simulationEntities.filter((e) => e.id.startsWith(prefix)).length,
@@ -171,8 +176,19 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
           <div className="flex-1 text-center lg:text-left">
             <h2 className="text-2xl font-bold text-text-primary mb-1">{user.name}</h2>
             <p className="text-sm text-text-secondary font-medium inline-block px-ha-3 py-1 bg-surface-mid rounded-full mb-ha-5">
-              Administrator
+              {isAdmin ? 'Administrator' : 'Standard User'}
             </p>
+
+            {/* Only a real admin can see this — it can only ever downgrade the
+                effective role, never let a real non-admin escalate. Lives
+                outside the admin-gated sections below so it stays reachable
+                even while previewing as non-admin. */}
+            {currentUser?.is_admin && (
+              <div className="flex items-center justify-center lg:justify-start gap-ha-3 mb-ha-5 -mt-ha-2">
+                <span className="text-xs text-text-tertiary">Preview as non-admin</span>
+                <DebugToggle checked={previewAsNonAdmin} onToggle={() => setPreviewAsNonAdmin(!previewAsNonAdmin)} />
+              </div>
+            )}
 
             <Link
               href="/settings"
@@ -187,7 +203,7 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
       </div>
 
       <div className="lg:grid lg:grid-cols-2 lg:gap-ha-6 space-y-ha-6 lg:space-y-0">
-        {settingsNavSections.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.title} className="space-y-ha-6">
             <Section title={section.title}>
               {section.title === 'Prototype Debugging Tools' ? (

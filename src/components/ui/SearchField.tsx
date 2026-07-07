@@ -48,7 +48,9 @@ export function SearchField({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex-1 min-w-0 bg-transparent text-sm text-text-primary placeholder-text-tertiary outline-none"
+        // 16px on touch screens — anything smaller makes iOS Safari zoom the
+        // whole view when the field takes focus.
+        className="flex-1 min-w-0 bg-transparent text-base lg:text-sm text-text-primary placeholder-text-tertiary outline-none"
       />
       {value && onClear && (
         <button

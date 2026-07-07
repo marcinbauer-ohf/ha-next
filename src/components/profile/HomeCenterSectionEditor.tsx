@@ -1,8 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   DndContext,
   PointerSensor,
@@ -21,7 +18,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useHomeCenterPrefs } from '@/hooks';
 import { HOME_CENTER_SECTION_MAP, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { Icon } from '../ui/Icon';
-import { mdiClose, mdiDragVertical, mdiLock } from '@mdi/js';
+import { mdiDragVertical, mdiLock } from '@mdi/js';
 
 function SectionRow({ id }: { id: HomeCenterSectionId }) {
   const { isEnabled, toggle } = useHomeCenterPrefs();
@@ -86,21 +83,14 @@ function SectionRow({ id }: { id: HomeCenterSectionId }) {
   );
 }
 
-export function HomeCenterSectionsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+/**
+ * Body-only editor for the Home Center section list — the reorder/toggle list
+ * plus a reset action. Rendered inside the shared right-side <Sidebar> chrome
+ * (docked rail on desktop, bottom sheet on mobile), so it owns no header/close.
+ */
+export function HomeCenterSectionsBody() {
   const { order, setOrder, reset } = useHomeCenterPrefs();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [open, onClose]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -111,74 +101,29 @@ export function HomeCenterSectionsModal({ open, onClose }: { open: boolean; onCl
     setOrder(arrayMove(order, oldIndex, newIndex));
   };
 
-  if (typeof document === 'undefined') return null;
+  return (
+    <div className="space-y-ha-4">
+      <p className="text-sm text-text-secondary">
+        Drag to reorder, and toggle which status sections appear — across Home Center, the dashboard status pop-up, and the screensaver.
+      </p>
 
-  return createPortal(
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-[120] flex items-center justify-center p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-        >
-          <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Customize Home Center sections"
-            className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-ha-3xl border border-surface-lower bg-surface-default shadow-2xl"
-            initial={{ scale: 0.94, opacity: 0, y: 8 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.96, opacity: 0, y: 4 }}
-            transition={{ duration: 0.18, ease: [0.22, 0.61, 0.36, 1] }}
-          >
-            {/* Header */}
-            <div className="flex items-start justify-between gap-ha-4 border-b border-surface-lower p-ha-5">
-              <div>
-                <h3 className="text-lg font-semibold text-text-primary">Customize sections</h3>
-                <p className="mt-ha-1 text-sm text-text-secondary">
-                  Drag to reorder, and toggle which status sections appear — across Home Center, the dashboard status pop-up, and the screensaver.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-ha-xl text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-              >
-                <Icon path={mdiClose} size={20} />
-              </button>
-            </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={order} strategy={verticalListSortingStrategy}>
+          <div className="space-y-ha-2">
+            {order.map((id) => (
+              <SectionRow key={id} id={id} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
-            {/* Sortable list */}
-            <div className="overflow-y-auto p-ha-4">
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={order} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-ha-2">
-                    {order.map((id) => (
-                      <SectionRow key={id} id={id} />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end border-t border-surface-lower p-ha-4">
-              <button
-                type="button"
-                onClick={reset}
-                className="rounded-ha-xl border border-surface-lower bg-surface-default px-ha-4 py-ha-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-low"
-              >
-                Reset to defaults
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body,
+      <button
+        type="button"
+        onClick={reset}
+        className="w-full rounded-ha-xl border border-surface-lower bg-surface-default px-ha-4 py-ha-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-low"
+      >
+        Reset to defaults
+      </button>
+    </div>
   );
 }

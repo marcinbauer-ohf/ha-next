@@ -12,7 +12,7 @@ import {
   mdiZigbee,
 } from '@mdi/js';
 import { useHomeAssistant, useHomeAssistantEntities, useHomeAssistantSelector, peekEntities } from './useHomeAssistant';
-import { entityCategory, domainIcon, deviceThumbnail, type DeviceCategory } from '@/lib/homeassistant/entityHelpers';
+import { entityCategory, domainIcon, deviceThumbnail, integrationBrandIcon, type DeviceCategory } from '@/lib/homeassistant/entityHelpers';
 import { DEMO_AREAS, DEMO_FLOORS, demoAreaForEntity } from '@/lib/homeassistant/demoEntities';
 import type { EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, ConfigEntry, IntegrationManifest } from '@/lib/homeassistant/types';
 import type { HassEntities, HassEntity } from '@/types';
@@ -28,6 +28,10 @@ function domainRank(entityId: string): number {
   const rank = DOMAIN_PRIORITY.indexOf(domain);
   return rank === -1 ? 99 : rank;
 }
+
+// Hoisted so the selector cache can short-circuit by function identity — an
+// inline closure would re-run Object.keys over the whole store every render.
+const selectEntityCount = (e: HassEntities): number => Object.keys(e).length;
 
 function toTitle(s: string) {
   return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -45,6 +49,9 @@ export interface HassDevice {
   areaId?: string;
   entities: HassEntity[];
   primaryEntity?: HassEntity;
+  /** Registry entry_type === 'service' — a virtual/cloud helper (weather
+   *  provider, Sun, …) rather than physical hardware. */
+  isService?: boolean;
 }
 
 // ── Real-HA device builder (registry-based) ────────────────────────────────
@@ -75,7 +82,7 @@ function buildFromRegistry(
   }
 
   return deviceReg
-    .filter((d) => deviceEntities.has(d.id) && d.entry_type !== 'service')
+    .filter((d) => deviceEntities.has(d.id))
     .map((d) => {
       const sorted = (deviceEntities.get(d.id) ?? []).sort(
         (a, b) => domainRank(a.entity_id) - domainRank(b.entity_id),
@@ -94,6 +101,7 @@ function buildFromRegistry(
         areaId,
         entities: sorted,
         primaryEntity: sorted[0],
+        isService: d.entry_type === 'service',
       };
     });
 }
@@ -274,12 +282,19 @@ function resetRegistry(): void {
 // Cache the last build keyed on input identity so concurrent consumers in the
 // same tick share a single build (and a single array reference).
 
+interface DevicesBuild {
+  /** Physical devices — everything the dashboard renders. */
+  devices: HassDevice[];
+  /** Service-type registry entries (entry_type === 'service') — settings only. */
+  services: HassDevice[];
+}
+
 let devicesCache: {
   connected: boolean;
   entityReg: EntityRegistryEntry[];
   deviceReg: DeviceRegistryEntry[];
   allEntities: HassEntities;
-  devices: HassDevice[];
+  build: DevicesBuild;
 } | null = null;
 
 function buildDevicesCached(
@@ -287,7 +302,7 @@ function buildDevicesCached(
   entityReg: EntityRegistryEntry[],
   deviceReg: DeviceRegistryEntry[],
   allEntities: HassEntities,
-): HassDevice[] {
+): DevicesBuild {
   if (
     devicesCache &&
     devicesCache.connected === connected &&
@@ -295,20 +310,24 @@ function buildDevicesCached(
     devicesCache.deviceReg === deviceReg &&
     devicesCache.allEntities === allEntities
   ) {
-    return devicesCache.devices;
+    return devicesCache.build;
   }
 
-  const devices = connected && entityReg.length > 0 && deviceReg.length > 0
+  const all = connected && entityReg.length > 0 && deviceReg.length > 0
     ? buildFromRegistry(entityReg, deviceReg, allEntities)
     : buildFromEntities(allEntities, !connected);
 
-  devicesCache = { connected, entityReg, deviceReg, allEntities, devices };
-  return devices;
+  const build: DevicesBuild = {
+    devices: all.filter((d) => !d.isService),
+    services: all.filter((d) => d.isService),
+  };
+  devicesCache = { connected, entityReg, deviceReg, allEntities, build };
+  return build;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────
 
-export function useDevices(): { devices: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; loading: boolean } {
+export function useDevices(): { devices: HassDevice[]; services: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; loading: boolean } {
   const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry } = useHomeAssistant();
   const allEntities = useHomeAssistantEntities();
 
@@ -332,7 +351,7 @@ export function useDevices(): { devices: HassDevice[]; areas: Map<string, string
   const areaReg = useDemoLayout ? DEMO_AREAS : liveAreaReg;
   const floorRegEffective = useDemoLayout ? DEMO_FLOORS : floorReg;
 
-  const devices = useMemo<HassDevice[]>(
+  const { devices, services } = useMemo<DevicesBuild>(
     () => buildDevicesCached(connected, entityReg, deviceReg, allEntities),
     [connected, entityReg, deviceReg, allEntities],
   );
@@ -343,14 +362,17 @@ export function useDevices(): { devices: HassDevice[]; areas: Map<string, string
     [areaReg],
   );
 
-  // floors sorted by level
+  // Floors keep the registry list order: HA returns them in the user's custom
+  // order (drag-reorder in HA 2025.12+; defaults to top floor first). Do NOT
+  // re-sort by level here — that discards the user's chosen priority.
   const floors = useMemo<FloorRegistryEntry[]>(
-    () => [...floorRegEffective].sort((a, b) => (a.level ?? 0) - (b.level ?? 0)),
+    () => [...floorRegEffective],
     [floorRegEffective],
   );
 
   return {
     devices,
+    services,
     areas,
     areaReg,
     floors,
@@ -641,7 +663,7 @@ export function useIntegrations(): { integrations: IntegrationSummary[]; loading
   );
 
   // Structure-only: re-derive when the entity set changes, not on state ticks.
-  const entityCount = useHomeAssistantSelector((e) => Object.keys(e).length);
+  const entityCount = useHomeAssistantSelector(selectEntityCount);
 
   useEffect(() => {
     if (!connected) {
@@ -656,8 +678,10 @@ export function useIntegrations(): { integrations: IntegrationSummary[]; loading
   const integrations = useMemo<IntegrationSummary[]>(() => {
     const live = connected && (entityReg.length > 0 || configEntries.length > 0);
     if (!live) return DEMO_INTEGRATIONS;
-    const devices = buildDevicesCached(connected, entityReg, deviceReg, peekEntities());
-    return buildIntegrationsFromRegistry(entityReg, devices, configEntries, manifests);
+    const { devices, services } = buildDevicesCached(connected, entityReg, deviceReg, peekEntities());
+    // Include service entries so integrations like Met.no list their (virtual)
+    // devices — deviceCount already counted them via the entity registry.
+    return buildIntegrationsFromRegistry(entityReg, [...devices, ...services], configEntries, manifests);
     // peekEntities() is read non-reactively; entityCount gates re-derivation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, entityReg, deviceReg, configEntries, manifests, entityCount]);
@@ -673,7 +697,7 @@ export function useIntegrations(): { integrations: IntegrationSummary[]; loading
 // those large components to the entity store made them re-render ~6×/sec under a
 // live HA feed, freezing navigation. The entity count is a cheap signal that
 // changes only when entities appear/disappear, not when a value updates.
-export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; labelReg: LabelRegistryEntry[]; loading: boolean } {
+export function useDeviceStructure(): { devices: HassDevice[]; services: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; labelReg: LabelRegistryEntry[]; loading: boolean } {
   const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry } = useHomeAssistant();
 
   const { entityReg, deviceReg, areaReg: liveAreaReg, floorReg, labelReg, loading: regLoading } = useSyncExternalStore(
@@ -687,7 +711,7 @@ export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string
   const floorRegEffective = useDemoLayout ? DEMO_FLOORS : floorReg;
 
   // Cheap structural signal — re-derive devices only when the entity set changes.
-  const entityCount = useHomeAssistantSelector((e) => Object.keys(e).length);
+  const entityCount = useHomeAssistantSelector(selectEntityCount);
 
   useEffect(() => {
     if (!connected) {
@@ -697,7 +721,7 @@ export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string
     loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry });
   }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry]);
 
-  const devices = useMemo<HassDevice[]>(
+  const { devices, services } = useMemo<DevicesBuild>(
     () => buildDevicesCached(connected, entityReg, deviceReg, peekEntities()),
     // peekEntities() is read non-reactively; entityCount gates re-derivation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -709,13 +733,15 @@ export function useDeviceStructure(): { devices: HassDevice[]; areas: Map<string
     [areaReg],
   );
 
+  // Registry list order = the user's custom floor order (see useDevices above).
   const floors = useMemo<FloorRegistryEntry[]>(
-    () => [...floorRegEffective].sort((a, b) => (a.level ?? 0) - (b.level ?? 0)),
+    () => [...floorRegEffective],
     [floorRegEffective],
   );
 
   return {
     devices,
+    services,
     areas,
     areaReg,
     floors,
@@ -751,6 +777,8 @@ export interface DeviceSummary {
   entityCount: number;
   /** False when every entity is unavailable. */
   available: boolean;
+  /** Service-type registry entry (weather provider, Sun, …) — not hardware. */
+  isService: boolean;
 }
 
 const DEVICE_CATEGORY_LABEL: Record<DeviceCategory, string> = {
@@ -763,6 +791,7 @@ const DEVICE_CATEGORY_LABEL: Record<DeviceCategory, string> = {
 
 function buildDeviceSummaries(
   devices: HassDevice[],
+  services: HassDevice[],
   entityReg: EntityRegistryEntry[],
   areas: Map<string, string>,
 ): DeviceSummary[] {
@@ -773,7 +802,7 @@ function buildDeviceSummaries(
     if (!devicePlatform.has(e.device_id)) devicePlatform.set(e.device_id, e.platform);
   }
 
-  return devices
+  return [...devices, ...services]
     .map((d) => {
       const primary = d.primaryEntity;
       const platform = devicePlatform.get(d.id);
@@ -790,16 +819,24 @@ function buildDeviceSummaries(
         category: primary ? entityCategory(primary) : 'sensors',
         primaryDomain: primary?.entity_id.split('.')[0],
         icon: primary ? domainIcon(primary) : mdiPuzzle,
-        thumbnail: primary ? deviceThumbnail(primary) : null,
+        // Curated product render first; else the official brand image for the
+        // owning integration (live registry only — demo rows have no platform).
+        // Services skip the render heuristic: they're not hardware, so the
+        // brand image is the honest artwork (matches HA's own frontend).
+        // DeviceIconTile falls back to the mdi icon if the CDN 404s.
+        thumbnail:
+          (primary && !d.isService ? deviceThumbnail(primary) : null) ??
+          (platform ? integrationBrandIcon(platform) : null),
         entityCount: d.entities.length,
         available,
+        isService: d.isService ?? false,
       } satisfies DeviceSummary;
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function useDevicesList(): { devices: DeviceSummary[]; loading: boolean } {
-  const { devices, areas, loading } = useDeviceStructure();
+  const { devices, services, areas, loading } = useDeviceStructure();
   const { entityReg } = useSyncExternalStore(
     subscribeToRegistry,
     getRegistrySnapshot,
@@ -807,8 +844,8 @@ export function useDevicesList(): { devices: DeviceSummary[]; loading: boolean }
   );
 
   const summaries = useMemo<DeviceSummary[]>(
-    () => buildDeviceSummaries(devices, entityReg, areas),
-    [devices, entityReg, areas],
+    () => buildDeviceSummaries(devices, services, entityReg, areas),
+    [devices, services, entityReg, areas],
   );
 
   return { devices: summaries, loading };

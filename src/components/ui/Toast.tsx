@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { mdiClose } from '@mdi/js';
 import { Icon } from './Icon';
 import { SectionLabel } from './SectionLabel';
+import { useMobileNavOpen } from '@/lib/mobileNavOpenBus';
 
 export interface ToastProps {
   icon: string;
@@ -167,6 +168,10 @@ export function ToastStack({ toasts }: { toasts: ToastStackItem[] }) {
   const show = toasts.length > 0;
   const [root, setRoot] = useState<HTMLElement | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
+  // On mobile the opened bottom-nav sheet dims the UI behind its scrim; the
+  // toast floats above it, so fade it out while the sheet is up.
+  const navOpen = useMobileNavOpen();
+  const hideForNav = navOpen && !isDesktop;
 
   useEffect(() => {
     setRoot(document.getElementById('toast-glow-root'));
@@ -199,7 +204,9 @@ export function ToastStack({ toasts }: { toasts: ToastStackItem[] }) {
           transition={SPRING_CONTAINER}
           className={`${root ? 'absolute' : 'fixed'} corner-toast z-[65] pointer-events-auto`}
         >
-          <StackedCards toasts={toasts} />
+          <div className={`transition-opacity duration-150 ease-out ${hideForNav ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <StackedCards toasts={toasts} />
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

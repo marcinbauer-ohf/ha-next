@@ -38,6 +38,9 @@ interface ToastState extends ToastOptions {
   id: number;
   /** Notification Center entry id, when this toast was persisted. */
   centerId?: string;
+  /** Timestamp (ms) this toast is scheduled to auto-dismiss, if it will. Drives
+      the glow's fade-away shrink; absent for toasts that stay until acted on. */
+  autoDismissAt?: number;
 }
 
 interface ToastContextValue {
@@ -56,7 +59,78 @@ const ToastContext = createContext<ToastContextValue>({
   isToastVisible: false,
 });
 
-function ToastGlow({ show, toastId }: { show: boolean; toastId: number }) {
+/** Over the toast's final seconds the glow eases down to this scale, so it
+    visibly recedes before the card leaves — an affordance that it's fading. */
+const GLOW_SHRINK_TARGET = 0.1;
+/** Length of the shrink cue. Shorter-lived toasts shrink over their whole life. */
+const GLOW_SHRINK_WINDOW_MS = 5000;
+
+/**
+ * Motion props for the inner "fade-away" shrink, captured once at mount so the
+ * timer is anchored to the toast's real dismiss moment (not recomputed on
+ * unrelated re-renders). Returns a no-op hold for toasts that never auto-dismiss.
+ */
+function useGlowShrink(dismissAt: number | null) {
+  return useState(() => {
+    if (dismissAt == null) return { animate: { scale: 1 } } as const;
+    const remaining = dismissAt - Date.now();
+    const delay = Math.max(0, remaining - GLOW_SHRINK_WINDOW_MS) / 1000;
+    const duration = Math.max(0.001, Math.min(GLOW_SHRINK_WINDOW_MS, remaining) / 1000);
+    return {
+      initial: { scale: 1 },
+      animate: { scale: GLOW_SHRINK_TARGET },
+      transition: { delay, duration, ease: 'linear' as const },
+    };
+  })[0];
+}
+
+function CornerGlow({ dismissAt }: { dismissAt: number | null }) {
+  const shrink = useGlowShrink(dismissAt);
+  return (
+    <motion.div
+      className="hidden lg:block absolute bottom-0 pointer-events-none corner-toast-glow"
+      style={{ height: '19rem', transformOrigin: '100% 100%' }}
+      initial={{ scale: 0.15, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.4, opacity: 0 }}
+      transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div className="w-full h-full" style={{ transformOrigin: '100% 100%' }} {...shrink}>
+        <GlowCanvas
+          className="w-full h-full"
+          origin={[1, 1]}
+          radius={[0.9, 0.62]}
+          intensity={0.85}
+        />
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function BottomGlow({ dismissAt }: { dismissAt: number | null }) {
+  const shrink = useGlowShrink(dismissAt);
+  return (
+    <motion.div
+      className="lg:hidden absolute bottom-0 pointer-events-none dashboard-bottom-glow"
+      style={{ height: '40vh', transformOrigin: '50% 100%' }}
+      initial={{ scale: 0.15, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      exit={{ scale: 0.4, opacity: 0 }}
+      transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div
+        className="w-full h-full"
+        style={{
+          transformOrigin: '50% 100%',
+          background: 'radial-gradient(ellipse 80% 70% at 50% 100%, rgba(24,188,242,0.14) 0%, rgba(24,188,242,0.05) 55%, transparent 75%)',
+        }}
+        {...shrink}
+      />
+    </motion.div>
+  );
+}
+
+function ToastGlow({ show, toastId, dismissAt }: { show: boolean; toastId: number; dismissAt: number | null }) {
   const [root, setRoot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -66,42 +140,12 @@ function ToastGlow({ show, toastId }: { show: boolean; toastId: number }) {
   if (!root) return null;
 
   // Two responsive variants matching the stack's position: a short, wide
-  // corner glow on desktop and a full-width bottom glow on mobile.
+  // corner glow on desktop and a full-width bottom glow on mobile. Keyed on the
+  // front toast id so a card swap replays the entrance + shrink cue.
   return createPortal(
     <AnimatePresence>
-      {show && (
-        <motion.div
-          key={`glow-corner-${toastId}`}
-          className="hidden lg:block absolute bottom-0 pointer-events-none corner-toast-glow"
-          style={{ height: '19rem', transformOrigin: '100% 100%' }}
-          initial={{ scale: 0.15, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.4, opacity: 0 }}
-          transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <GlowCanvas
-            className="w-full h-full"
-            origin={[1, 1]}
-            radius={[0.9, 0.62]}
-            intensity={0.85}
-          />
-        </motion.div>
-      )}
-      {show && (
-        <motion.div
-          key={`glow-bottom-${toastId}`}
-          className="lg:hidden absolute bottom-0 pointer-events-none dashboard-bottom-glow"
-          style={{
-            height: '40vh',
-            background: 'radial-gradient(ellipse 80% 70% at 50% 100%, rgba(24,188,242,0.14) 0%, rgba(24,188,242,0.05) 55%, transparent 75%)',
-            transformOrigin: '50% 100%',
-          }}
-          initial={{ scale: 0.15, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.4, opacity: 0 }}
-          transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-        />
-      )}
+      {show && <CornerGlow key={`glow-corner-${toastId}`} dismissAt={dismissAt} />}
+      {show && <BottomGlow key={`glow-bottom-${toastId}`} dismissAt={dismissAt} />}
     </AnimatePresence>,
     root
   );
@@ -138,13 +182,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         onAct: opts.onClick ?? opts.action?.onClick,
       });
     }
-    setToasts((prev) => [{ ...opts, id, centerId }, ...prev]);
+    // Anchor when this toast will leave, so the glow can shrink toward it.
+    const autoDismiss = !opts.action && !opts.onClick && opts.duration !== null;
+    let autoDismissAt: number | undefined;
+    if (autoDismiss) autoDismissAt = Date.now() + (opts.duration ?? 4000);
+    else if (opts.idleDismiss != null) autoDismissAt = Date.now() + opts.idleDismiss;
+
+    setToasts((prev) => [{ ...opts, id, centerId, autoDismissAt }, ...prev]);
     if (opts.statusSection) emitStatusPulse(opts.statusSection);
     if (opts.haptic) haptic(opts.haptic);
     // Actionable or duration:null toasts stay until acted on / explicitly
     // dismissed — don't auto-dismiss out from under a decision. The timer
     // keeps running while a toast waits behind the front card.
-    if (!opts.action && !opts.onClick && opts.duration !== null) {
+    if (autoDismiss) {
       timersRef.current.set(id, setTimeout(() => removeToast(id), opts.duration ?? 4000));
     } else if (opts.idleDismiss != null) {
       // Actionable toast left untouched: nudge attention to the command center
@@ -188,7 +238,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
       {/* Radial glow — portaled into #toast-glow-root so it's clipped by the
           dashboard's overflow-hidden boundary and doesn't bleed into sidebar/topbar */}
-      <ToastGlow show={toasts.length > 0} toastId={toasts[0]?.id ?? 0} />
+      <ToastGlow show={toasts.length > 0} toastId={toasts[0]?.id ?? 0} dismissAt={toasts[0]?.autoDismissAt ?? null} />
 
       <ToastStack toasts={stackItems} />
     </ToastContext.Provider>

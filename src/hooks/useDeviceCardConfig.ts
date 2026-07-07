@@ -15,6 +15,12 @@ export interface EntitySlot {
 
 export interface DeviceCardConfig {
   slots: EntitySlot[];
+  /**
+   * Manual override for the card's product thumbnail (a `/devices/*.png` path).
+   * `undefined` → auto (deviceThumbnail() picks off the entity); `null` → none
+   * (show the mdi icon instead). Set from the device-card edit panel.
+   */
+  thumbnail?: string | null;
 }
 
 const STORAGE_KEY = 'ha_device_card_configs';

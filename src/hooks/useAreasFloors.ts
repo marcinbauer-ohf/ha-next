@@ -18,17 +18,17 @@ export interface AreaWithCounts extends AreaRegistryEntry {
   entityCount: number;
 }
 
-/** A floor joined with the areas assigned to it (sorted by name). */
+/** A floor joined with the areas assigned to it (registry order). */
 export interface FloorWithAreas extends FloorRegistryEntry {
   areas: AreaWithCounts[];
 }
 
 export interface AreasFloorsModel {
-  /** Floors sorted by level, each carrying its assigned areas. */
+  /** Floors in registry order (the user's custom priority), each carrying its assigned areas. */
   floors: FloorWithAreas[];
   /** Areas with no floor_id (or a dangling floor_id), shown under "Unassigned". */
   unassignedAreas: AreaWithCounts[];
-  /** Flat list of all areas with counts. */
+  /** Flat list of all areas with counts, in registry order. */
   areas: AreaWithCounts[];
   labels: LabelRegistryEntry[];
   loading: boolean;
@@ -39,10 +39,16 @@ export interface AreasFloorsModel {
   updateArea: (areaId: string, fields: AreaWriteFields) => Promise<void>;
   deleteArea: (areaId: string) => Promise<void>;
   reassignAreaToFloor: (areaId: string, floorId: string | null) => Promise<void>;
+  /** Persist a full custom area order (every area id exactly once). HA 2025.12+. */
+  reorderAreas: (areaIds: string[]) => Promise<void>;
+  /** Reassign + reposition in one gesture: update floor_id, then persist the new global order. */
+  moveArea: (areaId: string, floorId: string | null, areaIds: string[]) => Promise<void>;
 
   createFloor: (fields: FloorWriteFields) => Promise<void>;
   updateFloor: (floorId: string, fields: FloorWriteFields) => Promise<void>;
   deleteFloor: (floorId: string) => Promise<void>;
+  /** Persist a full custom floor order (every floor id exactly once). HA 2025.12+. */
+  reorderFloors: (floorIds: string[]) => Promise<void>;
 
   createLabel: (fields: LabelWriteFields) => Promise<void>;
   updateLabel: (labelId: string, fields: LabelWriteFields) => Promise<void>;
@@ -87,15 +93,15 @@ export function useAreasFloors(): AreasFloorsModel {
     return map;
   }, [devices]);
 
+  // Registry order is preserved — HA returns areas in the user's custom order
+  // (drag-reorder in HA 2025.12+), so no alphabetical re-sort here.
   const areas = useMemo<AreaWithCounts[]>(
     () =>
-      [...areaReg]
-        .map((a) => ({
-          ...a,
-          deviceCount: countsByArea.get(a.area_id)?.deviceCount ?? 0,
-          entityCount: countsByArea.get(a.area_id)?.entityCount ?? 0,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
+      areaReg.map((a) => ({
+        ...a,
+        deviceCount: countsByArea.get(a.area_id)?.deviceCount ?? 0,
+        entityCount: countsByArea.get(a.area_id)?.entityCount ?? 0,
+      })),
     [areaReg, countsByArea],
   );
 
@@ -113,7 +119,7 @@ export function useAreasFloors(): AreasFloorsModel {
         unassigned.push(a);
       }
     }
-    // floorReg arrives pre-sorted by level from useDeviceStructure.
+    // floorReg arrives in registry order (user's custom priority) from useDeviceStructure.
     const withAreas: FloorWithAreas[] = floorReg.map((f) => ({
       ...f,
       areas: byFloor.get(f.floor_id) ?? [],
@@ -128,10 +134,19 @@ export function useAreasFloors(): AreasFloorsModel {
   const updateArea = useCallback(async (id: string, f: AreaWriteFields) => { await ha.updateArea(id, f); await refresh(); }, [ha, refresh]);
   const deleteArea = useCallback(async (id: string) => { await ha.deleteArea(id); await refresh(); }, [ha, refresh]);
   const reassignAreaToFloor = useCallback(async (id: string, floorId: string | null) => { await ha.updateArea(id, { floor_id: floorId }); await refresh(); }, [ha, refresh]);
+  const reorderAreas = useCallback(async (ids: string[]) => { await ha.reorderAreas(ids); await refresh(); }, [ha, refresh]);
+  const moveArea = useCallback(async (id: string, floorId: string | null, ids: string[]) => {
+    await ha.updateArea(id, { floor_id: floorId });
+    // Ordering is best-effort: pre-2025.12 HA lacks the reorder command, but
+    // the floor reassignment above must still land (and trigger the refresh).
+    try { await ha.reorderAreas(ids); } catch { /* order unsupported on this HA */ }
+    await refresh();
+  }, [ha, refresh]);
 
   const createFloor = useCallback(async (f: FloorWriteFields) => { await ha.createFloor(f); await refresh(); }, [ha, refresh]);
   const updateFloor = useCallback(async (id: string, f: FloorWriteFields) => { await ha.updateFloor(id, f); await refresh(); }, [ha, refresh]);
   const deleteFloor = useCallback(async (id: string) => { await ha.deleteFloor(id); await refresh(); }, [ha, refresh]);
+  const reorderFloors = useCallback(async (ids: string[]) => { await ha.reorderFloors(ids); await refresh(); }, [ha, refresh]);
 
   const createLabel = useCallback(async (f: LabelWriteFields) => { await ha.createLabel(f); await refresh(); }, [ha, refresh]);
   const updateLabel = useCallback(async (id: string, f: LabelWriteFields) => { await ha.updateLabel(id, f); await refresh(); }, [ha, refresh]);
@@ -148,9 +163,12 @@ export function useAreasFloors(): AreasFloorsModel {
     updateArea,
     deleteArea,
     reassignAreaToFloor,
+    reorderAreas,
+    moveArea,
     createFloor,
     updateFloor,
     deleteFloor,
+    reorderFloors,
     createLabel,
     updateLabel,
     deleteLabel,

@@ -12,7 +12,7 @@ import {
   selectPrimaryPerson,
 } from '@/lib/homeassistant/selectors';
 import {
-  settingsNavSections,
+  getVisibleSettingsNavSections,
   categoryAccents,
   settingsHasContent,
   type SettingsNavLink,
@@ -104,23 +104,23 @@ function NavItem({
 
 export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', autoScrollActiveIntoView = false }: SettingsNavPanelProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const { haUrl, connected, demoMode, callService } = useHomeAssistant();
-  const { devices } = useDeviceStructure();
+  const { haUrl, connected, demoMode, callService, currentUser, isAdmin, previewAsNonAdmin, setPreviewAsNonAdmin } = useHomeAssistant();
+  const { devices, services } = useDeviceStructure();
   const primaryPerson = useHomeAssistantSelector(selectPrimaryPerson, arePrimaryPeopleEqual);
   const [searchQuery, setSearchQuery] = useState('');
   const haVersion = getHaVersion();
-  const systemControlsEnabled = connected && !demoMode;
+  const systemControlsEnabled = connected && !demoMode && isAdmin;
 
   const runSystemCommand = useCallback(
     (cmd: (typeof SYSTEM_COMMANDS)[number]) => {
-      if (!connected || demoMode) return;
+      if (!connected || demoMode || !isAdmin) return;
       const confirmed = window.confirm(
         `${cmd.label}? Home Assistant will be interrupted and may take a minute to come back.`,
       );
       if (!confirmed) return;
       callService({ domain: cmd.domain, service: cmd.service });
     },
-    [connected, demoMode, callService],
+    [connected, demoMode, isAdmin, callService],
   );
 
   const user = useMemo(() => {
@@ -137,8 +137,8 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
   // Only show subtitles when they carry real info (status, counts, timestamps, calls to action).
   // Empty string = no subtitle rendered.
   const subtitles = useMemo<Partial<Record<SettingsSlug, string>>>(() => ({
-    // Devices — show live counts
-    devices: `${devices.length} registered`,
+    // Devices & Services — show live counts split by kind
+    devices: `${devices.length} ${devices.length === 1 ? 'device' : 'devices'} · ${services.length} ${services.length === 1 ? 'service' : 'services'}`,
     integrations: demoMode ? '6 active' : connected ? '6 active' : 'Check connection',
 
     // System — timestamps / state
@@ -146,7 +146,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
 
     // Prototype & debug tools — live state
     developer: demoMode ? 'Demo data active' : '',
-  }), [connected, demoMode, devices.length]);
+  }), [connected, demoMode, devices.length, services.length]);
 
   // When opened from the mobile bottom-sheet, bring the active item into view.
   // Runs once on the next frame (handles tab-switch where the sheet is already
@@ -166,9 +166,10 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
   }, [autoScrollActiveIntoView, activeSlug]);
 
   const visibleSections = useMemo(() => {
+    const sections = getVisibleSettingsNavSections(isAdmin);
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return settingsNavSections;
-    return settingsNavSections
+    if (!q) return sections;
+    return sections
       .map(section => ({
         ...section,
         items: section.items.filter(
@@ -178,7 +179,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
         ),
       }))
       .filter(section => section.items.length > 0);
-  }, [searchQuery]);
+  }, [searchQuery, isAdmin]);
 
   // Developer Tools gets its own labeled card (like System), so split it out of
   // the unified categories card while keeping it in the search-filtered set.
@@ -224,11 +225,30 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-bold text-text-primary leading-tight">{user.name}</h2>
           <p className="text-[13px] text-text-secondary font-medium px-ha-2 py-0.5 bg-surface-mid rounded-full inline-block mt-0.5">
-            Administrator
+            {isAdmin ? 'Administrator' : 'Standard User'}
           </p>
         </div>
         <NavChevron size={20} className="text-text-disabled flex-shrink-0" />
       </button>
+
+      {/* Only a real admin can see this — it can only ever downgrade the
+          effective role, never let a real non-admin escalate. Lives outside
+          the admin-only sections below so it stays reachable even while
+          previewing as non-admin. */}
+      {currentUser?.is_admin && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setPreviewAsNonAdmin(!previewAsNonAdmin); }}
+          className="w-full flex items-center justify-between gap-ha-3 px-ha-4 py-ha-2 mb-ha-4 rounded-ha-xl border border-surface-lower bg-surface-default hover:bg-surface-low transition-colors"
+        >
+          <span className="text-[13px] font-medium text-text-secondary">Preview as non-admin</span>
+          <span
+            className={`h-5 w-9 rounded-full px-0.5 flex items-center transition-colors flex-shrink-0 ${previewAsNonAdmin ? 'bg-ha-blue/50' : 'bg-surface-mid'}`}
+          >
+            <span className={`h-4 w-4 rounded-full bg-surface-default border border-surface-low shadow-sm transition-transform ${previewAsNonAdmin ? 'translate-x-4' : 'translate-x-0'}`} />
+          </span>
+        </button>
+      )}
 
       {/* Nav sections — all categories share one card, grouped by extra spacing. */}
       <div className="pb-ha-5">
@@ -279,8 +299,8 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
         </div>
       )}
 
-      {/* System power controls — hidden while searching to keep results clean. */}
-      {!searchQuery.trim() && (
+      {/* System power controls — admin-only in real HA; hidden while searching too. */}
+      {isAdmin && !searchQuery.trim() && (
         <div className="pb-ha-4">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-text-tertiary px-ha-3 pb-ha-2">
             System

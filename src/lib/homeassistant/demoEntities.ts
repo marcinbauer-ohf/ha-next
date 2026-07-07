@@ -7,6 +7,8 @@ import type { AreaRegistryEntry, FloorRegistryEntry } from './types';
 // substitutes these when running on demo data so the dashboard can demonstrate
 // area grouping, floor tabs, and room pages without a real instance.
 
+// Array order = display order (mirrors HA's registry order, which carries the
+// user's custom floor/area priority). The demo home leads with the ground floor.
 export const DEMO_FLOORS: FloorRegistryEntry[] = [
   { floor_id: 'ground_floor', name: 'Ground Floor', level: 0 },
   { floor_id: 'upstairs', name: 'Upstairs', level: 1 },

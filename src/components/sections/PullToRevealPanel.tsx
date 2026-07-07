@@ -77,6 +77,10 @@ export function PullToRevealPanel() {
 
   // Touch event handlers for the drag handle
   useEffect(() => {
+    // Feature disabled: the component renders null below, but hooks still run —
+    // without this guard the listeners would drive isRevealed anyway and hide
+    // the dashboard content with no panel to show in its place.
+    if (!ENABLE_PULL_TO_REVEAL) return;
     const handle = isRevealed ? revealedHandleRef.current : collapsedHandleRef.current;
     if (!handle) return;
 
@@ -162,6 +166,9 @@ export function PullToRevealPanel() {
 
   // Overscroll pull detection on the dashboard content (mobile)
   useEffect(() => {
+    // Same kill-switch guard as above: never hijack real-device pull gestures
+    // while the reveal surface itself is disabled.
+    if (!ENABLE_PULL_TO_REVEAL) return;
     const collapsedHandle = collapsedHandleRef.current;
     const revealedHandle = revealedHandleRef.current;
 
@@ -394,10 +401,10 @@ export function PullToRevealPanel() {
                           href={dashboard.urlPath}
                           className="flex flex-col group"
                         >
-                          {/* Mobile aspect ratio preview card — real snapshot
-                              of the route, falling back to a skeleton. */}
+                          {/* Mobile aspect ratio preview card — abstract
+                              placeholder echoing the dashboard layout. */}
                           <div className="relative w-full aspect-[3/4] bg-surface-lower rounded-ha-xl overflow-hidden">
-                            <DashboardPreviewThumb urlPath={dashboard.urlPath} active={isRevealed} />
+                            <DashboardPreviewThumb urlPath={dashboard.urlPath} />
                           </div>
                           {/* Icon and name below card - left aligned */}
                           <div className="flex items-center gap-ha-1 mt-ha-1">

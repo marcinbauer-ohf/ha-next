@@ -108,6 +108,19 @@
   --ha-radius-pill: 9999px;
 }
 
+/* ── Squircle corner smoothing ──────────────────────────────────────────────
+   iOS-style superellipse ("squircle") corners on every radiused element.
+   `corner-shape` only alters corners that already carry a border-radius, so
+   square elements are untouched and this is imperceptible on themes with tiny
+   radii (eink, fallout) — only the soft, rounded themes visibly benefit.
+   Driven by the data-squircle attribute on <html> (set in useTheme); enabled
+   by default. Progressive enhancement: silently ignored where unsupported. */
+@supports (corner-shape: squircle) {
+  [data-squircle="on"] * {
+    corner-shape: squircle;
+  }
+}
+
 /* Below the lg breakpoint the top bar overlays the content as a frosted bar, so
    content and sticky headers reserve its height to sit beneath it. */
 @media (max-width: 1023.98px) {
@@ -1417,9 +1430,84 @@
   animation: ha-status-pulse 0.5s ease-out 1;
 }
 
+/* Live-activity equalizer — three bars dancing while media plays. Uses
+   currentColor so it picks up the accent of whatever pill hosts it. */
+@keyframes ha-eq-bounce {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.ha-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+.ha-eq > span {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: ha-eq-bounce 1s ease-in-out infinite;
+}
+.ha-eq > span:nth-child(2) { animation-delay: 0.25s; }
+.ha-eq > span:nth-child(3) { animation-delay: 0.5s; }
+.ha-eq[data-paused="true"] > span {
+  animation: none;
+  transform: scaleY(0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-eq > span { animation: none; transform: scaleY(0.6); }
+}
+
+/* Screensaver clock colon blink — pure CSS so the once-per-second beat never
+   re-renders the (large) screensaver tree. 2s cycle ≈ the old 1s state toggle,
+   with a ~100ms ramp matching the previous transition-opacity duration-100. */
+@keyframes ha-colon-blink {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0.2; }
+  100% { opacity: 1; }
+}
+.ha-colon-blink {
+  animation: ha-colon-blink 2s linear infinite;
+}
+
+/* Search-bar boot glow — one-shot radial tint descending from the very top
+   edge of the screen, reading as a light source behind the centered search
+   field. Same colour + opacity as the toast bottom glow (see ToastContext).
+   The element is full-width; the gradient is an absolute-sized blob offset to
+   sit under the field (50% + half the sidebar+gutter) so it fades to
+   transparent well inside the box on both sides — a fixed-width box clipped
+   the horizontal spread. Plays once when the preloader clears (.ha-app-booted
+   lands on the AppShell root). */
+.ha-search-boot-glow {
+  opacity: 0;
+  background: radial-gradient(
+    ellipse 34rem 11rem at calc(50% + 2.375rem) 0%,
+    rgba(24, 188, 242, 0.14) 0%,
+    rgba(24, 188, 242, 0.05) 55%,
+    transparent 75%
+  );
+  transform-origin: calc(50% + 2.375rem) 0;
+}
+.ha-app-booted .ha-search-boot-glow {
+  animation: ha-search-boot-glow 2.6s ease-out 0.9s 1 both;
+}
+@keyframes ha-search-boot-glow {
+  0% { opacity: 0; transform: scale(0.25); }
+  28% { opacity: 1; transform: scale(1); }
+  70% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-app-booted .ha-search-boot-glow {
+    animation: none;
+  }
+}
+
 /* Corner toast (bottom-right) — positioned relative to the dashboard <main>.
    Mobile: always sits just above the nav's current height. The nav's auto-hide
-   only collapses its bottom tab row — the "Ask your home" top row stays — and
+   only collapses its bottom tab row — the status/activities top row stays — and
    --mobile-nav-height (offsetHeight, includes the safe-area inset) shrinks to
    match, so anchoring to it keeps the toast above the bar in either state
    instead of slipping under the still-visible top row. Desktop: inset from the
@@ -1456,6 +1544,31 @@
   border-bottom-right-radius: var(--ha-radius-3xl, 24px);
 }
 
+/* Ambient glow behind the dashboard filter pill — the bottom-LEFT mirror of
+   .corner-toast-glow. Its left edge meets the grey panel's left edge (inset by
+   the edge padding) and its bottom-left corner is rounded + clipped to match
+   the panel, so the glow follows the panel's corner instead of a sharp 90° clip
+   or spilling into the left gutter. */
+.corner-filter-glow {
+  left: var(--spacing-edge, 12px);
+  width: min(88%, 44rem);
+  overflow: hidden;
+  border-bottom-left-radius: var(--ha-radius-3xl, 24px);
+}
+
+/* Full-panel clip layer inside #toast-glow-root — matches the grey dashboard
+   surface exactly (inset by the edge padding, same corner radius) so floating
+   chrome portaled into it (the filter pill) has its drop shadow clipped by the
+   panel instead of washing into the white gutters around it. */
+.dashboard-panel-clip {
+  top: 0;
+  bottom: 0;
+  left: var(--spacing-edge, 12px);
+  right: var(--spacing-edge, 12px);
+  overflow: hidden;
+  border-radius: var(--ha-radius-3xl, 24px);
+}
+
 /* Ambient bottom glow inside the dashboard surface — used by the bottom-center
    toast and the edit-mode glow. Inset to the surface's left/right edges (edge
    padding, same as the grey panel) and clipped with rounded bottom corners, so the
@@ -1474,6 +1587,9 @@ body {
   color: var(--ha-color-text-primary);
   font-family: var(--ha-font-family-base), system-ui, sans-serif;
   overscroll-behavior: none;
+  /* App-like touch: keep pinch-zoom and panning but drop the double-tap
+     zoom gesture (and its 300ms tap delay) that fights fast UI taps. */
+  touch-action: manipulation;
   /* Max legibility across all switchable faces:
      - text-rendering: kerning + standard ligatures
      - optical-sizing: variable fonts adapt glyph shapes to size
@@ -1626,11 +1742,11 @@ html {
 }
 
 /* Fast-scroll gist labels (prototype) — every DeviceCardV2 carries a hidden
-   top-left name overlay. The dashboard scroll container exposes a 0..1
-   `--ha-fast-scroll` intensity tracking scroll velocity (see useFastScrollLabels);
-   the overlay fades in PROPORTIONALLY, so a slow drag only lightly veils the
-   card while a hard fling fully replaces detail with the big name. Driven by a
-   CSS var so velocity changes never re-render the cards. */
+   top-left name overlay. The dashboard scroll container gains `.ha-fast-scroll`
+   while flicking fast (see useFastScrollLabels). The decision is binary (on/off
+   with hysteresis), but the reveal is a quick slide-up + fade so it eases in
+   rather than popping. Class-driven, so velocity changes never re-render the
+   cards. */
 [data-card-fast-label] {
   position: absolute;
   inset: 0;
@@ -1643,12 +1759,28 @@ html {
   padding: 0.625rem 0.75rem;
   text-align: left;
   pointer-events: none;
-  /* Continuous reveal — both fill and blur ride the same intensity value, so
-     the card stays partly visible until you really fling it. */
-  opacity: var(--ha-fast-scroll, 0);
-  background: color-mix(in srgb, var(--ha-color-surface-default) 86%, transparent);
-  backdrop-filter: blur(calc(var(--ha-fast-scroll, 0) * 3px));
-  -webkit-backdrop-filter: blur(calc(var(--ha-fast-scroll, 0) * 3px));
+  opacity: 0;
+  transform: translateY(6px);
+  background: color-mix(in srgb, var(--ha-color-surface-default) 90%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  transition:
+    opacity 150ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ha-fast-scroll [data-card-fast-label] {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Honour reduced motion — keep the fade, drop the slide. */
+@media (prefers-reduced-motion: reduce) {
+  [data-card-fast-label] {
+    transform: none;
+    transition: opacity 120ms ease;
+  }
+  .ha-fast-scroll [data-card-fast-label] {
+    transform: none;
+  }
 }
 /* Small muted "where" kicker above the name — only present when the card knows
    its area (grouped by type/category, or favorites). */
@@ -1673,6 +1805,52 @@ html {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Idle marquee — truncated card labels slide back and forth to reveal their
+   tail while the list is idle or drifting slowly. The scroll container gains
+   `.ha-marquee-on` once from useIdleMarquee; a fast fling adds
+   `.ha-marquee-paused`, which freezes the glide in place via
+   animation-play-state. Pausing (rather than removing the animation) preserves
+   each label's progress, so there's no snap-to-origin, no synchronized restart,
+   and no clip↔ellipsis flash when scrolling starts or stops. Overflow
+   detection is pure CSS: each label is an inline-size container and its inner
+   span shifts by min(0, container − content) — zero for text that fits, so
+   only genuinely truncated labels ever move. */
+.ha-card-marquee {
+  container-type: inline-size;
+}
+.ha-marquee-on .ha-card-marquee {
+  /* The ellipsis glyph would sit fixed at the clip edge while the text slides
+     under it — trade it for a clean clip during the marquee. */
+  text-overflow: clip;
+}
+/* The inner span stays plain inline outside marquee mode so the parent's
+   ellipsis renders exactly as it would on a bare text node (ellipsizing an
+   inline-block is unreliable cross-browser). */
+.ha-marquee-on .ha-card-marquee > [data-marquee] {
+  display: inline-block;
+  min-width: 100%;
+  animation: ha-card-marquee 9s linear infinite;
+}
+.ha-marquee-on.ha-marquee-paused .ha-card-marquee > [data-marquee] {
+  animation-play-state: paused;
+}
+/* Hold at the start, glide to the end, hold, glide back. Linear timing — the
+   holds come from the duplicated keyframe stops. */
+@keyframes ha-card-marquee {
+  0%, 18% { transform: translateX(0); }
+  46%, 60% { transform: translateX(min(0px, calc(100cqw - 100%))); }
+  88%, 100% { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-marquee-on .ha-card-marquee > [data-marquee] {
+    display: inline;
+    animation: none;
+  }
+  .ha-marquee-on .ha-card-marquee {
+    text-overflow: ellipsis;
+  }
 }
 
 /* "Last opened" marker — a brief, faint wash (like a hover tint) that flashes

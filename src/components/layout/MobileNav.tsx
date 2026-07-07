@@ -28,18 +28,21 @@ import { HALogo } from '../ui/HALogo';
 import { MdiIcon } from '../ui/MdiIcon';
 import { CircularProgress } from '../ui/CircularProgress';
 import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPress, useHomeCenterPrefs } from '@/hooks';
+import { useActivities } from '@/hooks/useActivities';
+import { dismissActivity } from '@/lib/activities/dismissals';
+import { endedDismissKey } from '@/lib/activities/ledger';
+import type { ActivityStatus } from '@/lib/activities/types';
 import { HomeCenterPillIndicators, HomeCenterStatusSections, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
 import { SettingsNavPanel } from '@/components/profile';
 import { isSettingsSlug, type SettingsSlug } from '@/components/profile/settingsNavigation';
-import { usePullToRevealContext, useSearchContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, useMobileToolbar, type SidebarItem } from '@/contexts';
+import { usePullToRevealContext, useSearchContext, useAssistantContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, useMobileToolbar, type SidebarItem } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import { subscribeStatusPulse } from '@/lib/statusPulseBus';
 import { isNavAutoHideFrozen, subscribeNavAutoHideFrozen } from '@/lib/navAutoHideBus';
+import { setMobileNavOpen } from '@/lib/mobileNavOpenBus';
 import { haptic } from '@/lib/haptics';
 import {
-  areActivityDataEqual,
   areEntitySearchMatchesEqual,
-  selectActivityData,
   selectMatchingEntities,
 } from '@/lib/homeassistant/selectors';
 import {
@@ -56,11 +59,16 @@ import {
   mdiSkipPrevious,
   mdiSkipNext,
   mdiDoorbellVideo,
-  mdiSend,
+  mdiCreation,
   mdiPrinter3d,
   mdiViewDashboardOutline,
   mdiMenu,
   mdiCheck,
+  mdiCheckCircle,
+  mdiRobotVacuum,
+  mdiBatteryHigh,
+  mdiCloudUpload,
+  mdiShieldAlert,
 } from '@mdi/js';
 
 function parseTime(time: string): number {
@@ -109,7 +117,7 @@ function ArrangeDeleteBadge({ label, onDelete }: { label: string; onDelete: () =
       }}
       className="ha-arrange-badge absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-2 ring-surface-default"
     >
-      <Icon path={mdiClose} size={14} />
+      <Icon path={mdiClose} size={11} />
     </button>
   );
 }
@@ -273,8 +281,8 @@ function MobileAppTile({
 }
 
 export type ConnectionStatusType = 'connecting' | 'connected' | 'error' | null;
-type BottomSurfaceTab = 'dashboards' | 'search' | 'dashboard' | 'chat' | 'settings' | 'widget';
-type WidgetSurfaceType = 'release' | 'media' | 'timer' | 'camera' | 'printer';
+type BottomSurfaceTab = 'dashboards' | 'search' | 'dashboard' | 'settings' | 'widget';
+type WidgetSurfaceType = 'release' | 'media' | 'timer' | 'camera' | 'printer' | 'vacuum' | 'update' | 'backup' | 'alarm';
 
 interface SearchResultItem {
   id: string;
@@ -329,6 +337,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const { items } = useSidebarItems();
   const { isRevealed, close } = usePullToRevealContext();
   const { searchOpen, closeSearch } = useSearchContext();
+  const { openAssistant } = useAssistantContext();
   const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, reorderVisible } =
     useSidebarArrange();
   const { toolbarActive } = useMobileToolbar();
@@ -358,13 +367,16 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const [expandedWidgetId, setExpandedWidgetId] = useState<string | null>(null);
   const [expandedWidgetType, setExpandedWidgetType] = useState<WidgetSurfaceType | null>(null);
   // For multi-activity list picker
-  const [activityListType, setActivityListType] = useState<'release' | 'media' | 'timer' | 'camera' | 'printer' | 'all' | null>(null);
-  const [dismissedReleaseNotes, setDismissedReleaseNotes] = useState<Record<string, string>>({});
+  const [activityListType, setActivityListType] = useState<WidgetSurfaceType | 'all' | null>(null);
   const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(null);
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null);
   const [selectedTimerId, setSelectedTimerId] = useState<string | null>(null);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
+  const [selectedVacuumId, setSelectedVacuumId] = useState<string | null>(null);
+  const [selectedUpdateId, setSelectedUpdateId] = useState<string | null>(null);
+  const [selectedBackupId, setSelectedBackupId] = useState<string | null>(null);
+  const [selectedAlarmId, setSelectedAlarmId] = useState<string | null>(null);
   const scrollHideProgressRef = useRef(0);
   const lastScrollTopRef = useRef<number | null>(null);
   const scrollSnapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -408,7 +420,29 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const isBottomSurfaceEngaged = statusExpanded || isBottomSheetDragging;
   const sheetOpenProgress = isBottomSheetDragging ? bottomSheetDragProgress : (statusExpanded ? 1 : 0);
   const isSheetVisible = sheetOpenProgress > 0.001;
-  const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
+  // Collapse the activity + Home Center row away when it's redundant clutter:
+  // (1) while the pull-up sheet is open on a navigation surface, and (2) on the
+  // settings routes (Settings, its sub-pages incl. Home Center, and Profile),
+  // where the same status lives on the page itself. Keep it for the 'widget' tab
+  // so the tapped pill's shared-element transition into the sheet still plays.
+  const topRowVisibleRatio =
+    expandedSurfaceTab === 'widget' ? 1 : isSettingsRoute ? 0 : 1 - sheetOpenProgress;
+  const isTopRowHidden = topRowVisibleRatio <= 0.02;
+  // With the top row gone and the sheet down, tighten the drag-handle zone so the
+  // collapsed bar sits shorter. Keep the full grab zone while the sheet is up —
+  // it's the affordance for dragging the sheet closed.
+  const compactHandle = isTopRowHidden && !isSheetVisible;
+  // On settings routes the sheet isn't an entry point at all — hide the handle
+  // and its expand affordance entirely. It comes back while the sheet is up
+  // (opened via the tabs) so it can still be dragged closed.
+  const hideHandle = isSettingsRoute && !isSheetVisible;
+  // Broadcast the open state so surfaces floating above the scrim (corner toast,
+  // dashboard filter FAB) can fade out while the sheet is up, and back in after.
+  useEffect(() => {
+    setMobileNavOpen(isSheetVisible);
+  }, [isSheetVisible]);
+  useEffect(() => () => setMobileNavOpen(false), []);
+  const { data: activityData, activities } = useActivities();
   const { visibleSections } = useHomeCenterPrefs();
   // Pulse the status pill when a toast nudges attention to the command center
   // (e.g. an unattended device-discovery toast), mirroring the desktop StatusBar.
@@ -429,10 +463,14 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       if (statusPulseTimer.current) clearTimeout(statusPulseTimer.current);
     };
   }, [visibleSections]);
-  const matchingEntities = useHomeAssistantSelector(
-    (entities) => selectMatchingEntities(entities, expandedSearchQuery),
-    areEntitySearchMatchesEqual
+  // Memoized so the selector's snapshot-identity cache holds between renders;
+  // an inline closure would re-scan every entity on each nav render.
+  const selectSearchMatches = useCallback(
+    (entities: Parameters<typeof selectMatchingEntities>[0]) =>
+      selectMatchingEntities(entities, expandedSearchQuery),
+    [expandedSearchQuery]
   );
+  const matchingEntities = useHomeAssistantSelector(selectSearchMatches, areEntitySearchMatchesEqual);
   const effectiveHideProgress = disableAutoHide || isRevealed || isBottomSurfaceEngaged
     ? 0
     : hideFromInactivity
@@ -897,6 +935,18 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     router.push(path);
   }, [closeExpandedSurface, router]);
 
+  // Tapping the settings entry while already on the settings root scrolls that
+  // page back to the top (a no-op push wouldn't). From anywhere else it just
+  // navigates there.
+  const handleSettingsTap = useCallback(() => {
+    if (pathname === '/settings') {
+      closeExpandedSurface();
+      getDashboardScrollableForPath('/settings')?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    navigateFromSurface('/settings');
+  }, [pathname, closeExpandedSurface, navigateFromSurface]);
+
   const openExpandedSurface = useCallback(
     (tab: BottomSurfaceTab) => {
       if (statusExpanded && expandedSurfaceTab === tab) {
@@ -942,7 +992,11 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       else if (type === 'media') setSelectedMediaId(entityId);
       else if (type === 'timer') setSelectedTimerId(entityId);
       else if (type === 'camera') setSelectedCameraId(entityId);
-      else setSelectedPrinterId(entityId);
+      else if (type === 'printer') setSelectedPrinterId(entityId);
+      else if (type === 'update') setSelectedUpdateId(entityId);
+      else if (type === 'backup') setSelectedBackupId(entityId);
+      else if (type === 'alarm') setSelectedAlarmId(entityId);
+      else setSelectedVacuumId(entityId);
 
       setExpandedSurfaceTab('widget');
       setStatusExpanded(true);
@@ -1107,11 +1161,12 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     return { picture: undefined, initials: 'U' };
   }, [activityData.user, haUrl]);
 
-  const allActiveReleaseNotes = activityData.activeReleaseNotes;
-
+  // Per-type lists come from the activity ledger: relevance-sorted, ended
+  // items lingering in their final state, persisted dismissals filtered out —
+  // identical to what the desktop status bar shows.
   const visibleReleaseNotes = useMemo(
-    () => allActiveReleaseNotes.filter((note) => dismissedReleaseNotes[note.entityId] !== note.updatedAt),
-    [allActiveReleaseNotes, dismissedReleaseNotes]
+    () => activities.releaseNotes.map(({ summary, status }) => ({ ...summary, status })),
+    [activities.releaseNotes]
   );
 
   // Get active release note (selected or first)
@@ -1121,7 +1176,10 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     return found || visibleReleaseNotes[0];
   }, [selectedReleaseId, visibleReleaseNotes]);
 
-  const allActiveMedia = activityData.activePlayers;
+  const allActiveMedia = useMemo(
+    () => activities.players.map(({ summary, status }) => ({ ...summary, status })),
+    [activities.players]
+  );
 
   // Get active media player with image (selected or first)
   const activeMedia = useMemo(() => {
@@ -1133,10 +1191,11 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   // Count active media players
   const activeMediaCount = allActiveMedia.length;
 
-  const allActiveTimers = useMemo(() => activityData.activeTimers.map((timer) => ({
-    ...timer,
-    isPaused: timer.state === 'paused',
-  })), [activityData.activeTimers]);
+  const allActiveTimers = useMemo(() => activities.timers.map(({ summary, status }) => ({
+    ...summary,
+    isPaused: summary.state === 'paused',
+    status,
+  })), [activities.timers]);
 
   // Get active timer (selected or first)
   const activeTimer = useMemo(() => {
@@ -1145,7 +1204,10 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     return found || allActiveTimers[0];
   }, [allActiveTimers, selectedTimerId]);
 
-  const allActiveCameras = activityData.activeCameras;
+  const allActiveCameras = useMemo(
+    () => activities.cameras.map(({ summary, status }) => ({ ...summary, status })),
+    [activities.cameras]
+  );
 
   // Get active camera (selected or first)
   const activeCamera = useMemo(() => {
@@ -1154,7 +1216,10 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     return found || allActiveCameras[0];
   }, [allActiveCameras, selectedCameraId]);
 
-  const allActivePrinters = activityData.activePrinters;
+  const allActivePrinters = useMemo(
+    () => activities.printers.map(({ summary, status }) => ({ ...summary, status })),
+    [activities.printers]
+  );
 
   // Get active printer (selected or first)
   const activePrinter = useMemo(() => {
@@ -1163,30 +1228,33 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     return found || allActivePrinters[0];
   }, [allActivePrinters, selectedPrinterId]);
 
+  const allActiveVacuums = useMemo(
+    () => activities.vacuums.map(({ summary, status }) => ({ ...summary, status })),
+    [activities.vacuums]
+  );
+
+  // Get active vacuum (selected or first)
+  const activeVacuum = useMemo(() => {
+    if (allActiveVacuums.length === 0) return null;
+    const found = selectedVacuumId ? allActiveVacuums.find(v => v.entityId === selectedVacuumId) : null;
+    return found || allActiveVacuums[0];
+  }, [allActiveVacuums, selectedVacuumId]);
+
   // Derive visibility
   const showReleaseWidget = !!activeRelease;
   const showMediaWidget = !!activeMedia;
   const showTimerWidget = !!activeTimer;
   const showCameraWidget = !!activeCamera;
   const showPrinterWidget = !!activePrinter;
+  const showVacuumWidget = !!activeVacuum;
 
   // Live activities are capped in the mobile navbar. Types past the cap collapse
-  // into a "+N" overflow pill that opens the combined Active Now sheet. Order here
-  // mirrors the render order below so the first-N kept are the ones shown.
+  // into a "+N" overflow pill that opens the combined Active Now sheet. The
+  // ledger's relevance order decides which types make the cut, so the mobile
+  // row and the desktop dock always agree on what matters most.
+  // Two, since the always-visible Ask pill shares the row's width.
   const MAX_VISIBLE_ACTIVITIES = 2;
-  const activeWidgetTypes = useMemo<WidgetSurfaceType[]>(
-    () =>
-      (
-        [
-          showReleaseWidget ? 'release' : null,
-          showCameraWidget ? 'camera' : null,
-          showPrinterWidget ? 'printer' : null,
-          showMediaWidget ? 'media' : null,
-          showTimerWidget ? 'timer' : null,
-        ] as Array<WidgetSurfaceType | null>
-      ).filter((t): t is WidgetSurfaceType => t !== null),
-    [showReleaseWidget, showCameraWidget, showPrinterWidget, showMediaWidget, showTimerWidget]
-  );
+  const activeWidgetTypes = activities.typeOrder;
   const visibleActivityTypes = activeWidgetTypes.slice(0, MAX_VISIBLE_ACTIVITIES);
   const activityOverflowCount = activeWidgetTypes.length - visibleActivityTypes.length;
   const hasActivityOverflow = activityOverflowCount > 0;
@@ -1233,8 +1301,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const activeTimerCount = allActiveTimers.length;
   const activeCameraCount = allActiveCameras.length;
   const activePrinterCount = allActivePrinters.length;
+  const activeVacuumCount = allActiveVacuums.length;
   const displayedTimerProgress = activeTimer ? timerProgress : 0;
-  
+
   // Home is pinned first in its own cell; the rest carry the session arrange
   // order + soft-hides. Soft-hidden items also drop out of search.
   const homeItem = useMemo(() => items.find((item) => item && item.urlPath === '/'), [items]);
@@ -1371,7 +1440,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               onDragEnd={handleDashboardDragEnd}
             >
               <div className="grid grid-cols-3 gap-ha-3">
-                {homeItem && (
+                {homeItem && !arranging && (
                   <MobileDashboardCard
                     item={homeItem}
                     index={-1}
@@ -1435,22 +1504,30 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     if (expandedSurfaceTab === 'search') {
       return (
         <div className="space-y-ha-5 pb-ha-2">
-          <div className="flex items-center gap-ha-3">
-            <SearchField
-              value={expandedSearchQuery}
-              onChange={setExpandedSearchQuery}
-              placeholder="Search dashboards, apps, entities..."
-              className="flex-1"
-            />
-            <button
-              type="button"
-              aria-label="Close search"
-              onClick={closeExpandedSurface}
-              className="w-11 h-11 rounded-ha-xl border border-surface-low/80 bg-surface-low flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-mid/40 transition-colors"
-            >
-              <Icon path={mdiClose} size={20} />
-            </button>
-          </div>
+          {/* Merged assistant entry — with a query it hands the question over,
+              empty it's the plain "ask anything" entry point. */}
+          <button
+            type="button"
+            onClick={() => {
+              const query = expandedSearchQuery.trim();
+              closeExpandedSurface();
+              openAssistant(query || undefined);
+            }}
+            className="w-full flex items-center gap-ha-4 px-ha-4 py-ha-3 rounded-ha-2xl bg-ha-blue/10 border border-ha-blue/20 text-left active:scale-[0.98] transition-transform"
+          >
+            <div className="w-10 h-10 rounded-ha-xl bg-ha-blue/15 flex items-center justify-center flex-shrink-0">
+              <Icon path={mdiCreation} size={20} className="text-ha-blue" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-medium text-text-primary leading-tight truncate">
+                {expandedSearchQuery.trim() ? `Ask Home — “${expandedSearchQuery.trim()}”` : 'Ask Home anything…'}
+              </p>
+              <p className="text-sm text-text-secondary truncate mt-0.5">
+                {expandedSearchQuery.trim() ? 'Hand this question to your assistant' : 'Questions and commands, by voice or text'}
+              </p>
+            </div>
+            <Icon path={mdiChevronRight} size={22} className="text-ha-blue/60" />
+          </button>
 
           {!showSearchEmptyState && (
             <div className="space-y-ha-2">
@@ -1536,10 +1613,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               <button
                 onClick={() => {
                   const remaining = visibleReleaseNotes.filter((note) => note.entityId !== activeRelease.entityId);
-                  setDismissedReleaseNotes((prev) => {
-                    if (prev[activeRelease.entityId] === activeRelease.updatedAt) return prev;
-                    return { ...prev, [activeRelease.entityId]: activeRelease.updatedAt };
-                  });
+                  // Persisted + shared with the desktop dock; never reposts
+                  // for this updatedAt.
+                  dismissActivity(activeRelease.entityId, activeRelease.updatedAt);
 
                   if (remaining.length > 0) {
                     setSelectedReleaseId(remaining[0].entityId);
@@ -1614,6 +1690,48 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         );
       }
 
+      if (expandedWidgetType === 'vacuum' && activeVacuum) {
+        const status = activeVacuum.state === 'returning' ? 'Returning to Dock' : 'Cleaning';
+        return (
+          <div className="space-y-ha-4 pb-ha-2">
+            <div className="bg-surface-low rounded-ha-xl border border-surface-mid p-ha-4">
+              <div className="text-[13px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3">{status}</div>
+              <div className="w-full aspect-square rounded-ha-xl overflow-hidden mb-ha-4 border border-surface-mid relative">
+                <img src={getEntityPictureUrl(activeVacuum.entityPicture, '/devices/robot_vacuum.png')} alt={activeVacuum.name} className="w-full h-full object-cover" />
+                <div className="absolute bottom-2 right-2 bg-black/60 rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
+                  <Icon path={mdiRobotVacuum} size={14} className="text-ha-blue" />
+                  <span className="text-[13px] font-bold text-white">{activeVacuum.area || 'Whole home'}</span>
+                </div>
+              </div>
+              <div className="mb-ha-4">
+                <div className="flex justify-between mb-1">
+                  <span className="text-xs font-bold text-text-primary truncate">{activeVacuum.name}</span>
+                  <span className="text-xs font-mono font-bold text-ha-blue">{activeVacuum.progress}%</span>
+                </div>
+                <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-mid/60">
+                  <div className="bg-ha-blue h-full transition-all duration-500" style={{ width: `${activeVacuum.progress}%` }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-ha-3 mb-ha-4">
+                <div className="flex flex-col items-center gap-1 p-ha-3 bg-surface-mid/60 rounded-ha-xl">
+                  <Icon path={mdiBatteryHigh} size={18} className="text-green-500" />
+                  <span className="text-[13px] font-bold text-text-disabled uppercase">Battery</span>
+                  <span className="text-sm font-mono font-bold text-text-primary">{activeVacuum.battery ?? '—'}%</span>
+                </div>
+                <div className="flex flex-col items-center gap-1 p-ha-3 bg-surface-mid/60 rounded-ha-xl">
+                  <Icon path={mdiRobotVacuum} size={18} className="text-ha-blue" />
+                  <span className="text-[13px] font-bold text-text-disabled uppercase">Mode</span>
+                  <span className="text-sm font-bold text-text-primary">{activeVacuum.fanSpeed || 'Auto'}</span>
+                </div>
+              </div>
+              <button className="w-full h-11 rounded-ha-xl bg-red-500/10 text-red-500 font-bold text-xs uppercase tracking-wider transition-colors hover:bg-red-500 hover:text-white active:scale-95">
+                Stop &amp; Dock
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       if (expandedWidgetType === 'media' && activeMedia) {
         return (
           <div className="space-y-ha-4 pb-ha-2">
@@ -1654,24 +1772,45 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               <div className="text-[13px] font-bold text-ha-blue uppercase tracking-widest mb-ha-3 self-start">Timer</div>
               <div className="relative mb-ha-5">
                 <CircularProgress
-                  progress={displayedTimerProgress}
+                  progress={activeTimer.status.phase === 'ended' ? 1 : displayedTimerProgress}
                   size={140}
                   strokeWidth={6}
-                  className={activeTimer.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
-                  trackClassName={activeTimer.isPaused ? 'text-yellow-200' : 'text-fill-primary-quiet'}
+                  className={activeTimer.status.phase === 'ended' ? 'text-green-600' : activeTimer.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
+                  trackClassName={activeTimer.status.phase === 'ended' ? 'text-green-500/20' : activeTimer.isPaused ? 'text-yellow-200' : 'text-fill-primary-quiet'}
                 />
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-2xl font-bold font-mono text-text-primary tracking-tighter">
-                    {activeTimer.remaining}
-                  </span>
+                  {activeTimer.status.phase === 'ended' ? (
+                    <>
+                      <Icon path={mdiCheckCircle} size={36} className="text-green-600 mb-1" />
+                      <span className="text-[13px] font-bold text-green-600 uppercase tracking-widest">
+                        {activeTimer.status.endLabel || 'Done'}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-2xl font-bold font-mono text-text-primary tracking-tighter">
+                      {activeTimer.remaining}
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-ha-3 w-full">
-                <button className="h-11 rounded-ha-xl bg-surface-mid text-text-secondary font-bold text-xs uppercase tracking-wider">Cancel</button>
-                <button className={`h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white ${activeTimer.isPaused ? 'bg-ha-blue' : 'bg-yellow-500'}`}>
-                  {activeTimer.isPaused ? 'Resume' : 'Pause'}
+              {activeTimer.status.phase === 'ended' ? (
+                <button
+                  onClick={() => {
+                    dismissActivity(activeTimer.entityId, endedDismissKey(activeTimer.status));
+                    closeExpandedSurface();
+                  }}
+                  className="w-full h-11 rounded-ha-xl bg-green-600 text-white font-bold text-xs uppercase tracking-wider active:scale-95 transition-transform"
+                >
+                  Dismiss
                 </button>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-ha-3 w-full">
+                  <button className="h-11 rounded-ha-xl bg-surface-mid text-text-secondary font-bold text-xs uppercase tracking-wider">Cancel</button>
+                  <button className={`h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white ${activeTimer.isPaused ? 'bg-ha-blue' : 'bg-yellow-500'}`}>
+                    {activeTimer.isPaused ? 'Resume' : 'Pause'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );
@@ -1681,29 +1820,6 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         <div className="text-center py-10">
           <Icon path={mdiViewDashboardOutline} size={36} className="text-text-tertiary mx-auto mb-ha-2" />
           <p className="text-sm text-text-secondary">No active widget selected.</p>
-        </div>
-      );
-    }
-
-    if (expandedSurfaceTab === 'chat') {
-      return (
-        <div className="flex flex-col h-full min-h-[50vh]">
-           <div className="flex flex-col gap-ha-4 justify-center items-center text-center px-ha-4 flex-1">
-              <div className="w-16 h-16 bg-ha-blue/10 rounded-full flex items-center justify-center mb-ha-2">
-                 <Icon path={mdiMicrophone} size={32} className="text-ha-blue" />
-              </div>
-              <div>
-                <h4 className="text-base font-bold text-text-primary mb-1">How can I help you?</h4>
-                <p className="text-xs text-text-secondary">Try &quot;Turn off the kitchen lights&quot; or &quot;Show me the front door&quot;</p>
-              </div>
-           </div>
-
-           <div className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill p-ha-1 mt-auto flex-shrink-0">
-              <input type="text" placeholder="Type or speak..." className="flex-1 px-ha-4 text-sm text-text-primary bg-transparent outline-none focus:ring-0" />
-              <button className="w-10 h-10 rounded-full bg-ha-blue flex items-center justify-center text-white shadow-md active:scale-95 transition-transform flex-shrink-0">
-                <Icon path={mdiSend} size={18} />
-              </button>
-           </div>
         </div>
       );
     }
@@ -1756,17 +1872,17 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         type="button"
         aria-label="Close expanded panel"
         onClick={closeExpandedSurface}
-        className={`fixed inset-0-[1px] transition-opacity duration-300 ${
+        className={`fixed inset-0 transition-opacity duration-300 ${
           isSheetVisible ? 'z-0' : '-z-10'
         } ${
           statusExpanded && !isBottomSheetDragging ? '' : 'pointer-events-none'
-        } bg-black/50`}
+        } bg-black/70`}
         style={{ opacity: isSheetVisible ? 1 : 0 }}
       />
       <div className="relative z-10 px-edge">
         <div className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden">
-          <div className="relative rounded-[23px] bg-surface-default/95">
-            <div className="flex flex-col px-edge pt-ha-1 pb-ha-4">
+          <div className="relative rounded-[calc(var(--ha-radius-3xl)-1px)] bg-surface-default/95">
+            <div className="flex flex-col px-ha-2 pt-ha-1 pb-ha-2">
               <div className="flex justify-center py-0 mb-0 shrink-0">
                 {/* Generous, mostly-invisible grab zone so a swipe that starts
                     anywhere near the pill's top edge reliably opens/closes the
@@ -1776,7 +1892,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                   type="button"
                   aria-label={sheetOpenProgress > 0.5 ? 'Collapse bottom panel' : 'Expand bottom panel'}
                   onClick={() => (statusExpanded ? closeExpandedSurface() : openExpandedSurface(expandedSurfaceTab))}
-                  className="-my-ha-2 h-9 w-32 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none"
+                  className={`w-32 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none transition-[height,margin,opacity] duration-300 ease-out ${
+                    hideHandle
+                      ? 'h-0 my-0 opacity-0 pointer-events-none'
+                      : compactHandle
+                        ? '-my-ha-2 h-5'
+                        : '-my-ha-2 h-7'
+                  }`}
                 >
                   <span className="w-7 h-1 rounded-full bg-text-secondary/30" />
                 </button>
@@ -1791,6 +1913,26 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                     : 'height 0.5s cubic-bezier(0.22,1,0.36,1), opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
                 }}
               >
+                {/* Search header stays pinned above the scroll area — only the
+                    results list scrolls, fading under the top gradient. */}
+                {expandedSurfaceTab === 'search' && (
+                  <div className="shrink-0 flex items-center gap-ha-3 px-ha-1 pt-ha-3 pb-ha-2">
+                    <SearchField
+                      value={expandedSearchQuery}
+                      onChange={setExpandedSearchQuery}
+                      placeholder="Search or ask anything..."
+                      className="flex-1"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Close search"
+                      onClick={closeExpandedSurface}
+                      className="w-11 h-11 rounded-ha-xl border border-surface-low/80 bg-surface-low flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-mid/40 transition-colors"
+                    >
+                      <Icon path={mdiClose} size={20} />
+                    </button>
+                  </div>
+                )}
                 <div className="relative flex-1 min-h-0">
                   <div
                     className={`pointer-events-none absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-20 transition-opacity duration-200 ${
@@ -1810,8 +1952,20 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                   </div>
                 </div>
               </div>
-        {/* Top row: Ask your home + Media + Timer + Status */}
-        <div className="flex items-center gap-ha-2 shrink-0">
+        {/* Top row: Ask your home + Media + Timer + Status. Collapses away while
+            the pull-up sheet is open on a nav surface — see topRowVisibleRatio. */}
+        <div
+          className="overflow-hidden shrink-0"
+          style={{
+            maxHeight: `${52 * topRowVisibleRatio}px`,
+            opacity: topRowVisibleRatio,
+            pointerEvents: isTopRowHidden ? 'none' : 'auto',
+            transition: isBottomSheetDragging
+              ? 'none'
+              : 'max-height 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.3s cubic-bezier(0.22,1,0.36,1)',
+          }}
+        >
+        <div className="flex items-center gap-ha-2 shrink-0 pt-1.5">
           {showHomeBackButton && (
             <Link prefetch={false}
               href={backHref}
@@ -1821,26 +1975,27 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               <Icon path={mdiArrowLeft} size={20} />
             </Link>
           )}
-          {/* Ask your home */}
-          <div className="flex-1 min-w-0 h-10 relative">
-            <button
-              onClick={() => openExpandedSurface('chat')}
-              className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill px-ha-3 h-full w-full active:scale-95 transition-transform"
-            >
-              <span className="text-sm text-text-disabled truncate flex-1 text-left">
-                Ask <span className="text-text-tertiary/60 capitalize">{
-                  pathname === '/' ? 'Home' :
-                  pathname.startsWith('/dashboard/') ? pathname.split('/')[2] :
-                  pathname.startsWith('/panel/') ? pathname.split('/')[2] :
-                  'Home'
-                }</span>...
-              </span>
-              <Icon path={mdiMicrophone} size={18} className="text-text-secondary" />
-            </button>
-          </div>
+          {/* Ask your home — always-visible entry to the assistant overlay,
+              takes the row's leftover width (activities + status pill are fixed). */}
+          <button
+            type="button"
+            onClick={() => openAssistant()}
+            aria-label="Ask your home"
+            className="flex-1 min-w-0 h-10 flex items-center gap-ha-2 bg-surface-low rounded-ha-pill px-ha-3 active:scale-95 transition-transform"
+          >
+            <span className="text-sm text-text-disabled truncate flex-1 text-left">
+              Ask <span className="text-text-tertiary/60 capitalize">{
+                pathname === '/' ? 'Home' :
+                pathname.startsWith('/dashboard/') ? pathname.split('/')[2] :
+                pathname.startsWith('/panel/') ? pathname.split('/')[2] :
+                'Home'
+              }</span>…
+            </span>
+            <Icon path={mdiMicrophone} size={18} className="text-text-secondary flex-shrink-0" />
+          </button>
 
-          {/* Release + Media + Timer + Camera + Printer widgets container */}
-          {(showReleaseWidget || showMediaWidget || showTimerWidget || showCameraWidget || showPrinterWidget) && (
+          {/* Release + Media + Timer + Camera + Printer + Vacuum widgets container */}
+          {(showReleaseWidget || showMediaWidget || showTimerWidget || showCameraWidget || showPrinterWidget || showVacuumWidget) && (
             <div className="flex items-center gap-2 flex-shrink-0">
               <AnimatePresence initial={false} mode="popLayout">
               {/* Release notes - always first */}
@@ -1853,6 +2008,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                   exit={{ opacity: 0, x: -10 }}
                   transition={activityWidgetTransition}
                   className="relative"
+                  style={{ order: visibleActivityTypes.indexOf('release') }}
                 >
                   <motion.button
                     layoutId={activeRelease?.entityId}
@@ -1863,7 +2019,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         toggleWidgetSurface('release', activeRelease.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-surface-low border ${
+                    className={`relative flex items-center justify-center rounded-full w-9 h-9 transition-all bg-surface-low border ${
                       statusExpanded &&
                       expandedSurfaceTab === 'widget' &&
                       expandedWidgetType === 'release' &&
@@ -1872,7 +2028,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         : 'border-transparent'
                     }`}
                   >
-                    <Icon path={mdiUpdate} size={16} className="text-green-600" />
+                    <Icon path={mdiUpdate} size={14} exact className="text-green-600" />
                     {activeReleaseCount > 1 && (
                       <span className="absolute -top-1 -right-1 bg-green-600 text-white text-[13px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
                         {activeReleaseCount}
@@ -1880,7 +2036,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                     )}
                     {activeReleaseCount <= 1 && (
                       <span className="absolute -bottom-1 -right-1 bg-surface-default rounded-full p-0.5 shadow-sm z-10 border border-surface-low">
-                        <Icon path={mdiUpdate} size={10} className="text-green-600" />
+                        <Icon path={mdiUpdate} size={10} exact className="text-green-600" />
                       </span>
                     )}
                   </motion.button>
@@ -1890,13 +2046,14 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               {/* Camera - show when alert */}
               {visibleActivityTypes.includes('camera') && (
                 <motion.div
-                  key="camera-widget"
+                  key={`camera-widget-${activeCamera?.status.alertAt ?? 'quiet'}`}
                   layout="position"
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
                   transition={activityWidgetTransition}
-                  className="relative"
+                  className={`relative ${activeCamera?.status.alertAt ? 'ha-status-pulse' : ''}`}
+                  style={{ order: visibleActivityTypes.indexOf('camera') }}
                 >
                   <motion.button 
                     layoutId={activeCamera?.entityId}
@@ -1907,7 +2064,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         if (activeCamera?.entityId) toggleWidgetSurface('camera', activeCamera.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-red-500/10 border ${
+                    className={`relative flex items-center justify-center rounded-full w-9 h-9 transition-all bg-red-500/10 border ${
                       statusExpanded &&
                       expandedSurfaceTab === 'widget' &&
                       expandedWidgetType === 'camera' &&
@@ -1920,7 +2077,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                       <img
                         src={getEntityPictureUrl(activeCamera?.entityPicture, '/camera_doorbell.png')}
                         alt=""
-                        className="w-full h-full object-cover animate-pulse"
+                        className={`w-full h-full object-cover ${activeCamera?.status.phase === 'ended' ? '' : 'animate-pulse'}`}
                       />
                     </div>
                     {/* Count badge - always on top */}
@@ -1932,7 +2089,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                     {/* Status badge - always on bottom */}
                     {activeCameraCount <= 1 && (
                       <span className="absolute -bottom-1 -right-1 bg-red-500 rounded-full p-0.5 shadow-sm z-10 border border-surface-default">
-                        <Icon path={mdiDoorbellVideo} size={10} className="text-white" />
+                        <Icon path={mdiDoorbellVideo} size={10} exact className="text-white" />
                       </span>
                     )}
                   </motion.button>
@@ -1942,13 +2099,14 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               {/* Printer - show when active */}
               {visibleActivityTypes.includes('printer') && (
                 <motion.div
-                  key="printer-widget"
+                  key={`printer-widget-${activePrinter?.status.alertAt ?? 'quiet'}`}
                   layout="position"
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
                   transition={activityWidgetTransition}
-                  className="relative"
+                  className={`relative ${activePrinter?.status.alertAt ? 'ha-status-pulse' : ''} ${activePrinter?.status.isStale ? 'opacity-70' : ''}`}
+                  style={{ order: visibleActivityTypes.indexOf('printer') }}
                 >
                   <motion.button 
                     layoutId={activePrinter?.entityId}
@@ -1959,7 +2117,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         if (activePrinter?.entityId) toggleWidgetSurface('printer', activePrinter.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-surface-low ${
+                    className={`relative flex items-center justify-center rounded-full w-9 h-9 transition-all bg-surface-low ${
                       statusExpanded &&
                       expandedSurfaceTab === 'widget' &&
                       expandedWidgetType === 'printer' &&
@@ -1968,27 +2126,94 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         : ''
                     }`}
                   >
-                    <CircularProgress
-                      progress={(activePrinter?.progress || 0) / 100}
-                      size={32}
-                      strokeWidth={2.5}
-                      className="text-ha-blue"
-                      trackClassName="text-fill-primary-quiet"
-                    >
-                      <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
-                        <img src={getEntityPictureUrl(activePrinter?.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
-                      </div>
-                    </CircularProgress>
+                    {activePrinter?.status.phase === 'ended' ? (
+                      <Icon path={mdiCheckCircle} size={26} exact className={activePrinter.status.endLabel === 'Print complete' ? 'text-green-600' : 'text-text-secondary'} />
+                    ) : (
+                      <CircularProgress
+                        progress={(activePrinter?.progress || 0) / 100}
+                        size={28}
+                        strokeWidth={2.5}
+                        className="text-ha-blue"
+                        trackClassName="text-fill-primary-quiet"
+                      >
+                        <div className="w-4 h-4 rounded-full overflow-hidden bg-surface-mid">
+                          <img src={getEntityPictureUrl(activePrinter?.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      </CircularProgress>
+                    )}
                     {/* Count badge - always on top */}
                     {activePrinterCount > 1 && (
                       <span className="absolute -top-1 -right-1 bg-ha-blue text-white text-[13px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
                         {activePrinterCount}
                       </span>
                     )}
-                    {/* Status badge - always on bottom */}
-                    <span className="absolute -bottom-1 -right-1 bg-surface-default rounded-full p-0.5 shadow-sm z-10 border border-surface-low">
-                      <Icon path={mdiPrinter3d} size={10} className="text-ha-blue" />
-                    </span>
+                    {/* Type badge - only when a single item (count badge takes over otherwise) */}
+                    {activePrinterCount <= 1 && (
+                      <span className="absolute -bottom-1 -right-1 bg-surface-default rounded-full p-0.5 shadow-sm z-10 border border-surface-low">
+                        <Icon path={mdiPrinter3d} size={10} exact className="text-ha-blue" />
+                      </span>
+                    )}
+                  </motion.button>
+                </motion.div>
+              )}
+
+              {/* Vacuum - show when cleaning/returning */}
+              {visibleActivityTypes.includes('vacuum') && (
+                <motion.div
+                  key="vacuum-widget"
+                  layout="position"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={activityWidgetTransition}
+                  className={`relative ${activeVacuum?.status.isStale ? 'opacity-70' : ''}`}
+                  style={{ order: visibleActivityTypes.indexOf('vacuum') }}
+                >
+                  <motion.button
+                    layoutId={activeVacuum?.entityId}
+                    onClick={() => {
+                      if (activeVacuumCount > 1) {
+                        setActivityListType('vacuum');
+                      } else {
+                        if (activeVacuum?.entityId) toggleWidgetSurface('vacuum', activeVacuum.entityId);
+                      }
+                    }}
+                    className={`relative flex items-center justify-center rounded-full w-9 h-9 transition-all bg-surface-low ${
+                      statusExpanded &&
+                      expandedSurfaceTab === 'widget' &&
+                      expandedWidgetType === 'vacuum' &&
+                      expandedWidgetId === activeVacuum?.entityId
+                        ? 'ha-selected'
+                        : ''
+                    }`}
+                  >
+                    {activeVacuum?.status.phase === 'ended' ? (
+                      <Icon path={mdiCheckCircle} size={26} exact className="text-green-600" />
+                    ) : (
+                      <CircularProgress
+                        progress={(activeVacuum?.progress || 0) / 100}
+                        size={28}
+                        strokeWidth={2.5}
+                        className="text-ha-blue"
+                        trackClassName="text-fill-primary-quiet"
+                      >
+                        <div className="w-4 h-4 rounded-full overflow-hidden bg-surface-mid">
+                          <img src={getEntityPictureUrl(activeVacuum?.entityPicture, '/devices/robot_vacuum.png')} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      </CircularProgress>
+                    )}
+                    {/* Count badge - always on top */}
+                    {activeVacuumCount > 1 && (
+                      <span className="absolute -top-1 -right-1 bg-ha-blue text-white text-[13px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center z-10 ring-1 ring-surface-default">
+                        {activeVacuumCount}
+                      </span>
+                    )}
+                    {/* Type badge - only when a single item (count badge takes over otherwise) */}
+                    {activeVacuumCount <= 1 && (
+                      <span className="absolute -bottom-1 -right-1 bg-surface-default rounded-full p-0.5 shadow-sm z-10 border border-surface-low">
+                        <Icon path={mdiRobotVacuum} size={10} exact className="text-ha-blue" />
+                      </span>
+                    )}
                   </motion.button>
                 </motion.div>
               )}
@@ -2002,7 +2227,8 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
                   transition={activityWidgetTransition}
-                  className="relative"
+                  className={`relative ${activeMedia?.status.isStale ? 'opacity-70' : ''}`}
+                  style={{ order: visibleActivityTypes.indexOf('media') }}
                 >
                   <motion.button 
                     layoutId={activeMedia?.entityId}
@@ -2013,7 +2239,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         if (activeMedia?.entityId) toggleWidgetSurface('media', activeMedia.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 bg-surface-low transition-all ${
+                    className={`relative flex items-center justify-center rounded-full w-9 h-9 bg-surface-low transition-all ${
                       statusExpanded &&
                       expandedSurfaceTab === 'widget' &&
                       expandedWidgetType === 'media' &&
@@ -2022,11 +2248,11 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         : ''
                     }`}
                   >
-                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center">
                       {activeMedia?.entityPicture ? (
                         <img src={getEntityPictureUrl(activeMedia.entityPicture)} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <Icon path={mdiPlay} size={18} className="text-ha-blue" />
+                        <Icon path={mdiPlay} size={15} exact className="text-ha-blue" />
                       )}
                     </div>
                     {/* Count badge - always on top */}
@@ -2035,14 +2261,17 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         {activeMediaCount}
                       </span>
                     )}
-                    {/* Status badge - always on bottom */}
-                    <span className="absolute -bottom-1 -right-1 bg-surface-default rounded-full p-0.5 shadow-sm z-10 border border-surface-low">
-                      <Icon
-                        path={activeMedia?.state === 'playing' ? mdiPlay : mdiPause}
-                        size={10}
-                        className={activeMedia?.state === 'playing' ? 'text-ha-blue' : 'text-yellow-600'}
-                      />
-                    </span>
+                    {/* State badge - only when a single item (count badge takes over otherwise) */}
+                    {activeMediaCount <= 1 && (
+                      <span className="absolute -bottom-1 -right-1 bg-surface-default rounded-full p-0.5 shadow-sm z-10 border border-surface-low">
+                        <Icon
+                          path={activeMedia?.state === 'playing' ? mdiPlay : mdiPause}
+                          size={10}
+                          exact
+                          className={activeMedia?.state === 'playing' ? 'text-ha-blue' : 'text-yellow-600'}
+                        />
+                      </span>
+                    )}
                   </motion.button>
                 </motion.div>
               )}
@@ -2050,13 +2279,14 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               {/* Timer - only show when active */}
               {visibleActivityTypes.includes('timer') && (
                 <motion.div
-                  key="timer-widget"
+                  key={`timer-widget-${activeTimer?.status.alertAt ?? 'quiet'}`}
                   layout="position"
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
                   transition={activityWidgetTransition}
-                  className="relative"
+                  className={`relative ${activeTimer?.status.alertAt ? 'ha-status-pulse' : ''}`}
+                  style={{ order: visibleActivityTypes.indexOf('timer') }}
                 >
                   <motion.button 
                     layoutId={activeTimer?.entityId}
@@ -2067,7 +2297,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                         if (activeTimer?.entityId) toggleWidgetSurface('timer', activeTimer.entityId);
                       }
                     }}
-                    className={`relative flex items-center justify-center rounded-full w-10 h-10 transition-all bg-surface-low ${
+                    className={`relative flex items-center justify-center rounded-full w-9 h-9 transition-all bg-surface-low ${
                     statusExpanded &&
                     expandedSurfaceTab === 'widget' &&
                     expandedWidgetType === 'timer' &&
@@ -2075,33 +2305,41 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                       ? 'ha-selected'
                       : ''
                   }`}>
-                    <CircularProgress
-                      progress={displayedTimerProgress}
-                      size={32}
-                      strokeWidth={2.5}
-                      className={activeTimer?.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
-                      trackClassName={activeTimer?.isPaused ? 'text-yellow-200' : 'text-fill-primary-quiet'}
-                    >
-                      <Icon
-                        path={activeTimer?.isPaused ? mdiPause : mdiTimerOutline}
-                        size={14}
+                    {activeTimer?.status.phase === 'ended' ? (
+                      <Icon path={mdiCheckCircle} size={26} exact className="text-green-600" />
+                    ) : (
+                      <CircularProgress
+                        progress={displayedTimerProgress}
+                        size={28}
+                        strokeWidth={2.5}
                         className={activeTimer?.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
-                      />
-                    </CircularProgress>
+                        trackClassName={activeTimer?.isPaused ? 'text-yellow-200' : 'text-fill-primary-quiet'}
+                      >
+                        <Icon
+                          path={activeTimer?.isPaused ? mdiPause : mdiTimerOutline}
+                          size={13}
+                          exact
+                          className={activeTimer?.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
+                        />
+                      </CircularProgress>
+                    )}
                     {/* Count badge - always on top */}
                     {activeTimerCount > 1 && (
                       <span className="absolute -top-1 -right-1 bg-ha-blue text-white text-[13px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center ring-1 ring-surface-default">
                         {activeTimerCount}
                       </span>
                     )}
-                    {/* Status badge - always on bottom */}
-                    <span className="absolute -bottom-1 -right-1 bg-surface-default rounded-full p-0.5 shadow-sm z-10 border border-surface-low">
-                      <Icon
-                        path={activeTimer?.isPaused ? mdiPause : mdiTimerOutline}
-                        size={10}
-                        className={activeTimer?.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
-                      />
-                    </span>
+                    {/* State badge - only when a single item (count badge takes over otherwise) */}
+                    {activeTimerCount <= 1 && (
+                      <span className="absolute -bottom-1 -right-1 bg-surface-default rounded-full p-0.5 shadow-sm z-10 border border-surface-low">
+                        <Icon
+                          path={activeTimer?.isPaused ? mdiPause : mdiTimerOutline}
+                          size={10}
+                          exact
+                          className={activeTimer?.isPaused ? 'text-yellow-600' : 'text-ha-blue'}
+                        />
+                      </span>
+                    )}
                   </motion.button>
                 </motion.div>
               )}
@@ -2121,7 +2359,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                     type="button"
                     onClick={() => setActivityListType('all')}
                     aria-label={`Show ${activityOverflowCount} more ${activityOverflowCount === 1 ? 'activity' : 'activities'}`}
-                    className="flex items-center justify-center rounded-full w-10 h-10 bg-surface-low border border-surface-lower text-text-secondary text-sm font-bold active:scale-95 transition-transform"
+                    className="flex items-center justify-center rounded-full w-9 h-9 bg-surface-low border border-surface-lower text-text-secondary text-sm font-bold active:scale-95 transition-transform"
                   >
                     +{activityOverflowCount}
                   </button>
@@ -2131,19 +2369,20 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             </div>
           )}
 
-          {/* Status pill: icons - pushed to the right.
-              Indicators follow Home Center prefs, same as the desktop pill. */}
+          {/* Status pill: fixed-width, pushed to the right. The Ask widget now
+              owns the row's flexible space, so this sits content-sized at the
+              end. Indicators follow Home Center prefs, same as the desktop pill. */}
           {(() => {
-            const activeWidgetsCount = (showReleaseWidget ? 1 : 0) + (showMediaWidget ? 1 : 0) + (showTimerWidget ? 1 : 0) + (showCameraWidget ? 1 : 0) + (showPrinterWidget ? 1 : 0);
-            // Always show at least two status icons; widen to 4 when no activities
-            // are competing for navbar width.
+            const activeWidgetsCount = (showReleaseWidget ? 1 : 0) + (showMediaWidget ? 1 : 0) + (showTimerWidget ? 1 : 0) + (showCameraWidget ? 1 : 0) + (showPrinterWidget ? 1 : 0) + (showVacuumWidget ? 1 : 0);
+            // Two indicators when activities compete for width, four when the row
+            // is otherwise quiet; the chevron surfaces the rest.
             const maxIcons = activeWidgetsCount >= 1 ? 2 : 4;
             const hasMore = visibleSections.length > maxIcons;
 
             return (
               <button
                 onClick={() => navigateFromSurface('/settings/home-center')}
-                className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-10 flex-shrink-0 ml-auto active:scale-95 transition-transform duration-300 ${statusPulsing ? 'ha-status-pulse' : ''}`}
+                className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-xl px-ha-4 h-10 flex-shrink-0 ml-auto active:scale-95 transition-transform duration-300 ${statusPulsing ? 'ha-status-pulse' : ''}`}
               >
                 <HomeCenterPillIndicators size={18} max={maxIcons} withTooltips={false} />
 
@@ -2160,19 +2399,25 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             );
           })()}
         </div>
+        </div>
 
         {/* Bottom row: Navigation pill */}
         <div
           className="overflow-hidden transition-[max-height,margin-top,opacity,transform] duration-120 ease-out shrink-0"
           style={{
             maxHeight: `${56 * bottomRowVisibleRatio}px`,
-            marginTop: `${12 * bottomRowVisibleRatio}px`,
+            // 8px gap below the top row; when that row is collapsed (settings
+            // routes), shrink to 4px so wrapper pt (4px) + this = the 8px side
+            // padding and the tabs sit centered.
+            marginTop: `${(4 + 4 * topRowVisibleRatio) * bottomRowVisibleRatio}px`,
             opacity: bottomRowVisibleRatio,
             transform: `translateY(${8 * effectiveHideProgress}px)`,
             pointerEvents: isBottomRowHidden ? 'none' : 'auto',
           }}
         >
-          <div className="mobile-nav-tabs flex items-center justify-around bg-surface-low rounded-ha-2xl px-ha-4 h-14">
+          {/* Concentric rounding: outer surface is ha-3xl with ha-2 (8px) padding,
+              so this inner surface uses ha-xl (3xl − 8px across themes). */}
+          <div className="mobile-nav-tabs flex items-center justify-around bg-surface-low rounded-ha-xl px-ha-4 h-14">
             <button
               type="button"
               onClick={() => openExpandedSurface('dashboards')}
@@ -2190,6 +2435,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             <button
               type="button"
               onClick={() => openExpandedSurface('search')}
+              aria-label="Search or ask anything"
               className={`relative h-full px-ha-2 flex items-center justify-center transition-colors ${
                 isSearchActive ? 'text-ha-blue' : 'text-text-secondary hover:text-text-primary'
               }`}
@@ -2201,7 +2447,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             </button>
             <button
               type="button"
-              onClick={() => navigateFromSurface('/settings')}
+              onClick={handleSettingsTap}
               className={`relative h-full pl-ha-4 pr-ha-2 flex items-center justify-center transition-opacity ${
                 isSettingsActive ? 'opacity-100' : 'opacity-90 hover:opacity-100'
               }`}
@@ -2226,42 +2472,61 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       {/* Activity List Bottom Sheet — single-type picker, or the combined "Active Now"
           list opened from the navbar overflow pill. */}
       {activityListType && (() => {
-        type SheetItem = { type: WidgetSurfaceType; entityId: string; name: string; subtitle: string };
-        const releaseItems: SheetItem[] = visibleReleaseNotes.map((n) => ({ type: 'release', entityId: n.entityId, name: n.name, subtitle: n.version }));
-        const cameraItems: SheetItem[] = allActiveCameras.map((c) => ({ type: 'camera', entityId: c.entityId, name: c.name, subtitle: c.event ?? '' }));
-        const printerItems: SheetItem[] = allActivePrinters.map((p) => ({ type: 'printer', entityId: p.entityId, name: p.name, subtitle: `${p.progress}% complete` }));
-        const mediaItems: SheetItem[] = allActiveMedia.map((m) => ({ type: 'media', entityId: m.entityId, name: m.name, subtitle: m.state }));
-        const timerItems: SheetItem[] = allActiveTimers.map((t) => ({ type: 'timer', entityId: t.entityId, name: t.name, subtitle: t.remaining }));
+        type SheetItem = { type: WidgetSurfaceType; entityId: string; name: string; subtitle: string; status?: ActivityStatus };
+        const endedSubtitle = (status: ActivityStatus, fallback: string) =>
+          status.phase === 'ended' ? (status.endLabel || 'Ended') : fallback;
+        const releaseItems: SheetItem[] = visibleReleaseNotes.map((n) => ({ type: 'release', entityId: n.entityId, name: n.name, subtitle: n.version, status: n.status }));
+        const cameraItems: SheetItem[] = allActiveCameras.map((c) => ({ type: 'camera', entityId: c.entityId, name: c.name, subtitle: c.event ?? '', status: c.status }));
+        const printerItems: SheetItem[] = allActivePrinters.map((p) => ({ type: 'printer', entityId: p.entityId, name: p.name, subtitle: endedSubtitle(p.status, `${p.progress}% complete`), status: p.status }));
+        const vacuumItems: SheetItem[] = allActiveVacuums.map((v) => ({ type: 'vacuum', entityId: v.entityId, name: v.name, subtitle: endedSubtitle(v.status, `${v.progress}% • ${v.area || 'Cleaning'}`), status: v.status }));
+        const mediaItems: SheetItem[] = allActiveMedia.map((m) => ({ type: 'media', entityId: m.entityId, name: m.name, subtitle: m.state, status: m.status }));
+        const timerItems: SheetItem[] = allActiveTimers.map((t) => ({ type: 'timer', entityId: t.entityId, name: t.name, subtitle: endedSubtitle(t.status, t.remaining), status: t.status }));
+        const updateItems: SheetItem[] = activities.updateInstalls.map(({ summary, status }) => ({ type: 'update', entityId: summary.entityId, name: summary.name, subtitle: endedSubtitle(status, summary.percentage !== null ? `${summary.percentage}% installed` : 'Installing…'), status }));
+        const backupItems: SheetItem[] = activities.backups.map(({ summary, status }) => ({ type: 'backup', entityId: summary.entityId, name: summary.name, subtitle: endedSubtitle(status, summary.stage || (summary.progress !== null ? `${summary.progress}%` : 'Running…')), status }));
+        const alarmItems: SheetItem[] = activities.alarms.map(({ summary, status }) => ({ type: 'alarm', entityId: summary.entityId, name: summary.name, subtitle: endedSubtitle(status, summary.state === 'triggered' ? 'Triggered' : summary.state === 'pending' ? 'Pending' : 'Arming'), status }));
         const byType: Record<WidgetSurfaceType, SheetItem[]> = {
-          release: releaseItems, camera: cameraItems, printer: printerItems, media: mediaItems, timer: timerItems,
+          release: releaseItems, camera: cameraItems, printer: printerItems, vacuum: vacuumItems, media: mediaItems, timer: timerItems,
+          update: updateItems, backup: backupItems, alarm: alarmItems,
         };
         const items: SheetItem[] = activityListType === 'all'
-          ? [...releaseItems, ...cameraItems, ...printerItems, ...mediaItems, ...timerItems]
+          ? activities.typeOrder.flatMap((type) => byType[type])
           : byType[activityListType];
         const selectedIdFor = (type: WidgetSurfaceType) =>
           type === 'release' ? selectedReleaseId
           : type === 'media' ? selectedMediaId
           : type === 'timer' ? selectedTimerId
           : type === 'camera' ? selectedCameraId
-          : selectedPrinterId;
+          : type === 'printer' ? selectedPrinterId
+          : type === 'update' ? selectedUpdateId
+          : type === 'backup' ? selectedBackupId
+          : type === 'alarm' ? selectedAlarmId
+          : selectedVacuumId;
         const ACTIVITY_META: Record<WidgetSurfaceType, { icon: string; iconBg: string; iconColor: string }> = {
           release: { icon: mdiUpdate, iconBg: 'bg-green-500/10', iconColor: 'text-green-600' },
           camera: { icon: mdiDoorbellVideo, iconBg: 'bg-red-500/10', iconColor: 'text-red-500' },
           printer: { icon: mdiPrinter3d, iconBg: 'bg-fill-primary-normal', iconColor: 'text-ha-blue' },
+          vacuum: { icon: mdiRobotVacuum, iconBg: 'bg-fill-primary-normal', iconColor: 'text-ha-blue' },
           media: { icon: mdiPlay, iconBg: 'bg-fill-primary-normal', iconColor: 'text-ha-blue' },
           timer: { icon: mdiTimerOutline, iconBg: 'bg-fill-primary-normal', iconColor: 'text-ha-blue' },
+          update: { icon: mdiUpdate, iconBg: 'bg-fill-primary-normal', iconColor: 'text-ha-blue' },
+          backup: { icon: mdiCloudUpload, iconBg: 'bg-fill-primary-normal', iconColor: 'text-ha-blue' },
+          alarm: { icon: mdiShieldAlert, iconBg: 'bg-red-500/10', iconColor: 'text-red-500' },
         };
         const title = activityListType === 'all' ? 'Active Now'
           : activityListType === 'release' ? "What's New"
           : activityListType === 'media' ? 'Active Media Players'
           : activityListType === 'timer' ? 'Active Timers'
           : activityListType === 'camera' ? 'Active Cameras'
+          : activityListType === 'vacuum' ? 'Active Vacuums'
+          : activityListType === 'update' ? 'Updates Installing'
+          : activityListType === 'backup' ? 'Backups Running'
+          : activityListType === 'alarm' ? 'Alarm'
           : 'Active Printers';
         return (
           <div className="fixed inset-0 z-[100] flex flex-col justify-end lg:hidden">
             {/* Backdrop */}
             <div
-              className="absolute inset-0 bg-black/40"
+              className="absolute inset-0 bg-black/70"
               onClick={() => setActivityListType(null)}
             />
             {/* Sheet */}
@@ -2299,6 +2564,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                   {items.map((item) => {
                     const meta = ACTIVITY_META[item.type];
                     const isSelected = selectedIdFor(item.type) === item.entityId;
+                    const isEnded = item.status?.phase === 'ended';
                     return (
                       <button
                         key={`${item.type}-${item.entityId}`}
@@ -2313,14 +2579,28 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                             : 'bg-surface-low border-surface-lower hover:bg-surface-mid'
                         }`}
                       >
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${meta.iconBg}`}>
-                          <Icon path={meta.icon} size={18} className={meta.iconColor} />
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${isEnded ? 'bg-green-500/10' : meta.iconBg}`}>
+                          <Icon path={isEnded ? mdiCheckCircle : meta.icon} size={18} className={isEnded ? 'text-green-600' : meta.iconColor} />
                         </div>
                         <div className="flex flex-col min-w-0 flex-1">
                           <span className="text-sm font-semibold text-text-primary truncate">{item.name}</span>
-                          <span className="text-xs text-text-secondary truncate">{item.subtitle}</span>
+                          <span className={`text-xs truncate ${isEnded ? 'text-green-600 font-semibold' : 'text-text-secondary'}`}>{item.subtitle}</span>
                         </div>
-                        <Icon path={mdiChevronRight} size={18} className="text-text-disabled flex-shrink-0" />
+                        {isEnded && item.status ? (
+                          <span
+                            role="button"
+                            aria-label="Dismiss"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dismissActivity(item.entityId, endedDismissKey(item.status!));
+                            }}
+                            className="p-1.5 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-mid transition-colors flex-shrink-0"
+                          >
+                            <Icon path={mdiClose} size={16} />
+                          </span>
+                        ) : (
+                          <Icon path={mdiChevronRight} size={18} className="text-text-disabled flex-shrink-0" />
+                        )}
                       </button>
                     );
                   })}

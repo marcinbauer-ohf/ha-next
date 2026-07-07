@@ -42,7 +42,7 @@ function personIcon(person: PersonSummary, picture?: string): L.DivIcon {
   const inner = picture
     ? `<img src="${picture}" alt="" />`
     : `<span>${person.initials}</span>`;
-  const away = person.state !== 'home';
+  const away = !person.isHome;
   return L.divIcon({
     className: 'ha-map-marker',
     html: `<div class="ha-map-avatar${away ? ' is-away' : ''}">${inner}</div>`,
@@ -89,7 +89,7 @@ export default function PeopleMapWidget() {
     [people, haUrl],
   );
 
-  const peopleHome = resolved.filter((p) => p.state === 'home');
+  const peopleHome = resolved.filter((p) => p.isHome);
   const peopleWithCoords = resolved.filter(hasCoords);
 
   const points = useMemo<[number, number][]>(() => {

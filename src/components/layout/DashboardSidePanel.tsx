@@ -38,7 +38,7 @@ export function DashboardSidePanel({ open, onClose, children }: DashboardSidePan
               open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
             }`}
           >
-            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/70" onClick={onClose} />
             <div
               className={`absolute bottom-0 left-0 right-0 bg-surface-lower rounded-t-ha-3xl transition-transform duration-300 ease-out ${
                 open ? 'translate-y-0' : 'translate-y-full'

@@ -5,9 +5,15 @@ import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
+import { Tooltip } from '../ui/Tooltip';
 import { CircularProgress } from '../ui/CircularProgress';
-import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useHomeCenterPrefs } from '@/hooks';
-import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
+import { RollingNumericValue } from '../ui/RollingNumericValue';
+import { useHomeAssistant, useHomeCenterPrefs } from '@/hooks';
+import { useAssistantContext } from '@/contexts';
+import { useActivities } from '@/hooks/useActivities';
+import { dismissActivity } from '@/lib/activities/dismissals';
+import { endedDismissKey } from '@/lib/activities/ledger';
+import { ALERT_WINDOW_MS, type ActivityStatus, type ActivityType } from '@/lib/activities/types';
 import { HomeCenterPillIndicators, HomeCenterStatusSections, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
 import { subscribeStatusPulse } from '@/lib/statusPulseBus';
 import {
@@ -18,7 +24,6 @@ import {
   mdiTimerOutline,
   mdiPause,
   mdiUpdate,
-  mdiSend,
   mdiClose,
   mdiChevronRight,
   mdiDoorbellVideo,
@@ -34,6 +39,13 @@ import {
   mdiAccount,
   mdiVideo,
   mdiMenu,
+  mdiRobotVacuum,
+  mdiBatteryHigh,
+  mdiMapMarkerRadius,
+  mdiCheckCircle,
+  mdiArrowTopRight,
+  mdiCloudUpload,
+  mdiShieldAlert,
 } from '@mdi/js';
 
 const RELEASE_NOTES_PREFIX = 'update.home_assistant_release_notes_simulated';
@@ -47,6 +59,7 @@ interface Timer {
   durationSec: number;
   finishesAt?: string;
   progress: number;
+  status: ActivityStatus;
 }
 
 interface MediaPlayer {
@@ -56,6 +69,7 @@ interface MediaPlayer {
   mediaTitle?: string;
   mediaArtist?: string;
   entityPicture?: string;
+  status: ActivityStatus;
 }
 
 interface Camera {
@@ -64,6 +78,8 @@ interface Camera {
   state: string;
   event?: string;
   entityPicture?: string;
+  since: string;
+  status: ActivityStatus;
 }
 
 interface Printer {
@@ -74,6 +90,20 @@ interface Printer {
   fileName?: string;
   remainingTime?: string;
   entityPicture?: string;
+  status: ActivityStatus;
+}
+
+interface Vacuum {
+  entity_id: string;
+  name: string;
+  state: string;
+  progress: number;
+  area?: string;
+  battery?: number;
+  fanSpeed?: string;
+  remainingTime?: string;
+  entityPicture?: string;
+  status: ActivityStatus;
 }
 
 interface ReleaseNotesWidget {
@@ -83,6 +113,33 @@ interface ReleaseNotesWidget {
   summary: string;
   notes: string[];
   updatedAt: string;
+  status: ActivityStatus;
+}
+
+interface UpdateInstall {
+  entity_id: string;
+  name: string;
+  percentage: number | null;
+  installedVersion?: string;
+  latestVersion?: string;
+  entityPicture?: string;
+  status: ActivityStatus;
+}
+
+interface BackupRun {
+  entity_id: string;
+  name: string;
+  progress: number | null;
+  stage?: string;
+  status: ActivityStatus;
+}
+
+interface AlarmWidget {
+  entity_id: string;
+  name: string;
+  state: string;
+  since: string;
+  status: ActivityStatus;
 }
 
 type ActivityWidgetKey =
@@ -90,7 +147,11 @@ type ActivityWidgetKey =
   | 'media-widget'
   | 'timer-widget'
   | 'camera-widget'
-  | 'printer-widget';
+  | 'printer-widget'
+  | 'vacuum-widget'
+  | 'update-widget'
+  | 'backup-widget'
+  | 'alarm-widget';
 
 const ACTIVITY_FLYOUT_WIDTHS: Record<ActivityWidgetKey, number> = {
   'release-notes-widget': 320,
@@ -98,6 +159,10 @@ const ACTIVITY_FLYOUT_WIDTHS: Record<ActivityWidgetKey, number> = {
   'timer-widget': 260,
   'camera-widget': 340,
   'printer-widget': 280,
+  'vacuum-widget': 280,
+  'update-widget': 280,
+  'backup-widget': 280,
+  'alarm-widget': 300,
 };
 
 const DEFAULT_ACTIVITY_FLYOUT_STYLE: CSSProperties = {
@@ -111,6 +176,10 @@ const DEFAULT_ACTIVITY_WIDGET_WIDTHS: Record<ActivityWidgetKey, number> = {
   'timer-widget': 168,
   'camera-widget': 176,
   'printer-widget': 188,
+  'vacuum-widget': 188,
+  'update-widget': 188,
+  'backup-widget': 188,
+  'alarm-widget': 176,
 };
 
 const PINNED_ACTIVITY_FOOTER_SLOT_STYLE: CSSProperties = {
@@ -120,40 +189,6 @@ const PINNED_ACTIVITY_FOOTER_SLOT_STYLE: CSSProperties = {
   left: 0,
   top: 0,
 };
-
-function titleCaseSegment(value: string): string {
-  const normalized = decodeURIComponent(value).replace(/[-_]+/g, ' ').trim();
-  if (!normalized) return 'Home';
-  return normalized.replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function getChatSuggestions(contextKey: string, pathname: string): string[] {
-  if (pathname.startsWith('/dashboard/energy') || contextKey.includes('energy')) {
-    return ['consumption today', 'highest power usage', 'solar production now', 'grid import vs export'];
-  }
-
-  if (contextKey.includes('climate') || contextKey.includes('temperature') || contextKey.includes('hvac')) {
-    return ['temperature right now', 'warmest room', 'humidity by room', 'set living room to 22°'];
-  }
-
-  if (contextKey.includes('security')) {
-    return ['any doors unlocked', 'last motion event', 'arm security mode', 'recent security alerts'];
-  }
-
-  if (contextKey.includes('camera')) {
-    return ['latest camera events', 'any motion now', 'who rang the doorbell', 'open front door camera'];
-  }
-
-  if (contextKey.includes('music') || contextKey.includes('media')) {
-    return ['what is playing now', 'skip to next track', 'set volume to 40%', 'play kitchen playlist'];
-  }
-
-  if (contextKey.includes('room') || pathname.startsWith('/room/')) {
-    return ['lights currently on', 'temperature in this room', 'any device left on', 'turn everything off'];
-  }
-
-  return ['lights still on', 'any doors unlocked', 'pending notifications', 'start good night routine'];
-}
 
 function formatTimeRemaining(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
@@ -189,6 +224,44 @@ function systemPrefers24HourClock(): boolean {
   }
 }
 
+/** Deep-link target per activity type — tap-through lands on the matching domain page. */
+const ACTIVITY_DEEP_LINKS: Record<ActivityType, string | null> = {
+  media: '/type/media_player',
+  timer: '/type/timer',
+  camera: '/type/camera',
+  printer: '/type/sensor',
+  vacuum: '/type/vacuum',
+  release: null,
+  update: '/type/update',
+  backup: '/type/backup',
+  alarm: '/type/alarm_control_panel',
+};
+
+function formatRelativeAge(sinceIso: string, nowMs: number): string {
+  const since = Date.parse(sinceIso);
+  if (!Number.isFinite(since)) return '';
+  const seconds = Math.max(0, Math.floor((nowMs - since) / 1000));
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+}
+
+function isAlerting(status: ActivityStatus, nowMs: number): boolean {
+  return status.alertAt !== null && nowMs - status.alertAt < ALERT_WINDOW_MS;
+}
+
+/** Never render a blank or zero countdown — show working intent instead. */
+function formatRemainingLabel(remaining: string | undefined): string {
+  if (!remaining || parseTimeToSeconds(remaining) <= 0) return 'Calculating…';
+  return remaining;
+}
+
+/** Same "never blank" rule for percentage-based progress that starts unknown. */
+function formatProgressLabel(progress: number | null): string {
+  return progress === null ? 'Calculating…' : `${progress}%`;
+}
+
 function resolveEntityPictureUrl(haUrl: string | undefined, picture: string | undefined | null): string | undefined {
   if (!picture) return undefined;
 
@@ -220,8 +293,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const pathname = usePathname();
   const router = useRouter();
   const { callService, haUrl } = useHomeAssistant();
-  const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
-  const { items: sidebarItems } = useSidebarItems();
+  const { openAssistant } = useAssistantContext();
+  const { data: activityData, activities } = useActivities();
   const { visibleSections } = useHomeCenterPrefs();
   const [currentTime, setCurrentTime] = useState({ hours: '', minutes: '' });
   // Pulse the clock pill when a toast about one of its sections appears.
@@ -248,10 +321,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const use24HourClock = useMemo(() => systemPrefers24HourClock(), []);
   const [isAM, setIsAM] = useState(true);
   const [colonVisible, setColonVisible] = useState(true);
-  const [chatDraft, setChatDraft] = useState('');
-  const [chatLastSubmittedQuery, setChatLastSubmittedQuery] = useState<{ contextKey: string; query: string } | null>(null);
   // Widget container refs
-  const chatContainerRef = useRef<HTMLDivElement>(null);
   const widgetContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Widget expansion state
@@ -265,9 +335,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     'timer-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
     'camera-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
     'printer-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
+    'vacuum-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
+    'update-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
+    'backup-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
+    'alarm-widget': DEFAULT_ACTIVITY_FLYOUT_STYLE,
   });
   const [activityWidgetWidths, setActivityWidgetWidths] = useState<Record<ActivityWidgetKey, number>>(DEFAULT_ACTIVITY_WIDGET_WIDTHS);
-  const [dismissedReleaseNotes, setDismissedReleaseNotes] = useState<Record<string, string>>({});
+  // Client clock driving alert pulses and relative "Xm ago" labels. The clock
+  // interval below already re-renders every second, so this rides along.
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   // Status pop-up state
   const [statusExpanded, setStatusExpanded] = useState(false);
@@ -289,7 +365,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const activityDialogDragUpRef = useRef<(() => void) | null>(null);
 
   const isActivityWidgetId = (widgetId: string | null) => {
-    if (!widgetId || widgetId === 'chat') return false;
+    if (!widgetId) return false;
 
     if (
       widgetId === 'list-release-notes'
@@ -297,6 +373,10 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       || widgetId === 'list-timer'
       || widgetId === 'list-camera'
       || widgetId === 'list-printer'
+      || widgetId === 'list-vacuum'
+      || widgetId === 'list-update'
+      || widgetId === 'list-backup'
+      || widgetId === 'list-alarm'
     ) {
       return true;
     }
@@ -310,44 +390,16 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       || widgetId.startsWith('sensor.printer_')
       || widgetId === 'sensor.printer_simulated'
       || widgetId.includes('printer')
+      || widgetId.startsWith('vacuum.')
+      || widgetId.startsWith('update.')
+      || widgetId.startsWith('backup.')
+      || widgetId.startsWith('alarm_control_panel.')
     );
   };
 
   const isActivityDialogOpen = activityWidgetView === 'dialog' && isActivityWidgetId(expandedWidgetId);
   const isPinnedActivityWidget = activityWidgetView === 'pinned' && isActivityWidgetId(expandedWidgetId);
   const isFloatingActivityWidget = (activityWidgetView === 'dialog' || activityWidgetView === 'pinned') && isActivityWidgetId(expandedWidgetId);
-  const chatContextLabel = useMemo(() => {
-    const matchedSidebarItem = sidebarItems.find((item) => item.urlPath === pathname);
-    if (matchedSidebarItem?.title) return matchedSidebarItem.title;
-
-    if (pathname === '/') return 'Home';
-    if (pathname.startsWith('/dashboard/')) {
-      return titleCaseSegment(pathname.split('/')[2] ?? 'Dashboard');
-    }
-    if (pathname.startsWith('/panel/')) {
-      return titleCaseSegment(pathname.split('/')[2] ?? 'App');
-    }
-    if (pathname.startsWith('/room/')) {
-      return titleCaseSegment(pathname.split('/')[2] ?? 'Room');
-    }
-
-    return 'Home';
-  }, [pathname, sidebarItems]);
-  const chatContextKey = useMemo(() => {
-    const matchedSidebarItem = sidebarItems.find((item) => item.urlPath === pathname);
-    if (matchedSidebarItem?.id) return matchedSidebarItem.id.toLowerCase();
-
-    if (pathname === '/') return 'home';
-    if (pathname.startsWith('/dashboard/') || pathname.startsWith('/panel/') || pathname.startsWith('/room/')) {
-      const slug = pathname.split('/')[2] ?? '';
-      return decodeURIComponent(slug).toLowerCase();
-    }
-
-    return chatContextLabel.toLowerCase();
-  }, [chatContextLabel, pathname, sidebarItems]);
-  const chatContextForPrompt = useMemo(() => chatContextLabel.toLowerCase(), [chatContextLabel]);
-  const chatSuggestions = useMemo(() => getChatSuggestions(chatContextKey, pathname), [chatContextKey, pathname]);
-
   const checkActivitiesScroll = () => {
     if (!activitiesScrollRef.current) return;
     const { scrollLeft, scrollWidth, clientWidth } = activitiesScrollRef.current;
@@ -374,9 +426,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         }
 
         let activeRef: HTMLDivElement | null = null;
-        if (expandedWidgetId === 'chat') {
-          activeRef = chatContainerRef.current;
-        } else if (expandedWidgetId === 'list-release-notes') {
+        if (expandedWidgetId === 'list-release-notes') {
           activeRef = widgetContainerRefs.current['release-notes-widget'];
         } else if (expandedWidgetId === 'list-media') {
           activeRef = widgetContainerRefs.current['media-widget'];
@@ -386,6 +436,14 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
           activeRef = widgetContainerRefs.current['camera-widget'];
         } else if (expandedWidgetId === 'list-printer') {
           activeRef = widgetContainerRefs.current['printer-widget'];
+        } else if (expandedWidgetId === 'list-vacuum') {
+          activeRef = widgetContainerRefs.current['vacuum-widget'];
+        } else if (expandedWidgetId === 'list-update') {
+          activeRef = widgetContainerRefs.current['update-widget'];
+        } else if (expandedWidgetId === 'list-backup') {
+          activeRef = widgetContainerRefs.current['backup-widget'];
+        } else if (expandedWidgetId === 'list-alarm') {
+          activeRef = widgetContainerRefs.current['alarm-widget'];
         } else {
           // It's an entity_id — check all widget containers
           activeRef = widgetContainerRefs.current['release-notes-widget']
@@ -393,9 +451,13 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             ?? widgetContainerRefs.current['timer-widget']
             ?? widgetContainerRefs.current['camera-widget']
             ?? widgetContainerRefs.current['printer-widget']
+            ?? widgetContainerRefs.current['vacuum-widget']
+            ?? widgetContainerRefs.current['update-widget']
+            ?? widgetContainerRefs.current['backup-widget']
+            ?? widgetContainerRefs.current['alarm-widget']
             ?? null;
           // Find the specific one that contains the click target
-          const allRefs = ['release-notes-widget', 'media-widget', 'timer-widget', 'camera-widget', 'printer-widget'];
+          const allRefs = ['release-notes-widget', 'media-widget', 'timer-widget', 'camera-widget', 'printer-widget', 'vacuum-widget', 'update-widget', 'backup-widget', 'alarm-widget'];
           const containingRef = allRefs.find(key => {
             const ref = widgetContainerRefs.current[key];
             return ref && ref.contains(event.target as Node);
@@ -427,18 +489,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [statusExpanded, expandedWidgetId, setExpandedWidgetId, setStatusExpanded, activityWidgetView]);
-
-  const submitChatQuery = useCallback((query: string) => {
-    const trimmedQuery = query.trim();
-    if (!trimmedQuery) return;
-
-    setChatLastSubmittedQuery({ contextKey: chatContextKey, query: trimmedQuery });
-    setChatDraft('');
-  }, [chatContextKey]);
-
-  const submitSuggestedChatQuery = useCallback((suggestion: string) => {
-    submitChatQuery(suggestion);
-  }, [submitChatQuery]);
 
   const updateActivityFlyoutPosition = useCallback((widgetKey: ActivityWidgetKey) => {
     if (typeof window === 'undefined') return;
@@ -593,9 +643,40 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     setActivityWidgetView('pinned');
   }, [activityWidgetView, expandedWidgetId, stopActivityDialogDrag]);
 
+  const minimizeActivityWidget = useCallback(() => {
+    clearActivityPreviewHideTimeout();
+    stopActivityDialogDrag();
+    setActivityDialogOffset({ x: 0, y: 0 });
+    setHoveredActivityWidget(null);
+    setActivityWidgetView('dock');
+    setExpandedWidgetId(null);
+  }, [clearActivityPreviewHideTimeout, stopActivityDialogDrag]);
+
+  // Tap-through: deep link straight to the matching domain page (never a
+  // generic landing), closing any open flyout first.
+  const openActivityDeepLink = useCallback((type: ActivityType) => {
+    const target = ACTIVITY_DEEP_LINKS[type];
+    if (!target) return;
+    minimizeActivityWidget();
+    router.push(target);
+  }, [minimizeActivityWidget, router]);
+
   const renderActivityWindowActions = useCallback(
-    (onClose: (event: React.MouseEvent<HTMLButtonElement>) => void, closeIconPath: string) => (
+    (onClose: (event: React.MouseEvent<HTMLButtonElement>) => void, closeIconPath: string, deepLinkType?: ActivityType) => (
       <div className="flex items-center gap-1" data-no-drag="true">
+        {deepLinkType && ACTIVITY_DEEP_LINKS[deepLinkType] && (
+          <button
+            type="button"
+            aria-label="Open details page"
+            onClick={(event) => {
+              event.stopPropagation();
+              openActivityDeepLink(deepLinkType);
+            }}
+            className="p-ha-1 hover:bg-surface-low rounded-full"
+          >
+            <Icon path={mdiArrowTopRight} size={17} className="text-text-secondary" />
+          </button>
+        )}
         <button
           type="button"
           aria-label={isPinnedActivityWidget ? 'Unpin widget' : 'Pin widget'}
@@ -616,17 +697,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         </button>
       </div>
     ),
-    [isPinnedActivityWidget, togglePinActivityWidget]
+    [isPinnedActivityWidget, togglePinActivityWidget, openActivityDeepLink]
   );
-
-  const minimizeActivityWidget = useCallback(() => {
-    clearActivityPreviewHideTimeout();
-    stopActivityDialogDrag();
-    setActivityDialogOffset({ x: 0, y: 0 });
-    setHoveredActivityWidget(null);
-    setActivityWidgetView('dock');
-    setExpandedWidgetId(null);
-  }, [clearActivityPreviewHideTimeout, stopActivityDialogDrag]);
 
   // Update clock
   useEffect(() => {
@@ -636,6 +708,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       const displayHours = use24HourClock ? hours.toString().padStart(2, '0') : (hours % 12 || 12).toString();
       setIsAM(hours < 12);
       setColonVisible((prev) => !prev);
+      setNowMs(now.getTime());
       setCurrentTime({
         hours: displayHours,
         minutes: now.getMinutes().toString().padStart(2, '0'),
@@ -646,66 +719,102 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     return () => clearInterval(interval);
   }, [use24HourClock]);
 
-  const activeTimers = useMemo<Timer[]>(() => activityData.activeTimers.map((timer) => {
-    const remainingSec = parseTimeToSeconds(timer.remaining);
+  // Per-type lists come from the activity ledger: relevance-sorted, with
+  // ended items lingering in their final state and dismissals filtered out.
+  const activeTimers = useMemo<Timer[]>(() => activities.timers.map(({ summary, status }) => {
+    const remainingSec = parseTimeToSeconds(summary.remaining);
     return {
-      entity_id: timer.entityId,
-      name: timer.name,
-      state: timer.state,
-      remaining: timer.remaining,
-      duration: timer.duration,
-      durationSec: timer.durationSec,
-      finishesAt: timer.finishesAt,
-      progress: timer.durationSec > 0 ? remainingSec / timer.durationSec : 0,
+      entity_id: summary.entityId,
+      name: summary.name,
+      state: summary.state,
+      remaining: summary.remaining,
+      duration: summary.duration,
+      durationSec: summary.durationSec,
+      finishesAt: summary.finishesAt,
+      progress: summary.durationSec > 0 ? remainingSec / summary.durationSec : 0,
+      status,
     };
-  }), [activityData.activeTimers]);
+  }), [activities.timers]);
 
-  // No longer needed to manually set visibility in effects
+  const activePlayers = useMemo<MediaPlayer[]>(() => activities.players.map(({ summary, status }) => ({
+    entity_id: summary.entityId,
+    name: summary.name,
+    state: summary.state,
+    mediaTitle: summary.mediaTitle,
+    mediaArtist: summary.mediaArtist,
+    entityPicture: summary.entityPicture,
+    status,
+  })), [activities.players]);
 
-  const activePlayers = useMemo<MediaPlayer[]>(() => activityData.activePlayers.map((player) => ({
-    entity_id: player.entityId,
-    name: player.name,
-    state: player.state,
-    mediaTitle: player.mediaTitle,
-    mediaArtist: player.mediaArtist,
-    entityPicture: player.entityPicture,
-  })), [activityData.activePlayers]);
+  const activeCameras = useMemo<Camera[]>(() => activities.cameras.map(({ summary, status }) => ({
+    entity_id: summary.entityId,
+    name: summary.name,
+    state: summary.state,
+    event: summary.event,
+    entityPicture: summary.entityPicture,
+    since: summary.since,
+    status,
+  })), [activities.cameras]);
 
-  // No longer needed to manually set visibility in effects
+  const activePrinters = useMemo<Printer[]>(() => activities.printers.map(({ summary, status }) => ({
+    entity_id: summary.entityId,
+    name: summary.name,
+    state: summary.state,
+    progress: summary.progress,
+    fileName: summary.fileName || 'Unknown file',
+    remainingTime: summary.remainingTime,
+    entityPicture: summary.entityPicture,
+    status,
+  })), [activities.printers]);
 
-  const activeCameras = useMemo<Camera[]>(() => activityData.activeCameras.map((camera) => ({
-    entity_id: camera.entityId,
-    name: camera.name,
-    state: camera.state,
-    event: camera.event,
-    entityPicture: camera.entityPicture,
-  })), [activityData.activeCameras]);
+  const activeVacuums = useMemo<Vacuum[]>(() => activities.vacuums.map(({ summary, status }) => ({
+    entity_id: summary.entityId,
+    name: summary.name,
+    state: summary.state,
+    progress: summary.progress,
+    area: summary.area,
+    battery: summary.battery,
+    fanSpeed: summary.fanSpeed,
+    remainingTime: summary.remainingTime,
+    entityPicture: summary.entityPicture,
+    status,
+  })), [activities.vacuums]);
 
-  // No longer needed to manually set visibility in effects
+  const visibleReleaseNotes = useMemo<ReleaseNotesWidget[]>(() => activities.releaseNotes.map(({ summary, status }) => ({
+    entity_id: summary.entityId,
+    name: summary.name,
+    version: summary.version,
+    summary: summary.summary,
+    notes: summary.notes,
+    updatedAt: summary.updatedAt,
+    status,
+  })), [activities.releaseNotes]);
 
-  const activePrinters = useMemo<Printer[]>(() => activityData.activePrinters.map((printer) => ({
-    entity_id: printer.entityId,
-    name: printer.name,
-    state: printer.state,
-    progress: printer.progress,
-    fileName: printer.fileName || 'Unknown file',
-    remainingTime: printer.remainingTime || '00:00:00',
-    entityPicture: printer.entityPicture,
-  })), [activityData.activePrinters]);
+  const activeUpdateInstalls = useMemo<UpdateInstall[]>(() => activities.updateInstalls.map(({ summary, status }) => ({
+    entity_id: summary.entityId,
+    name: summary.name,
+    percentage: summary.percentage,
+    installedVersion: summary.installedVersion,
+    latestVersion: summary.latestVersion,
+    entityPicture: summary.entityPicture,
+    status,
+  })), [activities.updateInstalls]);
 
-  const activeReleaseNotes = useMemo<ReleaseNotesWidget[]>(() => activityData.activeReleaseNotes.map((note) => ({
-    entity_id: note.entityId,
-    name: note.name,
-    version: note.version,
-    summary: note.summary,
-    notes: note.notes,
-    updatedAt: note.updatedAt,
-  })), [activityData.activeReleaseNotes]);
+  const activeBackups = useMemo<BackupRun[]>(() => activities.backups.map(({ summary, status }) => ({
+    entity_id: summary.entityId,
+    name: summary.name,
+    progress: summary.progress,
+    stage: summary.stage,
+    status,
+  })), [activities.backups]);
 
-  const visibleReleaseNotes = useMemo(
-    () => activeReleaseNotes.filter((note) => dismissedReleaseNotes[note.entity_id] !== note.updatedAt),
-    [activeReleaseNotes, dismissedReleaseNotes]
-  );
+  const activeAlarms = useMemo<AlarmWidget[]>(() => activities.alarms.map(({ summary, status }) => ({
+    entity_id: summary.entityId,
+    name: summary.name,
+    state: summary.state,
+    since: summary.since,
+    status,
+  })), [activities.alarms]);
 
   const isExpandedActivityValid = useMemo(() => {
     if (!expandedWidgetId || !isActivityWidgetId(expandedWidgetId)) return true;
@@ -715,6 +824,10 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     if (expandedWidgetId === 'list-timer') return activeTimers.length > 0;
     if (expandedWidgetId === 'list-camera') return activeCameras.length > 0;
     if (expandedWidgetId === 'list-printer') return activePrinters.length > 0;
+    if (expandedWidgetId === 'list-vacuum') return activeVacuums.length > 0;
+    if (expandedWidgetId === 'list-update') return activeUpdateInstalls.length > 0;
+    if (expandedWidgetId === 'list-backup') return activeBackups.length > 0;
+    if (expandedWidgetId === 'list-alarm') return activeAlarms.length > 0;
 
     if (expandedWidgetId.startsWith(RELEASE_NOTES_PREFIX)) {
       return visibleReleaseNotes.some((note) => note.entity_id === expandedWidgetId);
@@ -735,6 +848,18 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     ) {
       return activePrinters.some((printer) => printer.entity_id === expandedWidgetId);
     }
+    if (expandedWidgetId.startsWith('vacuum.')) {
+      return activeVacuums.some((vacuum) => vacuum.entity_id === expandedWidgetId);
+    }
+    if (expandedWidgetId.startsWith('update.')) {
+      return activeUpdateInstalls.some((update) => update.entity_id === expandedWidgetId);
+    }
+    if (expandedWidgetId.startsWith('backup.')) {
+      return activeBackups.some((backup) => backup.entity_id === expandedWidgetId);
+    }
+    if (expandedWidgetId.startsWith('alarm_control_panel.')) {
+      return activeAlarms.some((alarm) => alarm.entity_id === expandedWidgetId);
+    }
 
     return true;
   }, [
@@ -742,7 +867,11 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     activeCameras,
     activePlayers,
     activePrinters,
+    activeVacuums,
     activeTimers,
+    activeUpdateInstalls,
+    activeBackups,
+    activeAlarms,
     visibleReleaseNotes,
   ]);
 
@@ -791,7 +920,11 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       activeTimers.forEach((timer) => {
         const durationSec = timer.durationSec;
 
-        if (timer.state === 'active') {
+        if (timer.status.phase === 'ended') {
+          // Final state: the chronometer freezes at zero.
+          displays[timer.entity_id] = '0:00';
+          progress[timer.entity_id] = 0;
+        } else if (timer.state === 'active') {
           const finishesAt = timer.finishesAt;
           if (finishesAt && typeof finishesAt === 'string') {
             const finishTime = new Date(finishesAt).getTime();
@@ -835,10 +968,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   };
 
   const dismissReleaseNote = useCallback((entityId: string, updatedAt: string) => {
-    setDismissedReleaseNotes((prev) => {
-      if (prev[entityId] === updatedAt) return prev;
-      return { ...prev, [entityId]: updatedAt };
-    });
+    // Persisted + shared with the mobile nav; never reposts for this updatedAt.
+    dismissActivity(entityId, updatedAt);
 
     const remaining = visibleReleaseNotes.filter((note) => note.entity_id !== entityId);
     setExpandedWidgetId(remaining[0]?.entity_id ?? null);
@@ -852,11 +983,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         <div className="absolute inset-0 bg-black/30" />
       </div>
     )}
-    <footer className={`hidden lg:flex items-center justify-between pr-edge pt-ha-2 pb-edge col-span-full z-50 transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : 'opacity-100'}`} data-component="StatusBar">
+    {/* Bottom/right inset matches the desktop corner toast's 1.5rem float
+        (.corner-toast) so the bar has the same breathing room from the screen
+        edges. Left is anchored to the sidebar column via the shell grid. */}
+    <footer className={`hidden lg:flex items-center justify-between pr-6 pt-ha-2 pb-6 col-span-full z-50 transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : 'opacity-100'}`} data-component="StatusBar">
       {/* Left side widgets */}
       <div className="flex items-center flex-1 min-w-0 mr-4 gap-ha-5">
         {/* User profile avatar — same hamburger-behind-avatar composition as
             the mobile nav settings item */}
+        <Tooltip content="Settings" shortcut="S" placement="top">
         <button
           onClick={onProfileToggle}
           aria-label="Open settings"
@@ -870,103 +1005,26 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             </div>
           </div>
         </button>
-        
-        {/* Voice input widget - Fixed */}
-        <div ref={chatContainerRef} className="relative flex-shrink-0">
-          <AnimatePresence>
-            {expandedWidgetId === 'chat' && (
-              <motion.div
-                key="chat-expanded"
-                initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                className="absolute left-0 bottom-full mb-ha-2 w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col cursor-default"
-                transition={activityWindowTransition}
-              >
-                <div className="p-ha-4 flex flex-col gap-ha-4">
-                  <div className="flex flex-col gap-ha-4 h-full min-h-[180px] justify-center items-center text-center px-ha-4">
-                    <div className="w-16 h-16 bg-ha-blue/10 rounded-full flex items-center justify-center mb-ha-2">
-                       <Icon path={mdiMicrophone} size={32} className="text-ha-blue" />
-                    </div>
-                    <div>
-                      <h4 className="text-base font-bold text-text-primary mb-1">Ask {chatContextForPrompt} about...</h4>
-                      <p className="text-xs text-text-secondary">Try &quot;{chatSuggestions[0]}&quot; or &quot;{chatSuggestions[1]}&quot;</p>
-                    </div>
-                    {chatLastSubmittedQuery?.contextKey === chatContextKey && (
-                      <div className="w-full rounded-ha-xl bg-ha-blue/10 border border-ha-blue/20 px-ha-3 py-ha-2 text-left">
-                        <p className="text-[13px] font-bold text-ha-blue uppercase tracking-widest">Last question</p>
-                        <p className="text-xs text-text-primary mt-1 truncate">{chatLastSubmittedQuery.query}</p>
-                      </div>
-                    )}
+        </Tooltip>
 
-                    <div className="w-full flex flex-wrap gap-ha-2 justify-center">
-                      {chatSuggestions.map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            submitSuggestedChatQuery(suggestion);
-                          }}
-                          className="px-ha-3 py-ha-1.5 rounded-ha-pill bg-surface-low hover:bg-surface-mid border border-surface-mid text-xs text-text-primary transition-colors"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+        {/* Ask your home — always-visible entry to the assistant overlay. */}
+        <button
+          type="button"
+          onClick={() => openAssistant()}
+          aria-label="Ask your home"
+          className="group flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 pr-ha-1 h-12 flex-shrink-0 min-w-[200px] border border-transparent hover:bg-surface-mid hover:border-ha-blue/40 transition-all"
+        >
+          <div className="w-8 h-8 rounded-full bg-ha-blue flex items-center justify-center shadow-ha-sm group-hover:scale-110 transition-transform">
+            <Icon path={mdiMicrophone} size={18} className="text-white" />
+          </div>
+          <span className="flex-1 text-sm font-medium text-text-primary text-left">
+            Ask your home…
+          </span>
+          <div className="p-ha-1 rounded-full group-hover:bg-surface-lower transition-colors">
+            <Icon path={mdiChevronRight} size={20} className="text-text-secondary" />
+          </div>
+        </button>
 
-                  <div className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill p-ha-1">
-                    <input
-                      type="text"
-                      value={chatDraft}
-                      onChange={(event) => setChatDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key !== 'Enter') return;
-                        event.preventDefault();
-                        submitChatQuery(chatDraft);
-                      }}
-                      placeholder={`Ask ${chatContextForPrompt}...`}
-                      className="flex-1 px-ha-3 text-sm text-text-primary bg-transparent outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => submitChatQuery(chatDraft)}
-                      disabled={!chatDraft.trim()}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
-                        chatDraft.trim()
-                          ? 'bg-ha-blue text-white shadow-md active:scale-90'
-                          : 'bg-surface-mid text-text-disabled'
-                      }`}
-                    >
-                      <Icon path={mdiSend} size={18} />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <motion.button
-            key="chat-collapsed"
-            onClick={() => {
-              setExpandedWidgetId((current) => (current === 'chat' ? null : 'chat'));
-            }}
-            className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 pr-ha-1 h-12 transition-all hover:bg-surface-mid min-w-[200px] group border ${
-              expandedWidgetId === 'chat' ? 'border-ha-blue/40' : 'border-transparent'
-            }`}
-          >
-            <div className="w-8 h-8 rounded-full bg-ha-blue flex items-center justify-center shadow-ha-sm group-hover:scale-110 transition-transform">
-              <Icon path={mdiMicrophone} size={18} className="text-white" />
-            </div>
-            <span className="flex-1 text-sm font-medium text-text-primary text-left">
-              Ask your home...
-            </span>
-            <div className="p-ha-1 rounded-full group-hover:bg-surface-lower transition-colors">
-              <Icon path={expandedWidgetId === 'chat' ? mdiChevronDown : mdiChevronRight} size={20} className="text-text-secondary" />
-            </div>
-          </motion.button>
-        </div>
-        
         {/* Scrollable Container for Activities */}
         <div className="flex-1 min-w-0 relative group">
            {/* Left Gradient */}
@@ -1000,7 +1058,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
               transition={activityWidgetTransition}
               ref={(el) => { widgetContainerRefs.current['release-notes-widget'] = el; }}
               className="relative"
-              style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+              style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : { order: activities.typeOrder.indexOf('release') }}
               onMouseEnter={() => showActivityPreview('release-notes-widget')}
               onMouseLeave={() => scheduleHideActivityPreview('release-notes-widget')}
           >
@@ -1183,8 +1241,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                   >
                     <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                       <div className="relative">
-                        <div className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
-                          <Icon path={mdiUpdate} size={16} className="text-green-600" />
+                        <div className="w-7 h-7 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
+                          <Icon path={mdiUpdate} size={14} className="text-green-600" />
                         </div>
                         {visibleReleaseNotes.length > 1 && (
                           <div className="absolute -top-1 -right-1 bg-green-600 text-white text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-default shadow-sm z-10">
@@ -1227,7 +1285,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['media-widget'] = el; }}
             className="relative"
-            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : { order: activities.typeOrder.indexOf('media') }}
             onMouseEnter={() => showActivityPreview('media-widget')}
             onMouseLeave={() => scheduleHideActivityPreview('media-widget')}
           >
@@ -1333,9 +1391,16 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       >
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(activePlayers.length > 1 ? 'list-media' : null); },
-                          activePlayers.length > 1 ? mdiChevronUp : mdiClose
+                          activePlayers.length > 1 ? mdiChevronUp : mdiClose,
+                          'media'
                         )}
                       </div>
+
+                      {player.status.isStale && (
+                        <div className="w-full mb-ha-3 px-ha-3 py-ha-2 rounded-ha-lg bg-yellow-95 text-yellow-600 text-xs font-semibold text-center">
+                          Data may be outdated
+                        </div>
+                      )}
 
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-lg border border-surface-low">
                         {player.entityPicture ? (
@@ -1472,7 +1537,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')
                       : openActivityWidget(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')
                   )}
-                  className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer"
+                  className={`relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer ${player.status.isStale ? 'opacity-70' : ''}`}
                 >
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="relative">
@@ -1480,17 +1545,12 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         <img
                           src={getEntityPictureUrl(player.entityPicture)}
                           alt=""
-                          className="w-8 h-8 rounded-full object-cover border border-surface-low"
+                          className="w-7 h-7 rounded-full object-cover border border-surface-low"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-fill-primary-normal flex items-center justify-center">
-                          <Icon path={mdiPlay} size={16} className="text-ha-blue" />
+                        <div className="w-7 h-7 rounded-full bg-fill-primary-normal flex items-center justify-center">
+                          <Icon path={mdiPlay} size={14} className="text-ha-blue" />
                         </div>
-                      )}
-                      {player.state === 'playing' && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-ha-blue rounded-full border-2 border-surface-low flex items-center justify-center">
-                          <span className="w-1 h-1 bg-white rounded-full animate-pulse" />
-                        </span>
                       )}
                       {activePlayers.length > 1 && (
                         <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
@@ -1506,6 +1566,13 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         {player.mediaArtist || (player.state === 'playing' ? 'Playing' : 'Paused')}
                       </span>
                     </div>
+                    <span
+                      className={`ha-eq shrink-0 ${player.state === 'playing' ? 'text-ha-blue' : 'text-text-disabled'}`}
+                      data-paused={player.state !== 'playing'}
+                      aria-hidden="true"
+                    >
+                      <span /><span /><span />
+                    </span>
                   </div>
                   {showPreview && (
                     <div className="absolute inset-0 flex items-center justify-center text-text-primary pointer-events-none">
@@ -1537,7 +1604,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['timer-widget'] = el; }}
             className="relative"
-            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : { order: activities.typeOrder.indexOf('timer') }}
             onMouseEnter={() => showActivityPreview('timer-widget')}
             onMouseLeave={() => scheduleHideActivityPreview('timer-widget')}
           >
@@ -1574,7 +1641,9 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                             </CircularProgress>
                             <div className="flex flex-col min-w-0 flex-1">
                               <span className="text-sm font-medium text-text-primary truncate">{previewTimer.name}</span>
-                              <span className="text-xs text-text-secondary truncate">{timerDisplays[previewTimer.entity_id] || previewTimer.remaining}</span>
+                              <span className={`text-xs truncate ${previewTimer.status.phase === 'ended' ? 'text-green-600 font-semibold' : 'text-text-secondary'}`}>
+                                {previewTimer.status.phase === 'ended' ? (previewTimer.status.endLabel || 'Done') : (timerDisplays[previewTimer.entity_id] || previewTimer.remaining)}
+                              </span>
                             </div>
                             <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
                           </button>
@@ -1642,44 +1711,70 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       >
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(activeTimers.length > 1 ? 'list-timer' : null); },
-                          activeTimers.length > 1 ? mdiChevronUp : mdiClose
+                          activeTimers.length > 1 ? mdiChevronUp : mdiClose,
+                          'timer'
                         )}
                       </div>
 
                       <div className="relative mb-ha-5">
                         <CircularProgress
-                          progress={timerProgress[timer.entity_id] ?? timer.progress}
+                          progress={timer.status.phase === 'ended' ? 1 : (timerProgress[timer.entity_id] ?? timer.progress)}
                           size={150}
                           strokeWidth={7}
-                          className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
-                          trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
+                          className={timer.status.phase === 'ended' ? 'text-green-600' : timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
+                          trackClassName={timer.status.phase === 'ended' ? 'text-green-500/20' : timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
                         />
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className="text-3xl font-bold font-mono text-text-primary tracking-tighter">
-                            {timerDisplays[timer.entity_id] || timer.remaining}
-                          </span>
-                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-widest mt-1">
-                            {timer.state}
-                          </span>
+                          {timer.status.phase === 'ended' ? (
+                            <>
+                              <Icon path={mdiCheckCircle} size={40} className="text-green-600 mb-1" />
+                              <span className="text-[13px] font-bold text-green-600 uppercase tracking-widest">
+                                {timer.status.endLabel || 'Done'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <RollingNumericValue
+                                value={timerDisplays[timer.entity_id] || timer.remaining}
+                                className="text-3xl font-bold font-mono text-text-primary tracking-tighter"
+                              />
+                              <span className="text-[13px] font-bold text-text-disabled uppercase tracking-widest mt-1">
+                                {timer.state}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
 
                       <h3 className="text-base font-bold text-text-primary mb-ha-5 text-center truncate w-full px-4">{timer.name}</h3>
 
-                      <div className="flex items-center gap-ha-3 w-full">
+                      {timer.status.phase === 'ended' ? (
                         <button
-                          onClick={() => callService({ domain: 'timer', service: 'cancel', target: { entity_id: timer.entity_id } })}
-                          className="flex-1 h-11 rounded-ha-xl bg-surface-low text-text-secondary font-bold text-xs uppercase tracking-wider hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            dismissActivity(timer.entity_id, endedDismissKey(timer.status));
+                            minimizeActivityWidget();
+                          }}
+                          className="w-full h-11 rounded-ha-xl bg-green-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-green-500 transition-colors"
                         >
-                          Cancel
+                          Dismiss
                         </button>
-                        <button
-                          onClick={() => callService({ domain: 'timer', service: timer.state === 'active' ? 'pause' : 'start', target: { entity_id: timer.entity_id } })}
-                          className={`flex-1 h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white transition-all shadow-md active:scale-95 ${timer.state === 'active' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-ha-blue hover:bg-ha-blue-dark'}`}
-                        >
-                          {timer.state === 'active' ? 'Pause' : 'Resume'}
-                        </button>
-                      </div>
+                      ) : (
+                        <div className="flex items-center gap-ha-3 w-full">
+                          <button
+                            onClick={() => callService({ domain: 'timer', service: 'cancel', target: { entity_id: timer.entity_id } })}
+                            className="flex-1 h-11 rounded-ha-xl bg-surface-low text-text-secondary font-bold text-xs uppercase tracking-wider hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => callService({ domain: 'timer', service: timer.state === 'active' ? 'pause' : 'start', target: { entity_id: timer.entity_id } })}
+                            className={`flex-1 h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white transition-all shadow-md active:scale-95 ${timer.state === 'active' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-ha-blue hover:bg-ha-blue-dark'}`}
+                          >
+                            {timer.state === 'active' ? 'Pause' : 'Resume'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
 
@@ -1741,7 +1836,9 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                             </CircularProgress>
                             <div className="flex flex-col min-w-0 flex-1">
                               <span className="text-sm font-medium text-text-primary truncate">{t.name}</span>
-                              <span className="text-xs text-text-secondary truncate">{timerDisplays[t.entity_id] || t.remaining}</span>
+                              <span className={`text-xs truncate ${t.status.phase === 'ended' ? 'text-green-600 font-semibold' : 'text-text-secondary'}`}>
+                                {t.status.phase === 'ended' ? (t.status.endLabel || 'Done') : (timerDisplays[t.entity_id] || t.remaining)}
+                              </span>
                             </div>
                             <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
                           </button>
@@ -1770,7 +1867,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                 </>
               ) : (
                 <motion.div
-                  key="timer-collapsed"
+                  key={`timer-collapsed-${timer.status.alertAt ?? 'quiet'}`}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -1780,7 +1877,11 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
                       : openActivityWidget(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
                   )}
-                  className="relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer bg-surface-low hover:bg-surface-mid"
+                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                    timer.status.phase === 'ended'
+                      ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
+                      : 'bg-surface-low hover:bg-surface-mid'
+                  } ${timer.status.isStale ? 'opacity-70' : ''} ${isAlerting(timer.status, nowMs) ? 'ha-status-pulse' : ''}`}
                 >
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="relative">
@@ -1789,26 +1890,47 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         {activeTimers.length}
                       </div>
                     )}
-                    <CircularProgress
-                      progress={timerProgress[timer.entity_id] ?? timer.progress}
-                      size={32}
-                      strokeWidth={2.5}
-                      className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
-                      trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
-                    >
-                      <Icon
-                        path={timer.state === 'active' ? mdiTimerOutline : mdiPause}
-                        size={14}
+                    {timer.status.phase === 'ended' ? (
+                      <Icon path={mdiCheckCircle} size={26} className="text-green-600" />
+                    ) : (
+                      <CircularProgress
+                        progress={timerProgress[timer.entity_id] ?? timer.progress}
+                        size={28}
+                        strokeWidth={2.5}
                         className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
-                      />
-                    </CircularProgress>
+                        trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
+                      >
+                        <Icon
+                          path={timer.state === 'active' ? mdiTimerOutline : mdiPause}
+                          size={13}
+                          className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
+                        />
+                      </CircularProgress>
+                    )}
                     </div>
                     <div className="flex flex-col min-w-0 max-w-[140px]">
-                      <span className="text-sm font-medium text-text-primary truncate">
-                        {timerDisplays[timer.entity_id] || timer.remaining}
-                      </span>
+                      {timer.status.phase === 'ended' ? (
+                        <span className="text-sm font-semibold text-green-600 truncate">{timer.status.endLabel || 'Done'}</span>
+                      ) : (
+                        <RollingNumericValue
+                          value={timerDisplays[timer.entity_id] || timer.remaining}
+                          className="text-sm font-semibold text-text-primary"
+                        />
+                      )}
                       <span className="text-xs text-text-secondary truncate">{timer.name}</span>
                     </div>
+                    {timer.status.phase === 'ended' && (
+                      <button
+                        aria-label="Dismiss"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissActivity(timer.entity_id, endedDismissKey(timer.status));
+                        }}
+                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+                      >
+                        <Icon path={mdiClose} size={15} />
+                      </button>
+                    )}
                   </div>
                   {showPreview && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-text-primary">
@@ -1840,7 +1962,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['camera-widget'] = el; }}
             className="relative"
-            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : { order: activities.typeOrder.indexOf('camera') }}
             onMouseEnter={() => showActivityPreview('camera-widget')}
             onMouseLeave={() => scheduleHideActivityPreview('camera-widget')}
           >
@@ -1882,8 +2004,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     <>
                       <div className="w-full aspect-video bg-black relative">
                         <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 rounded text-[13px] text-white font-mono border border-white/10">
-                          LIVE • 2026-02-12 23:38:00
+                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 rounded text-[13px] text-white font-mono border border-white/10 flex items-center gap-1.5">
+                          {camera.status.phase === 'ended' ? (
+                            <>ENDED • {formatRelativeAge(camera.since, nowMs)}</>
+                          ) : (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                              LIVE • {formatRelativeAge(camera.since, nowMs)}
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="p-ha-4">
@@ -1931,13 +2060,21 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     >
                       {renderActivityWindowActions(
                         (e) => { e.stopPropagation(); setExpandedWidgetId(activeCameras.length > 1 ? 'list-camera' : null); },
-                        activeCameras.length > 1 ? mdiChevronUp : mdiClose
+                        activeCameras.length > 1 ? mdiChevronUp : mdiClose,
+                        'camera'
                       )}
                     </div>
                     <div className="w-full aspect-video bg-black relative">
                       <img src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 rounded text-[13px] text-white font-mono border border-white/10">
-                        LIVE • 2026-02-12 23:38:00
+                      <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/50 rounded text-[13px] text-white font-mono border border-white/10 flex items-center gap-1.5">
+                        {camera.status.phase === 'ended' ? (
+                          <>ENDED • {formatRelativeAge(camera.since, nowMs)}</>
+                        ) : (
+                          <>
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                            LIVE • {formatRelativeAge(camera.since, nowMs)}
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="p-ha-4">
@@ -2044,7 +2181,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                 </>
               ) : (
                 <motion.div
-                  key="camera-collapsed"
+                  key={`camera-collapsed-${camera.status.alertAt ?? 'quiet'}`}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -2054,14 +2191,18 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
                       : openActivityWidget(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
                   )}
-                  className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:bg-surface-mid"
+                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                    camera.status.phase === 'ended'
+                      ? 'bg-surface-low hover:bg-surface-mid'
+                      : 'bg-red-500/10 border border-red-500/20 hover:bg-red-500/15'
+                  } ${isAlerting(camera.status, nowMs) ? 'ha-status-pulse' : ''}`}
                 >
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
-                    <div className="relative w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
+                    <div className="relative w-7 h-7 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
                       <img
                         src={getEntityPictureUrl(camera.entityPicture, '/camera_doorbell.png')}
                         alt=""
-                        className="w-full h-full object-cover animate-pulse"
+                        className={`w-full h-full object-cover ${camera.status.phase === 'ended' ? '' : 'animate-pulse'}`}
                       />
                       <div className="absolute inset-0 bg-red-500/10" />
                       {activeCameras.length > 1 && (
@@ -2070,13 +2211,27 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col min-w-0 max-w-[140px]">
-                      <span className="text-sm font-medium text-text-primary truncate flex items-center gap-1">
+                    <div className="flex flex-col min-w-0 max-w-[150px]">
+                      <span className={`text-sm font-semibold truncate flex items-center gap-1 ${camera.status.phase === 'ended' ? 'text-text-primary' : 'text-red-500'}`}>
                         <Icon path={mdiDoorbellVideo} size={14} className="text-red-500 shrink-0" />
-                        {camera.name}
+                        {camera.event}
                       </span>
-                      <span className="text-xs text-text-secondary truncate">{camera.event}</span>
+                      <span className="text-xs text-text-secondary truncate">
+                        {camera.name} • {formatRelativeAge(camera.since, nowMs)}
+                      </span>
                     </div>
+                    {camera.status.phase === 'ended' && (
+                      <button
+                        aria-label="Dismiss"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissActivity(camera.entity_id, endedDismissKey(camera.status));
+                        }}
+                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+                      >
+                        <Icon path={mdiClose} size={15} />
+                      </button>
+                    )}
                   </div>
                   {showPreview && (
                     <div className="absolute inset-0 flex items-center justify-center text-text-primary pointer-events-none">
@@ -2108,7 +2263,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             transition={activityWidgetTransition}
             ref={(el) => { widgetContainerRefs.current['printer-widget'] = el; }}
             className="relative"
-            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : undefined}
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : { order: activities.typeOrder.indexOf('printer') }}
             onMouseEnter={() => showActivityPreview('printer-widget')}
             onMouseLeave={() => scheduleHideActivityPreview('printer-widget')}
           >
@@ -2147,7 +2302,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                             </CircularProgress>
                             <div className="flex flex-col min-w-0 flex-1">
                               <span className="text-sm font-medium text-text-primary truncate">{previewPrinter.fileName}</span>
-                              <span className="text-xs text-text-secondary truncate font-mono">{previewPrinter.progress}% • {previewPrinter.remainingTime}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{previewPrinter.progress}% • {formatRemainingLabel(previewPrinter.remainingTime)}</span>
                             </div>
                             <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
                           </button>
@@ -2194,7 +2349,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
                         <div className="flex flex-col pl-1">
                           <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
-                          <span className="text-sm font-mono font-bold text-text-primary">{printer.remainingTime}</span>
+                          <span className="text-sm font-mono font-bold text-text-primary">{formatRemainingLabel(printer.remainingTime)}</span>
                         </div>
                         <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
                           <Icon path={mdiStop} size={18} />
@@ -2225,9 +2380,16 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       >
                         {renderActivityWindowActions(
                           (e) => { e.stopPropagation(); setExpandedWidgetId(activePrinters.length > 1 ? 'list-printer' : null); },
-                          activePrinters.length > 1 ? mdiChevronUp : mdiClose
+                          activePrinters.length > 1 ? mdiChevronUp : mdiClose,
+                          'printer'
                         )}
                       </div>
+
+                      {printer.status.isStale && (
+                        <div className="w-full mb-ha-3 px-ha-3 py-ha-2 rounded-ha-lg bg-yellow-95 text-yellow-600 text-xs font-semibold text-center">
+                          Data may be outdated
+                        </div>
+                      )}
 
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
                         <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
@@ -2267,7 +2429,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
                         <div className="flex flex-col pl-1">
                           <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
-                          <span className="text-sm font-mono font-bold text-text-primary">{printer.remainingTime}</span>
+                          <span className="text-sm font-mono font-bold text-text-primary">{formatRemainingLabel(printer.remainingTime)}</span>
                         </div>
                         <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
                           <Icon path={mdiStop} size={18} />
@@ -2336,7 +2498,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                             </CircularProgress>
                             <div className="flex flex-col min-w-0 flex-1">
                               <span className="text-sm font-medium text-text-primary truncate">{p.fileName}</span>
-                              <span className="text-xs text-text-secondary truncate font-mono">{p.progress}% • {p.remainingTime}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{p.progress}% • {formatRemainingLabel(p.remainingTime)}</span>
                             </div>
                             <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
                           </button>
@@ -2365,7 +2527,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                 </>
               ) : (
                 <motion.div
-                  key="printer-collapsed"
+                  key={`printer-collapsed-${printer.status.alertAt ?? 'quiet'}`}
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
@@ -2375,7 +2537,11 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')
                       : openActivityWidget(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')
                   )}
-                  className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer hover:bg-surface-mid"
+                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                    printer.status.phase === 'ended' && printer.status.endLabel === 'Print complete'
+                      ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
+                      : 'bg-surface-low hover:bg-surface-mid'
+                  } ${printer.status.isStale ? 'opacity-70' : ''} ${isAlerting(printer.status, nowMs) ? 'ha-status-pulse' : ''}`}
                 >
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="relative">
@@ -2384,36 +2550,1353 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         {activePrinters.length}
                       </div>
                     )}
-                    <CircularProgress
-                      progress={printer.progress / 100}
-                      size={32}
-                      strokeWidth={2.5}
-                      className="text-ha-blue shrink-0"
-                      trackClassName="text-fill-primary-quiet"
-                    >
-                      <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
-                        <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
-                      </div>
-                    </CircularProgress>
+                    {printer.status.phase === 'ended' && printer.status.endLabel === 'Print complete' ? (
+                      <Icon path={mdiCheckCircle} size={26} className="text-green-600" />
+                    ) : (
+                      <CircularProgress
+                        progress={printer.progress / 100}
+                        size={28}
+                        strokeWidth={2.5}
+                        className="text-ha-blue shrink-0"
+                        trackClassName="text-fill-primary-quiet"
+                      >
+                        <div className="w-4 h-4 rounded-full overflow-hidden bg-surface-mid">
+                          <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      </CircularProgress>
+                    )}
                     </div>
                     <div className="flex flex-col min-w-0 max-w-[140px]">
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm font-medium text-text-primary truncate font-mono">
-                          {printer.progress}%
+                      {printer.status.phase === 'ended' ? (
+                        <span className={`text-sm font-semibold truncate ${printer.status.endLabel === 'Print complete' ? 'text-green-600' : 'text-text-primary'}`}>
+                          {printer.status.endLabel}
                         </span>
-                        <span className="text-[13px] text-text-disabled uppercase font-bold tracking-tighter">
-                          Printing
-                        </span>
-                      </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <RollingNumericValue
+                            value={`${printer.progress}%`}
+                            className="text-sm font-semibold text-text-primary font-mono"
+                          />
+                          <span className="text-[13px] text-text-disabled uppercase font-bold tracking-tighter">
+                            Printing
+                          </span>
+                        </div>
+                      )}
                       <span className="text-xs text-text-secondary truncate">{printer.fileName}</span>
                     </div>
-                    <div className="hidden xl:flex flex-col items-end ml-1 pl-2 border-l border-surface-mid">
-                      <span className="text-[13px] text-text-disabled font-bold leading-none mb-0.5 uppercase">Left</span>
-                      <span className="text-xs font-mono text-text-secondary">{printer.remainingTime}</span>
-                    </div>
+                    {printer.status.phase === 'ended' ? (
+                      <button
+                        aria-label="Dismiss"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissActivity(printer.entity_id, endedDismissKey(printer.status));
+                        }}
+                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+                      >
+                        <Icon path={mdiClose} size={15} />
+                      </button>
+                    ) : (
+                      <div className="hidden xl:flex flex-col items-end ml-1 pl-2 border-l border-surface-mid">
+                        <span className="text-[13px] text-text-disabled font-bold leading-none mb-0.5 uppercase">Left</span>
+                        <span className="text-xs font-mono text-text-secondary">{formatRemainingLabel(printer.remainingTime)}</span>
+                      </div>
+                    )}
                   </div>
                   {showPreview && (
                     <div className="absolute inset-0 flex items-center justify-center text-ha-blue pointer-events-none">
+                      <Icon path={mdiOpenInNew} size={18} />
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+          );
+        })()}
+
+        {/* Vacuum widget(s) */}
+        {activeVacuums.length > 0 && (() => {
+          const selectedVacuum = activeVacuums.find(v => v.entity_id === expandedWidgetId);
+          const isListView = expandedWidgetId === 'list-vacuum';
+          const vacuum = selectedVacuum || activeVacuums[0];
+          const showPreview = hoveredActivityWidget === 'vacuum-widget' && !expandedWidgetId;
+          const isExpanded = Boolean(selectedVacuum || isListView);
+          const isPinnedInFooter = isPinnedActivityWidget && isExpanded;
+          const vacuumStatus = vacuum.status.phase === 'ended'
+            ? (vacuum.status.endLabel || 'Finished')
+            : vacuum.state === 'returning' ? 'Returning' : 'Cleaning';
+          return (
+          <motion.div
+            key="vacuum-widget"
+            layout={isPinnedInFooter ? false : 'position'}
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={activityWidgetTransition}
+            ref={(el) => { widgetContainerRefs.current['vacuum-widget'] = el; }}
+            className="relative"
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : { order: activities.typeOrder.indexOf('vacuum') }}
+            onMouseEnter={() => showActivityPreview('vacuum-widget')}
+            onMouseLeave={() => scheduleHideActivityPreview('vacuum-widget')}
+          >
+            <AnimatePresence>
+              {showPreview && (
+                <motion.div
+                  key="vacuum-preview"
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                  onMouseEnter={() => showActivityPreview('vacuum-widget')}
+                  onMouseLeave={() => scheduleHideActivityPreview('vacuum-widget')}
+                  className="fixed -translate-x-1/2 z-50 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
+                  style={activityFlyoutStyles['vacuum-widget']}
+                  transition={activityWindowTransition}
+                >
+                  {activeVacuums.length > 1 ? (
+                    <div className="p-ha-4">
+                      <div className="space-y-ha-2">
+                        {activeVacuums.map((previewVacuum) => (
+                          <button
+                            key={previewVacuum.entity_id}
+                            onClick={() => openActivityWidget(previewVacuum.entity_id, 'vacuum-widget')}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={previewVacuum.progress / 100}
+                              size={32}
+                              strokeWidth={2.5}
+                              className="text-ha-blue shrink-0"
+                              trackClassName="text-fill-primary-quiet"
+                            >
+                              <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
+                                <img src={getEntityPictureUrl(previewVacuum.entityPicture, '/devices/robot_vacuum.png')} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{previewVacuum.name}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{previewVacuum.progress}% • {previewVacuum.area || 'Cleaning'}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
+                        <img src={getEntityPictureUrl(vacuum.entityPicture, '/devices/robot_vacuum.png')} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute bottom-2 right-2 bg-black/60 rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
+                          <Icon path={mdiMapMarkerRadius} size={14} className="text-ha-blue" />
+                          <span className="text-[13px] font-bold text-white">{vacuum.area || 'Whole home'}</span>
+                        </div>
+                      </div>
+
+                      <div className="w-full mb-ha-4 px-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-bold text-text-primary truncate">{vacuum.name}</h3>
+                          <span className="text-xs font-mono text-ha-blue font-bold">{vacuum.progress}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${vacuum.progress}%` }}
+                            className="bg-ha-blue h-full rounded-full"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
+                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
+                          <Icon path={mdiBatteryHigh} size={18} className="text-green-500" />
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">BATTERY</span>
+                          <span className="text-sm font-bold text-text-primary font-mono">{vacuum.battery ?? '—'}%</span>
+                        </div>
+                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
+                          <Icon path={mdiRobotVacuum} size={18} className="text-ha-blue" />
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">MODE</span>
+                          <span className="text-sm font-bold text-text-primary">{vacuum.fanSpeed || vacuumStatus}</span>
+                        </div>
+                      </div>
+
+                      <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
+                        <div className="flex flex-col pl-1">
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
+                          <span className="text-sm font-mono font-bold text-text-primary">{vacuum.remainingTime || '—'}</span>
+                        </div>
+                        <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
+                          <Icon path={mdiStop} size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence mode="wait">
+              {selectedVacuum ? (
+                <>
+                  <motion.div
+                    key="vacuum-expanded"
+                    ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['vacuum-widget'] : activityDialogStyle}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-end items-center ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(activeVacuums.length > 1 ? 'list-vacuum' : null); },
+                          activeVacuums.length > 1 ? mdiChevronUp : mdiClose,
+                          'vacuum'
+                        )}
+                      </div>
+
+                      {vacuum.status.isStale && (
+                        <div className="w-full mb-ha-3 px-ha-3 py-ha-2 rounded-ha-lg bg-yellow-95 text-yellow-600 text-xs font-semibold text-center">
+                          Data may be outdated
+                        </div>
+                      )}
+
+                      <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
+                        <img src={getEntityPictureUrl(vacuum.entityPicture, '/devices/robot_vacuum.png')} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute bottom-2 right-2 bg-black/60 rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
+                          <Icon path={mdiMapMarkerRadius} size={14} className="text-ha-blue" />
+                          <span className="text-[13px] font-bold text-white">{vacuum.area || 'Whole home'}</span>
+                        </div>
+                      </div>
+
+                      <div className="w-full mb-ha-4 px-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-bold text-text-primary truncate">{vacuum.name}</h3>
+                          <span className="text-xs font-mono text-ha-blue font-bold">{vacuum.progress}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${vacuum.progress}%` }}
+                            className="bg-ha-blue h-full rounded-full"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
+                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
+                          <Icon path={mdiBatteryHigh} size={18} className="text-green-500" />
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">BATTERY</span>
+                          <span className="text-sm font-bold text-text-primary font-mono">{vacuum.battery ?? '—'}%</span>
+                        </div>
+                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
+                          <Icon path={mdiRobotVacuum} size={18} className="text-ha-blue" />
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">MODE</span>
+                          <span className="text-sm font-bold text-text-primary">{vacuum.fanSpeed || vacuumStatus}</span>
+                        </div>
+                      </div>
+
+                      <div className="w-full p-ha-3 bg-surface-low rounded-ha-xl border border-surface-mid/30 flex items-center justify-between">
+                        <div className="flex flex-col pl-1">
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">TIME LEFT</span>
+                          <span className="text-sm font-mono font-bold text-text-primary">{vacuum.remainingTime || '—'}</span>
+                        </div>
+                        <button className="w-10 h-10 bg-red-500/10 text-red-500 rounded-ha-lg hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95 flex items-center justify-center">
+                          <Icon path={mdiStop} size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {selectedVacuum && activityWidgetView !== 'pinned' && (
+                    <motion.button
+                      key="vacuum-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['vacuum-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
+              ) : isListView ? (
+                <>
+                  <motion.div
+                    key="vacuum-list"
+                    ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['vacuum-widget'] : activityDialogStyle}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
+                          mdiClose
+                        )}
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activeVacuums.map(v => (
+                          <button
+                            key={v.entity_id}
+                            onClick={() => setExpandedWidgetId(v.entity_id)}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={v.progress / 100}
+                              size={32}
+                              strokeWidth={2.5}
+                              className="text-ha-blue shrink-0"
+                              trackClassName="text-fill-primary-quiet"
+                            >
+                              <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
+                                <img src={getEntityPictureUrl(v.entityPicture, '/devices/robot_vacuum.png')} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{v.name}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{v.progress}% • {v.area || 'Cleaning'}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {isExpanded && activityWidgetView !== 'pinned' && (
+                    <motion.button
+                      key="vacuum-list-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['vacuum-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
+              ) : (
+                <motion.div
+                  key="vacuum-collapsed"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={activityMiniTransition}
+                  onClick={() => (
+                    showPreview
+                      ? openActivityWidgetDialog(activeVacuums.length > 1 ? 'list-vacuum' : vacuum.entity_id, 'vacuum-widget')
+                      : openActivityWidget(activeVacuums.length > 1 ? 'list-vacuum' : vacuum.entity_id, 'vacuum-widget')
+                  )}
+                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                    vacuum.status.phase === 'ended'
+                      ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
+                      : 'bg-surface-low hover:bg-surface-mid'
+                  } ${vacuum.status.isStale ? 'opacity-70' : ''}`}
+                >
+                  <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className="relative">
+                    {activeVacuums.length > 1 && (
+                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                        {activeVacuums.length}
+                      </div>
+                    )}
+                    {vacuum.status.phase === 'ended' ? (
+                      <Icon path={mdiCheckCircle} size={26} className="text-green-600" />
+                    ) : (
+                      <CircularProgress
+                        progress={vacuum.progress / 100}
+                        size={28}
+                        strokeWidth={2.5}
+                        className="text-ha-blue shrink-0"
+                        trackClassName="text-fill-primary-quiet"
+                      >
+                        <div className="w-4 h-4 rounded-full overflow-hidden bg-surface-mid">
+                          <img src={getEntityPictureUrl(vacuum.entityPicture, '/devices/robot_vacuum.png')} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      </CircularProgress>
+                    )}
+                    </div>
+                    <div className="flex flex-col min-w-0 max-w-[140px]">
+                      {vacuum.status.phase === 'ended' ? (
+                        <span className="text-sm font-semibold text-green-600 truncate">{vacuum.status.endLabel || 'Finished'}</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <RollingNumericValue
+                            value={`${vacuum.progress}%`}
+                            className="text-sm font-semibold text-text-primary font-mono"
+                          />
+                          <span className="text-[13px] text-text-disabled uppercase font-bold tracking-tighter">
+                            {vacuumStatus}
+                          </span>
+                        </div>
+                      )}
+                      <span className="text-xs text-text-secondary truncate">{vacuum.area || vacuum.name}</span>
+                    </div>
+                    {vacuum.status.phase === 'ended' ? (
+                      <button
+                        aria-label="Dismiss"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissActivity(vacuum.entity_id, endedDismissKey(vacuum.status));
+                        }}
+                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+                      >
+                        <Icon path={mdiClose} size={15} />
+                      </button>
+                    ) : vacuum.battery !== undefined && (
+                      <div className="hidden xl:flex flex-col items-end ml-1 pl-2 border-l border-surface-mid">
+                        <span className="text-[13px] text-text-disabled font-bold leading-none mb-0.5 uppercase">Batt</span>
+                        <span className="text-xs font-mono text-text-secondary">{vacuum.battery}%</span>
+                      </div>
+                    )}
+                  </div>
+                  {showPreview && (
+                    <div className="absolute inset-0 flex items-center justify-center text-ha-blue pointer-events-none">
+                      <Icon path={mdiOpenInNew} size={18} />
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+          );
+        })()}
+
+        {/* Update install widget(s) - show while a core/add-on update is installing */}
+        {activeUpdateInstalls.length > 0 && (() => {
+          const selectedUpdate = activeUpdateInstalls.find(u => u.entity_id === expandedWidgetId);
+          const isListView = expandedWidgetId === 'list-update';
+          const update = selectedUpdate || activeUpdateInstalls[0];
+          const showPreview = hoveredActivityWidget === 'update-widget' && !expandedWidgetId;
+          const isExpanded = Boolean(selectedUpdate || isListView);
+          const isPinnedInFooter = isPinnedActivityWidget && isExpanded;
+          const isComplete = update.status.phase === 'ended';
+          return (
+          <motion.div
+            key="update-widget"
+            layout={isPinnedInFooter ? false : 'position'}
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={activityWidgetTransition}
+            ref={(el) => { widgetContainerRefs.current['update-widget'] = el; }}
+            className="relative"
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : { order: activities.typeOrder.indexOf('update') }}
+            onMouseEnter={() => showActivityPreview('update-widget')}
+            onMouseLeave={() => scheduleHideActivityPreview('update-widget')}
+          >
+            <AnimatePresence>
+              {showPreview && (
+                <motion.div
+                  key="update-preview"
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                  onMouseEnter={() => showActivityPreview('update-widget')}
+                  onMouseLeave={() => scheduleHideActivityPreview('update-widget')}
+                  className="fixed -translate-x-1/2 z-50 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
+                  style={activityFlyoutStyles['update-widget']}
+                  transition={activityWindowTransition}
+                >
+                  {activeUpdateInstalls.length > 1 ? (
+                    <div className="p-ha-4">
+                      <div className="space-y-ha-2">
+                        {activeUpdateInstalls.map((previewUpdate) => (
+                          <button
+                            key={previewUpdate.entity_id}
+                            onClick={() => openActivityWidget(previewUpdate.entity_id, 'update-widget')}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={(previewUpdate.percentage ?? 0) / 100}
+                              size={32}
+                              strokeWidth={2.5}
+                              className="text-ha-blue shrink-0"
+                              trackClassName="text-fill-primary-quiet"
+                            >
+                              <Icon path={mdiUpdate} size={14} className="text-ha-blue" />
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{previewUpdate.name}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{formatProgressLabel(previewUpdate.percentage)}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div className="w-full aspect-[2/1] rounded-ha-2xl mb-ha-4 bg-fill-primary-quiet flex items-center justify-center border border-surface-low">
+                        <Icon path={mdiUpdate} size={40} className="text-ha-blue" />
+                      </div>
+                      <h3 className="text-sm font-bold text-text-primary truncate w-full text-center mb-1">{update.name}</h3>
+                      <p className="text-xs text-text-secondary mb-ha-4">
+                        {update.installedVersion || '—'} → {update.latestVersion || '—'}
+                      </p>
+                      <div className="w-full mb-ha-2 px-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">Installing</span>
+                          <span className="text-xs font-mono text-ha-blue font-bold">{formatProgressLabel(update.percentage)}</span>
+                        </div>
+                        <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${update.percentage ?? 0}%` }}
+                            className="bg-ha-blue h-full rounded-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence mode="wait">
+              {selectedUpdate ? (
+                <>
+                  <motion.div
+                    key="update-expanded"
+                    ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['update-widget'] : activityDialogStyle}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-end items-center ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(activeUpdateInstalls.length > 1 ? 'list-update' : null); },
+                          activeUpdateInstalls.length > 1 ? mdiChevronUp : mdiClose,
+                          'update'
+                        )}
+                      </div>
+
+                      {update.status.isStale && (
+                        <div className="w-full mb-ha-3 px-ha-3 py-ha-2 rounded-ha-lg bg-yellow-95 text-yellow-600 text-xs font-semibold text-center">
+                          Data may be outdated
+                        </div>
+                      )}
+
+                      <div className={`w-full aspect-[2/1] rounded-ha-2xl mb-ha-4 flex items-center justify-center border border-surface-low ${isComplete ? 'bg-green-500/10' : 'bg-fill-primary-quiet'}`}>
+                        <Icon path={isComplete ? mdiCheckCircle : mdiUpdate} size={40} className={isComplete ? 'text-green-600' : 'text-ha-blue'} />
+                      </div>
+                      <h3 className="text-sm font-bold text-text-primary truncate w-full text-center mb-1">{update.name}</h3>
+
+                      {isComplete ? (
+                        <>
+                          <p className="text-sm font-semibold text-green-600 mb-ha-4">{update.status.endLabel}</p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dismissActivity(update.entity_id, endedDismissKey(update.status));
+                              minimizeActivityWidget();
+                            }}
+                            className="w-full h-10 rounded-ha-xl bg-green-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-green-500 transition-colors"
+                          >
+                            Dismiss
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-text-secondary mb-ha-4">
+                            {update.installedVersion || '—'} → {update.latestVersion || '—'}
+                          </p>
+                          <div className="w-full mb-ha-2 px-2">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">Installing</span>
+                              <span className="text-xs font-mono text-ha-blue font-bold">{formatProgressLabel(update.percentage)}</span>
+                            </div>
+                            <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${update.percentage ?? 0}%` }}
+                                className="bg-ha-blue h-full rounded-full"
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+
+                  {selectedUpdate && activityWidgetView !== 'pinned' && (
+                    <motion.button
+                      key="update-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['update-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
+              ) : isListView ? (
+                <>
+                  <motion.div
+                    key="update-list"
+                    ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['update-widget'] : activityDialogStyle}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
+                          mdiClose
+                        )}
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activeUpdateInstalls.map(u => (
+                          <button
+                            key={u.entity_id}
+                            onClick={() => setExpandedWidgetId(u.entity_id)}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={(u.percentage ?? 0) / 100}
+                              size={32}
+                              strokeWidth={2.5}
+                              className="text-ha-blue shrink-0"
+                              trackClassName="text-fill-primary-quiet"
+                            >
+                              <Icon path={mdiUpdate} size={14} className="text-ha-blue" />
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{u.name}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{formatProgressLabel(u.percentage)}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {isExpanded && activityWidgetView !== 'pinned' && (
+                    <motion.button
+                      key="update-list-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['update-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
+              ) : (
+                <motion.div
+                  key={`update-collapsed-${update.status.alertAt ?? 'quiet'}`}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={activityMiniTransition}
+                  onClick={() => (
+                    showPreview
+                      ? openActivityWidgetDialog(activeUpdateInstalls.length > 1 ? 'list-update' : update.entity_id, 'update-widget')
+                      : openActivityWidget(activeUpdateInstalls.length > 1 ? 'list-update' : update.entity_id, 'update-widget')
+                  )}
+                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                    isComplete ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15' : 'bg-surface-low hover:bg-surface-mid'
+                  } ${update.status.isStale ? 'opacity-70' : ''} ${isAlerting(update.status, nowMs) ? 'ha-status-pulse' : ''}`}
+                >
+                  <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className="relative">
+                    {activeUpdateInstalls.length > 1 && (
+                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                        {activeUpdateInstalls.length}
+                      </div>
+                    )}
+                    {isComplete ? (
+                      <Icon path={mdiCheckCircle} size={26} className="text-green-600" />
+                    ) : (
+                      <CircularProgress
+                        progress={(update.percentage ?? 0) / 100}
+                        size={28}
+                        strokeWidth={2.5}
+                        className="text-ha-blue shrink-0"
+                        trackClassName="text-fill-primary-quiet"
+                      >
+                        <Icon path={mdiUpdate} size={13} className="text-ha-blue" />
+                      </CircularProgress>
+                    )}
+                    </div>
+                    <div className="flex flex-col min-w-0 max-w-[140px]">
+                      {isComplete ? (
+                        <span className="text-sm font-semibold text-green-600 truncate">{update.status.endLabel}</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <RollingNumericValue
+                            value={formatProgressLabel(update.percentage)}
+                            className="text-sm font-semibold text-text-primary font-mono"
+                          />
+                          <span className="text-[13px] text-text-disabled uppercase font-bold tracking-tighter">Update</span>
+                        </div>
+                      )}
+                      <span className="text-xs text-text-secondary truncate">{update.name}</span>
+                    </div>
+                    {isComplete && (
+                      <button
+                        aria-label="Dismiss"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissActivity(update.entity_id, endedDismissKey(update.status));
+                        }}
+                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+                      >
+                        <Icon path={mdiClose} size={15} />
+                      </button>
+                    )}
+                  </div>
+                  {showPreview && (
+                    <div className="absolute inset-0 flex items-center justify-center text-ha-blue pointer-events-none">
+                      <Icon path={mdiOpenInNew} size={18} />
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+          );
+        })()}
+
+        {/* Backup widget(s) - show while a backup is actively running */}
+        {activeBackups.length > 0 && (() => {
+          const selectedBackup = activeBackups.find(b => b.entity_id === expandedWidgetId);
+          const isListView = expandedWidgetId === 'list-backup';
+          const backup = selectedBackup || activeBackups[0];
+          const showPreview = hoveredActivityWidget === 'backup-widget' && !expandedWidgetId;
+          const isExpanded = Boolean(selectedBackup || isListView);
+          const isPinnedInFooter = isPinnedActivityWidget && isExpanded;
+          const isComplete = backup.status.phase === 'ended';
+          const failed = backup.status.endLabel === 'Backup failed';
+          return (
+          <motion.div
+            key="backup-widget"
+            layout={isPinnedInFooter ? false : 'position'}
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={activityWidgetTransition}
+            ref={(el) => { widgetContainerRefs.current['backup-widget'] = el; }}
+            className="relative"
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : { order: activities.typeOrder.indexOf('backup') }}
+            onMouseEnter={() => showActivityPreview('backup-widget')}
+            onMouseLeave={() => scheduleHideActivityPreview('backup-widget')}
+          >
+            <AnimatePresence>
+              {showPreview && (
+                <motion.div
+                  key="backup-preview"
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                  onMouseEnter={() => showActivityPreview('backup-widget')}
+                  onMouseLeave={() => scheduleHideActivityPreview('backup-widget')}
+                  className="fixed -translate-x-1/2 z-50 w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
+                  style={activityFlyoutStyles['backup-widget']}
+                  transition={activityWindowTransition}
+                >
+                  {activeBackups.length > 1 ? (
+                    <div className="p-ha-4">
+                      <div className="space-y-ha-2">
+                        {activeBackups.map((previewBackup) => (
+                          <button
+                            key={previewBackup.entity_id}
+                            onClick={() => openActivityWidget(previewBackup.entity_id, 'backup-widget')}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={(previewBackup.progress ?? 0) / 100}
+                              size={32}
+                              strokeWidth={2.5}
+                              className="text-ha-blue shrink-0"
+                              trackClassName="text-fill-primary-quiet"
+                            >
+                              <Icon path={mdiCloudUpload} size={14} className="text-ha-blue" />
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{previewBackup.name}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{formatProgressLabel(previewBackup.progress)}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div className="w-full aspect-[2/1] rounded-ha-2xl mb-ha-4 bg-fill-primary-quiet flex items-center justify-center border border-surface-low">
+                        <Icon path={mdiCloudUpload} size={40} className="text-ha-blue" />
+                      </div>
+                      <h3 className="text-sm font-bold text-text-primary truncate w-full text-center mb-1">{backup.name}</h3>
+                      <p className="text-xs text-text-secondary mb-ha-4 truncate w-full text-center">{backup.stage || 'Backing up…'}</p>
+                      <div className="w-full mb-ha-2 px-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">Running</span>
+                          <span className="text-xs font-mono text-ha-blue font-bold">{formatProgressLabel(backup.progress)}</span>
+                        </div>
+                        <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${backup.progress ?? 0}%` }}
+                            className="bg-ha-blue h-full rounded-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence mode="wait">
+              {selectedBackup ? (
+                <>
+                  <motion.div
+                    key="backup-expanded"
+                    ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['backup-widget'] : activityDialogStyle}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4 flex flex-col items-center">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-end items-center ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(activeBackups.length > 1 ? 'list-backup' : null); },
+                          activeBackups.length > 1 ? mdiChevronUp : mdiClose,
+                          'backup'
+                        )}
+                      </div>
+
+                      <div className={`w-full aspect-[2/1] rounded-ha-2xl mb-ha-4 flex items-center justify-center border border-surface-low ${
+                        isComplete ? (failed ? 'bg-red-500/10' : 'bg-green-500/10') : 'bg-fill-primary-quiet'
+                      }`}>
+                        <Icon
+                          path={isComplete ? mdiCheckCircle : mdiCloudUpload}
+                          size={40}
+                          className={isComplete ? (failed ? 'text-red-500' : 'text-green-600') : 'text-ha-blue'}
+                        />
+                      </div>
+                      <h3 className="text-sm font-bold text-text-primary truncate w-full text-center mb-1">{backup.name}</h3>
+
+                      {isComplete ? (
+                        <>
+                          <p className={`text-sm font-semibold mb-ha-4 ${failed ? 'text-red-500' : 'text-green-600'}`}>{backup.status.endLabel}</p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              dismissActivity(backup.entity_id, endedDismissKey(backup.status));
+                              minimizeActivityWidget();
+                            }}
+                            className={`w-full h-10 rounded-ha-xl text-white font-bold text-xs uppercase tracking-wider transition-colors ${failed ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}
+                          >
+                            Dismiss
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-text-secondary mb-ha-4 truncate w-full text-center">{backup.stage || 'Backing up…'}</p>
+                          <div className="w-full mb-ha-2 px-2">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">Running</span>
+                              <span className="text-xs font-mono text-ha-blue font-bold">{formatProgressLabel(backup.progress)}</span>
+                            </div>
+                            <div className="w-full h-2 bg-surface-mid rounded-full overflow-hidden border border-surface-low/30">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${backup.progress ?? 0}%` }}
+                                className="bg-ha-blue h-full rounded-full"
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+
+                  {selectedBackup && activityWidgetView !== 'pinned' && (
+                    <motion.button
+                      key="backup-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['backup-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
+              ) : isListView ? (
+                <>
+                  <motion.div
+                    key="backup-list"
+                    ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['backup-widget'] : activityDialogStyle}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
+                          mdiClose
+                        )}
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activeBackups.map(b => (
+                          <button
+                            key={b.entity_id}
+                            onClick={() => setExpandedWidgetId(b.entity_id)}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <CircularProgress
+                              progress={(b.progress ?? 0) / 100}
+                              size={32}
+                              strokeWidth={2.5}
+                              className="text-ha-blue shrink-0"
+                              trackClassName="text-fill-primary-quiet"
+                            >
+                              <Icon path={mdiCloudUpload} size={14} className="text-ha-blue" />
+                            </CircularProgress>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{b.name}</span>
+                              <span className="text-xs text-text-secondary truncate font-mono">{formatProgressLabel(b.progress)}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {isExpanded && activityWidgetView !== 'pinned' && (
+                    <motion.button
+                      key="backup-list-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      style={{ width: activityWidgetWidths['backup-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
+              ) : (
+                <motion.div
+                  key={`backup-collapsed-${backup.status.alertAt ?? 'quiet'}`}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={activityMiniTransition}
+                  onClick={() => (
+                    showPreview
+                      ? openActivityWidgetDialog(activeBackups.length > 1 ? 'list-backup' : backup.entity_id, 'backup-widget')
+                      : openActivityWidget(activeBackups.length > 1 ? 'list-backup' : backup.entity_id, 'backup-widget')
+                  )}
+                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                    isComplete
+                      ? failed ? 'bg-red-500/10 border border-red-500/20 hover:bg-red-500/15' : 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
+                      : 'bg-surface-low hover:bg-surface-mid'
+                  } ${backup.status.isStale ? 'opacity-70' : ''} ${isAlerting(backup.status, nowMs) ? 'ha-status-pulse' : ''}`}
+                >
+                  <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className="relative">
+                    {activeBackups.length > 1 && (
+                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                        {activeBackups.length}
+                      </div>
+                    )}
+                    {isComplete ? (
+                      <Icon path={mdiCheckCircle} size={26} className={failed ? 'text-red-500' : 'text-green-600'} />
+                    ) : (
+                      <CircularProgress
+                        progress={(backup.progress ?? 0) / 100}
+                        size={28}
+                        strokeWidth={2.5}
+                        className="text-ha-blue shrink-0"
+                        trackClassName="text-fill-primary-quiet"
+                      >
+                        <Icon path={mdiCloudUpload} size={13} className="text-ha-blue" />
+                      </CircularProgress>
+                    )}
+                    </div>
+                    <div className="flex flex-col min-w-0 max-w-[140px]">
+                      {isComplete ? (
+                        <span className={`text-sm font-semibold truncate ${failed ? 'text-red-500' : 'text-green-600'}`}>{backup.status.endLabel}</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <RollingNumericValue
+                            value={formatProgressLabel(backup.progress)}
+                            className="text-sm font-semibold text-text-primary font-mono"
+                          />
+                          <span className="text-[13px] text-text-disabled uppercase font-bold tracking-tighter">Backup</span>
+                        </div>
+                      )}
+                      <span className="text-xs text-text-secondary truncate">{backup.stage || backup.name}</span>
+                    </div>
+                    {isComplete && (
+                      <button
+                        aria-label="Dismiss"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissActivity(backup.entity_id, endedDismissKey(backup.status));
+                        }}
+                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+                      >
+                        <Icon path={mdiClose} size={15} />
+                      </button>
+                    )}
+                  </div>
+                  {showPreview && (
+                    <div className="absolute inset-0 flex items-center justify-center text-ha-blue pointer-events-none">
+                      <Icon path={mdiOpenInNew} size={18} />
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+          );
+        })()}
+
+        {/* Alarm widget(s) - show while arming, pending, or triggered */}
+        {activeAlarms.length > 0 && (() => {
+          const selectedAlarm = activeAlarms.find(a => a.entity_id === expandedWidgetId);
+          const isListView = expandedWidgetId === 'list-alarm';
+          const alarm = selectedAlarm || activeAlarms[0];
+          const showPreview = hoveredActivityWidget === 'alarm-widget' && !expandedWidgetId;
+          const isExpanded = Boolean(selectedAlarm || isListView);
+          const isPinnedInFooter = isPinnedActivityWidget && isExpanded;
+          const isTriggered = alarm.state === 'triggered';
+          const isComplete = alarm.status.phase === 'ended';
+          const alarmLabel = alarm.state === 'triggered' ? 'Triggered' : alarm.state === 'arming' ? 'Arming' : 'Pending';
+          return (
+          <motion.div
+            key="alarm-widget"
+            layout={isPinnedInFooter ? false : 'position'}
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={activityWidgetTransition}
+            ref={(el) => { widgetContainerRefs.current['alarm-widget'] = el; }}
+            className="relative"
+            style={isPinnedInFooter ? PINNED_ACTIVITY_FOOTER_SLOT_STYLE : { order: activities.typeOrder.indexOf('alarm') }}
+            onMouseEnter={() => showActivityPreview('alarm-widget')}
+            onMouseLeave={() => scheduleHideActivityPreview('alarm-widget')}
+          >
+            <AnimatePresence>
+              {showPreview && (
+                <motion.div
+                  key="alarm-preview"
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                  onMouseEnter={() => showActivityPreview('alarm-widget')}
+                  onMouseLeave={() => scheduleHideActivityPreview('alarm-widget')}
+                  className="fixed -translate-x-1/2 z-50 w-[300px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default"
+                  style={activityFlyoutStyles['alarm-widget']}
+                  transition={activityWindowTransition}
+                >
+                  {activeAlarms.length > 1 ? (
+                    <div className="p-ha-4">
+                      <div className="space-y-ha-2">
+                        {activeAlarms.map((previewAlarm) => (
+                          <button
+                            key={previewAlarm.entity_id}
+                            onClick={() => openActivityWidget(previewAlarm.entity_id, 'alarm-widget')}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
+                              <Icon path={mdiShieldAlert} size={16} className="text-red-500" />
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{previewAlarm.name}</span>
+                              <span className="text-xs text-red-500 truncate">{previewAlarm.state}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-ha-4">
+                      <div className="flex items-center gap-ha-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${isTriggered ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-yellow-95 text-yellow-600 border-yellow-200'}`}>
+                          <Icon path={mdiShieldAlert} size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-text-primary">{alarm.name}</h4>
+                          <p className={`text-[13px] font-bold uppercase tracking-tight ${isTriggered ? 'text-red-500' : 'text-yellow-600'}`}>
+                            {alarmLabel} • {formatRelativeAge(alarm.since, nowMs)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence mode="wait">
+              {selectedAlarm ? (
+                <>
+                  <motion.div
+                    key="alarm-expanded"
+                    ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[300px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['alarm-widget'] : activityDialogStyle}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(activeAlarms.length > 1 ? 'list-alarm' : null); },
+                          activeAlarms.length > 1 ? mdiChevronUp : mdiClose,
+                          'alarm'
+                        )}
+                      </div>
+                      <div className="flex items-center gap-ha-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${
+                          isComplete ? 'bg-green-500/10 text-green-600 border-green-500/20' : isTriggered ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-yellow-95 text-yellow-600 border-yellow-200'
+                        }`}>
+                          <Icon path={isComplete ? mdiCheckCircle : mdiShieldAlert} size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-text-primary">{alarm.name}</h4>
+                          {isComplete ? (
+                            <p className="text-[13px] font-bold uppercase tracking-tight text-green-600">{alarm.status.endLabel}</p>
+                          ) : (
+                            <p className={`text-[13px] font-bold uppercase tracking-tight ${isTriggered ? 'text-red-500' : 'text-yellow-600'}`}>
+                              {alarmLabel} • {formatRelativeAge(alarm.since, nowMs)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {isComplete && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            dismissActivity(alarm.entity_id, endedDismissKey(alarm.status));
+                            minimizeActivityWidget();
+                          }}
+                          className="w-full h-10 mt-ha-4 rounded-ha-xl bg-green-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-green-500 transition-colors"
+                        >
+                          Dismiss
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+
+                  {selectedAlarm && activityWidgetView !== 'pinned' && (
+                    <motion.button
+                      key="alarm-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      style={{ width: activityWidgetWidths['alarm-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
+              ) : isListView ? (
+                <>
+                  <motion.div
+                    key="alarm-list"
+                    ref={activityWidgetView === 'dialog' ? activityDialogRef : null}
+                    initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['alarm-widget'] : activityDialogStyle}
+                    transition={activityWindowTransition}
+                  >
+                    <div className="p-ha-4">
+                      <div
+                        onMouseDown={handleActivityDialogHeaderMouseDown}
+                        className={`w-full flex justify-end items-center mb-ha-2 ${activityWidgetView !== 'dock' ? 'cursor-move' : ''}`}
+                      >
+                        {renderActivityWindowActions(
+                          (e) => { e.stopPropagation(); setExpandedWidgetId(null); },
+                          mdiClose
+                        )}
+                      </div>
+                      <div className="space-y-ha-2">
+                        {activeAlarms.map(a => (
+                          <button
+                            key={a.entity_id}
+                            onClick={() => setExpandedWidgetId(a.entity_id)}
+                            className="w-full flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-low hover:bg-surface-mid transition-colors text-left"
+                          >
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
+                              <Icon path={mdiShieldAlert} size={16} className="text-red-500" />
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <span className="text-sm font-medium text-text-primary truncate">{a.name}</span>
+                              <span className="text-xs text-red-500 truncate">{a.state}</span>
+                            </div>
+                            <Icon path={mdiChevronRight} size={18} className="text-text-disabled shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {isExpanded && activityWidgetView !== 'pinned' && (
+                    <motion.button
+                      key="alarm-list-minimize"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={activityMiniTransition}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        minimizeActivityWidget();
+                      }}
+                      className="h-12 rounded-ha-pill bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      style={{ width: activityWidgetWidths['alarm-widget'] }}
+                    >
+                      <Icon path={mdiChevronDown} size={20} />
+                    </motion.button>
+                  )}
+                </>
+              ) : (
+                <motion.div
+                  key={`alarm-collapsed-${alarm.status.alertAt ?? 'quiet'}`}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={activityMiniTransition}
+                  onClick={() => (
+                    showPreview
+                      ? openActivityWidgetDialog(activeAlarms.length > 1 ? 'list-alarm' : alarm.entity_id, 'alarm-widget')
+                      : openActivityWidget(activeAlarms.length > 1 ? 'list-alarm' : alarm.entity_id, 'alarm-widget')
+                  )}
+                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                    isComplete
+                      ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
+                      : isTriggered
+                        ? 'bg-red-500/10 border border-red-500/20 hover:bg-red-500/15'
+                        : 'bg-yellow-95 border border-yellow-200 hover:bg-yellow-100'
+                  } ${isAlerting(alarm.status, nowMs) ? 'ha-status-pulse' : ''}`}
+                >
+                  <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
+                    <div className="relative">
+                    {activeAlarms.length > 1 && (
+                      <div className="absolute -top-1 -right-1 bg-surface-default text-text-primary text-[13px] font-bold h-4 min-w-[16px] px-0.5 leading-none rounded-full flex items-center justify-center border border-surface-lower shadow-sm z-10">
+                        {activeAlarms.length}
+                      </div>
+                    )}
+                    <Icon
+                      path={isComplete ? mdiCheckCircle : mdiShieldAlert}
+                      size={22}
+                      className={isComplete ? 'text-green-600' : isTriggered ? 'text-red-500' : 'text-yellow-600'}
+                    />
+                    </div>
+                    <div className="flex flex-col min-w-0 max-w-[140px]">
+                      <span className={`text-sm font-semibold truncate ${isComplete ? 'text-green-600' : isTriggered ? 'text-red-500' : 'text-yellow-600'}`}>
+                        {isComplete ? alarm.status.endLabel : alarmLabel}
+                      </span>
+                      <span className="text-xs text-text-secondary truncate">{alarm.name}</span>
+                    </div>
+                    {isComplete && (
+                      <button
+                        aria-label="Dismiss"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissActivity(alarm.entity_id, endedDismissKey(alarm.status));
+                        }}
+                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+                      >
+                        <Icon path={mdiClose} size={15} />
+                      </button>
+                    )}
+                  </div>
+                  {showPreview && (
+                    <div className="absolute inset-0 flex items-center justify-center text-text-primary pointer-events-none">
                       <Icon path={mdiOpenInNew} size={18} />
                     </div>
                   )}

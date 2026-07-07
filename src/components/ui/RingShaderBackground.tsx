@@ -31,10 +31,25 @@ export type PulseIntensity = keyof typeof INTENSITY;
  *   dawn       — a slow flowing colour wash, no hard shapes
  *   breathOrb  — one soft glow gently expanding and contracting
  *   weather    — abstract, reactive ambience driven by a weather entity
+ *   warp       — liquid domain-warped fBM in violet→magenta→white
+ *                (port of "Base warp fBM" by trinketMage, shadertoy.com/view/tdG3Rd)
+ *   northernLights — raymarched volumetric aurora curtains over a starfield
+ *                (port of "Auroras" by nimitz, shadertoy.com/view/XtGGRt)
+ *   meshGradient / grainGradient / paperWarp / simplexNoise / metaballs —
+ *                ports of the eponymous Paper Shaders effects
+ *                (github.com/paper-design/shaders, Apache-2.0) with palettes
+ *                and parameters baked in for the screensaver.
  */
-export type PulseMode = 'classic' | 'heartbeat' | 'breathing' | 'aurora' | 'bokeh' | 'dawn' | 'breathOrb' | 'weather';
+export type PulseMode =
+  | 'classic' | 'heartbeat' | 'breathing' | 'aurora' | 'bokeh' | 'dawn' | 'breathOrb' | 'weather'
+  | 'warp' | 'northernLights'
+  | 'meshGradient' | 'grainGradient' | 'paperWarp' | 'simplexNoise' | 'metaballs';
 
-export const PULSE_MODES: PulseMode[] = ['classic', 'heartbeat', 'breathing', 'aurora', 'bokeh', 'dawn', 'breathOrb', 'weather'];
+export const PULSE_MODES: PulseMode[] = [
+  'classic', 'heartbeat', 'breathing', 'aurora', 'bokeh', 'dawn', 'breathOrb', 'weather',
+  'warp', 'northernLights',
+  'meshGradient', 'grainGradient', 'paperWarp', 'simplexNoise', 'metaballs',
+];
 
 const MODE_INDEX: Record<PulseMode, number> = {
   classic: 0,
@@ -45,6 +60,13 @@ const MODE_INDEX: Record<PulseMode, number> = {
   dawn: 5,
   breathOrb: 6,
   weather: 7,
+  warp: 8,
+  northernLights: 9,
+  meshGradient: 10,
+  grainGradient: 11,
+  paperWarp: 12,
+  simplexNoise: 13,
+  metaballs: 14,
 };
 
 /** Shader-ready weather parameters (see @/lib/weatherVisual WeatherParams). */
@@ -134,6 +156,233 @@ const FRAG = `
       amp *= 0.5;
     }
     return v;
+  }
+
+  // ── "Base warp fBM" helpers — port of trinketMage's shader
+  //    (shadertoy.com/view/tdG3Rd). The character comes from *squared* value
+  //    noise, a rotation folded into each fBM octave (with the original's
+  //    quirky out-of-order amplitudes), and the pattern being fBM fed into
+  //    fBM twice: fbm(p + fbm(p + fbm(p))).
+  float warpNoise(vec2 p) {
+    vec2 ip = floor(p);
+    vec2 u = fract(p);
+    u = u * u * (3.0 - 2.0 * u);
+    float res = mix(
+      mix(hash21(ip), hash21(ip + vec2(1.0, 0.0)), u.x),
+      mix(hash21(ip + vec2(0.0, 1.0)), hash21(ip + vec2(1.0, 1.0)), u.x), u.y);
+    return res * res;
+  }
+
+  float warpFbm(vec2 p, float t) {
+    mat2 mtx = mat2(0.8, 0.6, -0.6, 0.8);
+    float f = 0.0;
+    f += 0.500000 * warpNoise(p + t); p = mtx * p * 2.02;
+    f += 0.031250 * warpNoise(p);     p = mtx * p * 2.01;
+    f += 0.250000 * warpNoise(p);     p = mtx * p * 2.03;
+    f += 0.125000 * warpNoise(p);     p = mtx * p * 2.01;
+    f += 0.062500 * warpNoise(p);     p = mtx * p * 2.04;
+    f += 0.015625 * warpNoise(p + sin(t));
+    return f / 0.96875;
+  }
+
+  float warpPattern(vec2 p, float t) {
+    return warpFbm(p + warpFbm(p + warpFbm(p, t), t), t);
+  }
+
+  // tdG3Rd's piecewise colormap (fractions pre-divided): dark violet at 0,
+  // saturated magenta around 0.25, washing out to white at 1.
+  vec3 warpColormap(float x) {
+    float r = x < 0.0 ? 0.2118 : x < 0.24161 ? 3.25408 * x + 0.21376 : 1.0;
+    float g = x < 0.24161 ? 0.0
+            : x < 0.40323 ? 3.08171 * x - 0.74459
+            : 0.84113 * x + 0.15887;
+    float b = x < 0.0 ? 0.2118
+            : x < 0.08736 ? 3.25408 * x + 0.21376
+            : x < 0.24161 ? 0.49804
+            : x < 0.40323 ? 3.10597 * x - 0.25241
+            : 1.0;
+    return clamp(vec3(r, g, b), 0.0, 1.0);
+  }
+
+  // ── "Auroras" helpers — port of nimitz's shader (shadertoy.com/view/XtGGRt,
+  //    © nimitz 2017, twitter @stormoid). Curtains are 50 raymarch steps
+  //    through 5-octave triangle-wave noise; per-pixel hash dither hides the
+  //    slice banding. Original's global time scale (iTime * 0.06) is folded
+  //    into triNoise2d and the camera sway.
+  mat2 mm2(float ang) { float c = cos(ang), s = sin(ang); return mat2(c, s, -s, c); }
+
+  float nTri(float x) { return clamp(abs(fract(x) - 0.5), 0.01, 0.49); }
+  vec2 nTri2(vec2 p) { return vec2(nTri(p.x) + nTri(p.y), nTri(p.y + nTri(p.x))); }
+
+  float triNoise2d(vec2 p, float spd) {
+    float z = 1.8;
+    float z2 = 2.5;
+    float rz = 0.0;
+    mat2 rot = mat2(0.95534, 0.29552, -0.29552, 0.95534);
+    p *= mm2(p.x * 0.06);
+    vec2 bp = p;
+    for (float i = 0.0; i < 5.0; i++) {
+      vec2 dg = nTri2(bp * 1.85) * 0.75;
+      dg *= mm2(u_time * 0.06 * spd);
+      p -= dg / z2;
+      bp *= 1.3;
+      z2 *= 0.45;
+      z *= 0.42;
+      p *= 1.21 + (rz - 1.0) * 0.02;
+      rz += nTri(p.x + nTri(p.y)) * z;
+      p *= -rot;
+    }
+    return clamp(1.0 / pow(rz * 29.0, 1.3), 0.0, 0.55);
+  }
+
+  vec4 aurora(vec3 ro, vec3 rd) {
+    vec4 col = vec4(0.0);
+    vec4 avgCol = vec4(0.0);
+    for (float i = 0.0; i < 50.0; i++) {
+      float of = 0.006 * hash21(gl_FragCoord.xy) * smoothstep(0.0, 15.0, i);
+      float pt = ((0.8 + pow(i, 1.4) * 0.002) - ro.y) / (rd.y * 2.0 + 0.4);
+      pt -= of;
+      vec3 bpos = ro + pt * rd;
+      float rzt = triNoise2d(bpos.zx, 0.06);
+      vec4 col2 = vec4((sin(1.0 - vec3(2.15, -0.5, 1.2) + i * 0.043) * 0.5 + 0.5) * rzt, rzt);
+      avgCol = mix(avgCol, col2, 0.5);
+      col += avgCol * exp2(-i * 0.065 - 2.5) * smoothstep(0.0, 5.0, i);
+    }
+    col *= clamp(rd.y * 15.0 + 0.4, 0.0, 1.0);
+    return col * 1.8;
+  }
+
+  // Star-cell hash from Dave_Hoskins (via the original shader).
+  vec3 hash33(vec3 p) {
+    p = fract(p * vec3(443.8975, 397.2973, 491.1871));
+    p += dot(p.zxy, p.yxz + 19.27);
+    return fract(vec3(p.x * p.y, p.z * p.x, p.y * p.z));
+  }
+
+  vec3 stars(vec3 p) {
+    vec3 c = vec3(0.0);
+    float res = u_resolution.x;
+    for (float i = 0.0; i < 4.0; i++) {
+      vec3 q = fract(p * (0.15 * res)) - 0.5;
+      vec3 id = floor(p * (0.15 * res));
+      vec2 rn = hash33(id).xy;
+      float c2 = 1.0 - smoothstep(0.0, 0.6, length(q));
+      c2 *= step(rn.x, 0.0005 + i * i * 0.001);
+      c += c2 * (mix(vec3(1.0, 0.49, 0.1), vec3(0.75, 0.9, 1.0), rn.y) * 0.1 + 0.9);
+      p *= 1.3;
+    }
+    return c * c * 0.8;
+  }
+
+  vec3 nightBg(vec3 rd) {
+    float sd = dot(normalize(vec3(-0.5, -0.6, 0.9)), rd) * 0.5 + 0.5;
+    sd = pow(sd, 5.0);
+    return mix(vec3(0.05, 0.1, 0.2), vec3(0.1, 0.05, 0.2), sd) * 0.63;
+  }
+
+  // ── Paper Shaders helpers — ports from github.com/paper-design/shaders
+  //    (Apache-2.0). WebGL1 adaptations: the noise texture is replaced with
+  //    procedural hashes, fwidth-based AA with small constants, and each
+  //    mode's palette/params are baked in (ES 1.00 fragment shaders can't
+  //    index uniform arrays dynamically anyway).
+  vec2 rot2(vec2 v, float th) {
+    return mat2(cos(th), sin(th), -sin(th), cos(th)) * v;
+  }
+
+  // Ashima/Gustavson 2D simplex noise, as shipped in Paper's shader-utils.
+  vec3 permute3(vec3 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
+  float snoise(vec2 v) {
+    const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+      -0.577350269189626, 0.024390243902439);
+    vec2 i = floor(v + dot(v, C.yy));
+    vec2 x0 = v - i + dot(i, C.xx);
+    vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+    vec4 x12 = x0.xyxy + C.xxzz;
+    x12.xy -= i1;
+    i = mod(i, 289.0);
+    vec3 p = permute3(permute3(i.y + vec3(0.0, i1.y, 1.0))
+      + i.x + vec3(0.0, i1.x, 1.0));
+    vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy),
+        dot(x12.zw, x12.zw)), 0.0);
+    m = m * m;
+    m = m * m;
+    vec3 x = 2.0 * fract(p * C.www) - 1.0;
+    vec3 h = abs(x) - 0.5;
+    vec3 ox = floor(x + 0.5);
+    vec3 a0 = x - ox;
+    m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+    vec3 g;
+    g.x = a0.x * x0.x + h.x * x0.y;
+    g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+    return 130.0 * dot(m, g);
+  }
+
+  // Mesh gradient: colour spots orbiting on distinct trajectories.
+  vec2 mgPos(int i, float t) {
+    float pa = float(i) * 0.37;
+    float pb = 0.6 + fract(float(i) / 3.0) * 0.9;
+    float pc = 0.8 + fract(float(i + 1) / 4.0);
+    return 0.5 + 0.5 * vec2(sin(t * pb + pa), cos(t * pc + pa * 1.5));
+  }
+
+  // Grain gradient: per-cell random + smooth value noise + a small vec4 fBM
+  // (the original's quirk of never writing .w is kept — .w stays 0).
+  float ggRand(vec2 p) { return hash21(floor(p)); }
+  float ggValueNoise(vec2 st) {
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float x1 = mix(ggRand(i), ggRand(i + vec2(1.0, 0.0)), u.x);
+    float x2 = mix(ggRand(i + vec2(0.0, 1.0)), ggRand(i + vec2(1.0, 1.0)), u.x);
+    return mix(x1, x2, u.y);
+  }
+  vec4 ggFbm(vec2 n0, vec2 n1, vec2 n2, vec2 n3) {
+    float amplitude = 0.2;
+    vec4 total = vec4(0.0);
+    for (int i = 0; i < 3; i++) {
+      n0 = rot2(n0, 0.3);
+      n1 = rot2(n1, 0.3);
+      n2 = rot2(n2, 0.3);
+      n3 = rot2(n3, 0.3);
+      total.x += ggValueNoise(n0) * amplitude;
+      total.y += ggValueNoise(n1) * amplitude;
+      total.z += ggValueNoise(n2) * amplitude;
+      total.z += ggValueNoise(n3) * amplitude;
+      n0 *= 1.99;
+      n1 *= 1.99;
+      n2 *= 1.99;
+      n3 *= 1.99;
+      amplitude *= 0.6;
+    }
+    return total;
+  }
+
+  // Paper warp: value noise with a hash offset so it decorrelates from ggRand.
+  float pwRand(vec2 p) { return hash21(floor(p) + 7.31); }
+  float pwNoise(vec2 st) {
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float x1 = mix(pwRand(i), pwRand(i + vec2(1.0, 0.0)), u.x);
+    float x2 = mix(pwRand(i + vec2(0.0, 1.0)), pwRand(i + vec2(1.0, 1.0)), u.x);
+    return mix(x1, x2, u.y);
+  }
+
+  // Simplex-noise mode: stepped-smooth colour band mixer (2 steps per colour,
+  // softness baked at 0.4 → half-softness 0.2).
+  float sxStep(float m) {
+    float stepT = floor(m * 2.0) / 2.0;
+    float f = fract(m * 2.0);
+    float smoothed = smoothstep(0.3, min(1.0, 0.72), f);
+    return stepT + smoothed / 2.0;
+  }
+
+  // Metaballs: 1D smooth noise driving ball trajectories.
+  float mbNoise(float x) {
+    float i = floor(x);
+    float f = fract(x);
+    float u = f * f * (3.0 - 2.0 * f);
+    return mix(hash11(i), hash11(i + 1.0), u);
   }
 
   // The original endless concentric rings — coverage 0..1.
@@ -331,6 +580,186 @@ const FRAG = `
 
       a = clamp(A, 0.0, 1.0);
       premul = clamp(col * a, 0.0, 1.0);
+    } else if (u_mode == 8) {
+      // WARP — liquid domain-warped fBM ("Base warp fBM", tdG3Rd).
+      // Slowed to a quarter of the original speed for a calm ambient read;
+      // shade doubles as alpha so dark regions stay transparent and the
+      // theme surface shows through.
+      float wt = u_time * 0.25;
+      vec2 wp = vec2(uv.x * aspect, uv.y);
+      float shade = clamp(warpPattern(wp, wt), 0.0, 1.0);
+      vec3 col = warpColormap(shade);
+      a = shade * u_alpha * 3.0;
+      premul = clamp(col * a, 0.0, 1.0);
+    } else if (u_mode == 9) {
+      // NORTHERN LIGHTS — nimitz's "Auroras" (XtGGRt): night-sky gradient,
+      // starfield, raymarched curtains above the horizon and their soft
+      // reflection below. Fixed camera (the original's mouse look is pinned
+      // at its default tilt), whole scene scaled by the theme alpha.
+      vec2 np = (uv - 0.5) * vec2(aspect, 1.0);
+      vec3 ro = vec3(0.0, 0.0, -6.7);
+      vec3 rd = normalize(vec3(np, 1.3));
+      rd.yz *= mm2(0.1);
+      rd.xz *= mm2(-0.1 * aspect + sin(u_time * 0.06 * 0.05) * 0.2);
+      float fade = smoothstep(0.0, 0.01, abs(rd.y)) * 0.1 + 0.9;
+      vec3 col = nightBg(rd) * fade;
+      if (rd.y > 0.0) {
+        vec4 aur = smoothstep(0.0, 1.5, aurora(ro, rd)) * fade;
+        col += stars(rd);
+        col = col * (1.0 - aur.a) + aur.rgb;
+      } else {
+        rd.y = abs(rd.y);
+        col = nightBg(rd) * fade * 0.6;
+        vec4 aur = smoothstep(0.0, 2.5, aurora(ro, rd));
+        col += stars(rd) * 0.1;
+        col = col * (1.0 - aur.a) + aur.rgb;
+        vec3 pos = ro + ((0.5 - ro.y) / rd.y) * rd;
+        float nz2 = triNoise2d(pos.xz * vec2(0.5, 0.7), 0.0);
+        col += mix(vec3(0.2, 0.25, 0.5) * 0.08, vec3(0.3, 0.3, 0.5) * 0.7, nz2 * 0.4);
+      }
+      a = u_alpha * 3.0;
+      premul = clamp(col * a, 0.0, 1.0);
+    } else if (u_mode == 10) {
+      // MESH GRADIENT — Paper's flowing colour spots with organic distortion
+      // and a mild swirl (distortion 0.8, swirl 0.2, grain off, speed 0.5).
+      vec2 muv = uv;
+      float t = 0.5 * (u_time * 0.5 + 41.5);
+      float radius = smoothstep(0.0, 1.0, length(muv - 0.5));
+      float center = 1.0 - radius;
+      for (float i = 1.0; i <= 2.0; i++) {
+        muv.x += 0.8 * center / i * sin(t + i * 0.4 * smoothstep(0.0, 1.0, muv.y))
+                 * cos(0.2 * t + i * 2.4 * smoothstep(0.0, 1.0, muv.y));
+        muv.y += 0.8 * center / i * cos(t + i * 2.0 * smoothstep(0.0, 1.0, muv.x));
+      }
+      vec2 muvR = rot2(muv - 0.5, -3.0 * 0.2 * radius) + 0.5;
+      vec3 col = vec3(0.0);
+      float tw = 0.0;
+      for (int i = 0; i < 4; i++) {
+        vec3 ci = i == 0 ? vec3(0.55, 0.65, 0.98)
+                : i == 1 ? vec3(0.30, 0.20, 0.70)
+                : i == 2 ? vec3(0.95, 0.45, 0.70)
+                : vec3(0.98, 0.93, 0.88);
+        float d = pow(length(muvR - mgPos(i, t)), 3.5);
+        float w = 1.0 / (d + 1e-3);
+        col += ci * w;
+        tw += w;
+      }
+      col /= max(1e-4, tw);
+      // Spot colours average toward grey at ring-mode alpha levels, so this
+      // mode runs brighter than its siblings to keep the palette legible.
+      a = u_alpha * 4.2;
+      premul = clamp(col * a, 0.0, 1.0);
+    } else if (u_mode == 11) {
+      // GRAIN GRADIENT — Paper's "blob" shape: four soft lobes drifting around
+      // the centre, banded through a 4-colour gradient and roughed up with
+      // simplex + fBM grain (softness 0.7, intensity 0.35, noise 0.25).
+      float t = 0.2 * (u_time + 7.0);
+      vec2 g = vec2((uv.x - 0.5) * aspect, uv.y - 0.5);
+      float shape = 0.5 * pow(1.0 - clamp(length(g + 0.25 * vec2(1.3 * sin(t), 0.2 + 1.3 * cos(0.6 * t + 4.0))), 0.0, 1.0), 5.0);
+      shape += 0.5 * pow(1.0 - clamp(length(g + 0.2 * vec2(1.2 * sin(-t), 1.3 * sin(1.6 * t))), 0.0, 1.0), 5.0);
+      shape += 0.5 * pow(1.0 - clamp(length(g + 0.25 * vec2(1.7 * cos(-0.6 * t), cos(-1.6 * t))), 0.0, 1.0), 5.0);
+      shape += 0.5 * pow(1.0 - clamp(length(g + 0.3 * vec2(1.4 * cos(0.8 * t), 1.2 * sin(-0.6 * t - 3.0))), 0.0, 1.0), 5.0);
+      shape = smoothstep(0.0, 0.9, shape);
+      shape = mix(0.0, shape, smoothstep(0.25, 0.3, shape));
+
+      vec2 guv = g * u_resolution.y * 0.7;
+      float baseNoise = snoise(guv * 0.5);
+      vec4 fbmVals = ggFbm(0.002 * guv + 10.0, 0.003 * guv, 0.001 * guv, rot2(0.4 * guv, 2.0));
+      float grainDist = baseNoise * snoise(guv * 0.2) - fbmVals.x - fbmVals.y;
+      float rawNoise = 0.75 * baseNoise - fbmVals.w - fbmVals.z;
+      float gnoise = clamp(rawNoise, 0.0, 1.0);
+
+      shape += 0.35 * 2.0 / 4.0 * (grainDist + 0.5);
+      shape += 0.25 * 10.0 / 4.0 * gnoise;
+      shape = clamp(shape - 0.5 / 4.0, 0.0, 1.0);
+      float totalShape = smoothstep(0.0, 0.72, clamp(shape * 4.0, 0.0, 1.0));
+      float mixer = shape * 3.0;
+      vec3 grad = vec3(0.10, 0.25, 0.55);
+      grad = mix(grad, vec3(0.20, 0.60, 0.75), smoothstep(0.14, 0.86, clamp(mixer, 0.0, 1.0)));
+      grad = mix(grad, vec3(0.95, 0.70, 0.40), smoothstep(0.14, 0.86, clamp(mixer - 1.0, 0.0, 1.0)));
+      grad = mix(grad, vec3(0.90, 0.35, 0.45), smoothstep(0.14, 0.86, clamp(mixer - 2.0, 0.0, 1.0)));
+      a = totalShape * u_alpha * 3.0;
+      premul = clamp(grad * a, 0.0, 1.0);
+    } else if (u_mode == 12) {
+      // PAPER WARP — Paper's warp: checks base pattern pushed through noise
+      // distortion and 10 layered swirl passes for a marbled flow
+      // (distortion 0.25, swirl 0.9, softness 1 → pure smooth 3-colour blend).
+      vec2 wuv = vec2(uv.x * aspect, uv.y) * 8.0 * 0.5;
+      float t = 0.0625 * (u_time + 118.0);
+      float n1 = pwNoise(wuv * 1.0 + t);
+      float n2 = pwNoise(wuv * 2.0 - t);
+      float wAngle = n1 * 6.28318530718;
+      wuv.x += 4.0 * 0.25 * n2 * cos(wAngle);
+      wuv.y += 4.0 * 0.25 * n2 * sin(wAngle);
+      for (int i = 1; i <= 10; i++) {
+        float fi = float(i);
+        wuv.x += 0.9 / fi * cos(t + fi * 1.5 * wuv.y);
+        wuv.y += 0.9 / fi * cos(t + fi * 1.0 * wuv.x);
+      }
+      vec2 cuv = wuv * (0.5 + 3.5 * 0.15);
+      float shape = 0.5 + 0.5 * sin(cuv.x) * cos(cuv.y);
+      float mixer = shape * 2.0;
+      vec3 col = vec3(0.35, 0.50, 0.92);
+      col = mix(col, vec3(0.96, 0.96, 1.00), clamp(mixer, 0.0, 1.0));
+      col = mix(col, vec3(0.93, 0.48, 0.72), clamp(mixer - 1.0, 0.0, 1.0));
+      col += 1.0 / 256.0 * (fract(sin(dot(0.014 * gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453123) - 0.5);
+      a = u_alpha * 2.6;
+      premul = clamp(col * a, 0.0, 1.0);
+    } else if (u_mode == 13) {
+      // SIMPLEX NOISE — Paper's two-octave simplex field mapped through a
+      // 5-colour stepped gradient (2 steps per colour) — soft contour bands.
+      vec2 suv = vec2(uv.x * aspect, uv.y) * 2.0;
+      float t = 0.2 * u_time;
+      float sn = 0.5 + 0.5 * (0.5 * snoise(suv - vec2(0.0, 0.3 * t))
+                            + 0.5 * snoise(2.0 * suv + vec2(0.0, 0.32 * t)));
+      float mixer = (sn - 0.5 / 5.0) * 5.0;
+      vec3 col = vec3(0.16, 0.22, 0.55);
+      col = mix(col, vec3(0.25, 0.60, 0.80), sxStep(clamp(mixer, 0.0, 1.0)));
+      col = mix(col, vec3(0.92, 0.85, 0.65), sxStep(clamp(mixer - 1.0, 0.0, 1.0)));
+      col = mix(col, vec3(0.90, 0.50, 0.45), sxStep(clamp(mixer - 2.0, 0.0, 1.0)));
+      col = mix(col, vec3(0.45, 0.25, 0.55), sxStep(clamp(mixer - 3.0, 0.0, 1.0)));
+      // Wrap the out-of-range tails back between last and first colour.
+      if (mixer < 0.0) {
+        col = mix(vec3(0.45, 0.25, 0.55), vec3(0.16, 0.22, 0.55), sxStep(clamp(mixer + 1.0, 0.0, 1.0)));
+      } else if (mixer > 4.0) {
+        col = mix(vec3(0.45, 0.25, 0.55), vec3(0.16, 0.22, 0.55), sxStep(clamp(mixer - 4.0, 0.0, 1.0)));
+      }
+      col += 1.0 / 256.0 * (fract(sin(dot(0.014 * gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453123) - 0.5);
+      a = u_alpha * 2.6;
+      premul = clamp(col * a, 0.0, 1.0);
+    } else if (u_mode == 14) {
+      // METABALLS — Paper's gooey balls: 7 warm-coloured blobs wandering on
+      // noise trajectories and merging (size 0.9), transparent background.
+      vec2 buv = vec2((uv.x - 0.5) * aspect, uv.y - 0.5) + 0.5;
+      float t = 0.2 * (u_time + 2503.4);
+      vec3 totalColor = vec3(0.0);
+      float totalShape = 0.0;
+      for (int i = 0; i < 7; i++) {
+        float fi = float(i);
+        float idxFract = fi / 20.0;
+        float bAngle = 6.28318530718 * idxFract;
+        float speed = 1.0 - 0.2 * idxFract;
+        float nx = mbNoise(bAngle * 10.0 + fi + t * speed);
+        float ny = mbNoise(bAngle * 20.0 + fi - t * speed);
+        vec2 pos = vec2(0.5) + 1e-4 + 0.9 * (vec2(nx, ny) - 0.5);
+        vec3 bc = i == 0 ? vec3(1.00, 0.60, 0.25)
+                : i == 1 ? vec3(0.95, 0.35, 0.50)
+                : i == 2 ? vec3(0.72, 0.38, 0.85)
+                : i == 3 ? vec3(1.00, 0.78, 0.40)
+                : i == 4 ? vec3(1.00, 0.60, 0.25)
+                : i == 5 ? vec3(0.95, 0.35, 0.50)
+                : vec3(0.72, 0.38, 0.85);
+        float s = 1.0 - clamp(0.5 * length(buv - pos), 0.0, 1.0);
+        s = pow(s, 45.0 - 30.0 * 0.75);
+        s *= pow(0.75, 0.2);
+        s = smoothstep(0.0, 1.0, s);
+        totalColor += bc * s;
+        totalShape += s;
+      }
+      totalColor /= max(totalShape, 1e-4);
+      float finalShape = smoothstep(0.4, 0.42, totalShape);
+      a = finalShape * u_alpha * 3.0;
+      premul = clamp(totalColor * a, 0.0, 1.0);
     } else {
       // CLASSIC
       float aa = ambientRings(dist, angle, px) * u_alpha;

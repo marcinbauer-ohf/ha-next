@@ -344,6 +344,9 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
 
   const hasControls = sortOptions.length > 0 || groupOptions.length > 0 || filterGroups.length > 0 || showLayoutToggle;
   const hasFilterableControls = sortOptions.length > 0 || groupOptions.length > 0 || filterGroups.length > 0;
+  // On mobile every control (sort / group / filter / layout) collapses into the
+  // one sheet, reached from the single button beside the search box.
+  const hasMobileSheet = hasFilterableControls || showLayoutToggle;
 
   const groups = useMemo<Bucket<T>[]>(() => {
     const q = query.trim().toLowerCase();
@@ -613,63 +616,69 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
               }
         }
       >
-        <SearchField
-          value={query}
-          onChange={setQuery}
-          placeholder={searchPlaceholder}
-          onClear={() => setQuery('')}
-        />
+        {/* Search box. On mobile the single filter button sits to its right
+            (everything else lives in the sheet); on desktop the button is hidden
+            and the search fills the row, with the controls inline below. */}
+        <div className="flex items-stretch gap-ha-2">
+          <SearchField
+            className="flex-1 min-w-0"
+            value={query}
+            onChange={setQuery}
+            placeholder={searchPlaceholder}
+            onClear={() => setQuery('')}
+          />
+          {hasMobileSheet && (
+            <button
+              type="button"
+              onClick={() => setSheetOpen(true)}
+              aria-label="Filters, sorting and view"
+              className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-ha-2xl border transition-colors md:hidden ${
+                sheetOpen || activeFilterCount > 0
+                  ? 'border-ha-blue/40 bg-fill-primary-quiet text-ha-blue'
+                  : 'border-surface-lower bg-surface-low text-text-secondary'
+              }`}
+            >
+              <Icon path={mdiTune} size={20} />
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ha-blue px-1 text-[10px] font-bold leading-none text-white ring-2 ring-surface-default">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
         {hasControls && (
-          <>
-            {/* Desktop: every control inline. Wraps only as a last resort on wide
-                tablets; phones use the sheet below instead. */}
-            <div className="mt-ha-3 hidden flex-wrap items-center gap-ha-2 md:flex">
-              {sortOptions.length > 0 && (
-                <SelectChip
-                  icon={mdiSortVariant}
-                  prefix="Sort"
-                  valueLabel={sortOptions.find((s) => s.id === sortId)?.label ?? ''}
-                  options={sortOptions.map((s) => ({ id: s.id, label: s.label }))}
-                  selectedId={columnSort ? '' : sortId}
-                  onSelect={selectSort}
-                />
-              )}
-              {groupOptions.length > 0 && (
-                <SelectChip
-                  icon={mdiViewAgendaOutline}
-                  prefix="Group"
-                  valueLabel={groupChoices.find((g) => g.id === groupId)?.label ?? 'None'}
-                  options={groupChoices}
-                  selectedId={groupId}
-                  onSelect={setGroupId}
-                />
-              )}
-              {filterGroups.length > 0 && (
-                <>
-                  <span className="mx-ha-1 h-6 w-px bg-surface-lower" aria-hidden />
-                  {filterChips}
-                </>
-              )}
-              {showLayoutToggle && <LayoutToggle layout={layout} onChange={setLayout} available={availableLayouts} />}
-            </div>
-
-            {/* Mobile: a single "Filters" trigger (sort/group/facets live in the
-                sheet) keeps the row to one line; the layout toggle stays inline. */}
-            <div className="mt-ha-3 flex items-center gap-ha-2 md:hidden">
-              {hasFilterableControls && (
-                <Chip active={sheetOpen} onClick={() => setSheetOpen(true)}>
-                  <Icon path={mdiTune} size={14} />
-                  <span>Filters</span>
-                  {activeFilterCount > 0 && (
-                    <span className="ml-ha-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ha-blue px-1 text-[10px] font-bold leading-none text-white">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </Chip>
-              )}
-              {showLayoutToggle && <LayoutToggle layout={layout} onChange={setLayout} available={availableLayouts} />}
-            </div>
-          </>
+          // Desktop: every control inline. Wraps only as a last resort on wide
+          // tablets; phones use the sheet instead.
+          <div className="mt-ha-3 hidden flex-wrap items-center gap-ha-2 md:flex">
+            {sortOptions.length > 0 && (
+              <SelectChip
+                icon={mdiSortVariant}
+                prefix="Sort"
+                valueLabel={sortOptions.find((s) => s.id === sortId)?.label ?? ''}
+                options={sortOptions.map((s) => ({ id: s.id, label: s.label }))}
+                selectedId={columnSort ? '' : sortId}
+                onSelect={selectSort}
+              />
+            )}
+            {groupOptions.length > 0 && (
+              <SelectChip
+                icon={mdiViewAgendaOutline}
+                prefix="Group"
+                valueLabel={groupChoices.find((g) => g.id === groupId)?.label ?? 'None'}
+                options={groupChoices}
+                selectedId={groupId}
+                onSelect={setGroupId}
+              />
+            )}
+            {filterGroups.length > 0 && (
+              <>
+                <span className="mx-ha-1 h-6 w-px bg-surface-lower" aria-hidden />
+                {filterChips}
+              </>
+            )}
+            {showLayoutToggle && <LayoutToggle layout={layout} onChange={setLayout} available={availableLayouts} />}
+          </div>
         )}
         {/* fade for rows scrolling under the sticky controls (page-scroll mode
             only — fillHeight's own scroller draws its own fades). */}
@@ -682,7 +691,7 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
           to <body> at z-200 so it clears the z-50 bottom nav). Sort/group render
           as tap-chips (not SelectChip) so their popovers can't z-fight the sheet,
           and facets reuse the same chips as the desktop row. */}
-      {hasFilterableControls && (
+      {hasMobileSheet && (
         <ModalSheet open={sheetOpen} onClose={() => setSheetOpen(false)}>
           <div className="px-ha-4 pb-ha-6">
             <div className="mb-ha-4 flex items-center justify-between">
@@ -739,6 +748,14 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
                 <div>
                   <SectionLabel>Filter</SectionLabel>
                   <div className="mt-ha-2 flex flex-wrap gap-ha-2">{filterChips}</div>
+                </div>
+              )}
+              {showLayoutToggle && (
+                <div>
+                  <SectionLabel>View</SectionLabel>
+                  <div className="mt-ha-2">
+                    <LayoutToggle layout={layout} onChange={setLayout} available={availableLayouts} />
+                  </div>
                 </div>
               )}
             </div>

@@ -7,13 +7,14 @@ import {
   ERR_CANNOT_CONNECT,
   ERR_INVALID_AUTH,
 } from 'home-assistant-js-websocket';
-import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig } from './types';
+import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, HassUser } from './types';
 
 let connection: Connection | null = null;
 let entitySubscription: (() => void) | null = null;
 // Captured on connect so REST endpoints (no WS equivalent) can authenticate.
 let restUrl: string | null = null;
 let restToken: string | null = null;
+let currentUser: HassUser | null = null;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -53,10 +54,24 @@ export function disconnect(): void {
   }
   restUrl = null;
   restToken = null;
+  currentUser = null;
 }
 
 export function getConnection(): Connection | null {
   return connection;
+}
+
+/** The connecting account's identity + role (is_admin/is_owner). Fetched once per connection and cached. */
+export async function getCurrentUser(): Promise<HassUser | null> {
+  if (currentUser) return currentUser;
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return null;
+  try {
+    currentUser = await conn.sendMessagePromise<HassUser>({ type: 'auth/current_user' });
+    return currentUser;
+  } catch {
+    return null;
+  }
 }
 
 /** The running Home Assistant version, reported during the auth handshake. Null until connected. */
@@ -263,6 +278,14 @@ export async function deleteArea(areaId: string): Promise<void> {
   await requireConnection().sendMessagePromise({ type: 'config/area_registry/delete', area_id: areaId });
 }
 
+/**
+ * Persist a custom area order (HA 2025.12+). `areaIds` must contain every
+ * area exactly once — the registry list order becomes this order.
+ */
+export async function reorderAreas(areaIds: string[]): Promise<void> {
+  await requireConnection().sendMessagePromise({ type: 'config/area_registry/reorder', area_ids: areaIds });
+}
+
 export interface FloorWriteFields {
   name?: string;
   level?: number | null;
@@ -287,6 +310,14 @@ export async function updateFloor(floorId: string, fields: FloorWriteFields): Pr
 
 export async function deleteFloor(floorId: string): Promise<void> {
   await requireConnection().sendMessagePromise({ type: 'config/floor_registry/delete', floor_id: floorId });
+}
+
+/**
+ * Persist a custom floor order (HA 2025.12+). `floorIds` must contain every
+ * floor exactly once — the registry list order becomes this order.
+ */
+export async function reorderFloors(floorIds: string[]): Promise<void> {
+  await requireConnection().sendMessagePromise({ type: 'config/floor_registry/reorder', floor_ids: floorIds });
 }
 
 export interface LabelWriteFields {
@@ -409,6 +440,67 @@ export async function getAutomationConfig(numericId: string): Promise<Automation
     return (await res.json()) as AutomationConfig;
   } catch {
     return null;
+  }
+}
+
+// ── Assist / conversation ────────────────────────────────────────────────────
+
+export interface ConversationResult {
+  response: {
+    response_type: 'action_done' | 'query_answer' | 'error';
+    speech?: { plain?: { speech?: string } };
+  };
+  conversation_id: string | null;
+}
+
+/**
+ * Run a natural-language command through the default Assist pipeline. Pass the
+ * previous conversation_id to keep multi-turn context. Returns null when not
+ * connected (demo mode) — the caller shows its own fallback reply.
+ */
+export async function processConversation(
+  text: string,
+  conversationId?: string | null,
+): Promise<ConversationResult | null> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return null;
+  try {
+    return await conn.sendMessagePromise<ConversationResult>({
+      type: 'conversation/process',
+      text,
+      ...(conversationId ? { conversation_id: conversationId } : {}),
+    });
+  } catch {
+    return null;
+  }
+}
+
+// ── Per-user frontend storage ────────────────────────────────────────────────
+// HA's frontend user-data store (the same one the stock frontend uses for
+// sidebar order etc.). Keys are namespaced by caller; values are arbitrary JSON.
+
+export async function getUserData<T>(key: string): Promise<T | null> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return null;
+  try {
+    const result = await conn.sendMessagePromise<{ value: T | null }>({
+      type: 'frontend/get_user_data',
+      key,
+    });
+    return result?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setUserData(key: string, value: unknown): Promise<boolean> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return false;
+  try {
+    await conn.sendMessagePromise({ type: 'frontend/set_user_data', key, value });
+    return true;
+  } catch {
+    return false;
   }
 }
 

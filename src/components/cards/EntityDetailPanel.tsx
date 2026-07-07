@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { mdiClose, mdiPencilOutline, mdiPower, mdiInformation, mdiInformationOutline, mdiStar, mdiStarOutline } from '@mdi/js';
+import { useRouter } from 'next/navigation';
+import { mdiClose, mdiPencilOutline, mdiPower, mdiInformation, mdiInformationOutline, mdiStar, mdiStarOutline, mdiCogOutline, mdiChevronRight } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon, ListSection, RollingNumericValue, SegmentedControl, Dropdown, HALoader, ToggleSwitch } from '../ui';
 import { StateTimeline, type StateSegment } from '../ui/StateTimeline';
 import { Sparkline } from '../ui/Sparkline';
+import { DomainControls } from './DeviceControls';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { HistoryPoint } from '@/lib/homeassistant/types';
 
@@ -148,6 +150,8 @@ export interface DeviceMeta {
   manufacturer?: string;
   model?: string;
   areaName?: string;
+  /** Product-render thumbnail (same image the dashboard card shows); null = none */
+  thumbnail?: string | null;
   allEntities?: { entityId: string; name: string; domain: string }[];
 }
 
@@ -283,19 +287,28 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
   const showTimeline = !isNumeric && !isHistoryLoading && timeline.segs.length >= 1;
 
   return (
-    <div className="shrink-0 flex flex-col items-center gap-3 px-6 py-5 overflow-hidden relative">
+    <div className="shrink-0 flex flex-col items-center gap-3 px-6 py-5 overflow-hidden">
       {entity.entityPicture && (
-        <>
-          <img src={entity.entityPicture} alt="" aria-hidden
-            className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/10" />
-        </>
+        // Camera feed / media artwork shown as its own block at the top, so the
+        // status value and history graph below it are no longer overlaid on the
+        // image (which obscured the feed).
+        <div className="w-full rounded-ha-xl overflow-hidden bg-surface-low aspect-video">
+          <img src={entity.entityPicture} alt="" className="w-full h-full object-cover" />
+        </div>
       )}
-      <div className="relative z-10 flex flex-col items-center gap-3 w-full">
+      <div className="flex flex-col items-center gap-3 w-full">
+        {/* Focused entity name — labels the value/graph below so it's clear which
+            entity is shown, especially after switching via "Also on this device"
+            (the panel header only carries the device name). */}
+        <span className="max-w-full truncate text-center text-sm font-medium text-text-secondary">
+          {entity.name}
+        </span>
         {/* Header — fixed height so the hero doesn't jump between a tall toggle
             and a shorter text value when switching entities. */}
         <div className="flex w-full flex-col items-center justify-center gap-2 min-h-[80px]">
-        {entity.toggleable ? (
+        {/* Feed/artwork entities (e.g. a camera) have nothing to toggle — show
+            their state, not a control, even if flagged toggleable. */}
+        {entity.toggleable && !entity.entityPicture ? (
           <>
             {entity.onToggle ? (
               <ToggleSwitch on={entity.active} onToggle={entity.onToggle} size="lg" />
@@ -309,10 +322,7 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
             )}
             <RollingNumericValue
               value={entity.state}
-              className={clsx(
-                'text-lg font-semibold font-mono capitalize',
-                entity.entityPicture ? 'text-white' : 'text-text-primary',
-              )}
+              className="text-lg font-semibold font-mono capitalize text-text-primary"
             />
           </>
         ) : (
@@ -320,20 +330,18 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
             <div className="flex items-baseline justify-center">
               {isNumeric && entity.unit ? (
                 <>
-                  <RollingNumericValue value={displayValue} className={clsx('text-4xl font-bold font-mono', entity.entityPicture ? 'text-white' : 'text-text-primary')} />
-                  <span className={clsx('text-lg font-mono ml-2', entity.entityPicture ? 'text-white/70' : 'text-text-secondary')}>{entity.unit}</span>
+                  <RollingNumericValue value={displayValue} className="text-4xl font-bold font-mono text-text-primary" />
+                  <span className="text-lg font-mono ml-2 text-text-secondary">{entity.unit}</span>
                 </>
               ) : (
-                <RollingNumericValue value={entity.state} className={clsx('text-2xl font-bold font-mono capitalize', entity.entityPicture ? 'text-white' : 'text-text-primary')} />
+                <RollingNumericValue value={entity.state} className="text-2xl font-bold font-mono capitalize text-text-primary" />
               )}
             </div>
             {/* Time label: "NOW" at rest, timestamp on hover (numeric/boolean only) */}
             {(isNumeric || isBoolean) && (
               <span className={clsx(
                 'text-[13px] font-semibold uppercase tracking-wider transition-colors',
-                entity.entityPicture
-                  ? 'text-white/60'
-                  : hoveredIndex !== null ? 'text-text-secondary' : 'text-ha-blue',
+                hoveredIndex !== null ? 'text-text-secondary' : 'text-ha-blue',
               )}>
                 {timeLabel}
               </span>
@@ -341,6 +349,10 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
           </div>
         )}
         </div>
+
+        {/* Domain controls — brightness/color, setpoint, position, transport…
+            Rendered only for domains that have setters beyond on/off. */}
+        <DomainControls entityId={entity.entityId} />
 
         {/* History — numeric line/area, else a state-duration timeline. Fixed
             min-height so numeric chart, timeline, loader and the empty case all
@@ -395,9 +407,11 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
         ) : null}
         </div>
 
-        {/* Controls — fixed-height slot so the present/absent controls row never
-            shifts the hero height between entities. */}
-        <div className="w-full min-h-[34px]">
+        {/* Controls — the slot reserves the loaded controls' height up front (they
+            only mount once history arrives) so the dialog doesn't grow when the
+            chart finishes loading. Numeric entities stack a second (aggregation)
+            control on mobile, so they need more room there; one row on desktop. */}
+        <div className={clsx('w-full', isNumeric ? 'min-h-[90px] lg:min-h-[46px]' : 'min-h-[46px]')}>
         {!isHistoryLoading && ((isNumeric && hasChart) || showTimeline) && (
           <div className="w-full flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 pt-1">
             <SegmentedControl
@@ -444,11 +458,14 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DeviceInfoTab({ deviceName, deviceMeta, entities }: {
+function DeviceInfoTab({ deviceName, deviceMeta, entities, onNavigate }: {
   deviceName?: string;
   deviceMeta?: DeviceMeta;
   entities: PanelEntity[];
+  /** Close the dialog before routing to the settings device page. */
+  onNavigate: () => void;
 }) {
+  const router = useRouter();
   const rows: { label: string; value: string }[] = [];
   if (deviceName) rows.push({ label: 'Device', value: deviceName });
   if (deviceMeta?.areaName) rows.push({ label: 'Area', value: deviceMeta.areaName });
@@ -464,6 +481,22 @@ function DeviceInfoTab({ deviceName, deviceMeta, entities }: {
 
   return (
     <div className="flex-1 overflow-y-auto px-0 py-ha-2">
+      {deviceMeta?.deviceId && (
+        <div className="px-ha-4 mb-ha-4">
+          <button
+            type="button"
+            onClick={() => {
+              onNavigate();
+              router.push(`/settings/devices?device=${encodeURIComponent(deviceMeta.deviceId!)}`);
+            }}
+            className="flex w-full items-center gap-ha-3 rounded-ha-2xl bg-surface-low px-ha-4 py-ha-3 text-left transition-colors hover:bg-surface-mid"
+          >
+            <Icon path={mdiCogOutline} size={20} className="text-text-secondary shrink-0" />
+            <span className="flex-1 text-sm font-medium text-text-primary">Open device page</span>
+            <Icon path={mdiChevronRight} size={18} className="text-text-tertiary shrink-0" />
+          </button>
+        </div>
+      )}
       {rows.length > 0 && (
         <div className="px-ha-4 mb-ha-4">
           <ListSection>
@@ -507,47 +540,39 @@ export function EntityDetailPanel({
   }, [initialEntityId]);
 
   const focusedEntity = entities.find(e => e.entityId === focusedEntityId) ?? entities[0];
-  const otherEntities = entities.filter(e => e.entityId !== focusedEntity?.entityId);
+  // Stable list of the device's other entities — always everything except the
+  // main (initial) entity, so a row stays put when selected. Selecting a row
+  // focuses it in the hero; selecting it again returns to the main entity.
+  const otherEntities = entities.filter(e => e.entityId !== initialEntityId);
+
+  // Product thumbnail — hidden again if the hand-dropped PNG 404s (same
+  // render-adjust pattern as DeviceCardV2).
+  const [thumb, setThumb] = useState<{ src?: string | null; ok: boolean }>({ src: deviceMeta?.thumbnail, ok: true });
+  if (thumb.src !== deviceMeta?.thumbnail) setThumb({ src: deviceMeta?.thumbnail, ok: true });
+  const showThumb = !!deviceMeta?.thumbnail && thumb.ok;
+
+  const iconButton = 'p-1.5 rounded-full transition-colors';
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-ha-4 pt-ha-4 pb-ha-3 shrink-0 gap-2">
-        <div className="flex items-center gap-ha-3 min-w-0 flex-1">
-          {/* Entity avatar — round background like the automations header. Uses
-              the entity's picture (camera/media) when present, else its icon on a
-              state-tinted fill (green when active, neutral otherwise). */}
-          <span className={clsx(
-            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full overflow-hidden',
-            focusedEntity?.entityPicture
-              ? 'bg-surface-mid'
-              : focusedEntity?.active
-                ? 'bg-green-500/15 text-green-500'
-                : 'bg-surface-mid text-text-secondary',
-          )}>
-            {focusedEntity?.entityPicture ? (
-              <img src={focusedEntity.entityPicture} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <Icon path={focusedEntity?.icon ?? ''} size={20} />
-            )}
-          </span>
-          <div className="min-w-0 flex-1">
-            {deviceName && (
-              <p className="text-base font-semibold text-text-primary truncate leading-tight">{deviceName}</p>
-            )}
-            {deviceMeta?.areaName && (
-              <p className="text-xs text-text-tertiary truncate mt-0.5">{deviceMeta.areaName}</p>
-            )}
-          </div>
+    <div className="h-full flex flex-col">
+      {/* Header — area eyebrow over a large device name; actions top-right */}
+      <div className="flex items-start justify-between gap-2 px-ha-4 pt-ha-4 pb-ha-2 shrink-0">
+        <div className="min-w-0 flex-1">
+          {deviceMeta?.areaName && (
+            <p className="text-sm text-text-tertiary truncate leading-none mb-0.5">{deviceMeta.areaName}</p>
+          )}
+          {deviceName && (
+            <p className="text-2xl font-bold text-text-primary truncate leading-tight">{deviceName}</p>
+          )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0 rounded-full bg-surface-low p-0.5">
           {onToggleFavorite && (
             <button
               className={clsx(
-                'p-1.5 rounded-ha-lg transition-colors',
+                iconButton,
                 isFavorite
-                  ? 'text-amber-500 hover:bg-surface-low'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-low',
+                  ? 'text-amber-500 hover:bg-surface-mid'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-mid',
               )}
               onClick={onToggleFavorite}
               title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -557,7 +582,7 @@ export function EntityDetailPanel({
             </button>
           )}
           <button
-            className="p-1.5 rounded-ha-lg text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+            className={clsx(iconButton, 'text-text-secondary hover:text-text-primary hover:bg-surface-mid')}
             onClick={() => setTab(tab === 'info' ? 'stats' : 'info')}
             title={tab === 'info' ? 'Back to stats' : 'Device info'}
           >
@@ -565,7 +590,7 @@ export function EntityDetailPanel({
           </button>
           {onEditCard && (
             <button
-              className="p-1.5 rounded-ha-lg text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+              className={clsx(iconButton, 'text-text-secondary hover:text-text-primary hover:bg-surface-mid')}
               onClick={onEditCard}
               title="Edit card"
             >
@@ -573,20 +598,39 @@ export function EntityDetailPanel({
             </button>
           )}
           <button
-            className="p-1.5 rounded-ha-lg text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
+            className={clsx(iconButton, 'text-text-secondary hover:text-text-primary hover:bg-surface-mid')}
             onClick={onClose}
+            title="Close"
           >
             <Icon path={mdiClose} size={24} />
           </button>
         </div>
       </div>
 
-      <div className="h-px bg-surface-lower mx-ha-4 shrink-0" />
-
       {tab === 'info' ? (
-        <DeviceInfoTab deviceName={deviceName} deviceMeta={deviceMeta} entities={entities} />
+        <DeviceInfoTab deviceName={deviceName} deviceMeta={deviceMeta} entities={entities} onNavigate={onClose} />
       ) : (
         <>
+          {/* Product render — large, centered, fading out toward the bottom so
+              the main control below tucks under the fade. Suppressed when the
+              focused entity has its own feed/artwork (e.g. a camera), so we show
+              the real feed rather than a generic product image on top of it. */}
+          {showThumb && !focusedEntity?.entityPicture && (
+            <div className="shrink-0 flex justify-center px-ha-4 pt-ha-2 -mb-7 pointer-events-none">
+              <img
+                src={deviceMeta!.thumbnail!}
+                alt=""
+                aria-hidden
+                onError={() => setThumb(t => ({ ...t, ok: false }))}
+                className="h-44 md:h-52 w-auto max-w-[70%] object-contain select-none"
+                style={{
+                  WebkitMaskImage: 'linear-gradient(to bottom, #000 55%, transparent 96%)',
+                  maskImage: 'linear-gradient(to bottom, #000 55%, transparent 96%)',
+                }}
+              />
+            </div>
+          )}
+
           {/* Big preview — the focused entity (clicked card / row) */}
           {focusedEntity && <EntityDetailBody key={focusedEntity.entityId} entity={focusedEntity} />}
 
@@ -594,19 +638,27 @@ export function EntityDetailPanel({
           {otherEntities.length > 0 && (
             <div className="flex-1 overflow-y-auto px-ha-4 pb-ha-4 pt-ha-2 min-h-0">
               <ListSection title="Also on this device">
-                {otherEntities.map(entity => (
+                {otherEntities.map(entity => {
+                  // Selected = currently shown in the hero. Clicking toggles: focus
+                  // this entity, or fall back to the main entity when already selected.
+                  const isSelected = entity.entityId === focusedEntityId;
+                  return (
                   <div
                     key={entity.entityId}
-                    onClick={() => setFocusedEntityId(entity.entityId)}
-                    className="flex items-center gap-ha-3 px-ha-4 py-ha-2 cursor-pointer hover:bg-surface-low transition-colors"
+                    onClick={() => setFocusedEntityId(isSelected ? initialEntityId : entity.entityId)}
+                    aria-pressed={isSelected}
+                    className={clsx(
+                      'flex items-center gap-ha-3 px-ha-4 py-ha-2 cursor-pointer transition-colors',
+                      isSelected ? 'bg-ha-blue/10' : 'hover:bg-surface-low',
+                    )}
                   >
                     <div className={clsx(
                       'w-7 h-7 flex items-center justify-center shrink-0',
-                      entity.active && entity.toggleable ? 'text-green-500' : 'text-text-tertiary',
+                      isSelected ? 'text-ha-blue' : entity.active && entity.toggleable ? 'text-green-500' : 'text-text-tertiary',
                     )}>
                       <Icon path={entity.icon} size={16} />
                     </div>
-                    <span className="flex-1 text-sm truncate text-text-primary">
+                    <span className={clsx('flex-1 text-sm truncate', isSelected ? 'font-medium text-ha-blue' : 'text-text-primary')}>
                       {entity.name}
                     </span>
                     {entity.toggleable && entity.onToggle ? (
@@ -625,7 +677,8 @@ export function EntityDetailPanel({
                       />
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </ListSection>
             </div>
           )}

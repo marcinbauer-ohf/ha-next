@@ -56,12 +56,14 @@ function classifyPulse(prev: HassEntity, next: HassEntity, mode: ReactiveTrigger
  */
 export function useHomeEventReactor(enabled: boolean, mode: ReactiveTriggerMode): void {
   const entities = useHomeAssistantEntities();
-  const prevRef = useRef<Map<string, HassEntity> | null>(null);
+  // The store hands out immutable snapshot objects, so the previous snapshot
+  // can be kept as-is — no per-tick Map/entries allocation over every entity.
+  const prevRef = useRef<Record<string, HassEntity> | null>(null);
 
   useEffect(() => {
     // First sight, or while disabled: record the baseline, never fire.
     if (!enabled || prevRef.current === null) {
-      prevRef.current = new Map(Object.entries(entities));
+      prevRef.current = entities;
       return;
     }
 
@@ -70,15 +72,16 @@ export function useHomeEventReactor(enabled: boolean, mode: ReactiveTriggerMode)
 
     for (const id in entities) {
       if (emitted >= MAX_PER_BATCH) break;
-      const before = prev.get(id);
+      const before = prev[id];
       if (!before) continue; // entity only just appeared — no prior state to compare
       const next = entities[id];
+      if (before === next) continue; // untouched since last tick
       const kind = classifyPulse(before, next, mode);
       if (!kind) continue;
       emitHomePulse(PULSE_COLORS[kind], { label: friendlyName(next), kind });
       emitted++;
     }
 
-    prevRef.current = new Map(Object.entries(entities));
+    prevRef.current = entities;
   }, [entities, enabled, mode]);
 }

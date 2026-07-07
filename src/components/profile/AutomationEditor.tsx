@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
+import { EditorToolbarShell } from '../layout/EditorToolbarShell';
 import { ToggleSwitch, ConfirmDialog, Sidebar } from '../ui';
 import { Tooltip } from '../ui/Tooltip';
 import { useMobileToolbar } from '@/contexts';
@@ -720,7 +721,6 @@ function TracesView({ automation, nodes }: { automation: AutomationSummary; node
 
 type EditorMode = 'edit' | 'traces';
 
-const TOOLBAR_SPRING = { type: 'spring' as const, stiffness: 380, damping: 28, mass: 0.8 };
 const SEGMENT_SPRING = { type: 'spring' as const, stiffness: 500, damping: 36, mass: 0.7 };
 
 /** Edit / Traces segmented control (text only) with a sliding indicator. */
@@ -901,69 +901,60 @@ function AutomationEditorToolbar({
   const editing = mode === 'edit';
 
   return createPortal(
-    <motion.div
-      initial={{ opacity: 0, y: 28, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={TOOLBAR_SPRING}
-      className="fixed z-[60] pointer-events-none inset-x-0 bottom-0 lg:left-[76px] lg:bottom-20 lg:right-0"
-      style={{ paddingBottom: `calc(var(--ha-space-3) + env(safe-area-inset-bottom, 0px))` }}
-    >
-      {/* Mobile: full-width pill matching MobileNav style. The edit-only View
-          toggle row collapses its own height (0 ↔ auto), so the pill grows from
-          its content — no layout projection, nothing inside lags. */}
-      <div className="lg:hidden px-edge pointer-events-auto">
-        <div className="relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)]">
-          <div className="relative rounded-[23px] bg-surface-default/95 px-edge py-ha-3">
-            <div className="flex items-center gap-ha-2">
-              <ModeToggle id="m" mode={mode} onChange={onChangeMode} />
-              <div className="flex-1" />
-              <AnimatePresence initial={false}>
-                {editing && (
-                  <motion.div
-                    key="m-overflow"
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: 'auto', opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                    className="overflow-hidden"
-                  >
-                    <ToolbarOverflowMenu onDelete={onDelete} />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <button
-                type="button"
-                onClick={onDone}
-                className="h-11 px-6 rounded-ha-pill bg-ha-blue text-white font-semibold text-sm active:scale-95 transition-transform"
-              >
-                Done
-              </button>
-            </div>
+    <EditorToolbarShell
+      // Mobile: the edit-only View toggle row collapses its own height
+      // (0 ↔ auto), so the pill grows from its content — no layout
+      // projection, nothing inside lags.
+      mobile={
+        <>
+          <div className="flex items-center gap-ha-2">
+            <ModeToggle id="m" mode={mode} onChange={onChangeMode} />
+            <div className="flex-1" />
             <AnimatePresence initial={false}>
               {editing && (
                 <motion.div
-                  key="m-viewtoggle"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                  key="m-overflow"
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 'auto', opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                   className="overflow-hidden"
                 >
-                  <div className="pt-ha-2">
-                    <ViewToggle id="m" view={view} onChange={onChangeView} />
-                  </div>
+                  <ToolbarOverflowMenu onDelete={onDelete} />
                 </motion.div>
               )}
             </AnimatePresence>
+            <button
+              type="button"
+              onClick={onDone}
+              className="h-11 px-6 rounded-ha-pill bg-ha-blue text-white font-semibold text-sm active:scale-95 transition-transform"
+            >
+              Done
+            </button>
           </div>
-        </div>
-      </div>
-
-      {/* Desktop: centered floating pill. The edit-only controls collapse their
-          own width (0 ↔ auto), so the pill grows/shrinks from its content — no
-          framer layout projection, so nothing inside scales or lags. */}
-      <div className="hidden lg:flex justify-center pointer-events-auto">
-        <div className="px-ha-2 py-ha-2 rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center gap-ha-1">
+          <AnimatePresence initial={false}>
+            {editing && (
+              <motion.div
+                key="m-viewtoggle"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                className="overflow-hidden"
+              >
+                <div className="pt-ha-2">
+                  <ViewToggle id="m" view={view} onChange={onChangeView} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      }
+      // Desktop: the edit-only controls collapse their own width (0 ↔ auto),
+      // so the pill grows/shrinks from its content — no framer layout
+      // projection, so nothing inside scales or lags.
+      desktop={
+        <>
           <ModeToggle id="d" mode={mode} onChange={onChangeMode} />
 
           <AnimatePresence initial={false}>
@@ -1003,9 +994,9 @@ function AutomationEditorToolbar({
           >
             Done
           </button>
-        </div>
-      </div>
-    </motion.div>,
+        </>
+      }
+    />,
     document.body,
   );
 }
@@ -1099,7 +1090,7 @@ export function AutomationEditor({
       title={defOf(selected).label}
       subtitle={KIND_LABEL[selected.kind]}
       onClose={() => setSelectedId(null)}
-      className="ha-pane-in hidden h-full w-[340px] flex-shrink-0 border-0 border-l !rounded-none !shadow-none lg:flex"
+      className="ha-pane-in mt-16 mr-ha-4 mb-ha-4 hidden w-[340px] flex-shrink-0 self-stretch lg:flex"
     >
       {nodeBody}
     </Sidebar>
@@ -1107,11 +1098,11 @@ export function AutomationEditor({
 
   return (
     // Bottom padding keeps the last section reachable above the floating toolbar.
-    <div className={`flex items-start justify-center gap-ha-5 ${onExit ? 'pb-32' : ''}`}>
-      {/* Content column: the three flow sections. Capped so rows stay readable
-          when the settings nav slides away. Automation-level settings (name,
+    <div className={`flex items-start gap-ha-5 ${onExit ? 'pb-32' : ''}`}>
+      {/* Content column: the three flow sections. Fills the workspace width like
+          the sibling device detail view. Automation-level settings (name,
           enabled) live in the right sidebar — inlined here only on mobile. */}
-      <div className={`min-w-0 flex-1 space-y-ha-6 ${nodeView ? '' : 'max-w-2xl'}`}>
+      <div className="min-w-0 flex-1 space-y-ha-6">
         {/* Mobile has no room for a sidebar — the Info / node-config panel comes
             up as a bottom sheet instead (below). */}
         {tracesMode ? (
@@ -1219,7 +1210,7 @@ export function AutomationEditor({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="lg:hidden fixed inset-0 z-[100] bg-black/40"
+                className="lg:hidden fixed inset-0 z-[100] bg-black/70"
                 onClick={() => (selected ? setSelectedId(null) : onCloseInfo?.())}
               />
               <motion.div

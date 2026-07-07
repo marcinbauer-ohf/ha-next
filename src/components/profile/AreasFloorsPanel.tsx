@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -8,11 +8,13 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  useDraggable,
   useDroppable,
   closestCenter,
+  type CollisionDetection,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   mdiPlus, mdiPencil, mdiTrashCanOutline, mdiDrag, mdiMapMarkerOutline, mdiLayers,
   mdiHomeFloorNegative1, mdiTagOutline, mdiAlertCircleOutline, mdiClose,
@@ -55,7 +57,7 @@ function EditorModal({
       {open && (
         <>
           <motion.div
-            className="fixed inset-0 z-[110] bg-black/40"
+            className="fixed inset-0 z-[110] bg-black/70"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -366,7 +368,7 @@ function FloorEditorModal({
           placeholder="0"
           className={textInputClass}
         />
-        <span className="mt-ha-1 block text-xs text-text-tertiary">Floors are ordered by level — 0 for ground, negative for basements.</span>
+        <span className="mt-ha-1 block text-xs text-text-tertiary">Physical height — 0 for ground, negative for basements. Drag floors by the handle to set their display order.</span>
       </Field>
 
       <Field label="Aliases">
@@ -380,30 +382,35 @@ function emptyFloorDraft(): FloorDraft {
   return { name: '', icon: null, level: '', aliases: [] };
 }
 
-// ── Area card (draggable) ─────────────────────────────────────────────────────
+// ── Area card (sortable within a floor, draggable across floors) ─────────────
 
 function AreaCard({
   area,
+  groupFloorId,
   labels,
   editable,
   onEdit,
   onDelete,
 }: {
   area: AreaWithCounts;
+  /** Floor group this card is rendered under (null ⇒ "Unassigned"). */
+  groupFloorId: string | null;
   labels: LabelRegistryEntry[];
   editable: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `area:${area.area_id}`,
-    data: { areaId: area.area_id },
+    data: { kind: 'area', areaId: area.area_id, floorId: groupFloorId },
     disabled: !editable,
   });
 
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, zIndex: 50 }
-    : undefined;
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    ...(isDragging ? { zIndex: 50, position: 'relative' as const } : {}),
+  };
 
   const iconPath = iconPathFor(area.icon) ?? mdiMapMarkerOutline;
   const areaLabels = (area.labels ?? [])
@@ -421,7 +428,7 @@ function AreaCard({
       {editable && (
         <button
           type="button"
-          aria-label="Drag to another floor"
+          aria-label="Drag to reorder or move to another floor"
           className="-ml-1 flex-shrink-0 cursor-grab touch-none text-text-disabled transition-colors hover:text-text-secondary active:cursor-grabbing"
           {...attributes}
           {...listeners}
@@ -471,10 +478,11 @@ function countLabel(devices: number, entities: number): string {
   return `${d} · ${e}`;
 }
 
-// ── Floor group (droppable) ───────────────────────────────────────────────────
+// ── Floor group (sortable section + droppable area container) ────────────────
 
 function FloorGroup({
   floor,
+  areas: areasProp,
   labels,
   editable,
   onAddArea,
@@ -484,6 +492,8 @@ function FloorGroup({
   onDeleteArea,
 }: {
   floor: FloorWithAreas | null; // null ⇒ the "Unassigned" pseudo-floor
+  /** Areas shown in this group (the floor's areas, or the unassigned list). */
+  areas: AreaWithCounts[];
   labels: LabelRegistryEntry[];
   editable: boolean;
   onAddArea: () => void;
@@ -492,19 +502,56 @@ function FloorGroup({
   onEditArea: (area: AreaWithCounts) => void;
   onDeleteArea: (area: AreaWithCounts) => void;
 }) {
+  const groupFloorId = floor?.floor_id ?? null;
   const droppableId = floor ? `floor:${floor.floor_id}` : 'floor:__none__';
   const { setNodeRef, isOver } = useDroppable({
     id: droppableId,
-    data: { floorId: floor?.floor_id ?? null },
+    data: { kind: 'container', floorId: groupFloorId },
     disabled: !editable,
   });
 
-  const areas = floor ? floor.areas : ([] as AreaWithCounts[]);
+  // The whole section is a sortable item so floors can be dragged into a
+  // custom order (persisted via config/floor_registry/reorder). The
+  // "Unassigned" pseudo-floor stays fixed at the bottom.
+  // Destructured (not held as an object) so the react-compiler lint doesn't
+  // infer setNodeRef/transform as refs accessed during render.
+  const {
+    attributes: floorAttributes,
+    listeners: floorListeners,
+    setNodeRef: setFloorNodeRef,
+    transform: floorTransform,
+    transition: floorTransition,
+    isDragging: floorIsDragging,
+  } = useSortable({
+    id: floor ? `floorsort:${floor.floor_id}` : 'floorsort:__none__',
+    data: { kind: 'floor', floorId: groupFloorId },
+    disabled: !editable || !floor,
+  });
+
+  const areas = areasProp;
   const headerIcon = floor ? iconPathFor(floor.icon) ?? mdiLayers : mdiHomeFloorNegative1;
 
   return (
-    <section>
+    <section
+      ref={setFloorNodeRef}
+      style={{
+        transform: CSS.Translate.toString(floorTransform),
+        transition: floorTransition,
+        ...(floorIsDragging ? { zIndex: 60, position: 'relative' as const, opacity: 0.9 } : {}),
+      }}
+    >
       <div className="mb-ha-2 flex items-center gap-ha-2 px-ha-1">
+        {floor && editable && (
+          <button
+            type="button"
+            aria-label={`Drag to reorder ${floor.name}`}
+            className="-ml-1 flex-shrink-0 cursor-grab touch-none text-text-disabled transition-colors hover:text-text-secondary active:cursor-grabbing"
+            {...floorAttributes}
+            {...floorListeners}
+          >
+            <Icon path={mdiDrag} size={18} />
+          </button>
+        )}
         <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-ha-lg bg-surface-mid text-text-secondary">
           <Icon path={headerIcon} size={16} />
         </span>
@@ -533,16 +580,19 @@ function FloorGroup({
             {floor ? 'No areas on this floor yet.' : 'Every area is assigned to a floor.'}
           </p>
         ) : (
-          areas.map((a) => (
-            <AreaCard
-              key={a.area_id}
-              area={a}
-              labels={labels}
-              editable={editable}
-              onEdit={() => onEditArea(a)}
-              onDelete={() => onDeleteArea(a)}
-            />
-          ))
+          <SortableContext items={areas.map((a) => `area:${a.area_id}`)} strategy={verticalListSortingStrategy}>
+            {areas.map((a) => (
+              <AreaCard
+                key={a.area_id}
+                area={a}
+                groupFloorId={groupFloorId}
+                labels={labels}
+                editable={editable}
+                onEdit={() => onEditArea(a)}
+                onDelete={() => onDeleteArea(a)}
+              />
+            ))}
+          </SortableContext>
         )}
 
         {floor && editable && (
@@ -574,11 +624,34 @@ type DeleteTarget =
 
 export function AreasFloorsPanel() {
   const model = useAreasFloors();
-  const { floors, unassignedAreas, labels, editable } = model;
+  const { labels, editable } = model;
 
   const [edit, setEdit] = useState<EditTarget>(null);
   const [del, setDel] = useState<DeleteTarget>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Optimistic ordering: applied the moment a drag ends so the list doesn't
+  // snap back while the reorder round-trips to HA (write + registry re-pull).
+  // Cleared once the model reflects the new order (or the write failed).
+  const [floorOrderOverride, setFloorOrderOverride] = useState<string[] | null>(null);
+  const [areaOrderOverride, setAreaOrderOverride] = useState<string[] | null>(null);
+
+  const orderByIds = useCallback(<T,>(items: T[], key: (item: T) => string, order: string[]): T[] => {
+    const idx = new Map(order.map((id, i) => [id, i]));
+    return [...items].sort((a, b) => (idx.get(key(a)) ?? Infinity) - (idx.get(key(b)) ?? Infinity));
+  }, []);
+
+  const floors = useMemo(() => {
+    let fs = model.floors;
+    if (floorOrderOverride) fs = orderByIds(fs, (f) => f.floor_id, floorOrderOverride);
+    if (areaOrderOverride) fs = fs.map((f) => ({ ...f, areas: orderByIds(f.areas, (a) => a.area_id, areaOrderOverride) }));
+    return fs;
+  }, [model.floors, floorOrderOverride, areaOrderOverride, orderByIds]);
+
+  const unassignedAreas = useMemo(
+    () => (areaOrderOverride ? orderByIds(model.unassignedAreas, (a) => a.area_id, areaOrderOverride) : model.unassignedAreas),
+    [model.unassignedAreas, areaOrderOverride, orderByIds],
+  );
 
   // Create actions live in the top-bar "+" menu (AddMenu). It raises a request
   // through AddContext; we open the matching editor here. Ignored when the
@@ -594,14 +667,74 @@ export function AreasFloorsPanel() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  // One DndContext handles both floor and area drags; keep each kind's drops
+  // scoped to its own targets (a dragged floor never lands on an area card).
+  const collisionDetection: CollisionDetection = (args) => {
+    const kind = args.active.data.current?.kind;
+    const containers = args.droppableContainers.filter((c) => {
+      const k = c.data.current?.kind;
+      return kind === 'floor' ? k === 'floor' : k === 'area' || k === 'container';
+    });
+    return closestCenter({ ...args, droppableContainers: containers });
+  };
+
+  /** Current visual grouping: floor groups in display order, then Unassigned. */
+  const areaGroups = (): { floorId: string | null; ids: string[] }[] => [
+    ...floors.map((f) => ({ floorId: f.floor_id as string | null, ids: f.areas.map((a) => a.area_id) })),
+    { floorId: null, ids: unassignedAreas.map((a) => a.area_id) },
+  ];
+
   const onDragEnd = (e: DragEndEvent) => {
-    const areaId = e.active.data.current?.areaId as string | undefined;
-    if (!areaId || !e.over) return;
-    const targetFloor = (e.over.data.current?.floorId ?? null) as string | null;
-    const area = model.areas.find((a) => a.area_id === areaId);
-    if (!area) return;
-    if ((area.floor_id ?? null) === targetFloor) return;
-    void model.reassignAreaToFloor(areaId, targetFloor);
+    const data = e.active.data.current;
+    const overData = e.over?.data.current;
+    if (!data || !e.over || !overData) return;
+
+    if (data.kind === 'floor') {
+      const from = String(e.active.id).replace('floorsort:', '');
+      const to = (overData.floorId ?? null) as string | null;
+      if (!to || from === to) return;
+      const ids = floors.map((f) => f.floor_id);
+      const next = arrayMove(ids, ids.indexOf(from), ids.indexOf(to));
+      setFloorOrderOverride(next);
+      model.reorderFloors(next)
+        .catch((err) => console.warn('Floor reorder failed (requires HA 2025.12+):', err))
+        .finally(() => setFloorOrderOverride(null));
+      return;
+    }
+
+    if (data.kind !== 'area') return;
+    const areaId = data.areaId as string;
+    const sourceFloor = (data.floorId ?? null) as string | null;
+    const targetFloor = (overData.floorId ?? null) as string | null;
+
+    const groups = areaGroups();
+    const source = groups.find((g) => g.floorId === sourceFloor);
+    const target = groups.find((g) => g.floorId === targetFloor);
+    if (!source || !target) return;
+
+    if (overData.kind === 'container') {
+      if (sourceFloor === targetFloor) return; // dropped back on its own group
+      source.ids = source.ids.filter((id) => id !== areaId);
+      target.ids = [...target.ids, areaId];
+    } else {
+      const overAreaId = overData.areaId as string;
+      if (overAreaId === areaId) return;
+      if (sourceFloor === targetFloor) {
+        target.ids = arrayMove(target.ids, target.ids.indexOf(areaId), target.ids.indexOf(overAreaId));
+      } else {
+        source.ids = source.ids.filter((id) => id !== areaId);
+        target.ids = [...target.ids.slice(0, target.ids.indexOf(overAreaId)), areaId, ...target.ids.slice(target.ids.indexOf(overAreaId))];
+      }
+    }
+
+    const globalOrder = groups.flatMap((g) => g.ids);
+    setAreaOrderOverride(globalOrder);
+    const write = sourceFloor === targetFloor
+      ? model.reorderAreas(globalOrder)
+      : model.moveArea(areaId, targetFloor, globalOrder);
+    write
+      .catch((err) => console.warn('Area move/reorder failed:', err))
+      .finally(() => setAreaOrderOverride(null));
   };
 
   const submitArea = async (draft: AreaDraft) => {
@@ -643,27 +776,31 @@ export function AreasFloorsPanel() {
         </div>
       )}
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragEnd={onDragEnd}>
         <div className="space-y-ha-6">
-          {floors.map((f) => (
-            <FloorGroup
-              key={f.floor_id}
-              floor={f}
-              labels={labels}
-              editable={editable}
-              onAddArea={() => setEdit({ kind: 'area', area: null, floorId: f.floor_id })}
-              onEditFloor={() => setEdit({ kind: 'floor', floor: f })}
-              onDeleteFloor={() => setDel({ kind: 'floor', floor: f })}
-              onEditArea={(area) => setEdit({ kind: 'area', area, floorId: area.floor_id ?? null })}
-              onDeleteArea={(area) => setDel({ kind: 'area', area })}
-            />
-          ))}
+          <SortableContext items={floors.map((f) => `floorsort:${f.floor_id}`)} strategy={verticalListSortingStrategy}>
+            {floors.map((f) => (
+              <FloorGroup
+                key={f.floor_id}
+                floor={f}
+                areas={f.areas}
+                labels={labels}
+                editable={editable}
+                onAddArea={() => setEdit({ kind: 'area', area: null, floorId: f.floor_id })}
+                onEditFloor={() => setEdit({ kind: 'floor', floor: f })}
+                onDeleteFloor={() => setDel({ kind: 'floor', floor: f })}
+                onEditArea={(area) => setEdit({ kind: 'area', area, floorId: area.floor_id ?? null })}
+                onDeleteArea={(area) => setDel({ kind: 'area', area })}
+              />
+            ))}
+          </SortableContext>
 
           {(unassignedAreas.length > 0 || floors.length === 0) && (
             <>
               {floors.length > 0 && <SectionLabel className="px-ha-1">Unassigned</SectionLabel>}
               <FloorGroup
                 floor={null}
+                areas={unassignedAreas}
                 labels={labels}
                 editable={editable}
                 onAddArea={() => setEdit({ kind: 'area', area: null, floorId: null })}

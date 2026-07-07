@@ -116,7 +116,6 @@ export const categoryAccents: Record<string, string> = {
   System: '#64748b',
   'Developer Tools': '#6366f1',
   'Prototype Debugging Tools': '#f97316',
-  Cloud: '#00aef0',
 };
 
 export const settingsNavSections: SettingsNavSection[] = [
@@ -124,6 +123,7 @@ export const settingsNavSections: SettingsNavSection[] = [
     title: '',
     items: [
       { slug: 'home-center', icon: mdiHomeVariant, label: 'Home Center', description: 'Notifications, updates, repairs, backups and connectivity' },
+      { slug: 'cloud', icon: mdiCloud, label: 'Nabu Casa Cloud', description: 'Remote access, voice, and cloud services', haPath: '/config/cloud' },
       { slug: 'notifications', icon: mdiBell, label: 'Notifications', description: 'Active notifications from your home' },
     ],
   },
@@ -131,12 +131,6 @@ export const settingsNavSections: SettingsNavSection[] = [
     title: 'Prototype Debugging Tools',
     items: [
       { slug: 'developer', icon: mdiAlphaDBox, label: 'Prototype & Debug Tools', description: 'Data, appearance, behavior, and prototyping flags' },
-    ],
-  },
-  {
-    title: 'Cloud',
-    items: [
-      { slug: 'cloud', icon: mdiCloud, label: 'Nabu Casa Cloud', description: 'Remote access, voice, and cloud services', haPath: '/config/cloud' },
     ],
   },
   {
@@ -153,7 +147,7 @@ export const settingsNavSections: SettingsNavSection[] = [
     title: 'Devices',
     items: [
       { slug: 'integrations', icon: mdiPuzzle, label: 'Integrations', description: 'Connected services and platforms', haPath: '/config/integrations', addLabel: 'Integration' },
-      { slug: 'devices', icon: mdiDevices, label: 'Devices', description: 'All registered devices', haPath: '/config/devices', addLabel: 'Device' },
+      { slug: 'devices', icon: mdiDevices, label: 'Devices & Services', description: 'All registered devices and services', haPath: '/config/devices', addLabel: 'Device' },
       { slug: 'entities', icon: mdiShape, label: 'Entities', description: 'Individual data points and controls', haPath: '/config/entities' },
       { slug: 'helpers', icon: mdiWrench, label: 'Helpers', description: 'Virtual entities and input helpers', haPath: '/config/helpers', addLabel: 'Helper' },
     ],
@@ -211,6 +205,29 @@ export const allSettingsLinks: SettingsNavLink[] = [
   ...settingsNavSections.flatMap(s => s.items),
   ...hiddenSettingsLinks,
 ];
+
+// Allow-list of settings slugs a non-admin user may see, mirroring real HA
+// (Settings + Developer Tools are entirely admin-gated there; only a user's
+// own profile and notifications stay reachable). New slugs default to
+// admin-only unless explicitly added here.
+const publicSettingsSlugs = new Set<SettingsSlug>(['notifications', 'profile']);
+
+export function isAdminOnlySlug(slug: SettingsSlug): boolean {
+  return !publicSettingsSlugs.has(slug);
+}
+
+/** Settings sections + items visible to the current user; drops sections left empty after filtering. */
+export function getVisibleSettingsNavSections(isAdmin: boolean): SettingsNavSection[] {
+  if (isAdmin) return settingsNavSections;
+  return settingsNavSections
+    .map(section => ({ ...section, items: section.items.filter(item => !isAdminOnlySlug(item.slug)) }))
+    .filter(section => section.items.length > 0);
+}
+
+/** Landing slug for the settings workspace — Home Center is admin-only, so a non-admin lands on Notifications instead. */
+export function getDefaultSettingsSlug(isAdmin: boolean): SettingsSlug {
+  return isAdmin ? 'home-center' : 'notifications';
+}
 
 // Items offered in the top-bar "+" (AddMenu), derived from the settings nav so
 // the two stay in sync. Preserves settings order; carries the section's accent

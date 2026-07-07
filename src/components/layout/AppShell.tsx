@@ -3,12 +3,14 @@
 import { Suspense, useState, useEffect, useRef, ReactNode, CSSProperties, useCallback, useMemo } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar, EditingToolbar } from '@/components/layout';
-import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout, useTheme, useStandaloneMode } from '@/hooks';
+import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout, useTheme, useStandaloneMode, useVacuumSimulator } from '@/hooks';
 import { PulseWallpaper } from '@/components/layout/PulseWallpaper';
-import { useSearchContext, useHeader, useEditMode, useToast } from '@/contexts';
-import { mdiConnection, mdiCheckCircle, mdiAlertCircle, mdiCellphoneArrowDown } from '@mdi/js';
+import { useSearchContext, useHeader, useEditMode, useToast, useAssistantContext, useDebugFlags } from '@/contexts';
+import { mdiConnection, mdiCheckCircle, mdiAlertCircle, mdiCellphoneArrowDown, mdiRoundedCorner } from '@mdi/js';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
+import { KeyboardShortcutsDialog } from '@/components/ui/KeyboardShortcutsDialog';
+import { canFireBareShortcut, matchShortcut, subscribeShortcutsHelp } from '@/lib/keyboardShortcuts';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { Preloader } from '@/components/ui/Preloader';
 import { emitSettingsReset } from '@/lib/settingsResetBus';
@@ -33,6 +35,21 @@ function isSplitEligiblePath(pathname: string) {
   return pathname === '/' || pathname.startsWith('/dashboard/') || pathname.startsWith('/panel/');
 }
 
+/** Smooth-scroll the active route's dashboard scroll container back to the top.
+    Routes are matched via template.tsx's data-route-pathname wrapper so the
+    crossfade's exiting copy of the previous route is never targeted. */
+function scrollActiveRouteToTop(pathname: string): boolean {
+  if (typeof document === 'undefined') return false;
+  const routeContainers = Array.from(document.querySelectorAll<HTMLElement>('[data-route-pathname]'));
+  const activeRouteContainer = routeContainers.find(
+    (container) => container.dataset.routePathname === pathname
+  );
+  const scrollable = activeRouteContainer?.querySelector<HTMLElement>('[data-scrollable="dashboard"]');
+  if (!scrollable) return false;
+  scrollable.scrollTo({ top: 0, behavior: 'smooth' });
+  return true;
+}
+
 export function AppShell({ children }: AppShellProps) {
   return (
     <Suspense fallback={<div className="min-h-screen bg-surface-lower">{children}</div>}>
@@ -44,15 +61,20 @@ export function AppShell({ children }: AppShellProps) {
 function AppShellContent({ children }: AppShellProps) {
   const { connecting, connected, error, configured, hydrated, saveCredentials, enableDemoMode } = useHomeAssistant();
   const { desktopSplitViewEnabled } = useFeatureFlags();
-  const { background } = useTheme();
+  const { background, squircle } = useTheme();
   const pulseWallpaper = background === 'pulse';
   const { immersiveMode, immersivePhase } = useImmersiveMode();
   const { contentStyle: immersiveContentStyle, contentTransitionClasses, isImmersiveFixed } = useDesktopImmersivePageLayout();
-  const { toggleSearch } = useSearchContext();
+  const { toggleSearch, openSearch } = useSearchContext();
+  const { toggleAssistant } = useAssistantContext();
+  const { toggleDebugBadges } = useDebugFlags();
   const { title, subtitle } = useHeader();
-  const { isEditing, previewViewport, previewOrientation } = useEditMode();
+  const { isEditing, toggleEditMode, previewViewport, previewOrientation } = useEditMode();
   const { isToastVisible, showToast, dismissToast } = useToast();
   const { items: sidebarItems } = useSidebarItems();
+  // Self-driving demo robot vacuum — randomly starts/finishes cleaning cycles so
+  // the activity surface has live coming-and-going content (demo mode only).
+  useVacuumSimulator();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -228,10 +250,38 @@ function AppShellContent({ children }: AppShellProps) {
     }
   }, [isEditing, dismissToast]);
 
-  // Global keyboard shortcuts
+  // Keyboard shortcuts help dialog — opened by ? below, the command palette
+  // entry, and the settings reference card (via the module-level bus).
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+  useEffect(() => subscribeShortcutsHelp(() => setShortcutsHelpOpen(true)), []);
+
+  // Squircle corners are a subtle change, so confirm every toggle (keyboard,
+  // debug switch, or command palette all flip the same flag) with a toast.
+  // Track the previous value rather than a mount flag so a spurious toast never
+  // fires on load — including under Strict Mode's double-invoked effects.
+  const prevSquircle = useRef<boolean | null>(null);
   useEffect(() => {
+    if (prevSquircle.current === null || prevSquircle.current === squircle) {
+      prevSquircle.current = squircle;
+      return;
+    }
+    prevSquircle.current = squircle;
+    showToast({
+      title: `Squircle corners ${squircle ? 'on' : 'off'}`,
+      subtitle: squircle ? 'Rounded corners use iOS-style smoothing.' : 'Rounded corners use plain circular arcs.',
+      icon: mdiRoundedCorner,
+    });
+  }, [squircle, showToast]);
+
+  // Global keyboard shortcuts — the registry in src/lib/keyboardShortcuts.ts
+  // is the display companion to this handler; keep the two in sync.
+  useEffect(() => {
+    const isDashboardPath = pathname === '/' ||
+      (pathname.startsWith('/dashboard/') && pathname !== '/dashboard/energy');
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey) {
+      // Modifier chords work even while typing — they can't collide with text.
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         switch (e.key.toLowerCase()) {
           case 'k':
             e.preventDefault();
@@ -242,11 +292,55 @@ function AppShellContent({ children }: AppShellProps) {
             router.push('/');
             break;
         }
+        return;
+      }
+
+      // Single-key shortcuts: skip text fields, open dialogs, and key repeats.
+      if (!canFireBareShortcut(e)) return;
+      if (matchShortcut(e, 'global.help')) {
+        e.preventDefault();
+        setShortcutsHelpOpen(true);
+        return;
+      }
+      // Debug toggles — safe (non-destructive) and useful mid-edit, so they run
+      // before the edit-mode gate below. Destructive resets stay palette-only.
+      if (matchShortcut(e, 'debug.badges')) {
+        e.preventDefault();
+        toggleDebugBadges();
+        return;
+      }
+      if (matchShortcut(e, 'dashboard.edit') && isDashboardPath) {
+        e.preventDefault();
+        toggleEditMode();
+        return;
+      }
+      if (isEditing) return; // stay put while arranging the dashboard
+      if (matchShortcut(e, 'global.search')) {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
+      if (matchShortcut(e, 'global.assistant')) {
+        e.preventDefault();
+        toggleAssistant();
+        return;
+      }
+      if (matchShortcut(e, 'global.home')) {
+        e.preventDefault();
+        router.push('/');
+        return;
+      }
+      if (matchShortcut(e, 'global.settings')) {
+        e.preventDefault();
+        // Mirror the StatusBar avatar: re-invoking from /settings resets the
+        // workspace to its default section instead of a no-op navigation.
+        if (pathname === '/settings') emitSettingsReset();
+        else router.push('/settings');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleSearch, router]);
+  }, [toggleSearch, openSearch, toggleAssistant, toggleEditMode, toggleDebugBadges, isEditing, pathname, router]);
 
   // Reset preloader when user logs out so it shows again on next login
   useEffect(() => {
@@ -378,6 +472,10 @@ function AppShellContent({ children }: AppShellProps) {
       return;
     }
 
+    // Re-clicking the already-active rail item: scroll that view back to the
+    // top instead of re-pushing the same route.
+    if (href === pathname && scrollActiveRouteToTop(pathname)) return;
+
     router.push(href);
   }, [desktopSplitViewEnabled, pathname, router, workspaceActive]);
 
@@ -466,7 +564,10 @@ function AppShellContent({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-[100dvh] lg:min-h-screen bg-surface-default" data-component="AppShell">
+    <div
+      className={`${isStandalone ? 'min-h-screen' : 'min-h-[100dvh]'} lg:min-h-screen bg-surface-default ${showPreloader ? '' : 'ha-app-booted'}`}
+      data-component="AppShell"
+    >
       {/* Pulse wallpaper — animated ring background painted behind the whole
           shell, rippling on live device toggles. */}
       {pulseWallpaper && <PulseWallpaper />}
@@ -480,7 +581,7 @@ function AppShellContent({ children }: AppShellProps) {
 
       {/* Main app shell — fades in as preloader exits */}
       <div
-        className={`relative h-[100dvh] lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-edge lg:pl-edge transition-opacity duration-700 ${
+        className={`relative ${isStandalone ? 'h-screen' : 'h-[100dvh]'} lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-[calc(var(--ha-edge-padding)+env(safe-area-inset-top,0px))] lg:pl-edge transition-opacity duration-700 ${
           showPreloader ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={layoutStyle}
@@ -630,6 +731,20 @@ function AppShellContent({ children }: AppShellProps) {
         />
       </div>
 
+      {/* One-shot boot glow for the desktop search bar — the toast/edit glow
+          language (radial tint rising from an edge), anchored to the very top
+          edge of the screen so it reads as a light source behind the centered
+          field. Fixed at shell root to escape the content area's overflow
+          clip; z-[9] keeps it above page content (z-0) but under the top bar
+          chrome (z-10). */}
+      {/* Full-width so the radial gradient fades to transparent within the box
+          on both sides (a fixed-width box clipped the horizontal spread). The
+          gradient itself is offset to sit under the field — see the CSS. */}
+      <div
+        aria-hidden
+        className="ha-search-boot-glow hidden lg:block fixed top-0 inset-x-0 h-48 pointer-events-none z-[9]"
+      />
+
       {/* Mobile navigation - hidden during preloader */}
       {!showPreloader && (
         <MobileNav
@@ -637,6 +752,7 @@ function AppShellContent({ children }: AppShellProps) {
           onNavAutoHiddenChange={handleMobileNavAutoHiddenChange}
           editModeFade={isEditing}
           freezeAutoHide={isToastVisible}
+          disableAutoHide
         />
       )}
 
@@ -648,6 +764,9 @@ function AppShellContent({ children }: AppShellProps) {
 
       {/* Assistant overlay */}
       <AssistantOverlay />
+
+      {/* Keyboard shortcuts cheat-sheet (?) */}
+      <KeyboardShortcutsDialog open={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />
     </div>
   );
 }

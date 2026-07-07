@@ -7,13 +7,13 @@ import {
   mdiPalette,
   mdiFormatFont,
   mdiImageFilterHdr,
+  mdiRoundedCorner,
   mdiPencilRuler,
   mdiArrowExpandAll,
   mdiRobotExcited,
   mdiWeatherNight,
   mdiViewSplitVertical,
   mdiBug,
-  mdiTimerSand,
   mdiFlask,
   mdiWaves,
   mdiShimmer,
@@ -27,6 +27,7 @@ import {
   mdiPaletteSwatch,
   mdiCardBulleted,
   mdiAccessPointNetwork,
+  mdiKeyboardOutline,
 } from '@mdi/js';
 import { useTheme } from './useTheme';
 import { useFont } from './useFont';
@@ -47,6 +48,7 @@ import {
   type SettingsNavLink,
 } from '@/components/profile/settingsNavigation';
 import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
+import { openShortcutsHelp } from '@/lib/keyboardShortcuts';
 
 export type CommandGroup = 'command' | 'navigate' | 'debug';
 
@@ -149,6 +151,16 @@ export function useCommands(): CommandItem[] {
         run: theme.toggleBackground,
       },
       {
+        id: 'cmd.squircle',
+        group: 'command',
+        icon: mdiRoundedCorner,
+        label: 'Toggle squircle corners',
+        keywords: ['squircle', 'corner', 'rounded', 'superellipse', 'radius', 'smoothing'],
+        state: onOff(theme.squircle),
+        active: theme.squircle,
+        run: theme.toggleSquircle,
+      },
+      {
         id: 'cmd.edit',
         group: 'command',
         icon: mdiPencilRuler,
@@ -187,6 +199,15 @@ export function useCommands(): CommandItem[] {
         closeOnRun: true,
         run: () => (screensaver.isActive ? screensaver.dismiss() : screensaver.activate()),
       },
+      {
+        id: 'cmd.shortcuts',
+        group: 'command',
+        icon: mdiKeyboardOutline,
+        label: 'Keyboard shortcuts',
+        keywords: ['hotkeys', 'keys', 'bindings', 'help', 'cheat sheet'],
+        closeOnRun: true,
+        run: openShortcutsHelp,
+      },
 
       // ── Debug / prototype ───────────────────────────────────────
       {
@@ -198,16 +219,6 @@ export function useCommands(): CommandItem[] {
         state: onOff(debug.debugBadgesEnabled),
         active: debug.debugBadgesEnabled,
         run: debug.toggleDebugBadges,
-      },
-      {
-        id: 'dbg.latency',
-        group: 'debug',
-        icon: mdiTimerSand,
-        label: 'Mock latency',
-        keywords: ['loading', 'delay', 'slow'],
-        state: onOff(debug.mockLatencyEnabled),
-        active: debug.mockLatencyEnabled,
-        run: debug.toggleMockLatency,
       },
       {
         id: 'dbg.demo',

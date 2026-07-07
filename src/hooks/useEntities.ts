@@ -25,13 +25,22 @@ function areEntityListsEqual(previous: HassEntity[], next: HassEntity[]): boolea
   return true;
 }
 
+// Selector identity must be stable for the snapshot cache to short-circuit, so
+// the per-domain closures are built once and reused (a handful of domains ever
+// get queried — the map stays tiny).
+const domainSelectors = new Map<string, (entities: Record<string, HassEntity>) => HassEntity[]>();
+function selectorForDomain(domain: string) {
+  let selector = domainSelectors.get(domain);
+  if (!selector) {
+    const prefix = `${domain}.`;
+    selector = (entities) => Object.values(entities).filter((entity) => entity.entity_id.startsWith(prefix));
+    domainSelectors.set(domain, selector);
+  }
+  return selector;
+}
+
 export function useEntitiesByDomain(domain: string): HassEntity[] {
-  return useHomeAssistantSelector(
-    (entities) => Object.values(entities).filter((entity) =>
-      entity.entity_id.startsWith(`${domain}.`)
-    ),
-    areEntityListsEqual
-  );
+  return useHomeAssistantSelector(selectorForDomain(domain), areEntityListsEqual);
 }
 
 export function useEntitiesCount(domain: string, state?: string): number {
@@ -52,21 +61,23 @@ export function useDoorsOpen(): number {
   ).length;
 }
 
+const selectAverageTemperature = (entities: Record<string, HassEntity>): number | null => {
+  const tempEntities = Object.values(entities).filter(
+    (entity) =>
+      entity.entity_id.startsWith('sensor.') &&
+      entity.attributes.device_class === 'temperature' &&
+      !isNaN(parseFloat(entity.state))
+  );
+
+  if (tempEntities.length === 0) return null;
+
+  const sum = tempEntities.reduce(
+    (acc, entity) => acc + parseFloat(entity.state),
+    0
+  );
+  return Math.round(sum / tempEntities.length);
+};
+
 export function useAverageTemperature(): number | null {
-  return useHomeAssistantSelector((entities) => {
-    const tempEntities = Object.values(entities).filter(
-      (entity) =>
-        entity.entity_id.startsWith('sensor.') &&
-        entity.attributes.device_class === 'temperature' &&
-        !isNaN(parseFloat(entity.state))
-    );
-
-    if (tempEntities.length === 0) return null;
-
-    const sum = tempEntities.reduce(
-      (acc, entity) => acc + parseFloat(entity.state),
-      0
-    );
-    return Math.round(sum / tempEntities.length);
-  });
+  return useHomeAssistantSelector(selectAverageTemperature);
 }

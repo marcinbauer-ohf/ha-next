@@ -40,8 +40,12 @@ export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePag
               className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide"
               data-scrollable="dashboard"
             >
-              <main
-                className={`px-ha-3 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
+              {/* Bottom pad clears the mobile nav pill. This surface only renders on
+                settings routes, where MobileNav collapses its activity row and drag
+                handle (pill ≈ 86px tall vs 148px elsewhere) — so 3rem keeps the same
+                scroll-under tuck the 7rem pad gives dashboard pages. */}
+            <main
+                className={`px-ha-3 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(3rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
               >
                 <ApplicationViewNotice />
                 {children}

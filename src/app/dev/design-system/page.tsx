@@ -39,6 +39,7 @@ import { Icon } from '@/components/ui/Icon';
 import { SummaryCard } from '@/components/cards/SummaryCard';
 import { EntityCard } from '@/components/cards/EntityCard';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
+import { DEVICE_THUMBNAIL_GROUPS, deviceThumbnailPath } from '@/lib/deviceThumbnails';
 
 // ── Section wrapper ────────────────────────────────────────────────────────────
 
@@ -108,82 +109,8 @@ const TEXT_TOKENS = [
 
 // ── Device thumbnails ────────────────────────────────────────────────────────
 // Product renders shown on device cards, mapped by deviceThumbnail() off
-// domain + device_class + name keyword. Files live in /public/devices.
-
-const DEVICE_THUMBS: { group: string; items: { file: string; label: string }[] }[] = [
-  {
-    group: 'Lighting & switches',
-    items: [
-      { file: 'bulb_e27', label: 'Bulb E27' },
-      { file: 'bulb_gu10', label: 'Bulb GU10' },
-      { file: 'led_strip', label: 'LED strip' },
-      { file: 'dimmer', label: 'Dimmer' },
-      { file: 'wall_switch', label: 'Wall switch' },
-      { file: 'smart_plug_us', label: 'Smart plug US' },
-      { file: 'smart_plug_eu', label: 'Smart plug EU' },
-      { file: 'power_strip', label: 'Power strip' },
-      { file: 'relay_module', label: 'Relay module' },
-    ],
-  },
-  {
-    group: 'Climate',
-    items: [
-      { file: 'thermostat', label: 'Thermostat' },
-      { file: 'ac_controller', label: 'AC controller' },
-      { file: 'radiator_valve', label: 'Radiator valve (TRV)' },
-      { file: 'ceiling_fan', label: 'Ceiling fan' },
-      { file: 'air_purifier', label: 'Air purifier' },
-    ],
-  },
-  {
-    group: 'Security & sensors',
-    items: [
-      { file: 'camera_dome', label: 'Dome camera' },
-      { file: 'camera_bullet', label: 'Bullet camera' },
-      { file: 'doorbell', label: 'Video doorbell' },
-      { file: 'lock', label: 'Deadbolt lock' },
-      { file: 'keypad', label: 'Security keypad' },
-      { file: 'siren', label: 'Siren' },
-      { file: 'motion_sensor', label: 'Motion sensor' },
-      { file: 'contact_sensor', label: 'Contact sensor' },
-      { file: 'glass_break', label: 'Glass-break sensor' },
-      { file: 'vibration_sensor', label: 'Vibration sensor' },
-      { file: 'smoke_detector', label: 'Smoke / CO detector' },
-      { file: 'leak_sensor', label: 'Leak sensor' },
-      { file: 'temp_humidity_sensor', label: 'Temp / humidity' },
-      { file: 'air_quality', label: 'Air quality' },
-      { file: 'lux_sensor', label: 'Lux sensor' },
-      { file: 'soil_sensor', label: 'Soil moisture' },
-      { file: 'energy_meter', label: 'Energy meter' },
-    ],
-  },
-  {
-    group: 'Appliances & infrastructure (new)',
-    items: [
-      { file: 'robot_vacuum', label: 'Robot vacuum' },
-      { file: 'washing_machine', label: 'Washing machine' },
-      { file: 'dishwasher', label: 'Dishwasher' },
-      { file: 'fridge', label: 'Fridge' },
-      { file: 'water_valve', label: 'Water valve' },
-      { file: 'irrigation_controller', label: 'Irrigation controller' },
-      { file: 'ev_charger', label: 'EV charger' },
-      { file: 'inverter', label: 'Solar inverter' },
-      { file: 'ups', label: 'UPS' },
-      { file: 'printer_3d', label: '3D printer' },
-      { file: 'wifi_router', label: 'Wi-Fi / mesh router' },
-      { file: 'hub', label: 'Hub / bridge' },
-      { file: 'zigbee_coordinator', label: 'Zigbee coordinator' },
-      { file: 'zwave_controller', label: 'Z-Wave controller' },
-      { file: 'button', label: 'Smart button' },
-      { file: 'nfc_tag', label: 'NFC / RFID tag' },
-      { file: 'tracker', label: 'Locator / tracker' },
-      { file: 'smartwatch', label: 'Smartwatch' },
-      { file: 'smartphone', label: 'Smartphone' },
-      { file: 'laptop', label: 'Laptop' },
-      { file: 'wall_tablet', label: 'Wall tablet' },
-    ],
-  },
-];
+// domain + device_class + name keyword. Catalogue lives in @/lib/deviceThumbnails
+// (shared with the device-card edit panel's thumbnail picker).
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 
@@ -754,13 +681,13 @@ export default function DesignSystemPage() {
               Product renders shown top-left of each device card, mapped by <span className="font-mono">deviceThumbnail()</span> off
               domain · device_class · name keyword. Files in <span className="font-mono">/public/devices</span>.
             </p>
-            {DEVICE_THUMBS.map(({ group, items }) => (
+            {DEVICE_THUMBNAIL_GROUPS.map(({ group, items }) => (
               <Row key={group} label={group}>
                 {items.map(({ file, label }) => (
                   <div key={file} className="flex flex-col items-center gap-ha-1 w-[88px]">
                     <div className="size-[72px] rounded-ha-xl bg-surface-mid flex items-center justify-center overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/devices/${file}.png`} alt={label} className="size-full object-contain" />
+                      <img src={deviceThumbnailPath(file)} alt={label} className="size-full object-contain" />
                     </div>
                     <span className="text-[11px] text-text-secondary text-center leading-tight">{label}</span>
                     <span className="text-[10px] font-mono text-text-tertiary text-center leading-tight">{file}</span>

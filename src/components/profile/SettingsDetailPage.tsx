@@ -1,21 +1,25 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { Icon } from '../ui/Icon';
-import { SectionLabel, useIconSet, setIconSet, type IconSet } from '../ui';
-import { SimulationListModal } from '@/components/ui/SimulationListModal';
+import { SectionLabel, Sidebar, useIconSet, setIconSet, type IconSet } from '../ui';
+import { HomeHero } from './HomeHero';
+import { ShortcutList } from '@/components/ui/KeyboardShortcutsDialog';
+import { openShortcutsHelp } from '@/lib/keyboardShortcuts';
 import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
-import { useHeader, useScreensaver, useAddContext, useDebugFlags, type BreadcrumbItem } from '@/contexts';
+import { useHeader, useScreensaver, useAddContext, useDebugFlags, useCloseOnScreensaver, type BreadcrumbItem } from '@/contexts';
 import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFont, useDeviceStructure, useDeviceCardConfig, useIntegrations, useDevicesList, useAutomations } from '@/hooks';
 import { IntegrationsTable, IntegrationDetailView } from './IntegrationsPanel';
 import { DevicesTable, DeviceDetailView } from './DevicesPanel';
 import { AutomationsTable } from './AutomationsPanel';
-import { AreasFloorsPanel } from './AreasFloorsPanel';
+import { AreasEditor } from '../areas/AreasEditor';
 import { AutomationEditor } from './AutomationEditor';
-import { HomeCenterSectionsModal } from './HomeCenterSectionEditor';
+import { HomeCenterSectionsBody } from './HomeCenterSectionEditor';
 import { TOGGLEABLE } from '@/lib/homeassistant/entityHelpers';
 import type { EntitySlot, EntitySection } from '@/hooks/useDeviceCardConfig';
 import { THEMES, type Background, type ColorMode, type Theme } from '@/hooks/useTheme';
@@ -25,21 +29,26 @@ import { areSimulationEntitiesEqual, selectSimulationEntities, selectWeatherOpti
 import { Dropdown } from '../ui/Dropdown';
 import { useHaptics } from '@/lib/haptics';
 import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
-import { type SettingsSlug, allSettingsLinks } from './settingsNavigation';
+import { type SettingsSlug, allSettingsLinks, isAdminOnlySlug } from './settingsNavigation';
 import {
   mdiAlphaDBox,
   mdiCctv,
   mdiChevronLeft,
+  mdiClose,
   mdiCog,
+  mdiPlayCircleOutline,
   mdiHomeAssistant,
   mdiInformation,
   mdiInformationOutline,
   mdiOpenInNew,
   mdiPlay,
   mdiPrinter3d,
+  mdiRobotVacuum,
   mdiRobot,
   mdiTimerOutline,
   mdiUpdate,
+  mdiCloudUpload,
+  mdiShieldAlert,
 } from '@mdi/js';
 import pkgInfo from '../../../package.json';
 
@@ -191,7 +200,7 @@ function ChoiceGroup<T extends string>({
   label: string;
   value: T;
   onChange: (value: T) => void;
-  options: Array<{ value: T; label: string; caption?: string }>;
+  options: Array<{ value: T; label: string; caption?: string; preview?: string }>;
 }) {
   return (
     <div className="space-y-ha-2">
@@ -199,16 +208,28 @@ function ChoiceGroup<T extends string>({
       <div className="flex flex-wrap gap-ha-2">
         {options.map((option) => {
           const selected = option.value === value;
+          const tone = selected
+            ? 'border-transparent bg-surface-mid text-ha-blue'
+            : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low';
+          // Options that ship a preview render the selectable label alongside a
+          // "Preview" button (can't nest a button inside a button).
+          if (option.preview) {
+            return (
+              <div key={option.value} className={`flex items-center gap-ha-2 rounded-ha-2xl border px-ha-3 py-ha-2 transition-colors ${tone}`}>
+                <button type="button" onClick={() => onChange(option.value)} className="min-w-0 text-left">
+                  <div className="text-sm font-semibold">{option.label}</div>
+                  {option.caption && <div className="mt-1 text-xs opacity-80">{option.caption}</div>}
+                </button>
+                <FeaturePreview src={option.preview} label={option.label} />
+              </div>
+            );
+          }
           return (
             <button
               key={option.value}
               type="button"
               onClick={() => onChange(option.value)}
-              className={`rounded-ha-2xl border px-ha-4 py-ha-2 text-left transition-colors ${
-                selected
-                  ? 'border-transparent bg-surface-mid text-ha-blue'
-                  : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low'
-              }`}
+              className={`rounded-ha-2xl border px-ha-4 py-ha-2 text-left transition-colors ${tone}`}
             >
               <div className="text-sm font-semibold">{option.label}</div>
               {option.caption && <div className="mt-1 text-xs opacity-80">{option.caption}</div>}
@@ -220,31 +241,117 @@ function ChoiceGroup<T extends string>({
   );
 }
 
+// A compact "Preview" trigger that opens the feature's looping GIF (see
+// public/previews, regenerated by scripts/capture-previews.mjs) in a modal
+// lightbox — so the page never autoplays a wall of clips at once. Self-contained
+// (owns its open state) and stops click propagation so it never toggles or
+// selects the control it sits next to.
+function FeaturePreview({ src, label }: { src: string; label: string }) {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  useCloseOnScreensaver(open, close);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [open, close]);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        aria-label={`Preview: ${label}`}
+        className="shrink-0 inline-flex items-center gap-ha-1 rounded-ha-xl border border-surface-lower bg-surface-default px-ha-2 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+      >
+        <Icon path={mdiPlayCircleOutline} size={15} />
+        Preview
+      </button>
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              className="fixed inset-0 z-[120] flex items-center justify-center p-ha-5"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <div className="absolute inset-0 bg-black/60" onClick={close} />
+              <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${label} preview`}
+                className="relative w-full max-w-lg overflow-hidden rounded-ha-3xl border border-surface-lower bg-surface-default shadow-2xl"
+                initial={{ scale: 0.94, opacity: 0, y: 8 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.96, opacity: 0, y: 4 }}
+                transition={{ duration: 0.18, ease: [0.22, 0.61, 0.36, 1] }}
+              >
+                <div className="flex items-center justify-between gap-ha-3 border-b border-surface-lower px-ha-5 py-ha-3">
+                  <h3 className="text-sm font-semibold text-text-primary">{label}</h3>
+                  <button
+                    type="button"
+                    onClick={close}
+                    aria-label="Close preview"
+                    className="flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+                  >
+                    <Icon path={mdiClose} size={18} />
+                  </button>
+                </div>
+                <div className="bg-surface-low">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- animated GIF, no Next/Image optimisation */}
+                  <img src={src} alt={`${label} preview`} className="block h-auto w-full select-none" />
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function ToggleRow({
   label,
   description,
   checked,
   onToggle,
+  previewSrc,
 }: {
   label: string;
   description: string;
   checked: boolean;
   onToggle: () => void;
+  /** Optional GIF shown behind a "Preview" button (see {@link FeaturePreview}). */
+  previewSrc?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="w-full rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 flex items-center gap-ha-4 text-left hover:bg-surface-low transition-colors"
-    >
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-text-primary">{label}</div>
-        <div className="mt-0.5 text-xs text-text-secondary">{description}</div>
-      </div>
-      <div className={`h-6 w-11 rounded-full px-0.5 flex items-center transition-colors ${checked ? 'bg-ha-blue/50' : 'bg-surface-mid'}`}>
-        <div className={`h-5 w-5 rounded-full bg-surface-default border border-surface-low shadow-sm transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
-      </div>
-    </button>
+    <div className="w-full rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 flex items-center gap-ha-3 hover:bg-surface-low transition-colors">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={checked}
+        className="flex min-w-0 flex-1 items-center gap-ha-4 text-left"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-text-primary">{label}</div>
+          <div className="mt-0.5 text-xs text-text-secondary">{description}</div>
+        </div>
+        <div className={`h-6 w-11 rounded-full px-0.5 flex items-center transition-colors ${checked ? 'bg-ha-blue/50' : 'bg-surface-mid'}`}>
+          <div className={`h-5 w-5 rounded-full bg-surface-default border border-surface-low shadow-sm transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+        </div>
+      </button>
+      {previewSrc && <FeaturePreview src={previewSrc} label={label} />}
+    </div>
   );
 }
 
@@ -348,7 +455,6 @@ const taskBarActivityDefinitions: Array<{
   type: SimulationType;
   title: string;
   description: string;
-  reviewTitle: string;
   icon: string;
   singleToggle?: boolean;
   formatState: (count: number) => string;
@@ -357,7 +463,6 @@ const taskBarActivityDefinitions: Array<{
     type: 'release',
     title: "What's New",
     description: 'Control the unread release-notes task so it can appear in the activity bar.',
-    reviewTitle: "What's New in Home Assistant",
     icon: mdiUpdate,
     singleToggle: true,
     formatState: (count) => (count > 0 ? 'Unread release notes' : 'No unread release notes'),
@@ -366,7 +471,6 @@ const taskBarActivityDefinitions: Array<{
     type: 'media',
     title: 'Simulate Media',
     description: 'Add or remove mock playback activity for speakers and media players.',
-    reviewTitle: 'Simulate Media',
     icon: mdiPlay,
     formatState: (count) => (count > 0 ? `${count} playing` : 'Idle'),
   },
@@ -374,7 +478,6 @@ const taskBarActivityDefinitions: Array<{
     type: 'timer',
     title: 'Simulate Timer',
     description: 'Preview laundry, tea, or kitchen timer activity in the task bar.',
-    reviewTitle: 'Simulate Timer',
     icon: mdiTimerOutline,
     formatState: (count) => (count > 0 ? `${count} active` : 'Idle'),
   },
@@ -382,7 +485,6 @@ const taskBarActivityDefinitions: Array<{
     type: 'camera',
     title: 'Simulate Camera',
     description: 'Surface motion events as activity for doorbells and cameras.',
-    reviewTitle: 'Simulate Camera',
     icon: mdiCctv,
     formatState: (count) => (count > 0 ? `${count} motion events` : 'Idle'),
   },
@@ -390,9 +492,36 @@ const taskBarActivityDefinitions: Array<{
     type: 'printer',
     title: 'Simulate Printer',
     description: 'Show long-running print jobs in the same activity surface.',
-    reviewTitle: 'Simulate Printer',
     icon: mdiPrinter3d,
     formatState: (count) => (count > 0 ? `${count} printing` : 'Idle'),
+  },
+  {
+    type: 'vacuum',
+    title: 'Simulate Vacuum',
+    description: 'Add a robot vacuum cleaning job. A random cleaning cycle also runs on its own in demo mode.',
+    icon: mdiRobotVacuum,
+    formatState: (count) => (count > 0 ? `${count} cleaning` : 'Idle'),
+  },
+  {
+    type: 'update_install',
+    title: 'Simulate Update Install',
+    description: 'Show a Home Assistant Core update actively installing, distinct from unread release notes.',
+    icon: mdiUpdate,
+    formatState: (count) => (count > 0 ? `${count} installing` : 'Idle'),
+  },
+  {
+    type: 'backup_run',
+    title: 'Simulate Backup',
+    description: 'Show a backup actively running, distinct from the last-completed backup status.',
+    icon: mdiCloudUpload,
+    formatState: (count) => (count > 0 ? `${count} running` : 'Idle'),
+  },
+  {
+    type: 'alarm',
+    title: 'Simulate Alarm',
+    description: 'Add an alarm panel in the arming/pending exit-delay state.',
+    icon: mdiShieldAlert,
+    formatState: (count) => (count > 0 ? `${count} arming` : 'Idle'),
   },
 ];
 
@@ -419,7 +548,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     return () => setContextSlug(null);
   }, [slug, setContextSlug]);
   const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive, pulseMode, setPulseMode, weatherEntityId, setWeatherEntityId, fastScrollLabelsEnabled, toggleFastScrollLabels } = useFeatureFlags();
-  const { theme, mode, background, setTheme, setMode, setBackground } = useTheme();
+  const { theme, mode, background, squircle, setTheme, setMode, setBackground, toggleSquircle } = useTheme();
   const iconSet = useIconSet();
   const { font, fonts, setFont } = useFont();
   const { enabled: hapticsEnabled, setEnabled: setHapticsEnabled, supported: hapticsSupported } = useHaptics();
@@ -433,7 +562,13 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     error: connectionError,
     saveCredentials,
     setMockEntity,
+    isAdmin,
   } = useHomeAssistant();
+
+  // Defense in depth: both callers (the /settings/[slug] route and the
+  // two-column workspace) already keep an admin-only slug from reaching this
+  // component, but bail on render too in case a future caller doesn't.
+  const gated = isAdminOnlySlug(slug) && !isAdmin;
   const { immersiveMode, setImmersiveMode } = useImmersiveMode();
   const { isActive: screensaverActive, activate: activateScreensaver, dismiss: dismissScreensaver } = useScreensaver();
   const { config: dogEarConfig, setCorner: setDogEarCorner } = useDogEarConfig();
@@ -445,16 +580,24 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
   const { setConfig } = useDeviceCardConfig();
   const [configureStatus, setConfigureStatus] = useState<'idle' | 'done'>('idle');
 
-  // Home Center "Customize sections" modal (opened from the cog by the title).
+  // Home Center "Customize sections" editor — opens in the shared right-side
+  // <Sidebar> (docked rail on desktop, bottom sheet on mobile).
   const [sectionsEditorOpen, setSectionsEditorOpen] = useState(false);
 
   // Master-detail drill-down within column 2. `detailId` is the selected row's id
   // (e.g. an integration platform key); null means we're showing the table.
   const { integrations } = useIntegrations();
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // Deep link: `/settings/<slug>?device=<id>` (or ?detail=) opens straight into
+  // that row's detail view — e.g. the device more-info dialog's "Open device
+  // page" action. useSearchParams (not window.location) so the value is correct
+  // during client navigation; seeded once, the drillSlug reset below leaves it
+  // alone since slug === drillSlug on the first render.
+  const searchParams = useSearchParams();
+  const initialDetailId = searchParams.get('device') ?? searchParams.get('detail');
+  const [detailId, setDetailId] = useState<string | null>(initialDetailId);
   // The row last drilled into. Unlike `detailId` it survives going back, so the
   // list can mark which item you just returned from. Cleared on section change.
-  const [lastOpenedId, setLastOpenedId] = useState<string | null>(null);
+  const [lastOpenedId, setLastOpenedId] = useState<string | null>(initialDetailId);
   const openDetail = useCallback((id: string) => {
     setDetailId(id);
     setLastOpenedId(id);
@@ -495,8 +638,9 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     : null;
 
   // Let the settings workspace collapse its nav column while a focused editor
-  // is open. Reset on unmount so leaving the section restores the column.
-  const editorFocused = !!activeAutomation;
+  // is open. Reset on unmount so leaving the section restores the column. Areas
+  // V2 is itself a full editor (list + map), so it focuses for the whole section.
+  const editorFocused = !!activeAutomation || slug === 'areas';
   useEffect(() => {
     onEditorFocusChange?.(editorFocused);
     return () => onEditorFocusChange?.(false);
@@ -556,9 +700,8 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setTimeout(() => setConfigureStatus('idle'), 2500);
   }, [devices, setConfig]);
 
-  const { debugBadgesEnabled, toggleDebugBadges, mockLatencyEnabled, toggleMockLatency } = useDebugFlags();
+  const { debugBadgesEnabled, toggleDebugBadges, heroCardLayoutEnabled, toggleHeroCardLayout } = useDebugFlags();
   const [connectionSetupOpen, setConnectionSetupOpen] = useState(false);
-  const [simulationModal, setSimulationModal] = useState<{ title: string; prefix: string } | null>(null);
 
   const allNavItems = allSettingsLinks;
   const navItem = allNavItems.find(item => item.slug === slug);
@@ -654,13 +797,6 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setMockEntity(prefix, createSimulatedActivityEntity('release', prefix));
   }, [getSimulatedEntities, setMockEntity]);
 
-  const openSimulationList = useCallback((title: string, prefix: string) => {
-    setSimulationModal({ title, prefix });
-  }, []);
-
-  const removeSimulationById = useCallback((id: string) => {
-    setMockEntity(id, null);
-  }, [setMockEntity]);
 
   useEffect(() => {
     // Top-bar breadcrumb trail for a drilled-in detail. "Settings" is ambient
@@ -693,13 +829,22 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
         setHeader({
           title: activeDevice.name,
           subtitle: 'Settings',
-          breadcrumbs: detailCrumbs('Devices'),
+          breadcrumbs: detailCrumbs('Devices & Services'),
           icon: activeDevice.icon,
           onBack: () => setDetailId(null),
           primaryAction: { icon: infoOpen ? mdiInformation : mdiInformationOutline, onClick: () => setInfoOpen((v) => !v) },
         });
       } else if (activeIntegration) {
         setHeader({ title: activeIntegration.name, subtitle: 'Settings', breadcrumbs: detailCrumbs('Integrations'), icon: activeIntegration.icon, onBack: () => setDetailId(null) });
+      } else if (slug === 'areas') {
+        // Areas is a focused full-editor (nav collapses), so back returns to the
+        // settings workspace (re-showing the nav) rather than exiting via history.
+        setHeader({
+          title: meta.title,
+          subtitle: 'Settings',
+          icon: meta.icon,
+          onBack: () => onSelectSection?.('home-center'),
+        });
       } else {
         // Section root: the selected nav item owns the title with "Settings" as
         // the eyebrow above it. Back returns to wherever you opened settings from
@@ -728,8 +873,8 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     if (activeDevice) {
       setHeader({
         title: activeDevice.name,
-        subtitle: 'Devices',
-        breadcrumbs: detailCrumbs('Devices'),
+        subtitle: 'Devices & Services',
+        breadcrumbs: detailCrumbs('Devices & Services'),
         icon: activeDevice.icon,
         onBack: () => setDetailId(null),
         primaryAction: { icon: infoOpen ? mdiInformation : mdiInformationOutline, onClick: () => setInfoOpen((v) => !v) },
@@ -934,18 +1079,21 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           description="Pulse a bar at the top or bottom edge when an off-screen card changes. Tap it to scroll the card into view."
           checked={offscreenChangeHintsEnabled}
           onToggle={toggleOffscreenChangeHints}
+          previewSrc="/previews/edge-change-hints.gif"
         />
         <ToggleRow
           label="Scroll index rail"
-          description="A thin rail of section ticks that fades in while scrolling. Drag to scrub between rooms or types."
+          description="A thin rail of section ticks along the screen edge. Drag to scrub between rooms or types; swipe the selected one inward to open its page. On touch it follows the side you scroll on."
           checked={scrollIndexEnabled}
           onToggle={toggleScrollIndex}
+          previewSrc="/previews/scroll-index-rail.gif"
         />
         <ToggleRow
           label="Fast-scroll name labels · prototype"
           description="While you flick a dashboard fast, overlay each card with just its name (large) so you can read what's flying past. Detail returns the moment you slow down."
           checked={fastScrollLabelsEnabled}
           onToggle={toggleFastScrollLabels}
+          previewSrc="/previews/fast-scroll-labels.gif"
         />
         <ToggleRow
           label="Desktop split view"
@@ -982,12 +1130,14 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           description="Use squiggly rippling rings instead of perfect concentric circles."
           checked={wavyBackgroundEnabled}
           onToggle={toggleWavyBackground}
+          previewSrc="/previews/screensaver-wavy.gif"
         />
         <ToggleRow
           label="Reactive background"
           description="Spawn a coloured ripple when something happens at home — gold for on, blue for off, red for errors, amber for sensor jumps."
           checked={reactiveBackgroundEnabled}
           onToggle={toggleReactiveBackground}
+          previewSrc="/previews/screensaver-reactive.gif"
         />
         {reactiveBackgroundEnabled && (
           <div className="space-y-ha-4 rounded-ha-2xl border border-surface-lower bg-surface-low/40 px-ha-4 py-ha-4">
@@ -1023,14 +1173,21 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           value={pulseMode}
           onChange={setPulseMode}
           options={[
-            { value: 'classic', label: 'Classic rings', caption: 'Endless concentric rings (original)' },
-            { value: 'heartbeat', label: 'Heartbeat', caption: 'Calm lub-dub ping rings on a steady cadence' },
-            { value: 'breathing', label: 'Breathing depth', caption: 'Layered soft rings that slowly inhale and exhale' },
-            { value: 'aurora', label: 'Aurora', caption: 'Soft drifting ribbons of colour (northern lights)' },
-            { value: 'bokeh', label: 'Bokeh', caption: 'Soft light orbs drifting slowly upward' },
-            { value: 'dawn', label: 'Dawn', caption: 'A slow flowing colour wash, no hard shapes' },
-            { value: 'breathOrb', label: 'Breath orb', caption: 'One soft glow gently expanding and contracting' },
-            { value: 'weather', label: 'Weather', caption: 'Abstract, reactive ambience driven by a weather entity' },
+            { value: 'classic', label: 'Classic rings', caption: 'Endless concentric rings (original)', preview: '/previews/pulse-classic.gif' },
+            { value: 'heartbeat', label: 'Heartbeat', caption: 'Calm lub-dub ping rings on a steady cadence', preview: '/previews/pulse-heartbeat.gif' },
+            { value: 'breathing', label: 'Breathing depth', caption: 'Layered soft rings that slowly inhale and exhale', preview: '/previews/pulse-breathing.gif' },
+            { value: 'aurora', label: 'Aurora', caption: 'Soft drifting ribbons of colour (northern lights)', preview: '/previews/pulse-aurora.gif' },
+            { value: 'bokeh', label: 'Bokeh', caption: 'Soft light orbs drifting slowly upward', preview: '/previews/pulse-bokeh.gif' },
+            { value: 'dawn', label: 'Dawn', caption: 'A slow flowing colour wash, no hard shapes', preview: '/previews/pulse-dawn.gif' },
+            { value: 'breathOrb', label: 'Breath orb', caption: 'One soft glow gently expanding and contracting', preview: '/previews/pulse-breathOrb.gif' },
+            { value: 'weather', label: 'Weather', caption: 'Abstract, reactive ambience driven by a weather entity', preview: '/previews/pulse-weather.gif' },
+            { value: 'warp', label: 'Warp', caption: 'Liquid flowing colour, violet to magenta to white', preview: '/previews/pulse-warp.gif' },
+            { value: 'northernLights', label: 'Northern lights', caption: 'Volumetric aurora curtains over a starry night sky', preview: '/previews/pulse-northernLights.gif' },
+            { value: 'meshGradient', label: 'Mesh gradient', caption: 'Flowing colour spots blending with organic distortion', preview: '/previews/pulse-meshGradient.gif' },
+            { value: 'grainGradient', label: 'Grain gradient', caption: 'Drifting blob banded in colour with grainy texture', preview: '/previews/pulse-grainGradient.gif' },
+            { value: 'paperWarp', label: 'Color warp', caption: 'Marbled colour fields swirled through layered distortion', preview: '/previews/pulse-paperWarp.gif' },
+            { value: 'simplexNoise', label: 'Simplex flow', caption: 'Soft stepped colour contours flowing upward', preview: '/previews/pulse-simplexNoise.gif' },
+            { value: 'metaballs', label: 'Metaballs', caption: 'Warm gooey orbs wandering and merging, lava-lamp style', preview: '/previews/pulse-metaballs.gif' },
           ]}
         />
         {pulseMode === 'weather' && (
@@ -1100,7 +1257,6 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
                     />
                   </>
                 )}
-                <ActionButton label="Review" onClick={() => openSimulationList(definition.reviewTitle, prefix)} />
               </div>
             </div>
           );
@@ -1152,20 +1308,47 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     <SettingsCard title="Developer flags" description="Diagnostic overlays and simulated conditions.">
       <div className="space-y-ha-3">
         <ToggleRow
+          label="New device card layout"
+          description="Hero layout — name top-left, product image on the right, toggle bottom-left. Off restores the previous layout (image left, controls along the bottom)."
+          checked={heroCardLayoutEnabled}
+          onToggle={toggleHeroCardLayout}
+        />
+        <ToggleRow
           label="Debug badges"
           description="Expose small diagnostic hints on cards and settings rows."
           checked={debugBadgesEnabled}
           onToggle={toggleDebugBadges}
         />
         <ToggleRow
-          label="Mock latency"
-          description="Add a small artificial delay to make loading and response states easier to review."
-          checked={mockLatencyEnabled}
-          onToggle={toggleMockLatency}
+          label="Squircle corners"
+          description="Smooth every rounded corner into an iOS-style superellipse (⇧⌘U). Best seen on soft themes like Default, Glass, Material and Teenage."
+          checked={squircle}
+          onToggle={toggleSquircle}
         />
       </div>
     </SettingsCard>
   );
+
+  // Living reference for the keyboard bindings — generated from the same
+  // registry as the ? overlay, so it can't drift from the real handlers.
+  const renderShortcutsCard = () => (
+    <SettingsCard
+      title="Keyboard shortcuts"
+      description="Desktop bindings for driving and debugging the prototype. Letter keys only fire outside text fields; press ? anywhere for this list as an overlay."
+    >
+      <div className="space-y-ha-5">
+        <ShortcutList />
+        <div className="flex flex-wrap gap-ha-2">
+          <ActionButton label="Show overlay" onClick={openShortcutsHelp} />
+        </div>
+      </div>
+    </SettingsCard>
+  );
+
+  // Defense in depth: a non-admin reaching an admin-only slug (direct nav,
+  // stale link) gets bounced by the effect above — render nothing meanwhile
+  // rather than the gated page.
+  if (gated) return null;
 
   // ── Integrations (master-detail drill-down example) ───────────────────────
   // Sits before the haPath placeholder so this real table replaces the stub.
@@ -1257,7 +1440,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     return (
       <div key="areas" className={`ha-pane-in ${panelMode ? '' : 'flex flex-col flex-1 min-h-0'}`}>
         <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
-          <AreasFloorsPanel />
+          <AreasEditor onExit={panelMode ? () => onSelectSection?.('home-center') : () => router.push('/settings')} />
         </SettingsShell>
       </div>
     );
@@ -1301,33 +1484,103 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
       backups: 'backups',
       connectivity: 'connectivity',
     };
+    const sectionsHeader = {
+      title: 'Customize sections',
+      subtitle: 'Reorder & toggle status sections',
+      onClose: () => setSectionsEditorOpen(false),
+    };
     return (
       <>
         <SettingsShell
           panelMode={panelMode}
           title={panelMode ? undefined : meta.title}
         >
-          <SystemStatusPanel
-            onNavigate={(target) => {
-              const targetSlug = sectionSlug[target];
-              // In the two-column workspace, select the section in place; on the
-              // standalone route, navigate to its single-column page.
-              if (onSelectSection) onSelectSection(targetSlug);
-              else router.push(`/settings/${targetSlug}`);
-            }}
-          />
-          {/* "Customize sections" moved off the top-bar cog into a subtle
-              secondary button at the bottom of the Home Center content. */}
-          <button
-            type="button"
-            onClick={() => setSectionsEditorOpen(true)}
-            className="w-full flex items-center justify-center gap-ha-2 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary active:bg-surface-mid"
-          >
-            <Icon path={mdiCog} size={18} />
-            Customize sections
-          </button>
+          {/* Flex row so the editor can dock as a sibling rail on the right (lg+);
+              the status content column shrinks to make room. */}
+          <div className="flex items-start gap-ha-5">
+            <div className="min-w-0 flex-1 space-y-ha-6">
+              <HomeHero
+                onEdit={() => {
+                  if (onSelectSection) onSelectSection('system-general');
+                  else router.push('/settings/system-general');
+                }}
+              />
+              <SystemStatusPanel
+                onNavigate={(target) => {
+                  const targetSlug = sectionSlug[target];
+                  // In the two-column workspace, select the section in place; on the
+                  // standalone route, navigate to its single-column page.
+                  if (onSelectSection) onSelectSection(targetSlug);
+                  else router.push(`/settings/${targetSlug}`);
+                }}
+              />
+              {/* "Customize sections" — a subtle secondary button at the bottom of
+                  the Home Center content. Opens the editor in the right sidebar. */}
+              <button
+                type="button"
+                onClick={() => setSectionsEditorOpen((v) => !v)}
+                className="w-full flex items-center justify-center gap-ha-2 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary active:bg-surface-mid"
+              >
+                <Icon path={mdiCog} size={18} />
+                Customize sections
+              </button>
+            </div>
+
+            {/* Docked editor rail (lg+), sticky below the pinned title. Reuses the
+                same <Sidebar> chrome as the devices / automation editors. */}
+            {sectionsEditorOpen && (
+              <Sidebar
+                resizable
+                {...sectionsHeader}
+                className="ha-pane-in sticky z-20 hidden flex-shrink-0 lg:flex"
+                style={{
+                  top: 'calc(var(--settings-header-h, 0px) + 4px)',
+                  maxHeight: 'calc(100vh - var(--settings-header-h, 0px) - 24px)',
+                }}
+              >
+                <HomeCenterSectionsBody />
+              </Sidebar>
+            )}
+          </div>
         </SettingsShell>
-        <HomeCenterSectionsModal open={sectionsEditorOpen} onClose={() => setSectionsEditorOpen(false)} />
+
+        {/* Below lg the same panel rises as a bottom sheet. Portaled to the body —
+            the pane-transition wrapper is transformed during its animation, which
+            would otherwise clip this fixed overlay to the page. */}
+        {typeof document !== 'undefined' && createPortal(
+          <AnimatePresence>
+            {sectionsEditorOpen && (
+              <>
+                <motion.div
+                  key="sections-sheet-scrim"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="lg:hidden fixed inset-0 z-[100] bg-black/70"
+                  onClick={() => setSectionsEditorOpen(false)}
+                />
+                <motion.div
+                  key="sections-sheet"
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                  className="lg:hidden fixed inset-x-0 bottom-0 z-[100] px-ha-2"
+                  style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
+                >
+                  <div className="flex justify-center pb-ha-2">
+                    <div className="h-1.5 w-9 rounded-full bg-white/40" />
+                  </div>
+                  <Sidebar {...sectionsHeader} className="flex max-h-[82vh]">
+                    <HomeCenterSectionsBody />
+                  </Sidebar>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
       </>
     );
   }
@@ -1368,18 +1621,13 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
               {renderResetsCard()}
               {renderDeveloperFlagsCard()}
             </div>
+
+            <div className="space-y-ha-4">
+              <SectionLabel className="px-ha-1">Keyboard</SectionLabel>
+              {renderShortcutsCard()}
+            </div>
           </div>
         </SettingsShell>
-
-        {simulationModal && (
-          <SimulationListModal
-            isOpen={true}
-            onClose={() => setSimulationModal(null)}
-            title={simulationModal.title}
-            items={getSimulatedEntities(simulationModal.prefix)}
-            onRemove={removeSimulationById}
-          />
-        )}
 
         <SetupScreen
           open={connectionSetupOpen}

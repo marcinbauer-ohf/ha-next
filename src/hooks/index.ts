@@ -21,6 +21,7 @@ export { ThemeProvider, useTheme } from './useTheme';
 export { FontProvider, useFont, FONTS, type FontKey, type FontOption } from './useFont';
 export { FeatureFlagsProvider, useFeatureFlags } from './useFeatureFlags';
 export { useFastScrollLabels } from './useFastScrollLabels';
+export { useIdleMarquee } from './useIdleMarquee';
 export { useWeatherParams } from './useWeatherParams';
 export { HomeCenterPrefsProvider, useHomeCenterPrefs } from './useHomeCenterPrefs';
 
@@ -39,8 +40,11 @@ export { useDesktopImmersivePageLayout } from './useDesktopImmersivePageLayout';
 
 export { usePullToReveal } from './usePullToReveal';
 
+export { useVacuumSimulator } from './useVacuumSimulator';
+
 export { useStandaloneMode } from './useStandaloneMode';
-export { useStickyStuck } from './useStickyStuck';
+export { useSectionCrumb } from './useSectionCrumb';
+export { useScrollToEdges } from './useScrollToEdges';
 export { useDevices, useDeviceStructure, useIntegrations, useDevicesList, DEVICE_CATEGORY_LABEL } from './useDevices';
 export type { HassDevice, IntegrationSummary, IntegrationDevice, IntegrationStatus, IntegrationFlags, DeviceSummary } from './useDevices';
 export { useAutomations, useAutomationActions, formatLastTriggered } from './useAutomations';
