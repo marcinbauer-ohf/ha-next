@@ -25,8 +25,9 @@ const iconColorClasses = {
 
 // Shared glass fill for the translucent chips/pills floating over the
 // screensaver canvas — keep the whole family on this exact string so their
-// transparency can't drift apart.
-export const TRANSLUCENT_CHIP_FILL = 'bg-surface-mid/65 border border-white/10';
+// transparency can't drift apart. Dark (black) glass with white icons/text so
+// the chips read against any shader while still letting the scene peek through.
+export const TRANSLUCENT_CHIP_FILL = 'bg-black/55 border border-white/15';
 
 export function SummaryCard({ icon, title, state, color = 'default', compact = false, variant = 'filled', size = 'sm', translucent = false, onClick }: SummaryCardProps) {
   const translucentFill = TRANSLUCENT_CHIP_FILL;
@@ -53,11 +54,12 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
           translucent ? translucentFill : isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color]
         )}
       >
-        <div className={clsx('flex-shrink-0', iconColorClasses[color])}>
+        <div className={clsx('flex-shrink-0', translucent ? 'text-white' : iconColorClasses[color])}>
           <Icon path={icon} size={isLg ? 28 : isMd ? 22 : 18} />
         </div>
         <span className={clsx(
-          'font-medium text-text-primary text-left',
+          'font-medium text-left',
+          translucent ? 'text-white' : 'text-text-primary',
           isLg ? 'text-xl' : isMd ? 'text-base' : 'text-sm'
         )}>{state}</span>
       </Tag>

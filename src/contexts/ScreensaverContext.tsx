@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from 'react';
 import { useIdleTimer } from '@/hooks';
 import { ScreensaverClock } from '@/components/ui/ScreensaverClock';
+import { useOnboardingGate } from '@/lib/onboarding';
 
 const SCREENSAVER_TIMEOUT = 60000; // 1 minute of inactivity
 
@@ -45,10 +46,15 @@ interface ScreensaverProviderProps {
 
 export function ScreensaverProvider({ children }: ScreensaverProviderProps) {
   const [isActive, setIsActive] = useState(false);
+  // First-run onboarding owns the screen — idling there must not summon the
+  // clock. useIdleTimer reads the latest onIdle each render, so the plain
+  // closure below always sees the current gate value.
+  const onboardingActive = useOnboardingGate();
 
   const { wake } = useIdleTimer({
     timeout: SCREENSAVER_TIMEOUT,
     onIdle: () => {
+      if (onboardingActive) return;
       setIsActive(true);
     },
   });
@@ -67,6 +73,7 @@ export function ScreensaverProvider({ children }: ScreensaverProviderProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd/Ctrl + Shift + S for screensaver
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 's') {
+        if (onboardingActive) return;
         e.preventDefault();
         if (isActive) {
           dismiss();
@@ -78,7 +85,7 @@ export function ScreensaverProvider({ children }: ScreensaverProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, dismiss, activate]);
+  }, [isActive, dismiss, activate, onboardingActive]);
 
   return (
     <ScreensaverContext.Provider value={{ isActive, activate, dismiss }}>

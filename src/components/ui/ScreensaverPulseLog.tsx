@@ -55,14 +55,14 @@ export function ScreensaverPulseLog() {
         return (
           <div
             key={e.id}
-            className="flex items-center gap-ha-2 rounded-ha-pill bg-surface-mid/55 border border-white/10 pl-ha-2 pr-ha-3 py-ha-1 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            className="flex items-center gap-ha-2 rounded-ha-pill bg-black/55 border border-white/15 pl-ha-2 pr-ha-3 py-ha-1 animate-in fade-in slide-in-from-bottom-2 duration-300"
           >
             <span
               className="w-2 h-2 rounded-full shrink-0 animate-pulse"
               style={{ backgroundColor: info.dot }}
             />
-            <span className="text-xs text-text-primary font-medium truncate">{e.label}</span>
-            <span className="text-xs text-text-disabled truncate">{info.verb}</span>
+            <span className="text-xs text-white font-medium truncate">{e.label}</span>
+            <span className="text-xs text-white/50 truncate">{info.verb}</span>
           </div>
         );
       })}

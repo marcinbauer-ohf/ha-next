@@ -26,10 +26,8 @@ function ApplicationViewNoticeInner({ className = '' }: ApplicationViewNoticePro
     return null;
   }
 
-  const heading = activeItem.isApp ? 'This is your application view.' : 'This view is a prototype.';
-  const body = activeItem.isApp
-    ? 'We cannot render the full application experience inside this prototype, so this view is represented here with explanatory copy.'
-    : 'We cannot render this view in full — this is a prototype. Some content may be static or missing.';
+  const heading = 'This is a preview.';
+  const body = 'Some parts of this screen aren’t finished yet — the full version lives in Home Assistant.';
 
   return (
     <div className={`mb-ha-4 rounded-ha-2xl border border-ha-blue/15 bg-fill-primary-normal/70 px-ha-4 py-ha-3 ${className}`}>

@@ -27,6 +27,7 @@ import {
   mdiPaletteSwatch,
   mdiCardBulleted,
   mdiAccessPointNetwork,
+  mdiRobotOutline,
   mdiKeyboardOutline,
 } from '@mdi/js';
 import { useTheme } from './useTheme';
@@ -48,6 +49,7 @@ import {
   type SettingsNavLink,
 } from '@/components/profile/settingsNavigation';
 import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
+import { announceAutomationNotification, pickAutomationNotification } from '@/lib/automationNotify';
 import { openShortcutsHelp } from '@/lib/keyboardShortcuts';
 
 export type CommandGroup = 'command' | 'navigate' | 'debug';
@@ -300,6 +302,15 @@ export function useCommands(): CommandItem[] {
         keywords: ['new device', 'detected', 'onboarding', 'toast', 'pairing'],
         closeOnRun: true,
         run: () => announceDiscovery(showToast, pickDiscoveries(1)[0]),
+      },
+      {
+        id: 'dbg.automation-notify',
+        group: 'debug',
+        icon: mdiRobotOutline,
+        label: 'Simulate automation notification',
+        keywords: ['automation', 'notify', 'push', 'front door', 'alert', 'toast'],
+        closeOnRun: true,
+        run: () => announceAutomationNotification(showToast, pickAutomationNotification()),
       },
       {
         id: 'dbg.reset',

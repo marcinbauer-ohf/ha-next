@@ -8,7 +8,8 @@ import { SectionLabel } from './SectionLabel';
 import { useAssistantContext } from '@/contexts/AssistantContext';
 import { useCloseOnScreensaver } from '@/contexts';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
-import { processConversation } from '@/lib/homeassistant';
+import { useHomeAssistant } from '@/hooks/useHomeAssistant';
+import { processConversation, startVoiceAssist, type VoiceAssistSession } from '@/lib/homeassistant';
 import {
   mdiClose,
   mdiLightbulbOnOutline,
@@ -28,6 +29,7 @@ const suggestions = [
 export function AssistantOverlay() {
   const pathname = usePathname();
   const { assistantOpen, initialQuery, closeAssistant } = useAssistantContext();
+  const { connected, demoMode } = useHomeAssistant();
   useCloseOnScreensaver(assistantOpen, closeAssistant);
   const [query, setQuery] = useState('');
   const [mounted, setMounted] = useState(false);
@@ -37,6 +39,8 @@ export function AssistantOverlay() {
   const [reply, setReply] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const conversationIdRef = useRef<string | null>(null);
+  // Live voice session (assist_pipeline/run) — null when not listening.
+  const voiceSessionRef = useRef<VoiceAssistSession | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // Desktop: contained within the dashboard panel (portaled into #toast-glow-root,
@@ -79,6 +83,9 @@ export function AssistantOverlay() {
         });
       });
     } else {
+      // Closing mid-utterance: end the audio stream so the mic is released.
+      voiceSessionRef.current?.stop();
+      voiceSessionRef.current = null;
       setVisible(false);
       const timer = setTimeout(() => setMounted(false), 300);
       return () => clearTimeout(timer);
@@ -98,8 +105,40 @@ export function AssistantOverlay() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [assistantOpen, closeAssistant]);
 
-  const handleMicClick = () => {
-    setListening(prev => !prev);
+  const handleMicClick = async () => {
+    // Second tap ends the utterance early — HA finishes STT on what it heard.
+    if (listening) {
+      voiceSessionRef.current?.stop();
+      return;
+    }
+    if (demoMode || !connected) {
+      setReply('I need a live Home Assistant connection to hear you.');
+      return;
+    }
+    setReply(null);
+    setQuery('');
+    voiceSessionRef.current = await startVoiceAssist({
+      onListening: () => setListening(true),
+      onTranscript: (text) => {
+        // Echo what was heard into the input while Assist works out a reply.
+        setQuery(text);
+        setBusy(true);
+      },
+      onReply: (speech, conversationId) => {
+        conversationIdRef.current = conversationId;
+        setReply(speech);
+        setBusy(false);
+        setQuery('');
+      },
+      onError: (message) => {
+        setReply(message);
+        setBusy(false);
+      },
+      onEnd: () => {
+        setListening(false);
+        voiceSessionRef.current = null;
+      },
+    }, conversationIdRef.current);
   };
 
   const handleSend = async () => {
@@ -232,7 +271,7 @@ export function AssistantOverlay() {
             <input
               ref={inputRef}
               type="text"
-              placeholder="Type a command..."
+              placeholder="Ask, or tell your home what to do…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               // 16px on touch screens — smaller fonts make iOS zoom on focus.
@@ -240,7 +279,7 @@ export function AssistantOverlay() {
             />
             <button
               type="submit"
-              aria-label="Send command"
+              aria-label="Send"
               disabled={!query.trim() || busy}
               className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
                 query.trim() && !busy ? 'bg-ha-blue text-white scale-100' : 'text-text-tertiary scale-90 opacity-50'

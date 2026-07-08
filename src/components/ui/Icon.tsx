@@ -31,11 +31,15 @@ export function Icon({ path, size = 24, className, exact = false }: IconProps) {
   }
 
   return (
+    // Icons are decorative throughout — interactive elements carry their own
+    // text or aria-labels, so hide the svg from assistive tech wholesale.
     <svg
       viewBox="0 0 24 24"
       width={renderSize}
       height={renderSize}
       className={clsx('ha-icon fill-current flex-shrink-0', className)}
+      aria-hidden
+      focusable="false"
     >
       <path d={path} className="ha-icon-path" />
     </svg>

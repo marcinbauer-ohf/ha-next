@@ -10,7 +10,6 @@ import { NavChevron } from './NavChevron';
 import { CountBadge } from './CountBadge';
 import { SectionLabel } from './SectionLabel';
 import {
-  mdiCheckCircleOutline,
   mdiWeb,
   mdiCloudOutline,
   mdiCloudOffOutline,
@@ -88,9 +87,8 @@ function Section({
       <SectionHeader label={label} tone={tone} count={count} onNavigate={onNavigate} />
       <div className="rounded-ha-2xl border border-surface-lower bg-surface-default overflow-hidden">
         {count === 0 ? (
-          <div className="flex items-center gap-ha-2 px-ha-4 py-ha-3">
-            <Icon path={mdiCheckCircleOutline} size={15} className="text-green-500 flex-shrink-0" />
-            <span className="text-sm text-text-secondary">{emptyLabel}</span>
+          <div className="px-ha-4 py-ha-3">
+            <span className="text-sm text-text-disabled">{emptyLabel}</span>
           </div>
         ) : (
           children
@@ -145,7 +143,7 @@ function Row({
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss notification"
-            className="flex-shrink-0 -mr-1 px-1 py-0.5 text-text-disabled hover:text-text-secondary transition-colors"
+            className="flex-shrink-0 self-center -mr-1 px-1 py-0.5 text-text-disabled hover:text-text-secondary transition-colors"
           >
             <Icon path={mdiClose} size={15} />
           </button>
@@ -256,7 +254,7 @@ export function SystemStatusPanel({
         return (
           <Section key={id} label="Offline devices" tone={offlineDevices.length > 0 ? 'danger' : 'default'} count={offlineDevices.length} emptyLabel="All devices reachable" onNavigate={navTo('issues')}>
             {offlineDevices.map((d) => (
-              <Row key={d.id} primary={d.name} secondary="Unavailable" />
+              <Row key={d.id} primary={d.name} secondary="Offline" />
             ))}
           </Section>
         );

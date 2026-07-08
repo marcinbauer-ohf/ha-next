@@ -7,7 +7,7 @@ import {
   ERR_CANNOT_CONNECT,
   ERR_INVALID_AUTH,
 } from 'home-assistant-js-websocket';
-import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, HassUser } from './types';
+import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, StatisticValue, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, HassUser } from './types';
 
 let connection: Connection | null = null;
 let entitySubscription: (() => void) | null = null;
@@ -15,6 +15,34 @@ let entitySubscription: (() => void) | null = null;
 let restUrl: string | null = null;
 let restToken: string | null = null;
 let currentUser: HassUser | null = null;
+
+// ── Socket liveness ───────────────────────────────────────────────────────────
+// home-assistant-js-websocket reconnects on its own, but React never learns the
+// socket died — the provider's `connected` flag only reflects the initial
+// connect. This store bridges the Connection's ready/disconnected events to
+// subscribers so overlays (e.g. the "system updating" screen) can react to a
+// live instance going away mid-session (OS/Supervisor/Core restart) and coming
+// back. `alive` is the WS transport state, not "have we ever connected".
+type ConnectionStatusListener = (alive: boolean) => void;
+const connectionStatusListeners = new Set<ConnectionStatusListener>();
+let socketAlive = false;
+
+function setSocketAlive(alive: boolean): void {
+  if (socketAlive === alive) return;
+  socketAlive = alive;
+  connectionStatusListeners.forEach((listener) => listener(alive));
+}
+
+export function subscribeToConnectionStatus(listener: ConnectionStatusListener): () => void {
+  connectionStatusListeners.add(listener);
+  return () => {
+    connectionStatusListeners.delete(listener);
+  };
+}
+
+export function isSocketAlive(): boolean {
+  return socketAlive;
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,6 +59,11 @@ export async function connect(config: HassConfig): Promise<Connection> {
     connection = await createConnection({ auth });
     restUrl = config.url.replace(/\/$/, '');
     restToken = config.token;
+    setSocketAlive(true);
+    // The Connection object persists across the library's internal reconnects,
+    // so listeners attached once here cover every socket drop/revive.
+    connection.addEventListener('ready', () => setSocketAlive(true));
+    connection.addEventListener('disconnected', () => setSocketAlive(false));
     return connection;
   } catch (error) {
     if (error === ERR_CANNOT_CONNECT) {
@@ -55,10 +88,16 @@ export function disconnect(): void {
   restUrl = null;
   restToken = null;
   currentUser = null;
+  setSocketAlive(false);
 }
 
 export function getConnection(): Connection | null {
   return connection;
+}
+
+/** Base HTTP URL of the connected instance (for REST-served assets like TTS audio). */
+export function getRestUrl(): string | null {
+  return restUrl;
 }
 
 /** The connecting account's identity + role (is_admin/is_owner). Fetched once per connection and cached. */
@@ -398,6 +437,39 @@ export async function getEntityHistory(entityId: string, hoursBack = 24): Promis
 }
 
 /**
+ * Long-term statistics buckets for one entity. Unlike raw history (purged
+ * after ~10 days by default), statistics are kept forever — the only reliable
+ * source for 7d/30d spans. Empty when the entity has no state_class (the
+ * recorder never aggregated it); callers fall back to raw history.
+ */
+export async function getStatistics(
+  entityId: string,
+  hoursBack: number,
+  period: '5minute' | 'hour' | 'day',
+): Promise<StatisticValue[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  const end = new Date();
+  const start = new Date(end.getTime() - hoursBack * 3600 * 1000);
+  await acquireHistorySlot();
+  try {
+    const result = await conn.sendMessagePromise<Record<string, StatisticValue[]>>({
+      type: 'recorder/statistics_during_period',
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      statistic_ids: [entityId],
+      period,
+      types: ['mean', 'min', 'max', 'state', 'sum'],
+    });
+    return result?.[entityId] ?? [];
+  } catch {
+    return [];
+  } finally {
+    releaseHistorySlot();
+  }
+}
+
+/**
  * Recent logbook events for one entity, newest last. Used to build an
  * automation's run history. Shares the history concurrency slot so a panel
  * opening mid-dashboard-load doesn't add an unbounded socket burst.
@@ -438,6 +510,70 @@ export async function getAutomationConfig(numericId: string): Promise<Automation
     });
     if (!res.ok) return null;
     return (await res.json()) as AutomationConfig;
+  } catch {
+    return null;
+  }
+}
+
+// ── Automation traces ────────────────────────────────────────────────────────
+// HA keeps the last few runs of every automation as "traces". `trace/list`
+// returns run summaries; `trace/get` returns one run's full step data (each
+// executed trigger/condition/action node keyed by its config path).
+
+/** One run summary from `trace/list`. */
+export interface TraceListItem {
+  run_id: string;
+  item_id: string;
+  timestamp: { start: string; finish: string | null };
+  /** finished | failed_conditions | failed_single | failed_max_runs | cancelled | error */
+  script_execution: string;
+  error?: string;
+  last_step?: string;
+  /** Plain-language description of what fired the run, e.g. "state of light.x". */
+  trigger?: string;
+}
+
+/** One executed step within a trace (an entry in the `trace` path dict). */
+export interface TraceStepEntry {
+  path: string;
+  timestamp: string;
+  error?: string;
+  result?: Record<string, unknown>;
+  changed_variables?: Record<string, unknown>;
+}
+
+/** Full run detail from `trace/get`: the summary plus per-step data and the
+ *  automation config as it was when the run happened. */
+export interface AutomationTraceDetail extends TraceListItem {
+  trace: Record<string, TraceStepEntry[]>;
+  config: AutomationConfig;
+}
+
+export async function listAutomationTraces(numericId: string): Promise<TraceListItem[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  try {
+    const result = await conn.sendMessagePromise<TraceListItem[]>({
+      type: 'trace/list',
+      domain: 'automation',
+      item_id: numericId,
+    });
+    return result ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getAutomationTrace(numericId: string, runId: string): Promise<AutomationTraceDetail | null> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return null;
+  try {
+    return await conn.sendMessagePromise<AutomationTraceDetail>({
+      type: 'trace/get',
+      domain: 'automation',
+      item_id: numericId,
+      run_id: runId,
+    });
   } catch {
     return null;
   }

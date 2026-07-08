@@ -15,7 +15,7 @@ const RESET_OPTIONS: { key: string; label: string; description: string; storageK
   {
     key: 'cards',
     label: 'Device cards',
-    description: 'Entity layout & thumbnails on every card',
+    description: 'The controls and photos shown on each card',
     storageKeys: ['ha_device_card_configs'],
   },
   {

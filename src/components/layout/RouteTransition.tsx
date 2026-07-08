@@ -4,6 +4,7 @@ import { useContext, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { LayoutRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import { useImmersiveMode } from '@/hooks';
 
 // Freeze the App Router context for the *exiting* route. App Router updates the
 // children slot synchronously on navigation, so without this the outgoing tree
@@ -28,10 +29,18 @@ function FrozenRouter({ children }: { children: React.ReactNode }) {
  * Lives here (rendered by the persistent AppShell) rather than in `template.tsx`
  * because a template remounts on every navigation, which would destroy the
  * AnimatePresence before it could ever run an exit animation.
+ *
+ * The per-pathname `motion.div` also stands in for what used to be `template.tsx`'s
+ * route wrapper: it carries `data-route-pathname` (scroll targeting looks up the
+ * active route's container by this) and the immersive transform reset. A dedicated
+ * `template.tsx` is avoided because Next renders the template into a keyless
+ * `[templateStyles, templateScripts, template]` array inside `OuterLayoutRouter`,
+ * which trips React's "unique key prop" warning on every render.
  */
 export function RouteTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const reduceMotion = useReducedMotion();
+  const { immersiveMode } = useImmersiveMode();
 
   return (
     // `popLayout` pulls the exiting tree out of flow (position: absolute) so the
@@ -40,11 +49,13 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
     <AnimatePresence mode="popLayout" initial={false}>
       <motion.div
         key={pathname}
-        className="h-full w-full"
+        data-route-pathname={pathname}
+        className="h-full w-full flex flex-col"
         initial={reduceMotion ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={reduceMotion ? { opacity: 1 } : { opacity: 0 }}
         transition={{ duration: reduceMotion ? 0 : 0.18, ease: 'easeOut' }}
+        style={immersiveMode ? { transform: 'none', filter: 'none' } : undefined}
       >
         <FrozenRouter>{children}</FrozenRouter>
       </motion.div>

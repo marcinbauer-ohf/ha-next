@@ -113,6 +113,22 @@ export interface HistoryPoint {
   lu?: number;
 }
 
+/**
+ * One long-term statistics bucket from `recorder/statistics_during_period`.
+ * Timestamps are Unix milliseconds; mean/min/max are present for measurement
+ * sensors, state/sum for metered ones (energy). Fields the recorder didn't
+ * compute come back absent.
+ */
+export interface StatisticValue {
+  start: number;
+  end: number;
+  mean?: number;
+  min?: number;
+  max?: number;
+  state?: number;
+  sum?: number;
+}
+
 /** A single logbook event row (subset of `logbook/get_events` output we use). */
 export interface LogbookEntry {
   /** Unix timestamp (seconds) when the event happened. */

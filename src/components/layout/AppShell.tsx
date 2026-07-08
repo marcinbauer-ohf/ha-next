@@ -10,12 +10,16 @@ import { mdiConnection, mdiCheckCircle, mdiAlertCircle, mdiCellphoneArrowDown, m
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
 import { KeyboardShortcutsDialog } from '@/components/ui/KeyboardShortcutsDialog';
+import { HudFlash } from '@/components/ui/HudFlash';
 import { canFireBareShortcut, matchShortcut, subscribeShortcutsHelp } from '@/lib/keyboardShortcuts';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { Preloader } from '@/components/ui/Preloader';
+import { OnboardingFlow } from '@/components/onboarding';
+import { isOnboardingActive, useOnboardingGate } from '@/lib/onboarding';
 import { emitSettingsReset } from '@/lib/settingsResetBus';
 import { RouteTransition } from '@/components/layout/RouteTransition';
 import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
+import { announceAutomationNotification, AUTOMATION_NOTIFICATIONS } from '@/lib/automationNotify';
 import { AnimatePresence, motion } from 'framer-motion';
 type ConnectionStatus = 'connecting' | 'connected' | 'error' | null;
 import {
@@ -36,7 +40,7 @@ function isSplitEligiblePath(pathname: string) {
 }
 
 /** Smooth-scroll the active route's dashboard scroll container back to the top.
-    Routes are matched via template.tsx's data-route-pathname wrapper so the
+    Routes are matched via RouteTransition's data-route-pathname wrapper so the
     crossfade's exiting copy of the previous route is never targeted. */
 function scrollActiveRouteToTop(pathname: string): boolean {
   if (typeof document === 'undefined') return false;
@@ -59,7 +63,7 @@ export function AppShell({ children }: AppShellProps) {
 }
 
 function AppShellContent({ children }: AppShellProps) {
-  const { connecting, connected, error, configured, hydrated, saveCredentials, enableDemoMode } = useHomeAssistant();
+  const { connecting, connected, error, configured, hydrated, demoMode, saveCredentials, enableDemoMode } = useHomeAssistant();
   const { desktopSplitViewEnabled } = useFeatureFlags();
   const { background, squircle } = useTheme();
   const pulseWallpaper = background === 'pulse';
@@ -80,7 +84,13 @@ function AppShellContent({ children }: AppShellProps) {
   const searchParams = useSearchParams();
   const splitFlagCollapsePendingRef = useRef(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(null);
-  const [showPreloader, setShowPreloader] = useState(true);
+  // First-run onboarding covers the shell; while it's up the boot preloader is
+  // redundant (both are opaque), so it never mounts and the shell settles
+  // behind the flow — finishing onboarding fades straight into a ready
+  // dashboard. Read lazily: on the server the gate is always false, but the
+  // shell renders nothing until `hydrated`, so the states never hit the DOM.
+  const onboardingActive = useOnboardingGate();
+  const [showPreloader, setShowPreloader] = useState(() => !isOnboardingActive());
   const [mobileNavHideProgress, setMobileNavHideProgress] = useState(0);
   const [isLgScreen, setIsLgScreen] = useState(false);
   const wasConnecting = useRef(false);
@@ -142,7 +152,8 @@ function AppShellContent({ children }: AppShellProps) {
   useEffect(() => {
     // Suppress transient connecting/connected toasts during boot/preloader.
     // We still track "wasConnecting" so post-boot reconnects behave as before.
-    if (showPreloader && !error) {
+    // Onboarding suppresses everything — its connect step reports errors inline.
+    if (onboardingActive || (showPreloader && !error)) {
       scheduleConnectionStatus(null);
       wasConnecting.current = connecting;
       return;
@@ -151,7 +162,9 @@ function AppShellContent({ children }: AppShellProps) {
     if (connecting) {
       scheduleConnectionStatus('connecting');
       wasConnecting.current = true;
-    } else if (error) {
+    } else if (error && !demoMode) {
+      // A stale error from an abandoned connect attempt must never interrupt
+      // the demo home — there is no connection to be broken there.
       scheduleConnectionStatus('error');
       wasConnecting.current = false;
     } else if (connected && wasConnecting.current) {
@@ -167,7 +180,7 @@ function AppShellContent({ children }: AppShellProps) {
       scheduleConnectionStatus(null);
       wasConnecting.current = false;
     }
-  }, [connecting, connected, error, scheduleConnectionStatus, showPreloader]);
+  }, [connecting, connected, error, demoMode, scheduleConnectionStatus, showPreloader, onboardingActive]);
 
   // Surface connection status through the shared toast component. Each status
   // change replaces the previous connection toast instead of stacking on it.
@@ -211,7 +224,7 @@ function AppShellContent({ children }: AppShellProps) {
   const { isStandalone, hydrated: standaloneHydrated } = useStandaloneMode();
   const installPromptShown = useRef(false);
   useEffect(() => {
-    if (showPreloader || !standaloneHydrated || isStandalone || installPromptShown.current) return;
+    if (showPreloader || onboardingActive || !standaloneHydrated || isStandalone || installPromptShown.current) return;
     if (localStorage.getItem('ha_install_banner_dismissed') === 'true') return;
     if (window.matchMedia('(min-width: 1024px)').matches) return;
     const timer = setTimeout(() => {
@@ -225,7 +238,7 @@ function AppShellContent({ children }: AppShellProps) {
       });
     }, 1200);
     return () => clearTimeout(timer);
-  }, [showPreloader, standaloneHydrated, isStandalone, showToast]);
+  }, [showPreloader, onboardingActive, standaloneHydrated, isStandalone, showToast]);
 
   // Demo: surface a simulated "new device detected" toast once, 5s after the app
   // is ready — fires on whatever view you're on (dashboard, settings, automation
@@ -234,13 +247,29 @@ function AppShellContent({ children }: AppShellProps) {
   // more on demand.
   const discoveryShown = useRef(false);
   useEffect(() => {
-    if (showPreloader || discoveryShown.current) return;
+    if (showPreloader || onboardingActive || discoveryShown.current) return;
     const timer = setTimeout(() => {
       discoveryShown.current = true;
       announceDiscovery(showToast, pickDiscoveries(1)[0]);
     }, 5000);
     return () => clearTimeout(timer);
-  }, [showPreloader, showToast]);
+  }, [showPreloader, onboardingActive, showToast]);
+
+  // Demo: surface a simulated automation notification (front door left
+  // unlocked) once, ~12s after the app is ready — offset from the discovery
+  // toast above so the two don't collide. Shows for *every* user, admin or not:
+  // home-automation notices reach non-admins too and land in their
+  // settings → Notifications list. Placeholder until wired to real HA
+  // notify.* / persistent_notification events.
+  const automationNotifyShown = useRef(false);
+  useEffect(() => {
+    if (showPreloader || onboardingActive || automationNotifyShown.current) return;
+    const timer = setTimeout(() => {
+      automationNotifyShown.current = true;
+      announceAutomationNotification(showToast, AUTOMATION_NOTIFICATIONS[0]);
+    }, 12000);
+    return () => clearTimeout(timer);
+  }, [showPreloader, onboardingActive, showToast]);
 
   // Dismiss any open toast when entering edit mode
   useEffect(() => {
@@ -280,6 +309,8 @@ function AppShellContent({ children }: AppShellProps) {
       (pathname.startsWith('/dashboard/') && pathname !== '/dashboard/energy');
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // During first-run onboarding the shell isn't interactive yet.
+      if (onboardingActive) return;
       // Modifier chords work even while typing — they can't collide with text.
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         switch (e.key.toLowerCase()) {
@@ -340,7 +371,7 @@ function AppShellContent({ children }: AppShellProps) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleSearch, openSearch, toggleAssistant, toggleEditMode, toggleDebugBadges, isEditing, pathname, router]);
+  }, [toggleSearch, openSearch, toggleAssistant, toggleEditMode, toggleDebugBadges, isEditing, pathname, router, onboardingActive]);
 
   // Reset preloader when user logs out so it shows again on next login
   useEffect(() => {
@@ -579,8 +610,16 @@ function AppShellContent({ children }: AppShellProps) {
         )}
       </AnimatePresence>
 
-      {/* Main app shell — fades in as preloader exits */}
+      {/* First-run onboarding — covers the shell; completing it plays the
+          flow's exit fade and reveals the dashboard already running below. */}
+      <AnimatePresence>
+        {onboardingActive && <OnboardingFlow key="first-run-onboarding" />}
+      </AnimatePresence>
+
+      {/* Main app shell — fades in as preloader exits. While onboarding covers
+          it the whole subtree is inert so Tab can't wander into invisible UI. */}
       <div
+        inert={onboardingActive || undefined}
         className={`relative ${isStandalone ? 'h-screen' : 'h-[100dvh]'} lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-[calc(var(--ha-edge-padding)+env(safe-area-inset-top,0px))] lg:pl-edge transition-opacity duration-700 ${
           showPreloader ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
@@ -745,8 +784,8 @@ function AppShellContent({ children }: AppShellProps) {
         className="ha-search-boot-glow hidden lg:block fixed top-0 inset-x-0 h-48 pointer-events-none z-[9]"
       />
 
-      {/* Mobile navigation - hidden during preloader */}
-      {!showPreloader && (
+      {/* Mobile navigation - hidden during preloader and first-run onboarding */}
+      {!showPreloader && !onboardingActive && (
         <MobileNav
           connectionStatus={connectionStatus}
           onNavAutoHiddenChange={handleMobileNavAutoHiddenChange}
@@ -767,6 +806,9 @@ function AppShellContent({ children }: AppShellProps) {
 
       {/* Keyboard shortcuts cheat-sheet (?) */}
       <KeyboardShortcutsDialog open={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />
+
+      {/* Center-screen HUD flash — brief shortcut confirmation */}
+      <HudFlash />
     </div>
   );
 }

@@ -1472,6 +1472,18 @@
   animation: ha-colon-blink 2s linear infinite;
 }
 
+/* Indeterminate progress sweep for the system-update overlay — used when HA
+   reports an install in progress but no percentage. A narrow fill glides across
+   the track on loop. */
+@keyframes ha-indeterminate-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}
+.ha-indeterminate-bar {
+  width: 40%;
+  animation: ha-indeterminate-slide 1.4s ease-in-out infinite;
+}
+
 /* Search-bar boot glow — one-shot radial tint descending from the very top
    edge of the screen, reading as a light source behind the centered search
    field. Same colour + opacity as the toast bottom glow (see ToastContext).

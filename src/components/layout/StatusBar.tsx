@@ -190,6 +190,12 @@ const PINNED_ACTIVITY_FOOTER_SLOT_STYLE: CSSProperties = {
   top: 0,
 };
 
+/** Popped-out activity windows share the device-card modal's card language:
+    a wide centered card, generous rounding, and the same deep soft shadow. */
+const ACTIVITY_DIALOG_WIDTH = 460;
+const ACTIVITY_DIALOG_CARD_CLASS = 'z-[200] bg-surface-default rounded-ha-3xl shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)]';
+const ACTIVITY_DOCK_CARD_CLASS = '-translate-x-1/2 z-50 bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low';
+
 function formatTimeRemaining(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -663,7 +669,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
 
   const renderActivityWindowActions = useCallback(
     (onClose: (event: React.MouseEvent<HTMLButtonElement>) => void, closeIconPath: string, deepLinkType?: ActivityType) => (
-      <div className="flex items-center gap-1" data-no-drag="true">
+      <div className="flex items-center gap-0.5 rounded-full bg-surface-low p-0.5" data-no-drag="true">
         {deepLinkType && ACTIVITY_DEEP_LINKS[deepLinkType] && (
           <button
             type="button"
@@ -672,7 +678,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
               event.stopPropagation();
               openActivityDeepLink(deepLinkType);
             }}
-            className="p-ha-1 hover:bg-surface-low rounded-full"
+            className="p-ha-1 hover:bg-surface-mid rounded-full transition-colors"
           >
             <Icon path={mdiArrowTopRight} size={17} className="text-text-secondary" />
           </button>
@@ -684,14 +690,14 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
             event.stopPropagation();
             togglePinActivityWidget();
           }}
-          className="p-ha-1 hover:bg-surface-low rounded-full"
+          className="p-ha-1 hover:bg-surface-mid rounded-full transition-colors"
         >
           <Icon path={isPinnedActivityWidget ? mdiPinOff : mdiPin} size={17} className="text-text-secondary" />
         </button>
         <button
           type="button"
           onClick={onClose}
-          className="p-ha-1 hover:bg-surface-low rounded-full"
+          className="p-ha-1 hover:bg-surface-mid rounded-full transition-colors"
         >
           <Icon path={closeIconPath} size={18} className="text-text-secondary" />
         </button>
@@ -978,11 +984,19 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
 
   return (
     <>
-    {isActivityDialogOpen && (
-      <div className="fixed inset-0 z-40 pointer-events-none">
-        <div className="absolute inset-0 bg-black/30" />
-      </div>
-    )}
+    <AnimatePresence>
+      {isActivityDialogOpen && (
+        <motion.div
+          key="activity-dialog-scrim"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          className="fixed inset-0 z-[150] bg-black/70"
+          onClick={minimizeActivityWidget}
+        />
+      )}
+    </AnimatePresence>
     {/* Bottom/right inset matches the desktop corner toast's 1.5rem float
         (.corner-toast) so the bar has the same breathing room from the screen
         edges. Left is anchored to the sidebar column via the shell grid. */}
@@ -1103,8 +1117,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       initial={{ opacity: 0, y: 6, scale: 0.97 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                      className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                      style={activityWidgetView === 'dock' ? activityFlyoutStyles['release-notes-widget'] : activityDialogStyle}
+                      className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[320px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                      style={activityWidgetView === 'dock' ? activityFlyoutStyles['release-notes-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                       transition={activityWindowTransition}
                     >
                       <div className="p-ha-4 flex flex-col gap-ha-3">
@@ -1172,8 +1186,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       initial={{ opacity: 0, y: 6, scale: 0.97 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                      className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[320px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                      style={activityWidgetView === 'dock' ? activityFlyoutStyles['release-notes-widget'] : activityDialogStyle}
+                      className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[320px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                      style={activityWidgetView === 'dock' ? activityFlyoutStyles['release-notes-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                       transition={activityWindowTransition}
                     >
                       <div className="p-ha-4">
@@ -1380,8 +1394,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['media-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['media-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4 flex flex-col items-center">
@@ -1468,8 +1482,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['media-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['media-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
@@ -1700,8 +1714,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['timer-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[260px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['timer-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-5 flex flex-col items-center">
@@ -1804,8 +1818,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[260px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['timer-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[260px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['timer-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
@@ -2050,8 +2064,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['camera-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[340px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['camera-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div
@@ -2126,8 +2140,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['camera-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['camera-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
@@ -2369,8 +2383,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['printer-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['printer-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4 flex flex-col items-center">
@@ -2464,8 +2478,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['printer-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['printer-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
@@ -2741,8 +2755,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['vacuum-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['vacuum-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4 flex flex-col items-center">
@@ -2836,8 +2850,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['vacuum-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['vacuum-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
@@ -3083,8 +3097,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['update-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['update-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4 flex flex-col items-center">
@@ -3173,8 +3187,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['update-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['update-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
@@ -3406,8 +3420,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['backup-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['backup-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4 flex flex-col items-center">
@@ -3494,8 +3508,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['backup-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['backup-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
@@ -3717,8 +3731,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[300px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['alarm-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[300px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['alarm-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">
@@ -3790,8 +3804,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     initial={{ opacity: 0, y: 6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    className={`fixed ${activityWidgetView === 'dock' ? '-translate-x-1/2 z-50' : 'z-[80]'} w-[280px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden flex flex-col cursor-default`}
-                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['alarm-widget'] : activityDialogStyle}
+                    className={`fixed overflow-hidden flex flex-col cursor-default ${activityWidgetView === 'dock' ? ACTIVITY_DOCK_CARD_CLASS + ' w-[280px]' : ACTIVITY_DIALOG_CARD_CLASS}`}
+                    style={activityWidgetView === 'dock' ? activityFlyoutStyles['alarm-widget'] : { ...activityDialogStyle, width: ACTIVITY_DIALOG_WIDTH, maxWidth: '92vw' }}
                     transition={activityWindowTransition}
                   >
                     <div className="p-ha-4">

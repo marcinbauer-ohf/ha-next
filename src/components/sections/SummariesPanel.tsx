@@ -252,7 +252,8 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
           )}
         </div>
         <span className={clsx(
-          'font-medium text-text-primary text-left flex-shrink-0',
+          'font-medium text-left flex-shrink-0',
+          translucent ? 'text-white' : 'text-text-primary',
           isLg ? 'text-xl pr-ha-3' : isMd ? 'text-base pr-ha-2' : 'text-sm pr-ha-1'
         )}>
           {resolvedPeopleHome.length} home

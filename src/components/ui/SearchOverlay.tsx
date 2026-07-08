@@ -7,6 +7,7 @@ import { SectionLabel } from './SectionLabel';
 import { useSearchContext } from '@/contexts/SearchContext';
 import { useCloseOnScreensaver, useAssistantContext } from '@/contexts';
 import { useCommands, type CommandItem } from '@/hooks/useCommands';
+import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { clsx } from 'clsx';
@@ -80,7 +81,7 @@ const groupLabels: Record<PaletteGroup, string> = {
   command: 'Commands',
   navigate: 'Navigate',
   debug: 'Debug & prototype',
-  entity: 'Entities',
+  entity: 'Devices',
   room: 'Rooms',
   automation: 'Automations',
   ask: 'Assistant',
@@ -165,15 +166,15 @@ interface DemoItem {
 }
 
 const demoItems: DemoItem[] = [
-  { group: 'entity', icon: mdiLightbulb, name: 'Living Room Light', subtitle: 'light.living_room · On' },
-  { group: 'entity', icon: mdiLightbulb, name: 'Kitchen Light', subtitle: 'light.kitchen · Off' },
-  { group: 'entity', icon: mdiLightbulb, name: 'Bedroom Lamp', subtitle: 'light.bedroom_lamp · Off' },
-  { group: 'entity', icon: mdiLightbulb, name: 'Office Desk Light', subtitle: 'light.office_desk · On' },
-  { group: 'entity', icon: mdiTelevision, name: 'Living Room TV', subtitle: 'media_player.tv · Off' },
-  { group: 'entity', icon: mdiSpeaker, name: 'Kitchen Speaker', subtitle: 'media_player.speaker · Playing' },
-  { group: 'entity', icon: mdiLock, name: 'Front Door Lock', subtitle: 'lock.front_door · Locked' },
-  { group: 'entity', icon: mdiThermometer, name: 'Living Room Temperature', subtitle: 'sensor.temperature · 22°C' },
-  { group: 'entity', icon: mdiWaterPercent, name: 'Bathroom Humidity', subtitle: 'sensor.humidity · 65%' },
+  { group: 'entity', icon: mdiLightbulb, name: 'Living Room Light', subtitle: 'Light · On' },
+  { group: 'entity', icon: mdiLightbulb, name: 'Kitchen Light', subtitle: 'Light · Off' },
+  { group: 'entity', icon: mdiLightbulb, name: 'Bedroom Lamp', subtitle: 'Light · Off' },
+  { group: 'entity', icon: mdiLightbulb, name: 'Office Desk Light', subtitle: 'Light · On' },
+  { group: 'entity', icon: mdiTelevision, name: 'Living Room TV', subtitle: 'TV · Off' },
+  { group: 'entity', icon: mdiSpeaker, name: 'Kitchen Speaker', subtitle: 'Speaker · Playing' },
+  { group: 'entity', icon: mdiLock, name: 'Front Door Lock', subtitle: 'Lock · Locked' },
+  { group: 'entity', icon: mdiThermometer, name: 'Living Room Temperature', subtitle: 'Sensor · 22°C' },
+  { group: 'entity', icon: mdiWaterPercent, name: 'Bathroom Humidity', subtitle: 'Sensor · 65%' },
   { group: 'room', icon: mdiSofa, name: 'Living Room', subtitle: '2 active · 22°C' },
   { group: 'room', icon: mdiBed, name: 'Bedroom', subtitle: '0 active · 20°C' },
   { group: 'room', icon: mdiSilverwareForkKnife, name: 'Kitchen', subtitle: '1 active · 21°C' },
@@ -182,14 +183,15 @@ const demoItems: DemoItem[] = [
   { group: 'room', icon: mdiToyBrickOutline, name: 'Kids Room', subtitle: '0 active · 21°C' },
   { group: 'room', icon: mdiBalcony, name: 'Balcony', subtitle: '0 active · 18°C' },
   { group: 'room', icon: mdiDoorOpen, name: 'Hallway', subtitle: '0 active · 20°C' },
-  { group: 'automation', icon: mdiRobot, name: 'Night Lights Off', subtitle: 'automation · Active' },
-  { group: 'automation', icon: mdiRobot, name: 'Morning Routine', subtitle: 'automation · Active' },
-  { group: 'automation', icon: mdiRobot, name: 'Away Mode', subtitle: 'automation · Disabled' },
+  { group: 'automation', icon: mdiRobot, name: 'Night Lights Off', subtitle: 'Automation · Active' },
+  { group: 'automation', icon: mdiRobot, name: 'Morning Routine', subtitle: 'Automation · Active' },
+  { group: 'automation', icon: mdiRobot, name: 'Away Mode', subtitle: 'Automation · Off' },
 ];
 
 export function SearchOverlay() {
   const { searchOpen, closeSearch } = useSearchContext();
   const { openAssistant } = useAssistantContext();
+  const { isAdmin } = useHomeAssistant();
   const router = useRouter();
   const commands = useCommands();
 
@@ -207,24 +209,27 @@ export function SearchOverlay() {
 
   useFocusTrap(searchOpen, containerRef);
 
-  // Detect a leading prefix to scope the search.
+  // Detect a leading prefix to scope the search. Debug tooling is admin-only.
   const prefixChar = query.charAt(0);
-  const mode: PaletteGroup | null = PREFIXES[prefixChar] ?? null;
+  const rawMode: PaletteGroup | null = PREFIXES[prefixChar] ?? null;
+  const mode: PaletteGroup | null = rawMode === 'debug' && !isAdmin ? null : rawMode;
   const term = (mode ? query.slice(1) : query).trim();
 
   // Build the full palette: commands + demo search items, with run handlers.
   const allItems = useMemo<PaletteItem[]>(() => {
-    const fromCommands: PaletteItem[] = commands.map((c: CommandItem) => ({
-      id: c.id,
-      group: c.group,
-      icon: c.icon,
-      label: c.label,
-      state: c.state,
-      active: c.active,
-      keywords: c.keywords,
-      closeOnRun: c.closeOnRun,
-      run: c.run,
-    }));
+    const fromCommands: PaletteItem[] = commands
+      .filter((c: CommandItem) => isAdmin || c.group !== 'debug')
+      .map((c: CommandItem) => ({
+        id: c.id,
+        group: c.group,
+        icon: c.icon,
+        label: c.label,
+        state: c.state,
+        active: c.active,
+        keywords: c.keywords,
+        closeOnRun: c.closeOnRun,
+        run: c.run,
+      }));
 
     const fromDemo: PaletteItem[] = demoItems.map((d) => {
       const id = `${d.group}.${d.name}`;
@@ -250,7 +255,7 @@ export function SearchOverlay() {
     });
 
     return [...fromCommands, ...fromDemo];
-  }, [commands, router]);
+  }, [commands, router, isAdmin]);
 
   const byId = useMemo(() => new Map(allItems.map((i) => [i.id, i])), [allItems]);
 
@@ -474,7 +479,7 @@ export function SearchOverlay() {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Search or ask anything, > commands, / navigate"
+            placeholder="Search your home, or ask anything"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-base text-text-primary placeholder-text-tertiary outline-none"
@@ -520,7 +525,7 @@ export function SearchOverlay() {
             <div className="text-center py-ha-8 px-ha-4">
               <Icon path={mdiMagnify} size={36} className="text-text-tertiary mx-auto mb-ha-2" />
               <p className="text-sm text-text-secondary">No results{term ? ` for “${term}”` : ''}</p>
-              <p className="text-xs text-text-tertiary mt-ha-1">Try a different term or prefix — or ask instead</p>
+              <p className="text-xs text-text-tertiary mt-ha-1">Try different words — or just ask your assistant.</p>
             </div>
           )}
 
@@ -549,7 +554,9 @@ export function SearchOverlay() {
           <span className="ml-auto flex items-center gap-ha-3">
             <span><kbd className="bg-surface-lower px-1 py-0.5 rounded text-[12px] font-semibold">&gt;</kbd> cmd</span>
             <span><kbd className="bg-surface-lower px-1 py-0.5 rounded text-[12px] font-semibold">/</kbd> nav</span>
-            <span><kbd className="bg-surface-lower px-1 py-0.5 rounded text-[12px] font-semibold">?</kbd> debug</span>
+            {isAdmin && (
+              <span><kbd className="bg-surface-lower px-1 py-0.5 rounded text-[12px] font-semibold">?</kbd> debug</span>
+            )}
           </span>
         </div>
       </div>

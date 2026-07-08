@@ -137,7 +137,7 @@ export const settingsNavSections: SettingsNavSection[] = [
   {
     title: 'My Home',
     items: [
-      { slug: 'manage-dashboards', icon: mdiViewDashboard, label: 'Dashboards', description: 'Create and manage Lovelace and energy dashboards', haPath: '/config/lovelace/dashboards', addLabel: 'Dashboard' },
+      { slug: 'manage-dashboards', icon: mdiViewDashboard, label: 'Dashboards', description: 'Create and manage your dashboards', haPath: '/config/lovelace/dashboards', addLabel: 'Dashboard' },
       { slug: 'areas', icon: mdiMap, label: 'Areas & Floors', description: 'Rooms, spaces, and the floors they sit on', haPath: '/config/areas', addLabel: 'Area' },
       { slug: 'zones', icon: mdiMapMarker, label: 'Zones', description: 'Geographic zones for presence detection', haPath: '/config/zones', addLabel: 'Zone' },
       { slug: 'users', icon: mdiAccountKey, label: 'Users', description: 'User accounts and permissions', haPath: '/config/users', addLabel: 'User' },
@@ -149,8 +149,8 @@ export const settingsNavSections: SettingsNavSection[] = [
     items: [
       { slug: 'integrations', icon: mdiPuzzle, label: 'Integrations', description: 'Connected services and platforms', haPath: '/config/integrations', addLabel: 'Integration' },
       { slug: 'devices', icon: mdiDevices, label: 'Devices & Services', description: 'All registered devices and services', haPath: '/config/devices', addLabel: 'Device' },
-      { slug: 'entities', icon: mdiShape, label: 'Entities', description: 'Individual data points and controls', haPath: '/config/entities' },
-      { slug: 'helpers', icon: mdiWrench, label: 'Helpers', description: 'Virtual entities and input helpers', haPath: '/config/helpers', addLabel: 'Helper' },
+      { slug: 'entities', icon: mdiShape, label: 'Entities', description: 'Every sensor and control in your home', haPath: '/config/entities' },
+      { slug: 'helpers', icon: mdiWrench, label: 'Helpers', description: 'Extra controls like timers, toggles and counters', haPath: '/config/helpers', addLabel: 'Helper' },
     ],
   },
   {

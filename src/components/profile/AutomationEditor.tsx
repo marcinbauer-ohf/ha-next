@@ -5,7 +5,13 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { EditorToolbarShell } from '../layout/EditorToolbarShell';
-import { ToggleSwitch, ConfirmDialog, Sidebar } from '../ui';
+import { ToggleSwitch, ConfirmDialog, Sidebar, HALoader } from '../ui';
+import {
+  listAutomationTraces,
+  getAutomationTrace,
+  type AutomationTraceDetail,
+  type TraceStepEntry,
+} from '@/lib/homeassistant';
 import { Tooltip } from '../ui/Tooltip';
 import { useMobileToolbar } from '@/contexts';
 import { formatLastTriggered, type AutomationSummary } from '@/hooks/useAutomations';
@@ -42,6 +48,7 @@ import {
   KIND_LABEL,
   SECTIONS,
   buildMockFlow,
+  configToNodes,
 } from './automationFlow';
 import { AutomationNodeCanvas } from './AutomationNodeCanvas';
 
@@ -517,6 +524,78 @@ function buildTraces(automation: AutomationSummary, nodes: AutomationNode[]): Au
   return traces;
 }
 
+// ── Real traces (live connection) ────────────────────────────────────────────
+// Maps a `trace/get` result onto the same AutomationTrace view-model the mock
+// path uses. Nodes come from the config stored *in the trace* (the automation
+// as it was when the run happened), statuses from the executed-step dict:
+// a condition/action with no entry never ran; `result.result` records how a
+// condition evaluated; a step's `error` marks the run's failure point.
+
+function realTraceToTrace(detail: AutomationTraceDetail): AutomationTrace {
+  const nodes = configToNodes(detail.config);
+  const startedAt = new Date(detail.timestamp.start).getTime();
+  const finishedAt = detail.timestamp.finish ? new Date(detail.timestamp.finish).getTime() : null;
+
+  // Node ids are `kind-index`; trace paths are `kind/index`.
+  const entryOf = (nodeId: string): TraceStepEntry | undefined =>
+    detail.trace?.[nodeId.replace(/-(\d+)$/, '/$1')]?.[0];
+  const summaryOf = (n: AutomationNode) => n.summaryOverride ?? defOf(n).summary(n.data);
+
+  const hasError = !!detail.error || detail.script_execution === 'error';
+  const outcome: RunOutcome = hasError ? 'error' : detail.script_execution === 'finished' ? 'success' : 'stopped';
+
+  const triggerNarration = detail.trigger ?? 'run manually';
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  const steps: TraceStep[] = [];
+  const firedTrigger = nodes.find((n) => n.kind === 'trigger' && entryOf(n.id));
+  if (firedTrigger) steps.push({ node: firedTrigger, status: 'ok', detail: capitalize(triggerNarration) });
+
+  let stopped = false;
+  for (const node of nodes.filter((n) => n.kind === 'condition')) {
+    const entry = entryOf(node.id);
+    if (!entry) {
+      steps.push({ node, status: 'skipped', detail: stopped ? 'Not checked' : summaryOf(node) });
+      continue;
+    }
+    const passed = (entry.result as { result?: boolean } | undefined)?.result !== false;
+    steps.push({ node, status: passed ? 'ok' : 'failed', detail: summaryOf(node) });
+    if (!passed) stopped = true;
+  }
+
+  // Actions in config order. Per-step duration is the gap to the next executed
+  // step's timestamp (the last executed one runs until the trace finished).
+  const actionNodes = nodes.filter((n) => n.kind === 'action');
+  const executed = actionNodes
+    .map((node) => ({ id: node.id, entry: entryOf(node.id) }))
+    .filter((x): x is { id: string; entry: TraceStepEntry } => !!x.entry);
+  const durationOf = new Map<string, number>();
+  executed.forEach(({ id, entry }, i) => {
+    const ts = new Date(entry.timestamp).getTime();
+    const nextTs = i + 1 < executed.length ? new Date(executed[i + 1].entry.timestamp).getTime() : finishedAt;
+    if (nextTs != null && nextTs >= ts) durationOf.set(id, nextTs - ts);
+  });
+  for (const node of actionNodes) {
+    const entry = entryOf(node.id);
+    if (!entry) {
+      steps.push({ node, status: 'skipped', detail: "Didn't run" });
+    } else if (entry.error) {
+      steps.push({ node, status: 'error', detail: summaryOf(node), error: entry.error });
+    } else {
+      steps.push({ node, status: 'ok', detail: summaryOf(node), durationMs: durationOf.get(node.id) });
+    }
+  }
+
+  return {
+    runId: detail.run_id,
+    startedAt,
+    durationMs: Math.max(0, (finishedAt ?? Date.now()) - startedAt),
+    outcome,
+    triggerNarration,
+    steps,
+  };
+}
+
 // ── Trace view pieces ─────────────────────────────────────────────────────────
 
 const OUTCOME_META: Record<RunOutcome, { icon: string; headline: string; text: string; ring: string; chip: string; banner: string }> = {
@@ -676,9 +755,46 @@ function RunPicker({ traces, activeId, onSelect }: { traces: AutomationTrace[]; 
 }
 
 function TracesView({ automation, nodes }: { automation: AutomationSummary; nodes: AutomationNode[] }) {
-  const traces = useMemo(() => buildTraces(automation, nodes), [automation, nodes]);
-  const [activeId, setActiveId] = useState<string>(traces[0]?.runId ?? '');
+  // Live automations show their real run history (trace/list + trace/get);
+  // the synthesized runs only ever back demo entities — never mixed. YAML
+  // automations have no numeric config id, so their traces can't be fetched.
+  const isReal = !automation.demo;
+  const traceable = isReal && !!automation.numericId;
+  const [realTraces, setRealTraces] = useState<AutomationTrace[] | null>(null);
+  const loadingReal = traceable && realTraces === null;
+
+  useEffect(() => {
+    if (!traceable) return;
+    let cancelled = false;
+    (async () => {
+      const list = await listAutomationTraces(automation.numericId!);
+      const newestFirst = [...list]
+        .sort((a, b) => new Date(b.timestamp.start).getTime() - new Date(a.timestamp.start).getTime())
+        .slice(0, 6);
+      const details = await Promise.all(
+        newestFirst.map((t) => getAutomationTrace(automation.numericId!, t.run_id)),
+      );
+      if (cancelled) return;
+      setRealTraces(details.filter((d): d is AutomationTraceDetail => !!d).map(realTraceToTrace));
+    })();
+    return () => { cancelled = true; };
+  }, [traceable, automation.numericId]);
+
+  const mockTraces = useMemo(
+    () => (isReal ? [] : buildTraces(automation, nodes)),
+    [isReal, automation, nodes],
+  );
+  const traces = isReal ? (realTraces ?? []) : mockTraces;
+  const [activeId, setActiveId] = useState<string>('');
   const trace = traces.find((t) => t.runId === activeId) ?? traces[0] ?? null;
+
+  if (loadingReal) {
+    return (
+      <div className="flex items-center justify-center rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-10">
+        <HALoader size="sm" />
+      </div>
+    );
+  }
 
   if (!trace) {
     return (

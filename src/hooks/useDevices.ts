@@ -18,7 +18,7 @@ import type { EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, Floor
 import type { HassEntities, HassEntity } from '@/types';
 
 const DOMAIN_PRIORITY = [
-  'climate', 'media_player', 'light', 'switch', 'fan',
+  'camera', 'climate', 'media_player', 'light', 'switch', 'fan',
   'cover', 'lock', 'vacuum', 'humidifier', 'alarm_control_panel',
   'number', 'select', 'binary_sensor', 'sensor', 'button', 'event',
 ];

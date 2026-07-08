@@ -14,12 +14,14 @@ import {
   useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { mdiHomeAssistant, mdiViewGrid, mdiCube, mdiAutoFix, mdiStar, mdiViewAgenda } from '@mdi/js';
+import { mdiHomeAssistant, mdiViewGrid, mdiCube, mdiAutoFix, mdiStar, mdiViewAgenda, mdiViewGridOutline, mdiMapOutline, mdiViewListOutline } from '@mdi/js';
+import { flashHud } from '@/lib/hudFlashBus';
 import { clsx } from 'clsx';
 
 const DashboardFloorView = dynamic(() => import('@/components/sections/DashboardFloorView'), { ssr: false });
 const DashboardMapView = dynamic(() => import('@/components/sections/DashboardMapView').then(m => m.DashboardMapView), { ssr: false });
 import { loadAreaGeometry } from '@/lib/areaGeometry';
+import { useHomeName } from '@/lib/homeName';
 import { canFireBareShortcut, matchShortcut } from '@/lib/keyboardShortcuts';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
 import { DeferredCard } from '@/components/cards/DeferredCard';
@@ -370,8 +372,8 @@ export default function DashboardPage() {
     dismissOnboarding();
     showToast({
       icon: mdiAutoFix,
-      title: 'Auto-configured',
-      subtitle: count > 0 ? `${count} device${count === 1 ? '' : 's'} set up` : 'No new devices to configure',
+      title: 'Your dashboard is ready',
+      subtitle: count > 0 ? `${count} device${count === 1 ? '' : 's'} set up` : 'Nothing new to set up',
     });
   }, [devices, getConfig, setConfig, dismissOnboarding, showToast]);
 
@@ -385,7 +387,7 @@ export default function DashboardPage() {
         id: 'connect-ha',
         icon: mdiHomeAssistant,
         title: 'You’re exploring a demo home',
-        body: 'These rooms and devices are sample data. Connect your Home Assistant instance to see your real home in this prototype.',
+        body: 'You’re looking at a sample home. Connect your Home Assistant to see your real rooms and devices here.',
         actions: [
           { label: 'Connect my home', primary: true, onClick: () => setSetupOpen(true) },
           { label: 'Keep the demo', onClick: dismissConnectTip },
@@ -397,8 +399,8 @@ export default function DashboardPage() {
       list.push({
         id: 'configure-dashboard',
         icon: mdiAutoFix,
-        title: 'Configure your dashboard',
-        body: 'Auto-assign primary and sensor entities to each device card based on smart defaults.',
+        title: 'Finish setting up your dashboard',
+        body: 'Let us fill in each device card automatically with sensible choices. You can fine-tune anything later.',
         actions: [
           { label: 'Auto-configure', primary: true, onClick: autoConfigureDevices },
           { label: 'Dismiss', onClick: dismissOnboarding },
@@ -416,9 +418,12 @@ export default function DashboardPage() {
     setDashboardView('3d');
   }, [floors, activeFloorId]);
 
+  // The dashboard greets with the home's chosen name (onboarding / Home
+  // Center); updates live when it changes in this or another tab.
+  const homeName = useHomeName();
   useEffect(() => {
-    setHeader({ title: 'Home', contentGutter: true });
-  }, [setHeader]);
+    setHeader({ title: homeName, contentGutter: true });
+  }, [setHeader, homeName]);
 
   // Dashboard entrance animation
   useEffect(() => {
@@ -436,12 +441,17 @@ export default function DashboardPage() {
       if (matchShortcut(e, 'dashboard.grouping') && dashboardView === 'list' && listMapView === 'list') {
         e.preventDefault();
         const order = ['area', 'type', 'category'] as const;
-        setGroupByPersisted(order[(order.indexOf(groupBy) + 1) % order.length]);
+        const groupLabel = { area: 'Areas', type: 'Types', category: 'Categories' } as const;
+        const next = order[(order.indexOf(groupBy) + 1) % order.length];
+        setGroupByPersisted(next);
+        flashHud({ shortcutId: 'dashboard.grouping', label: 'Grouping', value: groupLabel[next], icon: mdiViewGridOutline });
         return;
       }
       if (matchShortcut(e, 'dashboard.map') && hasMap && dashboardView === 'list') {
         e.preventDefault();
-        setListMapViewPersisted(listMapView === 'map' ? 'list' : 'map');
+        const next = listMapView === 'map' ? 'list' : 'map';
+        setListMapViewPersisted(next);
+        flashHud({ shortcutId: 'dashboard.map', value: next === 'map' ? 'Floor plan' : 'List', icon: next === 'map' ? mdiMapOutline : mdiViewListOutline });
         return;
       }
       if (/^[0-9]$/.test(e.key) && !e.shiftKey && floors.length >= 2) {
@@ -790,7 +800,11 @@ export default function DashboardPage() {
   const isImmersiveFixed = immersivePhase !== 'normal';
   const isMobileImmersive = immersiveMode && !isImmersiveFixed;
 
-  const statusBarHeight = 'calc(var(--ha-space-2) + 48px + var(--ha-edge-padding))';
+  // Must match the StatusBar footer's real height so immersive content clears
+  // it: pt-ha-2 (--ha-space-2) + 48px content row + pb-6 (1.5rem). The footer
+  // has no solid backing, so any under-count lets dashboard cards show through
+  // around the activity chips (they appear to "float out" over the content).
+  const statusBarHeight = 'calc(var(--ha-space-2) + 48px + 1.5rem)';
   const compensatingPadding = {
     paddingLeft: 'calc(2 * var(--ha-edge-padding) + 64px)',
     paddingTop: 'calc(var(--ha-edge-padding) + 64px)',

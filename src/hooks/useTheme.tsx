@@ -1,6 +1,13 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import {
+  mdiWhiteBalanceSunny,
+  mdiWeatherNight,
+  mdiThemeLightDark,
+  mdiPalette,
+} from '@mdi/js';
+import { flashHud } from '@/lib/hudFlashBus';
 
 export const THEMES = ['default', 'glass', 'teenage', 'cyberpunk', 'material', 'eink', 'fallout'] as const;
 export type Theme = (typeof THEMES)[number];
@@ -24,6 +31,23 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
+// Display labels + icons for the HUD flash fired on the appearance shortcuts.
+const MODE_LABEL: Record<ColorMode, string> = { light: 'Light', dark: 'Dark', system: 'System' };
+const MODE_ICON: Record<ColorMode, string> = {
+  light: mdiWhiteBalanceSunny,
+  dark: mdiWeatherNight,
+  system: mdiThemeLightDark,
+};
+const THEME_LABEL: Record<Theme, string> = {
+  default: 'Default',
+  glass: 'Glass',
+  teenage: 'Teenage Engineering',
+  cyberpunk: 'Cyberpunk',
+  material: 'Material',
+  eink: 'E-ink',
+  fallout: 'Fallout',
+};
 
 function isTheme(value: string | null): value is Theme {
   return value !== null && THEMES.includes(value as Theme);
@@ -147,14 +171,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
+        const modes: ColorMode[] = ['light', 'dark', 'system'];
+        const next = modes[(modes.indexOf(mode) + 1) % modes.length];
         toggleMode();
+        flashHud({ shortcutId: 'global.color-mode', value: MODE_LABEL[next], icon: MODE_ICON[next] });
       }
       // Cmd/Ctrl + Shift + T to toggle THEME (optional, but helpful)
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 't') {
         e.preventDefault();
+        const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
         toggleTheme();
+        flashHud({ shortcutId: 'global.theme', value: THEME_LABEL[next], icon: mdiPalette });
       }
-      // Cmd/Ctrl + Shift + U to toggle SQUIRCLE corners
+      // Cmd/Ctrl + Shift + U to toggle SQUIRCLE corners. No HUD flash here —
+      // squircle already fires its own corner toast (in AppShell) on any change.
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'u') {
         e.preventDefault();
         toggleSquircle();
@@ -163,7 +193,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleMode, toggleTheme, toggleSquircle]);
+  }, [toggleMode, toggleTheme, toggleSquircle, mode, theme]);
 
   return (
     <ThemeContext.Provider value={{ theme, mode, background, squircle, toggleTheme, toggleMode, toggleBackground, toggleSquircle, setTheme, setMode, setBackground, setSquircle }}>

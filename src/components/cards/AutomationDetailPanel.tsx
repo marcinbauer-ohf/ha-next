@@ -132,7 +132,7 @@ function RelatedEntities({ ids }: { ids: string[] }) {
     .filter((r) => r.entity);
   if (resolved.length === 0) return null;
   return (
-    <ListSection title={`Related entities (${resolved.length})`}>
+    <ListSection title={`Related devices (${resolved.length})`}>
       {resolved.map(({ id, entity }) => (
         <div key={id} className="flex items-center gap-ha-3 px-ha-4 py-ha-2">
           <Icon path={domainIcon(entity!)} size={18} className="shrink-0 text-text-secondary" />

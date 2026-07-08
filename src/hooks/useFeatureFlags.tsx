@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
-import type { ReactiveTriggerMode } from './useHomeEventReactor';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { REACTIVE_TRIGGER_KINDS, type ReactiveTriggerConfig, type ReactiveTriggerKind } from './useHomeEventReactor';
 import { PULSE_MODES, type PulseIntensity, type PulseMode } from '@/components/ui/RingShaderBackground';
 
 const LS_DESKTOP_SPLIT_VIEW_KEY = 'ha-flag-desktop-split-view';
@@ -9,7 +9,9 @@ const LS_OFFSCREEN_CHANGE_HINTS_KEY = 'ha-flag-offscreen-change-hints';
 const LS_SCROLL_INDEX_KEY = 'ha-flag-scroll-index';
 const LS_WAVY_BACKGROUND_KEY = 'ha-flag-wavy-background';
 const LS_REACTIVE_BACKGROUND_KEY = 'ha-flag-reactive-background';
-const LS_REACTIVE_TRIGGER_KEY = 'ha-flag-reactive-trigger';
+const LS_REACTIVE_TRIGGER_KEY = 'ha-flag-reactive-trigger'; // legacy coarse mode; read once to seed kinds
+const LS_REACTIVE_TRIGGER_KINDS_KEY = 'ha-flag-reactive-trigger-kinds';
+const LS_REACTIVE_TRIGGER_DOMAINS_KEY = 'ha-flag-reactive-trigger-domains';
 const LS_REACTIVE_INTENSITY_KEY = 'ha-flag-reactive-intensity';
 const LS_PULSE_WALLPAPER_REACTIVE_KEY = 'ha-flag-pulse-wallpaper-reactive';
 const LS_REACTIVE_TRIGGER_LABELS_KEY = 'ha-flag-reactive-trigger-labels';
@@ -17,8 +19,32 @@ const LS_PULSE_MODE_KEY = 'ha-flag-pulse-mode';
 const LS_WEATHER_ENTITY_KEY = 'ha-flag-weather-entity';
 const LS_FAST_SCROLL_LABELS_KEY = 'ha-flag-fast-scroll-labels';
 
-const REACTIVE_TRIGGER_MODES: ReactiveTriggerMode[] = ['toggles-errors', 'all', 'errors'];
 const PULSE_INTENSITIES: PulseIntensity[] = ['subtle', 'bold'];
+
+// Sanitise a stored CSV of trigger kinds against the known set (drops junk).
+function parseKinds(csv: string): ReactiveTriggerKind[] {
+  return csv.split(',').filter((k): k is ReactiveTriggerKind =>
+    (REACTIVE_TRIGGER_KINDS as string[]).includes(k));
+}
+
+// Initial trigger kinds: honour the new key, else migrate the legacy coarse
+// "React to" mode, else default to on/off/errors (the old default preset).
+function initialTriggerKinds(): ReactiveTriggerKind[] {
+  if (typeof window === 'undefined') return ['on', 'off', 'error'];
+  const stored = localStorage.getItem(LS_REACTIVE_TRIGGER_KINDS_KEY);
+  if (stored !== null) return parseKinds(stored);
+  switch (localStorage.getItem(LS_REACTIVE_TRIGGER_KEY)) {
+    case 'all': return ['on', 'off', 'error', 'alert'];
+    case 'errors': return ['error'];
+    default: return ['on', 'off', 'error']; // 'toggles-errors' / unset
+  }
+}
+
+function initialTriggerDomains(): string[] {
+  if (typeof window === 'undefined') return [];
+  const stored = localStorage.getItem(LS_REACTIVE_TRIGGER_DOMAINS_KEY);
+  return stored ? stored.split(',').filter(Boolean) : [];
+}
 
 interface FeatureFlagsContextValue {
   desktopSplitViewEnabled: boolean;
@@ -36,8 +62,15 @@ interface FeatureFlagsContextValue {
   reactiveBackgroundEnabled: boolean;
   setReactiveBackgroundEnabled: (value: boolean) => void;
   toggleReactiveBackground: () => void;
-  reactiveTriggerMode: ReactiveTriggerMode;
-  setReactiveTriggerMode: (value: ReactiveTriggerMode) => void;
+  /** Which change kinds may fire a reactive pulse / screensaver tip. */
+  reactiveTriggerKinds: ReactiveTriggerKind[];
+  toggleReactiveTriggerKind: (kind: ReactiveTriggerKind) => void;
+  /** Which entity domains may fire; empty = all domains. */
+  reactiveTriggerDomains: string[];
+  toggleReactiveTriggerDomain: (domain: string) => void;
+  setReactiveTriggerDomains: (domains: string[]) => void;
+  /** Memoised {kinds, domains} to hand straight to useHomeEventReactor. */
+  reactiveTriggerConfig: ReactiveTriggerConfig;
   reactiveIntensity: PulseIntensity;
   setReactiveIntensity: (value: PulseIntensity) => void;
   /** Show the bottom-center labels naming what triggered each reactive ripple. */
@@ -129,13 +162,8 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem(LS_REACTIVE_BACKGROUND_KEY) === '1';
   });
 
-  const [reactiveTriggerMode, setReactiveTriggerModeState] = useState<ReactiveTriggerMode>(() => {
-    if (typeof window === 'undefined') return 'toggles-errors';
-    const stored = localStorage.getItem(LS_REACTIVE_TRIGGER_KEY);
-    return REACTIVE_TRIGGER_MODES.includes(stored as ReactiveTriggerMode)
-      ? (stored as ReactiveTriggerMode)
-      : 'toggles-errors';
-  });
+  const [reactiveTriggerKinds, setReactiveTriggerKinds] = useState<ReactiveTriggerKind[]>(initialTriggerKinds);
+  const [reactiveTriggerDomains, setReactiveTriggerDomainsState] = useState<string[]>(initialTriggerDomains);
 
   const [reactiveIntensity, setReactiveIntensityState] = useState<PulseIntensity>(() => {
     if (typeof window === 'undefined') return 'subtle';
@@ -152,10 +180,34 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     setReactiveBackgroundEnabled(!reactiveBackgroundEnabled);
   }, [reactiveBackgroundEnabled, setReactiveBackgroundEnabled]);
 
-  const setReactiveTriggerMode = useCallback((value: ReactiveTriggerMode) => {
-    setReactiveTriggerModeState(value);
-    localStorage.setItem(LS_REACTIVE_TRIGGER_KEY, value);
+  // Preserve the canonical kind order (on/off/error/alert) when persisting.
+  const toggleReactiveTriggerKind = useCallback((kind: ReactiveTriggerKind) => {
+    setReactiveTriggerKinds((prev) => {
+      const next = prev.includes(kind)
+        ? prev.filter((k) => k !== kind)
+        : REACTIVE_TRIGGER_KINDS.filter((k) => k === kind || prev.includes(k));
+      localStorage.setItem(LS_REACTIVE_TRIGGER_KINDS_KEY, next.join(','));
+      return next;
+    });
   }, []);
+
+  const setReactiveTriggerDomains = useCallback((domains: string[]) => {
+    setReactiveTriggerDomainsState(domains);
+    localStorage.setItem(LS_REACTIVE_TRIGGER_DOMAINS_KEY, domains.join(','));
+  }, []);
+
+  const toggleReactiveTriggerDomain = useCallback((domain: string) => {
+    setReactiveTriggerDomainsState((prev) => {
+      const next = prev.includes(domain) ? prev.filter((d) => d !== domain) : [...prev, domain];
+      localStorage.setItem(LS_REACTIVE_TRIGGER_DOMAINS_KEY, next.join(','));
+      return next;
+    });
+  }, []);
+
+  const reactiveTriggerConfig = useMemo<ReactiveTriggerConfig>(
+    () => ({ kinds: reactiveTriggerKinds, domains: reactiveTriggerDomains }),
+    [reactiveTriggerKinds, reactiveTriggerDomains],
+  );
 
   const setReactiveIntensity = useCallback((value: PulseIntensity) => {
     setReactiveIntensityState(value);
@@ -250,8 +302,12 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
         reactiveBackgroundEnabled,
         setReactiveBackgroundEnabled,
         toggleReactiveBackground,
-        reactiveTriggerMode,
-        setReactiveTriggerMode,
+        reactiveTriggerKinds,
+        toggleReactiveTriggerKind,
+        reactiveTriggerDomains,
+        toggleReactiveTriggerDomain,
+        setReactiveTriggerDomains,
+        reactiveTriggerConfig,
         reactiveIntensity,
         setReactiveIntensity,
         reactiveTriggerLabelsEnabled,

@@ -25,7 +25,7 @@ import type { EntitySlot, EntitySection } from '@/hooks/useDeviceCardConfig';
 import { THEMES, type Background, type ColorMode, type Theme } from '@/hooks/useTheme';
 import { useDogEarConfig } from '@/hooks/useDogEarConfig';
 import { DOG_EAR_ACTIONS } from '@/lib/dogEarActions';
-import { areSimulationEntitiesEqual, selectSimulationEntities, selectWeatherOptions, areWeatherOptionsEqual } from '@/lib/homeassistant/selectors';
+import { areSimulationEntitiesEqual, selectSimulationEntities, selectWeatherOptions, areWeatherOptionsEqual, selectEntityDomains, areEntityDomainsEqual } from '@/lib/homeassistant/selectors';
 import { Dropdown } from '../ui/Dropdown';
 import { useHaptics } from '@/lib/haptics';
 import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
@@ -233,6 +233,49 @@ function ChoiceGroup<T extends string>({
             >
               <div className="text-sm font-semibold">{option.label}</div>
               {option.caption && <div className="mt-1 text-xs opacity-80">{option.caption}</div>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Like ChoiceGroup but several options can be on at once (allow-list). `caption`
+// under the label explains what an empty selection means. Selected pills glow
+// blue; unselected are muted — same visual language as ChoiceGroup.
+function MultiChoiceGroup<T extends string>({
+  label,
+  caption,
+  values,
+  onToggle,
+  options,
+}: {
+  label: string;
+  caption?: string;
+  values: readonly T[];
+  onToggle: (value: T) => void;
+  options: Array<{ value: T; label: string }>;
+}) {
+  return (
+    <div className="space-y-ha-2">
+      <div className="text-xs font-medium uppercase tracking-wider text-text-tertiary">{label}</div>
+      {caption && <div className="text-[13px] text-text-secondary">{caption}</div>}
+      <div className="flex flex-wrap gap-ha-2">
+        {options.map((option) => {
+          const selected = values.includes(option.value);
+          const tone = selected
+            ? 'border-transparent bg-surface-mid text-ha-blue'
+            : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low';
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onToggle(option.value)}
+              className={`rounded-ha-2xl border px-ha-4 py-ha-2 text-sm font-semibold transition-colors ${tone}`}
+            >
+              {option.label}
             </button>
           );
         })}
@@ -547,7 +590,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setContextSlug(slug);
     return () => setContextSlug(null);
   }, [slug, setContextSlug]);
-  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerMode, setReactiveTriggerMode, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive, pulseMode, setPulseMode, weatherEntityId, setWeatherEntityId, fastScrollLabelsEnabled, toggleFastScrollLabels } = useFeatureFlags();
+  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerKinds, toggleReactiveTriggerKind, reactiveTriggerDomains, toggleReactiveTriggerDomain, setReactiveTriggerDomains, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive, pulseMode, setPulseMode, weatherEntityId, setWeatherEntityId, fastScrollLabelsEnabled, toggleFastScrollLabels } = useFeatureFlags();
   const { theme, mode, background, squircle, setTheme, setMode, setBackground, toggleSquircle } = useTheme();
   const iconSet = useIconSet();
   const { font, fonts, setFont } = useFont();
@@ -574,6 +617,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
   const { config: dogEarConfig, setCorner: setDogEarCorner } = useDogEarConfig();
   const simulationEntities = useHomeAssistantSelector(selectSimulationEntities, areSimulationEntitiesEqual);
   const weatherOptions = useHomeAssistantSelector(selectWeatherOptions, areWeatherOptionsEqual);
+  const entityDomains = useHomeAssistantSelector(selectEntityDomains, areEntityDomainsEqual);
 
   // Device card configuration
   const { devices } = useDeviceStructure();
@@ -1141,16 +1185,40 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
         />
         {reactiveBackgroundEnabled && (
           <div className="space-y-ha-4 rounded-ha-2xl border border-surface-lower bg-surface-low/40 px-ha-4 py-ha-4">
-            <ChoiceGroup
+            <MultiChoiceGroup
               label="React to"
-              value={reactiveTriggerMode}
-              onChange={setReactiveTriggerMode}
+              caption="Which kinds of change spawn a ripple and a tip. Turn all off to silence it."
+              values={reactiveTriggerKinds}
+              onToggle={toggleReactiveTriggerKind}
               options={[
-                { value: 'toggles-errors', label: 'Toggles & errors', caption: 'On/off changes plus devices going unavailable' },
-                { value: 'all', label: 'All changes', caption: 'Every change, including significant sensor jumps' },
-                { value: 'errors', label: 'Errors only', caption: 'Only when a device goes unavailable' },
+                { value: 'on', label: 'Turned on' },
+                { value: 'off', label: 'Turned off' },
+                { value: 'error', label: 'Unavailable' },
+                { value: 'alert', label: 'Sensor jumps' },
               ]}
             />
+            <div className="space-y-ha-2">
+              <MultiChoiceGroup
+                label="Device types"
+                caption={
+                  reactiveTriggerDomains.length === 0
+                    ? 'All device types can trigger. Pick some to limit it.'
+                    : `Only these ${reactiveTriggerDomains.length} device type${reactiveTriggerDomains.length === 1 ? '' : 's'} trigger.`
+                }
+                values={reactiveTriggerDomains}
+                onToggle={toggleReactiveTriggerDomain}
+                options={entityDomains.map((d) => ({ value: d, label: d.replace(/_/g, ' ') }))}
+              />
+              {reactiveTriggerDomains.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setReactiveTriggerDomains([])}
+                  className="text-xs font-medium text-ha-blue transition-opacity hover:opacity-80"
+                >
+                  Clear — allow all device types
+                </button>
+              )}
+            </div>
             <ChoiceGroup
               label="Ripple intensity"
               value={reactiveIntensity}

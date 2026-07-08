@@ -10,6 +10,7 @@ import { ImmersiveModeProvider } from '@/hooks/useImmersiveMode';
 import { DogEarConfigProvider } from '@/hooks/useDogEarConfig';
 import { PullToRevealProvider, SidebarItemsProvider, SidebarArrangeProvider, SearchProvider, AssistantProvider, HeaderProvider, AddContextProvider, ScreensaverProvider, EditModeProvider, MobileToolbarProvider, ToastProvider, NotificationCenterProvider, DebugFlagsProvider } from '@/contexts';
 import { AppShell } from '@/components/layout';
+import { SystemUpdateWatcher } from '@/components/ui/SystemUpdateWatcher';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -131,6 +132,7 @@ export default function RootLayout({
                               <MobileToolbarProvider>
                               <ToastProvider>
                                 <AppShell>{children}</AppShell>
+                                <SystemUpdateWatcher />
                               </ToastProvider>
                               </MobileToolbarProvider>
                             </EditModeProvider>

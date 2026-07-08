@@ -354,7 +354,7 @@ export function IntegrationDetailView({ integration }: { integration: Integratio
           </div>
           <div className="rounded-ha-2xl bg-surface-low px-ha-4 py-ha-3">
             <div className="text-2xl font-bold text-text-primary">{integration.entityCount}</div>
-            <div className="text-xs text-text-secondary">Entities</div>
+            <div className="text-xs text-text-secondary">Sensors & controls</div>
           </div>
         </div>
       </section>
@@ -364,7 +364,7 @@ export function IntegrationDetailView({ integration }: { integration: Integratio
         <SectionLabel className="px-ha-1">Devices</SectionLabel>
         {integration.devices.length === 0 ? (
           <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-5 text-center text-sm text-text-tertiary">
-            This integration has no devices — it provides entities directly.
+            This integration has no devices — it adds sensors and controls directly.
           </div>
         ) : (
           <div className="bg-surface-default rounded-ha-2xl border border-surface-lower overflow-hidden">

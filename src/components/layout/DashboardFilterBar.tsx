@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import {
   mdiCheck, mdiViewListOutline, mdiMapOutline, mdiFloorPlan, mdiDevices,
   mdiShapeOutline, mdiLayersTripleOutline, mdiFilterOutline,
+  mdiFilterRemoveOutline, mdiClose,
 } from '@mdi/js';
 import { Icon } from '@/components/ui/Icon';
 import { CATEGORY_ORDER, CATEGORY_TITLES, CATEGORY_ICONS, type DeviceCategory } from '@/lib/homeassistant/entityHelpers';
@@ -180,6 +181,15 @@ export function DashboardFilterBar({
   const showGroup = hasAreas && !mapView;
   const hasFilters = showFloors || hasAreas || hasMap;
 
+  // Clear every filter that contributes to activeFilterCount back to default:
+  // All floors, group-by-area, all categories. Leaves the list/map view as-is
+  // (a view choice, not a filter — see activeFilterCount in page.tsx).
+  const resetFilters = () => {
+    setActiveFloorId(null);
+    setGroupBy('area');
+    setMapCategory('all');
+  };
+
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   // The opened mobile bottom-nav sheet dims the UI; this FAB floats above its
@@ -291,6 +301,16 @@ export function DashboardFilterBar({
           ))}
         </OptionGroup>
       )}
+      {activeFilterCount > 0 && (
+        <button
+          type="button"
+          onClick={resetFilters}
+          className="flex h-10 w-full items-center justify-center gap-ha-2 rounded-ha-xl text-sm font-medium text-text-secondary transition-colors hover:bg-surface-default hover:text-text-primary"
+        >
+          <Icon path={mdiFilterRemoveOutline} size={16} />
+          Reset filters
+        </button>
+      )}
     </div>
   );
 
@@ -317,7 +337,6 @@ export function DashboardFilterBar({
             the bottom so the pill grows upward from its resting spot. */}
         <div
           className="pointer-events-auto self-end p-ha-3 -m-ha-3"
-          onMouseEnter={() => setExpanded(true)}
           onMouseLeave={() => setExpanded(false)}
         >
         <motion.div
@@ -328,23 +347,54 @@ export function DashboardFilterBar({
             default: TOOLBAR_SPRING,
             layout: { duration: 0.32, ease: [0.22, 1, 0.36, 1] },
           }}
-          onFocusCapture={() => setExpanded(true)}
-          onBlurCapture={() => setExpanded(false)}
-          className={`rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex flex-col items-start transition-[padding] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-            expanded ? 'w-[15rem] max-h-[60vh] overflow-y-auto scrollbar-hide px-ha-4 py-ha-3 gap-ha-4' : 'p-ha-3'
+          onFocus={() => setExpanded(true)}
+          onBlur={() => setExpanded(false)}
+          className={`rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center transition-[padding] duration-[320ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            expanded ? 'flex-col items-start w-[15rem] max-h-[60vh] overflow-y-auto scrollbar-hide px-ha-4 py-ha-3 gap-ha-4' : 'p-ha-3'
           }`}
         >
           {expanded ? (
             optionGroups
           ) : (
-            <span className="relative flex items-center justify-center">
-              <Icon path={mdiFilterOutline} size={20} className="text-text-secondary" />
-              {activeFilterCount > 0 && (
-                <span className="absolute -top-2 -right-2 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ha-blue px-1 text-[10px] font-bold leading-none text-white">
-                  {activeFilterCount}
-                </span>
-              )}
-            </span>
+            // Collapsed = one pill surface. Hover-to-expand lives ONLY on the
+            // filter glyph, so reaching for the X never triggers the panel.
+            <div className="flex items-center">
+              <span
+                className="flex items-center justify-center"
+                onMouseEnter={() => setExpanded(true)}
+              >
+                <Icon
+                  path={mdiFilterOutline}
+                  size={20}
+                  className={activeFilterCount > 0 ? 'text-ha-blue' : 'text-text-secondary'}
+                />
+              </span>
+              <AnimatePresence initial={false}>
+                {activeFilterCount > 0 && (
+                  <motion.button
+                    key="desktop-clear"
+                    type="button"
+                    aria-label="Clear filters"
+                    onClick={resetFilters}
+                    // Don't let focusing the X bubble up and expand the panel
+                    // (which would unmount the X and drop focus).
+                    onFocus={(e) => e.stopPropagation()}
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 'auto', opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    className="group/clear flex items-center overflow-hidden"
+                  >
+                    <span className="mx-ha-2 h-5 w-px shrink-0 bg-text-tertiary/40" />
+                    <Icon
+                      path={mdiClose}
+                      size={18}
+                      className="shrink-0 text-text-secondary transition-colors group-hover/clear:text-text-primary"
+                    />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
           )}
         </motion.div>
         </div>
@@ -387,28 +437,47 @@ export function DashboardFilterBar({
           )}
         </AnimatePresence>
 
-        {/* Square FAB matching the mobile corner toast's height (py-ha-2 + 36px tile),
-            same drop shadow as the toast / EditingToolbar. */}
-        <button
-          type="button"
-          aria-label="Filters"
-          aria-expanded={open}
-          onClick={() => setOpen(o => !o)}
-          className={`flex items-center justify-center p-ha-2 rounded-ha-3xl border transition-colors shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] ${
+        {/* One pill surface (matches the corner toast's height). Filter glyph on
+            the left opens the popover; while filtering, the surface grows to the
+            right to reveal a divider + X that clears in one tap. The whole thing
+            is anchored bottom-left, so growth never nudges the filter glyph. */}
+        <div
+          className={`flex items-center rounded-ha-3xl border p-ha-2 transition-colors shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] ${
             open || activeFilterCount > 0
               ? 'border-ha-blue/40 bg-fill-primary-normal text-ha-blue'
               : 'border-surface-low/50 bg-surface-default/95 text-text-secondary'
           }`}
         >
-          <span className="relative flex h-9 w-9 items-center justify-center">
+          <button
+            type="button"
+            aria-label="Filters"
+            aria-expanded={open}
+            onClick={() => setOpen(o => !o)}
+            className="flex h-9 w-9 items-center justify-center"
+          >
             <Icon path={mdiFilterOutline} size={22} />
+          </button>
+          <AnimatePresence initial={false}>
             {activeFilterCount > 0 && (
-              <span className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-ha-blue px-1 text-[10px] font-bold leading-none text-white">
-                {activeFilterCount}
-              </span>
+              <motion.button
+                key="filter-clear"
+                type="button"
+                aria-label="Clear filters"
+                onClick={resetFilters}
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 'auto', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-center overflow-hidden"
+              >
+                <span className="mx-ha-1 h-6 w-px shrink-0 bg-ha-blue/30" />
+                <span className="flex h-9 w-9 items-center justify-center">
+                  <Icon path={mdiClose} size={22} />
+                </span>
+              </motion.button>
             )}
-          </span>
-        </button>
+          </AnimatePresence>
+        </div>
       </div>
     </>
   );

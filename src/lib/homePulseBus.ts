@@ -21,12 +21,19 @@ export interface PulseMeta {
   kind: PulseKind;
 }
 
-type Listener = (color: PulseColor, meta?: PulseMeta) => void;
+type Listener = (color: PulseColor, meta?: PulseMeta, width?: number) => void;
 
 const listeners = new Set<Listener>();
 
-export function emitHomePulse(color: PulseColor, meta?: PulseMeta): void {
-  listeners.forEach((l) => l(color, meta));
+/**
+ * Emit a pulse onto the bus.
+ *  - `meta`  human-readable context for the pulse log (omit for ambient pulses
+ *            like the connection ping, which should ripple but not be listed).
+ *  - `width` ripple thickness multiplier (1 = normal). The ping pulse scales
+ *            this by round-trip latency so a laggy instance draws a fatter ring.
+ */
+export function emitHomePulse(color: PulseColor, meta?: PulseMeta, width?: number): void {
+  listeners.forEach((l) => l(color, meta, width));
 }
 
 export function subscribeHomePulse(listener: Listener): () => void {

@@ -1,8 +1,12 @@
 'use client';
 
 import { RingShaderBackground, useRingOrigin } from '@/components/ui/RingShaderBackground';
-import { useFeatureFlags, useHomeEventReactor, useHomeAssistant, useWeatherParams } from '@/hooks';
+import { useFeatureFlags, useHomeEventReactor, useHomeAssistant, useWeatherParams, type ReactiveTriggerConfig } from '@/hooks';
 import { PULSE_COLORS } from '@/lib/homePulseBus';
+
+// The wallpaper ripple is deliberately fixed to device toggles + errors across
+// all domains (the screensaver tips are the configurable surface, not this).
+const WALLPAPER_TRIGGER: ReactiveTriggerConfig = { kinds: ['on', 'off', 'error'], domains: [] };
 
 /**
  * The "Pulse" dashboard wallpaper: an animated ring background painted behind
@@ -22,7 +26,7 @@ export function PulseWallpaper() {
   const { wavyBackgroundEnabled, pulseWallpaperReactive, pulseMode } = useFeatureFlags();
   const weatherParams = useWeatherParams();
   const { connected, connecting, demoMode } = useHomeAssistant();
-  useHomeEventReactor(pulseWallpaperReactive, 'toggles-errors');
+  useHomeEventReactor(pulseWallpaperReactive, WALLPAPER_TRIGGER);
 
   // Shared origin: bottom edge below lg, centred on desktop (useRingOrigin).
   const { center, reach } = useRingOrigin();

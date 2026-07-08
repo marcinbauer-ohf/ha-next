@@ -162,7 +162,7 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
           <SearchField
             value={search}
             onChange={setSearch}
-            placeholder="Search entities…"
+            placeholder="Search devices…"
             inputRef={searchRef}
           />
         </div>
@@ -188,7 +188,7 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
         <div className="flex-1 overflow-y-auto px-ha-4 pb-ha-4 pt-ha-2">
           {filtered.length === 0 ? (
             <p className="text-sm text-text-tertiary text-center py-ha-6">
-              {search ? 'No matching entities' : 'All entities already added'}
+              {search ? 'No matching devices' : 'Everything’s already on your dashboard'}
             </p>
           ) : (
             <div className="space-y-ha-2">

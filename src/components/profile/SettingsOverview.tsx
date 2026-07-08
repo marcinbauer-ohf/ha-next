@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Icon } from '../ui/Icon';
 import { SectionLabel } from '../ui';
+import { SetupScreen } from '../ui/SetupScreen';
 import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { useLiveSummaryItems, PeopleBadge } from '@/components/sections/SummariesPanel';
@@ -29,7 +30,8 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
 
 
 export function SettingsOverview() {
-  const { connected, connecting, demoMode, haUrl } = useHomeAssistant();
+  const { connected, connecting, demoMode, haUrl, error, saveCredentials, enableDemoMode } = useHomeAssistant();
+  const [setupOpen, setSetupOpen] = useState(false);
   const liveSummaryItems = useLiveSummaryItems();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
 
@@ -134,7 +136,7 @@ export function SettingsOverview() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-text-primary">Home Assistant</p>
             <p className="text-xs text-text-secondary truncate">
-              {demoMode ? 'Running with bundled demo data' : haUrl || 'No server configured'}
+              {demoMode ? 'Running with bundled demo data' : haUrl || 'Not connected yet'}
             </p>
           </div>
           <span className={`flex items-center gap-1.5 text-xs font-semibold px-ha-3 py-1 rounded-full flex-shrink-0 ${toneClasses[connectionTone].badge}`}>
@@ -142,7 +144,37 @@ export function SettingsOverview() {
             {connectionLabel}
           </span>
         </div>
+        {/* Demo visitors get a plain-language way home to their real house —
+            never buried under developer tooling. */}
+        {demoMode && (
+          <button
+            type="button"
+            onClick={() => setSetupOpen(true)}
+            className="mt-ha-3 w-full h-10 rounded-ha-xl bg-ha-blue text-white text-sm font-semibold hover:bg-ha-blue/90 transition-colors"
+          >
+            Connect my home
+          </button>
+        )}
       </Card>
+
+      <SetupScreen
+        open={setupOpen}
+        onClose={() => setSetupOpen(false)}
+        onSave={async (url, token) => {
+          try {
+            await saveCredentials(url, token);
+            setSetupOpen(false);
+          } catch {
+            /* the dialog shows the friendly error inline */
+          }
+        }}
+        onUseDemo={() => {
+          enableDemoMode();
+          setSetupOpen(false);
+        }}
+        error={error}
+        connecting={connecting}
+      />
 
       {/* Home at a glance */}
       <Card>

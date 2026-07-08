@@ -10,7 +10,6 @@ import { useHomeAssistant } from '@/hooks';
  * (add-on panels, Lovelace dashboards) this prototype doesn't render.
  */
 export function NativeViewPlaceholder({
-  title,
   icon,
   urlPath,
 }: {
@@ -32,7 +31,7 @@ export function NativeViewPlaceholder({
         )}
       </span>
       <p className="max-w-sm text-sm text-text-tertiary">
-        <span className="capitalize">{title}</span> isn&apos;t part of this prototype.
+        This screen isn&apos;t built in here yet.
       </p>
       {externalHref && (
         <a

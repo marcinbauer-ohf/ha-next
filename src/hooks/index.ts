@@ -5,6 +5,7 @@ export {
   useHomeAssistantSelector,
   useEntity,
   useEntities,
+  useConnectionAlive,
 } from './useHomeAssistant';
 
 export {
@@ -31,7 +32,8 @@ export { useLongPress } from './useLongPress';
 
 export { useCopyToClipboard } from './useCopyToClipboard';
 
-export { useHomeEventReactor, type ReactiveTriggerMode } from './useHomeEventReactor';
+export { useHomeEventReactor, REACTIVE_TRIGGER_KINDS, type ReactiveTriggerKind, type ReactiveTriggerConfig } from './useHomeEventReactor';
+export { useHomePingPulse } from './useHomePingPulse';
 
 export { useSidebarItems, type SidebarItem } from './useSidebarItems';
 

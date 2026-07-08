@@ -26,6 +26,7 @@ import {
   getConfigEntries as getConfigEntriesAction,
   getIntegrationManifests as getIntegrationManifestsAction,
   getEntityHistory as getEntityHistoryAction,
+  getStatistics as getStatisticsAction,
   getLogbook as getLogbookAction,
   getAutomationConfig as getAutomationConfigAction,
   createArea as createAreaAction,
@@ -40,8 +41,10 @@ import {
   updateLabel as updateLabelAction,
   deleteLabel as deleteLabelAction,
   getCurrentUser as getCurrentUserAction,
+  subscribeToConnectionStatus,
+  isSocketAlive,
 } from '@/lib/homeassistant';
-import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields, HassUser } from '@/lib/homeassistant';
+import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, StatisticValue, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields, HassUser } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 import { emitHomePulse, PULSE_COLORS, type PulseColor, type PulseMeta } from '@/lib/homePulseBus';
@@ -92,6 +95,7 @@ interface HomeAssistantContextValue {
   getConfigEntries: () => Promise<ConfigEntry[]>;
   getIntegrationManifests: () => Promise<IntegrationManifest[]>;
   getEntityHistory: (entityId: string, hoursBack?: number) => Promise<HistoryPoint[]>;
+  getStatistics: (entityId: string, hoursBack: number, period: '5minute' | 'hour' | 'day') => Promise<StatisticValue[]>;
   getLogbook: (entityId: string | string[], hoursBack?: number) => Promise<LogbookEntry[]>;
   getAutomationConfig: (numericId: string) => Promise<AutomationConfig | null>;
   reconnect: () => Promise<void>;
@@ -161,6 +165,88 @@ function updateMockEntityInStore(entityId: string, entity: HassEntity | null): v
   });
 }
 
+// ── Demo-mode interactivity ──────────────────────────────────────────────────
+// The sample home must respond to taps — a silently inert demo reads as broken
+// and is the fastest way to lose a first-time visitor's trust. Toggles and the
+// common on/off services mutate the mock store locally; the entity-store
+// listeners (cards, pulse wallpaper, activity views) react exactly as they
+// would to a real state change.
+
+/** state pairs per domain: [primary "on-ish" state, "off-ish" state] */
+const DEMO_TOGGLE_STATES: Record<string, [string, string]> = {
+  light: ['on', 'off'],
+  switch: ['on', 'off'],
+  fan: ['on', 'off'],
+  input_boolean: ['on', 'off'],
+  humidifier: ['on', 'off'],
+  siren: ['on', 'off'],
+  media_player: ['playing', 'paused'],
+  lock: ['locked', 'unlocked'],
+  cover: ['open', 'closed'],
+};
+
+function setDemoEntityState(entityId: string, nextState: string): void {
+  const entity = mergedEntitiesStore[entityId];
+  if (!entity || entity.state === nextState) return;
+  const now = new Date().toISOString();
+  updateMockEntityInStore(entityId, {
+    ...entity,
+    state: nextState,
+    last_changed: now,
+    last_updated: now,
+  });
+}
+
+function demoToggleEntity(entityId: string, currentState?: string): void {
+  const entity = mergedEntitiesStore[entityId];
+  if (!entity) return;
+  const pair = DEMO_TOGGLE_STATES[entityId.split('.')[0]];
+  if (!pair) return;
+  const current = currentState ?? entity.state;
+  setDemoEntityState(entityId, current === pair[0] ? pair[1] : pair[0]);
+}
+
+/** Best-effort local handling of the common demo services (on/off/toggle…). */
+function demoCallService(params: CallServiceParams): void {
+  const rawTarget =
+    params.target?.entity_id ??
+    (params.serviceData?.entity_id as string | string[] | undefined);
+  const ids = Array.isArray(rawTarget) ? rawTarget : rawTarget ? [rawTarget] : [];
+  for (const id of ids) {
+    switch (params.service) {
+      case 'turn_on':
+        setDemoEntityState(id, DEMO_TOGGLE_STATES[id.split('.')[0]]?.[0] ?? 'on');
+        break;
+      case 'turn_off':
+        setDemoEntityState(id, DEMO_TOGGLE_STATES[id.split('.')[0]]?.[1] ?? 'off');
+        break;
+      case 'toggle':
+        demoToggleEntity(id);
+        break;
+      case 'lock':
+        setDemoEntityState(id, 'locked');
+        break;
+      case 'unlock':
+        setDemoEntityState(id, 'unlocked');
+        break;
+      case 'open_cover':
+        setDemoEntityState(id, 'open');
+        break;
+      case 'close_cover':
+        setDemoEntityState(id, 'closed');
+        break;
+      case 'media_play':
+        setDemoEntityState(id, 'playing');
+        break;
+      case 'media_pause':
+        setDemoEntityState(id, 'paused');
+        break;
+      default:
+        break; // everything else stays display-only in the demo
+    }
+  }
+}
+
 function getEntityStoreSnapshot(): HassEntities {
   return mergedEntitiesStore;
 }
@@ -190,17 +276,35 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const [currentUser, setCurrentUser] = useState<HassUser | null>(null);
   const [previewAsNonAdmin, setPreviewAsNonAdminState] = useState(false);
   const hasAutoConnected = useRef(false);
+  // Bumped whenever the user switches to demo mode; an in-flight saveCredentials
+  // from before the switch must not resolve into a live connection afterwards.
+  const sessionEpoch = useRef(0);
 
-  // Load credentials from localStorage on mount
+  // Load credentials from localStorage on mount. Storage can throw wholesale
+  // (blocked site data / private mode) — degrade to a session-only demo home
+  // instead of crashing the root; the app stays usable, nothing persists.
   useEffect(() => {
-    const storedUrl = localStorage.getItem(LS_URL_KEY) || '';
-    const storedToken = localStorage.getItem(LS_TOKEN_KEY) || '';
-    const storedDemoMode = localStorage.getItem(LS_DEMO_MODE_KEY) === '1';
+    let storedUrl = '';
+    let storedToken = '';
+    let storedDemoMode = false;
+    let storedPreviewNonAdmin = false;
+    try {
+      storedUrl = localStorage.getItem(LS_URL_KEY) || '';
+      storedToken = localStorage.getItem(LS_TOKEN_KEY) || '';
+      storedDemoMode = localStorage.getItem(LS_DEMO_MODE_KEY) === '1';
+      storedPreviewNonAdmin = localStorage.getItem(LS_PREVIEW_NON_ADMIN_KEY) === '1';
+    } catch {
+      /* storage unreadable — fall through to demo defaults */
+    }
     const hasStoredCredentials = !!storedUrl && !!storedToken;
     const shouldUseDemoMode = storedDemoMode || !hasStoredCredentials;
 
     if (!storedDemoMode && !hasStoredCredentials) {
-      localStorage.setItem(LS_DEMO_MODE_KEY, '1');
+      try {
+        localStorage.setItem(LS_DEMO_MODE_KEY, '1');
+      } catch {
+        /* write blocked — demo still runs for this session */
+      }
     }
 
     setHaUrl(storedUrl);
@@ -210,7 +314,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     setLiveEntities(EMPTY_ENTITIES);
     setMockEntities(shouldUseDemoMode ? createDemoEntities() : EMPTY_ENTITIES);
     setCurrentUser(shouldUseDemoMode ? DEMO_USER : null);
-    setPreviewAsNonAdminState(localStorage.getItem(LS_PREVIEW_NON_ADMIN_KEY) === '1');
+    setPreviewAsNonAdminState(storedPreviewNonAdmin);
     setHydrated(true);
   }, []);
 
@@ -257,7 +361,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
         }
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection failed');
+      setError(err instanceof Error ? err.message : 'We couldn’t reach your home. Check that Home Assistant is switched on, then try again.');
       setConnected(false);
       setLiveEntities(EMPTY_ENTITIES);
       setCurrentUser(null);
@@ -269,11 +373,23 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
 
   // Save credentials: attempt connection first, only persist on success
   const saveCredentials = useCallback(async (url: string, token: string) => {
+    const epoch = sessionEpoch.current;
     const trimmedUrl = url.replace(/\/+$/, '');
     await doConnect(trimmedUrl, token);
-    localStorage.setItem(LS_URL_KEY, trimmedUrl);
-    localStorage.setItem(LS_TOKEN_KEY, token);
-    localStorage.removeItem(LS_DEMO_MODE_KEY);
+    if (epoch !== sessionEpoch.current) {
+      // The user chose the demo home while this connect was in flight — honor
+      // that choice: drop the late connection instead of persisting it.
+      disconnect();
+      setConnected(false);
+      return;
+    }
+    try {
+      localStorage.setItem(LS_URL_KEY, trimmedUrl);
+      localStorage.setItem(LS_TOKEN_KEY, token);
+      localStorage.removeItem(LS_DEMO_MODE_KEY);
+    } catch {
+      /* storage blocked — keep the session-only connection running */
+    }
     setHaUrl(trimmedUrl);
     setHaToken(token);
     setDemoMode(false);
@@ -282,10 +398,15 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   }, [doConnect]);
 
   const enableDemoMode = useCallback(() => {
+    sessionEpoch.current += 1;
     disconnect();
-    localStorage.removeItem(LS_URL_KEY);
-    localStorage.removeItem(LS_TOKEN_KEY);
-    localStorage.setItem(LS_DEMO_MODE_KEY, '1');
+    try {
+      localStorage.removeItem(LS_URL_KEY);
+      localStorage.removeItem(LS_TOKEN_KEY);
+      localStorage.setItem(LS_DEMO_MODE_KEY, '1');
+    } catch {
+      /* storage blocked — demo still applies for this session */
+    }
     setHaUrl('');
     setHaToken('');
     setDemoMode(true);
@@ -318,7 +439,11 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   }, [haUrl, haToken, doConnect]);
 
   const toggleEntity = useCallback(async (entityId: string, currentState?: string) => {
-    if (demoMode || !connected) return;
+    if (demoMode) {
+      demoToggleEntity(entityId, currentState);
+      return;
+    }
+    if (!connected) return;
     try {
       await toggleEntityAction(entityId, currentState);
     } catch (err) {
@@ -332,7 +457,11 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   }, [demoMode, connected]);
 
   const callService = useCallback(async (params: CallServiceParams) => {
-    if (demoMode || !connected) return;
+    if (demoMode) {
+      demoCallService(params);
+      return;
+    }
+    if (!connected) return;
     try {
       await callServiceAction(params);
     } catch (err) {
@@ -369,6 +498,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const getConfigEntries = useCallback(() => getConfigEntriesAction(), []);
   const getIntegrationManifests = useCallback(() => getIntegrationManifestsAction(), []);
   const getEntityHistory = useCallback((entityId: string, hoursBack?: number) => getEntityHistoryAction(entityId, hoursBack), []);
+  const getStatistics = useCallback((entityId: string, hoursBack: number, period: '5minute' | 'hour' | 'day') => getStatisticsAction(entityId, hoursBack, period), []);
   const getLogbook = useCallback((entityId: string | string[], hoursBack?: number) => getLogbookAction(entityId, hoursBack), []);
   const getAutomationConfig = useCallback((numericId: string) => getAutomationConfigAction(numericId), []);
 
@@ -428,6 +558,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getConfigEntries,
     getIntegrationManifests,
     getEntityHistory,
+    getStatistics,
     getLogbook,
     getAutomationConfig,
     reconnect,
@@ -468,6 +599,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getConfigEntries,
     getIntegrationManifests,
     getEntityHistory,
+    getStatistics,
     getLogbook,
     getAutomationConfig,
     reconnect,
@@ -492,6 +624,16 @@ export function useHomeAssistant(): HomeAssistantContextValue {
     throw new Error('useHomeAssistant must be used within a HomeAssistantProvider');
   }
   return context;
+}
+
+/**
+ * Live WebSocket transport state — flips false when a connected instance goes
+ * away mid-session (e.g. an OS/Supervisor/Core update restarts HA) and true
+ * again on reconnect. Distinct from the provider's `connected`, which only
+ * tracks whether the initial connect succeeded. Always false in demo mode.
+ */
+export function useConnectionAlive(): boolean {
+  return useSyncExternalStore(subscribeToConnectionStatus, isSocketAlive, () => false);
 }
 
 export function useHomeAssistantEntities(): HassEntities {

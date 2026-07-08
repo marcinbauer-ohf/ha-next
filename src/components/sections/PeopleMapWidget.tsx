@@ -160,7 +160,7 @@ function PeopleSummaryCard({
           {everyoneHome ? 'Everyone home' : `${peopleHome.length} of ${total} home`}
         </span>
         <span className="text-xs text-text-secondary">
-          {home ? 'All accounted for' : 'No location data'}
+          {home ? 'All accounted for' : 'No one is sharing their location yet'}
         </span>
       </div>
       <div className="flex -space-x-2 flex-shrink-0">

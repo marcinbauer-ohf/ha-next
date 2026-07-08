@@ -9,7 +9,7 @@ import { StateTimeline, type StateSegment } from '../ui/StateTimeline';
 import { Sparkline } from '../ui/Sparkline';
 import { DomainControls } from './DeviceControls';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
-import type { HistoryPoint } from '@/lib/homeassistant/types';
+import type { HistoryPoint, StatisticValue } from '@/lib/homeassistant/types';
 
 // ── Graph config types ────────────────────────────────────────────────────────
 
@@ -18,8 +18,14 @@ const TIME_SPANS = [
   { value: '6h',  label: '6h',  hours: 6 },
   { value: '24h', label: '24h', hours: 24 },
   { value: '7d',  label: '7d',  hours: 168 },
+  { value: '30d', label: '30d', hours: 720 },
 ] as const;
 type TimeSpan = typeof TIME_SPANS[number]['value'];
+
+// Spans at or beyond this use long-term statistics instead of raw history —
+// the recorder purges raw states after ~10 days, so 7d/30d raw fetches come
+// back partial (or empty) on real instances. Statistics live forever.
+const STATS_THRESHOLD_HOURS = 168;
 
 const AGGREGATIONS = [
   { value: 'auto',   label: 'Auto' },
@@ -85,7 +91,11 @@ function buildTimeTicks(startMs: number, endMs: number, hours: number): TimeTick
   const hhmm = (d: Date) => d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
   const labelFor = (d: Date): string | null => {
-    if (kind === 'day') return d.toLocaleDateString(undefined, { weekday: 'short' });
+    if (kind === 'day') {
+      // A month of daily ticks would crowd weekday labels — label Mondays only.
+      if (hours > 200) return d.getDay() === 1 ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : null;
+      return d.toLocaleDateString(undefined, { weekday: 'short' });
+    }
     // Hourly grid over 24h would crowd labels — keep ticks, label every 6h.
     if (hours > 6 && hours <= 24) return d.getHours() % 6 === 0 ? hhmm(d) : null;
     return hhmm(d);
@@ -180,8 +190,11 @@ export function formatHoverTime(tsSeconds: number): string {
 }
 
 export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
-  const { getEntityHistory, connected, demoMode } = useHomeAssistant();
+  const { getEntityHistory, getStatistics, connected, demoMode } = useHomeAssistant();
   const [history, setHistory] = useState<HistoryPoint[]>([]);
+  // Long-term statistics buckets — the data source for 7d/30d spans. Null
+  // means "not using statistics" (short span, or the entity has none).
+  const [stats, setStats] = useState<StatisticValue[] | null>(null);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [timeSpan, setTimeSpan] = useState<TimeSpan>('24h');
@@ -192,11 +205,28 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
   useEffect(() => {
     setIsHistoryLoading(true);
     setHoveredIndex(null);
+    setStats(null);
     const base = parseFloat(entity.state);
     const nowSec = Date.now() / 1000;
     const spanSec = hours * 3600;
+    const statsPeriod = hours > 200 ? 'day' : 'hour';
 
     if (demoMode || !connected) {
+      if (!isNaN(base) && hours >= STATS_THRESHOLD_HOURS) {
+        // Long spans mirror the live statistics shape: mean + min/max band.
+        const bucketMs = (statsPeriod === 'day' ? 24 : 1) * 3600_000;
+        const count = Math.min(Math.round((hours * 3600_000) / bucketMs), 192);
+        const nowMs = Date.now();
+        setStats(Array.from({ length: count }, (_, i) => {
+          const start = nowMs - (count - i) * bucketMs;
+          const t = i / (count - 1);
+          const mean = base + Math.sin(t * Math.PI * 5) * (base * 0.05) + Math.sin(t * Math.PI * 17) * (base * 0.02);
+          const spread = Math.abs(base) * (0.04 + 0.03 * Math.abs(Math.sin(t * 13)));
+          return { start, end: start + bucketMs, mean, min: mean - spread, max: mean + spread };
+        }));
+        setIsHistoryLoading(false);
+        return;
+      }
       const count = Math.min(hours * 4, 192); // ~4 pts/hr, max 192
       let pts: HistoryPoint[];
       if (isNaN(base)) {
@@ -221,7 +251,20 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
       return;
     }
     setHistory([]);
-    getEntityHistory(entity.entityId, hours).then(pts => {
+    let cancelled = false;
+    (async () => {
+      // Long spans: statistics first (raw history is purged after ~10 days).
+      if (hours >= STATS_THRESHOLD_HOURS) {
+        const buckets = await getStatistics(entity.entityId, hours, statsPeriod);
+        if (cancelled) return;
+        if (buckets.filter(b => b.mean != null || b.state != null).length >= 3) {
+          setStats(buckets);
+          setIsHistoryLoading(false);
+          return;
+        }
+      }
+      const pts = await getEntityHistory(entity.entityId, hours);
+      if (cancelled) return;
       const b = parseFloat(entity.state);
       if (pts.length < 3 && !isNaN(b)) {
         const count = 48;
@@ -233,7 +276,8 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
         setHistory(pts);
       }
       setIsHistoryLoading(false);
-    });
+    })();
+    return () => { cancelled = true; };
   }, [entity.entityId, hours, connected, demoMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build parallel arrays: values + timestamps
@@ -242,8 +286,22 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
     return isNaN(value) ? null : { value, ts: pt.lc ?? pt.lu ?? null };
   }).filter(Boolean) as { value: number; ts: number | null }[];
 
-  const historyData = applyAggregation(rawHistoryData, aggregation, hours);
+  // Statistics buckets → mean series + min/max envelope. Metered entities
+  // (energy) have no mean; their state reading stands in and there's no band.
+  const statsData = stats
+    ?.map(b => {
+      const value = b.mean ?? b.state;
+      if (value == null || isNaN(value)) return null;
+      return { value, ts: (b.start + (b.end - b.start) / 2) / 1000, low: b.min ?? null, high: b.max ?? null };
+    })
+    .filter(Boolean) as { value: number; ts: number; low: number | null; high: number | null }[] | undefined;
+  const statsActive = !!statsData && statsData.length >= 3;
+
+  const historyData = statsActive ? statsData! : applyAggregation(rawHistoryData, aggregation, hours);
   const numericPoints = historyData.map(d => d.value);
+  const hasBand = statsActive && statsData!.every(d => d.low != null && d.high != null);
+  const bandLow = hasBand ? statsData!.map(d => d.low as number) : undefined;
+  const bandHigh = hasBand ? statsData!.map(d => d.high as number) : undefined;
 
   const { xFractions, ticks: timeTicks } = computeChartAxis(historyData, hours);
 
@@ -260,8 +318,12 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
         ? (hoveredData.value === 1 ? 'On' : 'Off')
         : Number.isInteger(hoveredData.value) ? String(hoveredData.value) : hoveredData.value.toFixed(1))
     : (isBoolean ? entity.state : numericDisplay);
+  // Hovering a statistics bucket also surfaces its min–max range next to the time.
+  const hoveredBand = hasBand && hoveredIndex !== null ? statsData![hoveredIndex] : null;
   const timeLabel = hoveredData
-    ? (hoveredData.ts ? formatHoverTime(hoveredData.ts) : null)
+    ? (hoveredData.ts
+        ? formatHoverTime(hoveredData.ts) + (hoveredBand ? ` · ${hoveredBand.low!.toFixed(1)}–${hoveredBand.high!.toFixed(1)}` : '')
+        : null)
     : 'NOW';
 
   const hasChart = numericPoints.length >= 3;
@@ -381,6 +443,8 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
                   stepped={isBoolean}
                   onHover={setHoveredIndex}
                   xFractions={xFractions}
+                  bandLow={bandLow}
+                  bandHigh={bandHigh}
                   fillHeight
                 />
               </div>
@@ -420,7 +484,9 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
               onChange={v => setTimeSpan(v as TimeSpan)}
               className="text-xs"
             />
-            {isNumeric && hasChart && (
+            {/* Statistics spans are pre-bucketed by the recorder (hour/day) —
+                the aggregation picker only applies to raw history. */}
+            {isNumeric && hasChart && !statsActive && (
               <>
                 <div className="lg:hidden">
                   <SegmentedControl
@@ -466,6 +532,7 @@ function DeviceInfoTab({ deviceName, deviceMeta, entities, onNavigate }: {
   onNavigate: () => void;
 }) {
   const router = useRouter();
+  const { isAdmin } = useHomeAssistant();
   const rows: { label: string; value: string }[] = [];
   if (deviceName) rows.push({ label: 'Device', value: deviceName });
   if (deviceMeta?.areaName) rows.push({ label: 'Area', value: deviceMeta.areaName });
@@ -505,11 +572,13 @@ function DeviceInfoTab({ deviceName, deviceMeta, entities, onNavigate }: {
         </div>
       )}
       <div className="px-ha-4">
-        <ListSection title={`Entities (${allEntities.length})`}>
+        <ListSection title={`Controls & sensors (${allEntities.length})`}>
           {allEntities.map(e => (
             <div key={e.entityId} className="flex items-center justify-between gap-4 px-ha-4 py-ha-3">
               <span className="text-sm text-text-primary capitalize">{e.name || e.domain}</span>
-              <span className="text-xs text-text-tertiary font-mono truncate max-w-[55%] text-right">{e.entityId}</span>
+              {isAdmin && (
+                <span className="text-xs text-text-tertiary font-mono truncate max-w-[55%] text-right">{e.entityId}</span>
+              )}
             </div>
           ))}
         </ListSection>

@@ -257,7 +257,7 @@ export function PowerAttributionChart() {
           <div className="py-ha-4 text-center text-[13px] text-text-tertiary">Loading device activity…</div>
         )}
         {!loading && traces.length === 0 && (
-          <div className="py-ha-4 text-center text-[13px] text-text-tertiary">No controllable devices to attribute.</div>
+          <div className="py-ha-4 text-center text-[13px] text-text-tertiary">No devices are drawing measurable power right now.</div>
         )}
         {!loading && traces.map(t => {
           const active = t.device.id === selectedId;

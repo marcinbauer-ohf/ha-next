@@ -132,7 +132,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
       <p className={clsx('font-semibold leading-tight truncate ha-card-marquee', hero ? 'text-[15px]' : 'text-sm', showFeed ? 'text-white' : 'text-text-primary')}><span data-marquee>{primary.name}</span></p>
       {isUnavailable ? (
         <div className={clsx('flex items-baseline gap-1.5', hero ? 'mt-1' : 'mt-0.5')}>
-          <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-amber-500/90">Unavailable</span>
+          <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-amber-500/90">Offline</span>
           {formatUnavailableDuration(primary.lastChanged) && (
             <span className="text-[12px] font-medium font-mono text-amber-500/60">
               {formatUnavailableDuration(primary.lastChanged) === 'just now'

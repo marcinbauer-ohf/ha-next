@@ -64,7 +64,7 @@ function NavItem({
       type="button"
       onClick={onSelect}
       data-settings-slug={item.slug}
-      title={empty ? "This view isn't designed or built yet" : undefined}
+      title={empty ? 'Coming soon' : undefined}
       style={accentActive ? { backgroundColor: `${accent}1a` } : undefined}
       className={clsx(
         'group w-full flex items-center gap-ha-3 px-ha-4 text-left transition-colors border-b border-surface-low/40 last:border-0 py-ha-2',

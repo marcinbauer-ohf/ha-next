@@ -142,6 +142,19 @@ export interface BackupRunningSummary {
   stage?: string;
 }
 
+/** Which core system component is installing. These restart HA and drop the socket. */
+export type SystemUpdateComponent = 'os' | 'supervisor' | 'core';
+
+export interface SystemUpdateInstall {
+  entityId: string;
+  component: SystemUpdateComponent;
+  /** User-facing name, e.g. "Home Assistant Operating System". */
+  label: string;
+  /** 0–100, or null while HA hasn't reported a percentage yet. */
+  percentage: number | null;
+  targetVersion?: string;
+}
+
 export interface AlarmSummary {
   entityId: string;
   name: string;
@@ -568,6 +581,67 @@ export function areSimulationEntitiesEqual(
   );
 }
 
+// The three core-system update entities. Each install restarts Home Assistant
+// and takes the whole instance (and this socket) offline for minutes — the case
+// the "system updating" overlay latches onto. Add-on/integration updates share
+// the `update.` domain but don't restart HA, so they're excluded here.
+const SYSTEM_UPDATE_COMPONENTS: { pattern: RegExp; component: SystemUpdateComponent; label: string }[] = [
+  { pattern: /operating_system/, component: 'os', label: 'Home Assistant Operating System' },
+  { pattern: /supervisor/, component: 'supervisor', label: 'Home Assistant Supervisor' },
+  { pattern: /_core(_|$)/, component: 'core', label: 'Home Assistant Core' },
+];
+
+function classifySystemUpdate(entityId: string): { component: SystemUpdateComponent; label: string } | null {
+  if (!entityId.startsWith('update.home_assistant')) return null;
+  for (const candidate of SYSTEM_UPDATE_COMPONENTS) {
+    if (candidate.pattern.test(entityId)) {
+      return { component: candidate.component, label: candidate.label };
+    }
+  }
+  return null;
+}
+
+/**
+ * The core-system update (OS/Supervisor/Core) currently installing, or null.
+ * `in_progress` is a bool on modern update entities (older cores briefly used a
+ * percentage there). Kept separate from selectActivityData's activeUpdateInstalls
+ * so the update overlay can subscribe to just this one cheap signal.
+ */
+export function selectSystemUpdateInstall(entities: HassEntities): SystemUpdateInstall | null {
+  for (const [entityId, entity] of Object.entries(entities)) {
+    if (!entityId.startsWith('update.')) continue;
+    const installing =
+      entity.attributes.in_progress === true || typeof entity.attributes.in_progress === 'number';
+    if (!installing) continue;
+    const classified = classifySystemUpdate(entityId);
+    if (!classified) continue;
+    const rawPercentage = Number(entity.attributes.update_percentage);
+    return {
+      entityId,
+      component: classified.component,
+      label: (entity.attributes.title as string | undefined) || classified.label,
+      percentage: Number.isFinite(rawPercentage) ? Math.max(0, Math.min(100, rawPercentage)) : null,
+      targetVersion: entity.attributes.latest_version as string | undefined,
+    };
+  }
+  return null;
+}
+
+export function areSystemUpdateInstallsEqual(
+  previous: SystemUpdateInstall | null,
+  next: SystemUpdateInstall | null,
+): boolean {
+  if (previous === next) return true;
+  if (!previous || !next) return false;
+  return (
+    previous.entityId === next.entityId &&
+    previous.component === next.component &&
+    previous.label === next.label &&
+    previous.percentage === next.percentage &&
+    previous.targetVersion === next.targetVersion
+  );
+}
+
 export function selectActivityData(entities: HassEntities): ActivityData {
   const activeUpdates: UpdateSummary[] = [];
   const activeNotifications: NotificationSummary[] = [];
@@ -958,4 +1032,16 @@ export function selectWeatherOptions(entities: HassEntities): WeatherOption[] {
 
 export function areWeatherOptionsEqual(previous: WeatherOption[], next: WeatherOption[]): boolean {
   return areArraysEqual(previous, next, (a, b) => a.value === b.value && a.label === b.label);
+}
+
+/** Sorted, de-duped list of entity domains present in the instance — for the
+ *  reactive-trigger domain filter chips. */
+export function selectEntityDomains(entities: HassEntities): string[] {
+  const domains = new Set<string>();
+  for (const id in entities) domains.add(id.split('.')[0]);
+  return Array.from(domains).sort();
+}
+
+export function areEntityDomainsEqual(previous: string[], next: string[]): boolean {
+  return areArraysEqual(previous, next, (a, b) => a === b);
 }

@@ -30,9 +30,16 @@ interface SparklineProps {
   /** Override the accent as an "R,G,B" triple (e.g. "139,92,246"). Defaults to
    *  the on/off green/grey. The `on` opacity treatment still applies. */
   rgb?: string;
+  /**
+   * Optional min/max envelope (long-term statistics): per-point lower and
+   * upper bounds, same length as `points`. Rendered as a soft band behind the
+   * mean line; the y-scale stretches to contain it.
+   */
+  bandLow?: number[];
+  bandHigh?: number[];
 }
 
-export function Sparkline({ points, on, gradientId, small, stepped, onHover, fillHeight, endDot, crisp, xFractions, rgb }: SparklineProps) {
+export function Sparkline({ points, on, gradientId, small, stepped, onHover, fillHeight, endDot, crisp, xFractions, rgb, bandLow, bandHigh }: SparklineProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   // Index of the data point under the cursor; drives both the crosshair line
   // and the marker dot that rides the line as the pointer moves.
@@ -43,15 +50,15 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, fil
   const W = 280;
   const H = small ? 32 : 56;
   const pad = small ? 1 : 4;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
+  const hasBand = !!bandLow && !!bandHigh && bandLow.length === points.length && bandHigh.length === points.length;
+  const min = Math.min(...points, ...(hasBand ? bandLow! : []));
+  const max = Math.max(...points, ...(hasBand ? bandHigh! : []));
   const range = max - min || 1;
 
   const useTimeAxis = !!xFractions && xFractions.length === points.length;
-  const coords = points.map((v, i) => ({
-    x: (useTimeAxis ? xFractions![i] : i / (points.length - 1)) * W,
-    y: H - pad - ((v - min) / range) * (H - pad * 2),
-  }));
+  const xOf = (i: number) => (useTimeAxis ? xFractions![i] : i / (points.length - 1)) * W;
+  const yOf = (v: number) => H - pad - ((v - min) / range) * (H - pad * 2);
+  const coords = points.map((v, i) => ({ x: xOf(i), y: yOf(v) }));
 
   const line = stepped
     ? coords.reduce((p, pt, i) => {
@@ -66,6 +73,31 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, fil
       }, '');
 
   const area = `${line} L${W},${H} L0,${H} Z`;
+
+  // Min→max envelope: upper bound left-to-right, lower bound back, closed.
+  // Smoothed with the same midpoint-bezier treatment as the mean line.
+  const bandPath = hasBand
+    ? (() => {
+        const smooth = (vals: number[], reverse: boolean) => {
+          const idx = vals.map((_, i) => i);
+          if (reverse) idx.reverse();
+          let d = '';
+          for (let k = 0; k < idx.length; k++) {
+            const i = idx[k];
+            const x = xOf(i);
+            const y = yOf(vals[i]);
+            if (k === 0) { d += `${reverse ? 'L' : 'M'}${x},${y}`; continue; }
+            const pi = idx[k - 1];
+            const px = xOf(pi);
+            const py = yOf(vals[pi]);
+            const cx = (px + x) / 2;
+            d += ` C${cx},${py} ${cx},${y} ${x},${y}`;
+          }
+          return d;
+        };
+        return `${smooth(bandHigh!, false)} ${smooth(bandLow!, true)} Z`;
+      })()
+    : null;
 
   // Line color — same for stroke and fill, just different opacity
   const r = rgb ?? (on ? '34,197,94' : '120,120,120');
@@ -110,6 +142,7 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, fil
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
       </defs>
+      {bandPath && <path d={bandPath} fill={`rgba(${r},0.14)`} />}
       <path d={area} fill={`url(#${gradientId})`} />
       <path d={line} stroke={stroke} strokeWidth={small ? '1' : '1.5'} fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect={crisp ? 'non-scaling-stroke' : undefined} />
 

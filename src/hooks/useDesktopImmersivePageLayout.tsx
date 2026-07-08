@@ -19,7 +19,11 @@ export function useDesktopImmersivePageLayout() {
       return undefined;
     }
 
-    const statusBarHeight = 'calc(var(--ha-space-2) + 48px + var(--ha-edge-padding))';
+    // Must match the StatusBar footer's real height so immersive content clears
+    // it: pt-ha-2 (--ha-space-2) + 48px content row + pb-6 (1.5rem). The footer
+    // has no solid backing, so any under-count lets dashboard cards show through
+    // around the activity chips (they appear to "float out" over the content).
+    const statusBarHeight = 'calc(var(--ha-space-2) + 48px + 1.5rem)';
     const compensatingPadding = {
       paddingLeft: 'calc(2 * var(--ha-edge-padding) + 64px)',
       paddingTop: 'calc(var(--ha-edge-padding) + 64px)',

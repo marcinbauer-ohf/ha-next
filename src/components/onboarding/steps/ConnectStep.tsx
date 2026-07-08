@@ -1,121 +1,208 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Icon } from '@/components/ui';
 import { useHomeAssistant } from '@/hooks';
-import {
-  mdiHomeAssistant,
-  mdiArrowRight,
-  mdiFlaskOutline,
-  mdiCheckCircle,
-} from '@mdi/js';
-import { INPUT_CLASS } from '../fieldStyles';
+import { haptic } from '@/lib/haptics';
+import { mdiCheck, mdiChevronDown } from '@mdi/js';
+import { friendlyConnectionError } from '@/lib/friendlyConnectionError';
+import { normalizeHaUrl } from '@/lib/normalizeHaUrl';
 import type { StepProps } from '../types';
+import { EASE_OUT, PrimaryPill, QuietButton, Rise, StepSubtitle, StepTitle } from '../ui';
 
-export function ConnectStep({ next }: StepProps) {
-  const { connected, connecting, demoMode, error, haUrl, saveCredentials, enableDemoMode } =
-    useHomeAssistant();
-  const [url, setUrl] = useState(haUrl);
+const FIELD_CLASS =
+  'w-full h-13 min-h-[52px] px-ha-4 rounded-ha-xl bg-surface-low/80 backdrop-blur-sm border border-surface-lower text-text-primary text-base placeholder:text-text-tertiary select-text focus:outline-none focus:ring-2 focus:ring-ha-blue/40 focus:border-ha-blue/60 transition-colors disabled:opacity-50';
+
+interface ConnectStepProps extends StepProps {
+  /** "Use the demo instead" — the sample home is already loaded. */
+  onDemo: () => void;
+}
+
+export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
+  const { saveCredentials, getAreaRegistry, connecting, connected, demoMode, error } = useHomeAssistant();
+  const reduce = useReducedMotion();
+  const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
+  const [attempted, setAttempted] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const urlRef = useRef<HTMLInputElement>(null);
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const celebratedRef = useRef(false);
 
-  const isReady = connected || demoMode;
+  // Success is derived, not stored: a live real connection shows the green
+  // state even when revisiting this step via Back — never an empty re-armed form.
+  const succeeded = connected && !demoMode;
 
-  const handleConnect = async (e: React.FormEvent) => {
+  // Desktop only — autofocusing on mobile shoves the keyboard over the intro copy.
+  useEffect(() => {
+    if (window.matchMedia('(min-width: 1024px)').matches) urlRef.current?.focus();
+  }, []);
+
+  // Celebrate once, then move on — only for a connection made HERE (attempted);
+  // revisiting via Back shows the green state without re-advancing. The timer
+  // lives in a ref and is only cleared on unmount so a re-render can't cancel
+  // the scheduled advance. While the check pulses we also peek at the area
+  // registry, so the flow can skip the rooms question for homes that already
+  // have their rooms set up.
+  useEffect(() => {
+    if (!succeeded || !attempted || celebratedRef.current) return;
+    celebratedRef.current = true;
+    haptic('success');
+    getAreaRegistry()
+      .then((areas) => update({ existingAreaCount: areas.length }))
+      .catch(() => update({ existingAreaCount: null }));
+    advanceTimer.current = setTimeout(next, 1100);
+  }, [succeeded, attempted, next, getAreaRegistry, update]);
+
+  useEffect(() => () => {
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+  }, []);
+
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (connecting || !url.trim() || !token.trim()) return;
-    try {
-      await saveCredentials(url.trim(), token.trim());
-      next();
-    } catch {
-      /* error surfaces via context.error */
-    }
+    if (connecting || succeeded || !url.trim() || !token.trim()) return;
+    setAttempted(true);
+    // The hook reports progress through `connecting` / `connected` / `error`.
+    saveCredentials(normalizeHaUrl(url), token.trim()).catch(() => {});
   };
 
-  if (isReady) {
-    return (
-      <div className="flex flex-col items-center text-center gap-ha-4 pt-ha-8">
-        <div className="w-14 h-14 rounded-full bg-green-500/10 flex items-center justify-center">
-          <Icon path={mdiCheckCircle} size={32} className="text-green-500" />
-        </div>
-        <div className="space-y-ha-1">
-          <h1 className="text-xl font-semibold">
-            {demoMode ? 'Exploring with demo data' : 'Connected'}
-          </h1>
-          <p className="text-sm text-text-secondary">
-            {demoMode
-              ? 'A sample home is loaded. Continue to set it up.'
-              : 'Your Home Assistant instance is linked.'}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const showError = attempted && !connecting && !succeeded && Boolean(error);
 
   return (
-    <div className="flex flex-col gap-ha-5">
-      <div className="flex items-center gap-ha-3">
-        <div className="w-11 h-11 rounded-ha-xl bg-ha-blue/10 flex items-center justify-center shrink-0">
-          <Icon path={mdiHomeAssistant} size={26} className="text-ha-blue" />
-        </div>
-        <div>
-          <h1 className="text-lg font-semibold leading-tight">Connect to Home Assistant</h1>
-          <p className="text-xs text-text-secondary">Or skip and use demo data.</p>
-        </div>
-      </div>
+    <div className="flex flex-col items-center text-center gap-ha-6 w-full">
+      <Rise className="space-y-ha-3">
+        <StepTitle>Let&apos;s find your home.</StepTitle>
+        <StepSubtitle>
+          Two things link this screen to your Home Assistant. Both stay on this device.
+        </StepSubtitle>
+      </Rise>
 
-      <form onSubmit={handleConnect} className="space-y-ha-3">
-        <input
-          type="url"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          placeholder="http://homeassistant.local:8123"
-          disabled={connecting}
-          className={INPUT_CLASS}
-          aria-label="Home Assistant URL"
-        />
-        <div>
-          <input
-            type="password"
-            value={token}
-            onChange={e => setToken(e.target.value)}
-            placeholder="Long-Lived Access Token"
-            disabled={connecting}
-            className={INPUT_CLASS}
-            aria-label="Long-Lived Access Token"
-          />
-          <p className="text-xs text-text-secondary mt-ha-1">
-            Profile → Security → Long-Lived Access Tokens
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-ha-3 rounded-ha-xl bg-red-500/10 border border-red-500/20 text-sm text-red-500">
-            {error}
+      <Rise delay={0.05} className="w-full max-w-[520px] mx-auto">
+        <form onSubmit={submit} noValidate className="w-full space-y-ha-4 text-left">
+          <div className="space-y-ha-1.5">
+            <label htmlFor="onb-url" className="block text-sm font-medium text-text-secondary px-ha-1">
+              Web address
+            </label>
+            <input
+              id="onb-url"
+              ref={urlRef}
+              type="text"
+              inputMode="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="homeassistant.local:8123"
+              disabled={connecting || succeeded}
+              className={FIELD_CLASS}
+              autoComplete="url"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+            <p className="text-[13px] text-text-tertiary px-ha-1">
+              The address you type in your browser to open Home Assistant.
+            </p>
           </div>
-        )}
 
-        <button
-          type="submit"
-          disabled={!url.trim() || !token.trim() || connecting}
-          className="w-full flex items-center justify-center gap-ha-2 py-3 px-4 rounded-ha-xl bg-ha-blue text-white font-medium hover:bg-ha-blue/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {connecting ? 'Connecting…' : 'Connect'}
-          {!connecting && <Icon path={mdiArrowRight} size={18} />}
-        </button>
+          <div className="space-y-ha-1.5">
+            <label htmlFor="onb-token" className="block text-sm font-medium text-text-secondary px-ha-1">
+              Access key
+            </label>
+            <input
+              id="onb-token"
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Paste your key here"
+              disabled={connecting || succeeded}
+              className={FIELD_CLASS}
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              onClick={() => setHelpOpen((v) => !v)}
+              className="flex items-center gap-ha-1 text-[13px] font-medium text-ha-blue hover:underline px-ha-1"
+              aria-expanded={helpOpen}
+            >
+              Where do I find my access key?
+              <Icon
+                path={mdiChevronDown}
+                size={15}
+                className={`transition-transform ${helpOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+            <AnimatePresence initial={false}>
+              {helpOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: EASE_OUT }}
+                  className="overflow-hidden"
+                >
+                  <ol className="mx-ha-1 mt-ha-1 rounded-ha-2xl bg-surface-low/70 border border-surface-lower p-ha-4 space-y-ha-2 text-[13px] leading-relaxed text-text-secondary list-decimal list-inside">
+                    <li>Open Home Assistant in your browser.</li>
+                    <li>Click your name in the bottom-left corner.</li>
+                    <li>Open the <span className="font-medium text-text-primary">Security</span> tab.</li>
+                    <li>
+                      At the bottom, choose{' '}
+                      <span className="font-medium text-text-primary">Create token</span> — that&apos;s
+                      Home Assistant&apos;s name for this key. Copy it here.
+                    </li>
+                  </ol>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            enableDemoMode();
-            next();
-          }}
-          disabled={connecting}
-          className="w-full flex items-center justify-center gap-ha-2 py-3 px-4 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary font-medium hover:bg-surface-low disabled:opacity-40 transition-colors"
-        >
-          <Icon path={mdiFlaskOutline} size={18} />
-          Use demo data
-        </button>
-      </form>
+          <AnimatePresence>
+            {showError && (
+              <motion.p
+                initial={{ opacity: 0, y: reduce ? 0 : -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25, ease: EASE_OUT }}
+                className="rounded-ha-2xl bg-amber-500/10 border border-amber-500/25 px-ha-4 py-ha-3 text-sm text-text-primary leading-relaxed"
+                role="alert"
+              >
+                {friendlyConnectionError(error)}
+              </motion.p>
+            )}
+          </AnimatePresence>
+
+          <div className="flex flex-col items-center gap-ha-2 pt-ha-1">
+            {succeeded ? (
+              <>
+                <motion.div
+                  role="status"
+                  initial={{ scale: reduce ? 1 : 0.7, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.4, ease: EASE_OUT }}
+                  className="inline-flex items-center gap-ha-2 h-13 min-h-[52px] px-8 rounded-ha-pill bg-green-600 text-white text-base font-semibold"
+                >
+                  <Icon path={mdiCheck} size={20} />
+                  You&apos;re connected
+                </motion.div>
+                {!attempted && <QuietButton onClick={next}>Continue</QuietButton>}
+              </>
+            ) : (
+              <PrimaryPill
+                type="submit"
+                disabled={!url.trim() || !token.trim()}
+                busy={connecting}
+                withArrow={!connecting}
+              >
+                {connecting ? 'Connecting…' : 'Connect'}
+              </PrimaryPill>
+            )}
+            {!succeeded && (
+              <QuietButton onClick={onDemo} disabled={connecting}>
+                Use the demo home instead
+              </QuietButton>
+            )}
+          </div>
+        </form>
+      </Rise>
     </div>
   );
 }

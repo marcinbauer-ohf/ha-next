@@ -1,2 +1,2 @@
-export { OnboardingWizard } from './OnboardingWizard';
-export type { OnboardingState, OnbArea, OnbFloor } from './types';
+export { OnboardingFlow } from './OnboardingFlow';
+export type { OnboardingState, OnbRoom, StepProps } from './types';

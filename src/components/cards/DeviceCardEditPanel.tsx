@@ -247,7 +247,7 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, h
             <div className="flex flex-wrap gap-ha-2">
               <button
                 onClick={() => setThumbnail(undefined)}
-                title="Auto — pick from the entity type"
+                title="Auto — based on the device type"
                 className={clsx(
                   'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden border-2 transition-colors',
                   thumbMode === 'auto' ? 'border-ha-blue' : 'border-transparent hover:border-surface-mid',

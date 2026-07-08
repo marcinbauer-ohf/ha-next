@@ -6,10 +6,14 @@ import { subscribeHomePulse, type PulseColor } from '@/lib/homePulseBus';
 // How long an event ripple takes to travel centre → edge. Much faster than the
 // ~50s ambient rings so it reads as a distinct, reactive response to an event.
 const PULSE_DURATION_MS = 5000;
+// Dissolve time when the ambient style (mode) is switched. The canvas fades out,
+// the shader swaps at the trough, then it fades back in — hiding the hard cut.
+const MODE_FADE_MS = 260;
 
 interface ActivePulse {
   bornTs: number; // requestAnimationFrame timestamp at emit (shares perf.now origin)
   color: PulseColor;
+  width: number; // thickness multiplier on top of the intensity width (1 = normal; ping pulses scale by latency)
 }
 
 // Intensity setting → pulse brightness + line thickness.
@@ -112,6 +116,7 @@ const FRAG = `
   uniform float u_reach;  // ring radius at full phase (UV-height units)
   uniform int u_mode;     // ambient style (PulseMode → MODE_INDEX)
   uniform float u_tinted; // 1.0 when an explicit health tint is set (skip iridescence)
+  uniform float u_opaque; // 1.0 → immersive modes fill fully (screensaver/onboarding)
 
   // Weather params for the 'weather' mode (all 0..1, temp -1..1).
   uniform float u_wxClouds;
@@ -126,7 +131,7 @@ const FRAG = `
   uniform float u_pulsePhase[${MAX_PULSES}]; // 0 at spawn → 1 fully expanded
   uniform vec3 u_pulseColor[${MAX_PULSES}];
   uniform float u_pulseStrength; // brightness of pulse rings (intensity setting)
-  uniform float u_pulseWidth;    // line thickness multiplier for pulse rings
+  uniform float u_pulseWidth[${MAX_PULSES}]; // per-pulse line thickness (intensity × latency factor)
 
   float hash11(float x) { return fract(sin(x * 127.1) * 43758.5453); }
 
@@ -173,16 +178,16 @@ const FRAG = `
     return res * res;
   }
 
+  // Trimmed to 3 octaves — the original's fine high-frequency layers read as
+  // grainy fractal noise; keeping only the low-frequency body gives broad,
+  // smooth flow for the calm blue warp screensaver.
   float warpFbm(vec2 p, float t) {
     mat2 mtx = mat2(0.8, 0.6, -0.6, 0.8);
     float f = 0.0;
-    f += 0.500000 * warpNoise(p + t); p = mtx * p * 2.02;
-    f += 0.031250 * warpNoise(p);     p = mtx * p * 2.01;
-    f += 0.250000 * warpNoise(p);     p = mtx * p * 2.03;
-    f += 0.125000 * warpNoise(p);     p = mtx * p * 2.01;
-    f += 0.062500 * warpNoise(p);     p = mtx * p * 2.04;
-    f += 0.015625 * warpNoise(p + sin(t));
-    return f / 0.96875;
+    f += 0.500000 * warpNoise(p + t);        p = mtx * p * 2.02;
+    f += 0.250000 * warpNoise(p);            p = mtx * p * 2.03;
+    f += 0.125000 * warpNoise(p + sin(t));
+    return f / 0.875;
   }
 
   float warpPattern(vec2 p, float t) {
@@ -422,6 +427,13 @@ const FRAG = `
     vec3 premul = vec3(0.0);
     float a = 0.0;
 
+    // Opaque (immersive) mode: an immersive branch sets opaqueFill=1 so the
+    // final composite lays the scene over opaqueBg and forces alpha=1 — no
+    // theme surface bleeds through. Ambient ring modes leave it 0 (they are
+    // meant to read as rings over the surface).
+    float opaqueFill = 0.0;
+    vec3 opaqueBg = vec3(0.0);
+
     if (u_mode == 1) {
       // HEARTBEAT — a calm lub-dub: a strong ring then a softer one, then rest.
       float period = 2.4;            // seconds between heartbeats
@@ -477,8 +489,10 @@ const FRAG = `
         col += bcol * band;
         cover += band;
       }
-      a = clamp(cover, 0.0, 1.0) * u_alpha * 2.4;
-      premul = clamp(col * u_alpha * 2.4, 0.0, 1.0);
+      float A = u_alpha * 2.4;
+      if (u_opaque > 0.5) { A = 1.0; opaqueFill = 1.0; opaqueBg = vec3(0.02, 0.03, 0.08); }
+      a = clamp(cover, 0.0, 1.0) * A;
+      premul = clamp(col * A, 0.0, 1.0);
     } else if (u_mode == 4) {
       // BOKEH — soft light orbs drifting slowly upward.
       vec2 gp = vec2(uv.x * aspect, uv.y);
@@ -499,8 +513,10 @@ const FRAG = `
         col += ocol * w;
         cover += w;
       }
-      a = clamp(cover, 0.0, 1.0) * u_alpha * 2.6;
-      premul = clamp(col * u_alpha * 2.6, 0.0, 1.0);
+      float A = u_alpha * 2.6;
+      if (u_opaque > 0.5) { A = 1.0; opaqueFill = 1.0; opaqueBg = vec3(0.03, 0.04, 0.09); }
+      a = clamp(cover, 0.0, 1.0) * A;
+      premul = clamp(col * A, 0.0, 1.0);
     } else if (u_mode == 5) {
       // DAWN — a slow flowing colour wash, no hard shapes.
       float n = fbm(uv * 2.0 + vec2(u_time * 0.03, u_time * 0.02));
@@ -509,7 +525,8 @@ const FRAG = `
       vec3 cool = vec3(0.32, 0.42, 0.85);
       vec3 col = mix(cool, warm, smoothstep(0.15, 0.85, uv.y * 0.55 + n * 0.55));
       col = mix(col, vec3(0.95, 0.72, 0.5), n2 * 0.3);
-      a = u_alpha * 2.6;
+      a = u_opaque > 0.5 ? 1.0 : u_alpha * 2.6;
+      if (u_opaque > 0.5) opaqueFill = 1.0;
       premul = clamp(col * a, 0.0, 1.0);
     } else if (u_mode == 6) {
       // BREATH ORB — one soft glow gently expanding and contracting.
@@ -578,18 +595,24 @@ const FRAG = `
         A += glow * clarity * u_alpha * 2.0;
       }
 
-      a = clamp(A, 0.0, 1.0);
+      a = u_opaque > 0.5 ? 1.0 : clamp(A, 0.0, 1.0);
+      if (u_opaque > 0.5) opaqueFill = 1.0;
       premul = clamp(col * a, 0.0, 1.0);
     } else if (u_mode == 8) {
-      // WARP — liquid domain-warped fBM ("Base warp fBM", tdG3Rd).
-      // Slowed to a quarter of the original speed for a calm ambient read;
-      // shade doubles as alpha so dark regions stay transparent and the
-      // theme surface shows through.
-      float wt = u_time * 0.25;
-      vec2 wp = vec2(uv.x * aspect, uv.y);
-      float shade = clamp(warpPattern(wp, wt), 0.0, 1.0);
-      vec3 col = warpColormap(shade);
-      a = shade * u_alpha * 3.0;
+      // WARP — liquid domain-warped fBM ("Base warp fBM", tdG3Rd), retuned for
+      // a slow, low-detail, Home-Assistant-blue read: a slower clock, a single
+      // domain-warp (one less nesting level than warpPattern → broader, softer
+      // shapes) over lower-frequency coordinates, and a navy→HA-blue→ice ramp.
+      float wt = u_time * 0.1;
+      vec2 wp = vec2(uv.x * aspect, uv.y) * 0.65;
+      float shade = clamp(warpFbm(wp + warpFbm(wp, wt), wt), 0.0, 1.0);
+      vec3 deep = vec3(0.02, 0.09, 0.20);   // deep navy
+      vec3 blue = vec3(0.094, 0.737, 0.949); // HA primary #18bcf2
+      vec3 ice = vec3(0.82, 0.94, 1.0);      // near-white blue highlight
+      vec3 col = mix(deep, blue, smoothstep(0.0, 0.62, shade));
+      col = mix(col, ice, smoothstep(0.62, 1.0, shade));
+      a = u_opaque > 0.5 ? 1.0 : shade * u_alpha * 3.0;
+      if (u_opaque > 0.5) opaqueFill = 1.0;
       premul = clamp(col * a, 0.0, 1.0);
     } else if (u_mode == 9) {
       // NORTHERN LIGHTS — nimitz's "Auroras" (XtGGRt): night-sky gradient,
@@ -617,7 +640,8 @@ const FRAG = `
         float nz2 = triNoise2d(pos.xz * vec2(0.5, 0.7), 0.0);
         col += mix(vec3(0.2, 0.25, 0.5) * 0.08, vec3(0.3, 0.3, 0.5) * 0.7, nz2 * 0.4);
       }
-      a = u_alpha * 3.0;
+      a = u_opaque > 0.5 ? 1.0 : u_alpha * 3.0;
+      if (u_opaque > 0.5) opaqueFill = 1.0;
       premul = clamp(col * a, 0.0, 1.0);
     } else if (u_mode == 10) {
       // MESH GRADIENT — Paper's flowing colour spots with organic distortion
@@ -647,7 +671,8 @@ const FRAG = `
       col /= max(1e-4, tw);
       // Spot colours average toward grey at ring-mode alpha levels, so this
       // mode runs brighter than its siblings to keep the palette legible.
-      a = u_alpha * 4.2;
+      a = u_opaque > 0.5 ? 1.0 : u_alpha * 4.2;
+      if (u_opaque > 0.5) opaqueFill = 1.0;
       premul = clamp(col * a, 0.0, 1.0);
     } else if (u_mode == 11) {
       // GRAIN GRADIENT — Paper's "blob" shape: four soft lobes drifting around
@@ -678,7 +703,9 @@ const FRAG = `
       grad = mix(grad, vec3(0.20, 0.60, 0.75), smoothstep(0.14, 0.86, clamp(mixer, 0.0, 1.0)));
       grad = mix(grad, vec3(0.95, 0.70, 0.40), smoothstep(0.14, 0.86, clamp(mixer - 1.0, 0.0, 1.0)));
       grad = mix(grad, vec3(0.90, 0.35, 0.45), smoothstep(0.14, 0.86, clamp(mixer - 2.0, 0.0, 1.0)));
-      a = totalShape * u_alpha * 3.0;
+      float A = u_alpha * 3.0;
+      if (u_opaque > 0.5) { A = 1.0; opaqueFill = 1.0; opaqueBg = vec3(0.05, 0.09, 0.18); }
+      a = totalShape * A;
       premul = clamp(grad * a, 0.0, 1.0);
     } else if (u_mode == 12) {
       // PAPER WARP — Paper's warp: checks base pattern pushed through noise
@@ -703,7 +730,8 @@ const FRAG = `
       col = mix(col, vec3(0.96, 0.96, 1.00), clamp(mixer, 0.0, 1.0));
       col = mix(col, vec3(0.93, 0.48, 0.72), clamp(mixer - 1.0, 0.0, 1.0));
       col += 1.0 / 256.0 * (fract(sin(dot(0.014 * gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453123) - 0.5);
-      a = u_alpha * 2.6;
+      a = u_opaque > 0.5 ? 1.0 : u_alpha * 2.6;
+      if (u_opaque > 0.5) opaqueFill = 1.0;
       premul = clamp(col * a, 0.0, 1.0);
     } else if (u_mode == 13) {
       // SIMPLEX NOISE — Paper's two-octave simplex field mapped through a
@@ -725,7 +753,8 @@ const FRAG = `
         col = mix(vec3(0.45, 0.25, 0.55), vec3(0.16, 0.22, 0.55), sxStep(clamp(mixer - 4.0, 0.0, 1.0)));
       }
       col += 1.0 / 256.0 * (fract(sin(dot(0.014 * gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453123) - 0.5);
-      a = u_alpha * 2.6;
+      a = u_opaque > 0.5 ? 1.0 : u_alpha * 2.6;
+      if (u_opaque > 0.5) opaqueFill = 1.0;
       premul = clamp(col * a, 0.0, 1.0);
     } else if (u_mode == 14) {
       // METABALLS — Paper's gooey balls: 7 warm-coloured blobs wandering on
@@ -758,7 +787,9 @@ const FRAG = `
       }
       totalColor /= max(totalShape, 1e-4);
       float finalShape = smoothstep(0.4, 0.42, totalShape);
-      a = finalShape * u_alpha * 3.0;
+      float A = u_alpha * 3.0;
+      if (u_opaque > 0.5) { A = 1.0; opaqueFill = 1.0; opaqueBg = vec3(0.06, 0.03, 0.10); }
+      a = finalShape * A;
       premul = clamp(totalColor * a, 0.0, 1.0);
     } else {
       // CLASSIC
@@ -775,13 +806,19 @@ const FRAG = `
       float wave = (sin(angle * 5.0 + u_time * 0.6) + sin(angle * 9.0 - u_time * 0.4))
                    * 0.5 * 0.05 * phase * u_wave;
       float fade = (1.0 - phase) * smoothstep(0.0, 0.06, phase);
-      float cov = smoothstep(px * u_pulseWidth, 0.0, abs(dist - radius + wave))
+      float cov = smoothstep(px * u_pulseWidth[i], 0.0, abs(dist - radius + wave))
                   * fade * u_pulseStrength;
       premul += u_pulseColor[i] * cov;
       a += cov;
     }
 
-    gl_FragColor = vec4(clamp(premul, 0.0, 1.0), clamp(a, 0.0, 1.0));
+    if (opaqueFill > 0.5) {
+      // Immersive opaque fill: lay the (premultiplied) scene over an opaque
+      // backdrop and force alpha 1 so the theme surface never shows through.
+      gl_FragColor = vec4(clamp(premul + opaqueBg * (1.0 - clamp(a, 0.0, 1.0)), 0.0, 1.0), 1.0);
+    } else {
+      gl_FragColor = vec4(clamp(premul, 0.0, 1.0), clamp(a, 0.0, 1.0));
+    }
   }
 `;
 
@@ -813,6 +850,15 @@ interface Props {
   mode?: PulseMode;
   /** Live weather params for the 'weather' mode. */
   weather?: WeatherUniforms;
+  /**
+   * Immersive full-bleed backdrop (screensaver/onboarding). When true the
+   * picture-style modes (aurora, dawn, weather, warp, northern lights,
+   * mesh/grain/paper/simplex/metaballs, bokeh) fill fully opaque instead of
+   * blending translucently over the theme surface. Ambient ring modes
+   * (classic/heartbeat/breathing/breathOrb) are unaffected — they stay rings
+   * over the surface. Off by default for the subtle dashboard wallpaper.
+   */
+  opaque?: boolean;
 }
 
 /**
@@ -835,7 +881,7 @@ export function useRingOrigin(): { center: [number, number]; reach: number } {
     : { center: [0.5, 0.5], reach: 1.1 };
 }
 
-export function RingShaderBackground({ resolvedMode, wavy = false, reactive = false, intensity = 'subtle', tint = null, center = DEFAULT_CENTER, reach = DEFAULT_REACH, mode = 'classic', weather = NEUTRAL_WEATHER_UNIFORMS }: Props) {
+export function RingShaderBackground({ resolvedMode, wavy = false, reactive = false, intensity = 'subtle', tint = null, center = DEFAULT_CENTER, reach = DEFAULT_REACH, mode = 'classic', weather = NEUTRAL_WEATHER_UNIFORMS, opaque = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modeRef = useRef<'light' | 'dark'>(resolvedMode ?? getMode());
   useEffect(() => { modeRef.current = resolvedMode ?? getMode(); }, [resolvedMode]);
@@ -856,10 +902,35 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
   useEffect(() => { reachRef.current = reach; }, [reach]);
   // Ambient style, read live so flipping modes doesn't rebuild the context.
   const pulseModeRef = useRef<PulseMode>(mode);
-  useEffect(() => { pulseModeRef.current = mode; }, [mode]);
+  // Crossfade when the style changes: dissolve the canvas out, swap the shader's
+  // mode at the trough, dissolve back in — so a new pick doesn't hard-cut. The
+  // WebGL context is untouched (only the u_mode uniform flips), so this is cheap.
+  const appliedModeRef = useRef<PulseMode>(mode);
+  const [fadeOpacity, setFadeOpacity] = useState(1);
+  useEffect(() => {
+    if (mode === appliedModeRef.current) return;
+    const reduce = typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      // No animation under reduced motion — swap straight away.
+      pulseModeRef.current = mode;
+      appliedModeRef.current = mode;
+      return;
+    }
+    setFadeOpacity(0);
+    const t = window.setTimeout(() => {
+      pulseModeRef.current = mode;
+      appliedModeRef.current = mode;
+      setFadeOpacity(1);
+    }, MODE_FADE_MS);
+    return () => window.clearTimeout(t);
+  }, [mode]);
   // Weather params, read live so condition changes recolour without rebuilding.
   const weatherRef = useRef<WeatherUniforms>(weather);
   useEffect(() => { weatherRef.current = weather; }, [weather]);
+  // Opaque immersive fill, read live so it can flip without rebuilding.
+  const opaqueRef = useRef(opaque);
+  useEffect(() => { opaqueRef.current = opaque; }, [opaque]);
 
   // Active event ripples, fed by the home-pulse bus while reactive.
   const pulsesRef = useRef<ActivePulse[]>([]);
@@ -868,8 +939,8 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
       pulsesRef.current = [];
       return;
     }
-    return subscribeHomePulse((color) => {
-      pulsesRef.current.push({ bornTs: performance.now(), color });
+    return subscribeHomePulse((color, _meta, width) => {
+      pulsesRef.current.push({ bornTs: performance.now(), color, width: width ?? 1 });
       if (pulsesRef.current.length > MAX_PULSES) {
         pulsesRef.current = pulsesRef.current.slice(-MAX_PULSES);
       }
@@ -922,6 +993,7 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
     const uReach = gl.getUniformLocation(program, 'u_reach');
     const uMode = gl.getUniformLocation(program, 'u_mode');
     const uTinted = gl.getUniformLocation(program, 'u_tinted');
+    const uOpaque = gl.getUniformLocation(program, 'u_opaque');
     const uWxClouds = gl.getUniformLocation(program, 'u_wxClouds');
     const uWxRain = gl.getUniformLocation(program, 'u_wxRain');
     const uWxSnow = gl.getUniformLocation(program, 'u_wxSnow');
@@ -941,9 +1013,11 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
     // Scratch buffers reused each frame for the pulse uniform arrays.
     const phaseBuf = new Float32Array(MAX_PULSES);
     const colorBuf = new Float32Array(MAX_PULSES * 3);
+    const widthBuf = new Float32Array(MAX_PULSES);
 
     let rafId: number;
     let startTime: number | null = null;
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     const resize = () => {
       const { width, height } = canvas.getBoundingClientRect();
@@ -951,13 +1025,21 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       gl.viewport(0, 0, canvas.width, canvas.height);
+      // Under reduced motion the loop isn't running — repaint the static frame.
+      if (reducedMotionQuery.matches) {
+        cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(draw);
+      }
     };
 
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    const draw = (ts: number) => {
+    // Function declaration (hoisted) — resize() above may repaint before this
+    // line is reached during setup.
+    function draw(ts: number) {
+      if (!gl || !canvas) return; // narrowing for TS — unreachable at runtime
       if (startTime === null) startTime = ts;
       const t = (ts - startTime) / 1000;
 
@@ -972,6 +1054,7 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
       gl.uniform1f(uReach, reachRef.current);
       gl.uniform1i(uMode, MODE_INDEX[pulseModeRef.current]);
       gl.uniform1f(uTinted, tintRef.current ? 1 : 0);
+      gl.uniform1f(uOpaque, opaqueRef.current ? 1 : 0);
       const wx = weatherRef.current;
       gl.uniform1f(uWxClouds, wx.clouds);
       gl.uniform1f(uWxRain, wx.rain);
@@ -982,6 +1065,7 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
 
       // Age out expired pulses (compact in place) and upload the live ones.
       const pulses = pulsesRef.current;
+      const ints = INTENSITY[intensityRef.current];
       let live = 0;
       for (let i = 0; i < pulses.length; i++) {
         const phase = (ts - pulses[i].bornTs) / PULSE_DURATION_MS;
@@ -990,29 +1074,41 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
         colorBuf[live * 3] = pulses[i].color[0];
         colorBuf[live * 3 + 1] = pulses[i].color[1];
         colorBuf[live * 3 + 2] = pulses[i].color[2];
+        widthBuf[live] = ints.width * pulses[i].width;
         pulses[live] = pulses[i];
         live++;
         if (live >= MAX_PULSES) break;
       }
       pulses.length = live;
-      const ints = INTENSITY[intensityRef.current];
       gl.uniform1i(uPulseCount, live);
       gl.uniform1fv(uPulsePhase, phaseBuf);
       gl.uniform3fv(uPulseColor, colorBuf);
       gl.uniform1f(uPulseStrength, ints.strength);
-      gl.uniform1f(uPulseWidth, ints.width);
+      gl.uniform1fv(uPulseWidth, widthBuf);
 
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
+      // prefers-reduced-motion: paint the ambient gradient once and stop —
+      // a static backdrop instead of a continuously animating field.
+      if (!reducedMotionQuery.matches) {
+        rafId = requestAnimationFrame(draw);
+      }
+    }
+
+    const onMotionPrefChange = () => {
+      cancelAnimationFrame(rafId);
+      startTime = null;
       rafId = requestAnimationFrame(draw);
     };
+    reducedMotionQuery.addEventListener('change', onMotionPrefChange);
 
     rafId = requestAnimationFrame(draw);
 
     return () => {
       cancelAnimationFrame(rafId);
+      reducedMotionQuery.removeEventListener('change', onMotionPrefChange);
       ro.disconnect();
       gl.deleteProgram(program);
       gl.deleteShader(vert);
@@ -1025,7 +1121,8 @@ export function RingShaderBackground({ resolvedMode, wavy = false, reactive = fa
     <canvas
       ref={canvasRef}
       className="absolute inset-0 w-full h-full"
-      style={{ pointerEvents: 'none' }}
+      style={{ pointerEvents: 'none', opacity: fadeOpacity, transition: `opacity ${MODE_FADE_MS}ms ease` }}
+      aria-hidden
     />
   );
 }
@@ -1150,12 +1247,15 @@ function startCanvas2DFallback(
       }
       ctx.closePath();
       ctx.strokeStyle = `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${pAlpha})`;
-      ctx.lineWidth = dpr * 1.7 * ints.width;
+      ctx.lineWidth = dpr * 1.7 * ints.width * pulses[i].width;
       ctx.stroke();
     }
     pulses.length = live;
 
-    rafId = requestAnimationFrame(draw);
+    // Same reduced-motion contract as the WebGL path: one static frame.
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      rafId = requestAnimationFrame(draw);
+    }
   };
 
   rafId = requestAnimationFrame(draw);

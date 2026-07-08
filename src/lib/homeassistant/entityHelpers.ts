@@ -25,6 +25,7 @@ import {
   mdiSofaOutline,
   mdiTelevisionClassic,
   mdiShieldHome,
+  mdiCctv,
 } from '@mdi/js';
 import type { HassEntity } from '@/types';
 
@@ -326,11 +327,12 @@ export function deviceThumbnail(entity: HassEntity): string | null {
 }
 
 export const SECTION_ORDER = [
-  'climate', 'media_player', 'light', 'switch', 'fan',
+  'camera', 'climate', 'media_player', 'light', 'switch', 'fan',
   'lock', 'cover', 'vacuum', 'binary_sensor', 'sensor',
 ];
 
 export const SECTION_TITLES: Record<string, string> = {
+  camera: 'Cameras',
   climate: 'Climate',
   media_player: 'Media',
   light: 'Lights',
@@ -393,6 +395,7 @@ export const AREA_ICON = mdiSofaOutline;
 /** Representative icon for a device-type (domain) section header. */
 export function domainTypeIcon(domain: string): string {
   switch (domain) {
+    case 'camera': return mdiCctv;
     case 'light': return mdiLightbulb;
     case 'switch': return mdiToggleSwitchOutline;
     case 'climate': return mdiThermometer;

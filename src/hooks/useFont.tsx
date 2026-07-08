@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { mdiFormatFont } from '@mdi/js';
+import { flashHud } from '@/lib/hudFlashBus';
 
 /**
  * Live typeface switcher for the prototype.
@@ -215,9 +217,6 @@ export function FontProvider({ children }: { children: ReactNode }) {
     return isFontKey(stored) ? stored : 'theme';
   });
 
-  // Brief on-screen confirmation when cycled via keyboard.
-  const [flash, setFlash] = useState(false);
-
   // Apply the selected font — plus its per-face typographic tuning — to the
   // live document. Tracking/features are written to <body> so they cascade to
   // all text that doesn't set its own; "Theme default" clears every override.
@@ -244,21 +243,12 @@ export function FontProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const cycleFont = useCallback(() => {
-    setFontState((current) => {
-      const idx = FONT_KEYS.indexOf(current);
-      const next = FONT_KEYS[(idx + 1) % FONT_KEYS.length];
-      localStorage.setItem('ha-font-pref', next);
-      return next;
-    });
-    setFlash(true);
-  }, []);
-
-  // Auto-dismiss the flash pill.
-  useEffect(() => {
-    if (!flash) return;
-    const t = setTimeout(() => setFlash(false), 1300);
-    return () => clearTimeout(t);
-  }, [flash, font]);
+    const idx = FONT_KEYS.indexOf(font);
+    const next = FONT_KEYS[(idx + 1) % FONT_KEYS.length];
+    setFont(next);
+    const label = FONTS.find((f) => f.key === next)?.label ?? next;
+    flashHud({ shortcutId: 'global.font', value: label, icon: mdiFormatFont });
+  }, [font, setFont]);
 
   // Quick live toggle: Cmd/Ctrl + Shift + F cycles the typeface.
   useEffect(() => {
@@ -272,19 +262,9 @@ export function FontProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cycleFont]);
 
-  const activeLabel = FONTS.find((f) => f.key === font)?.label ?? font;
-
   return (
     <FontContext.Provider value={{ font, fonts: FONTS, setFont, cycleFont }}>
       {children}
-      {flash && (
-        <div
-          aria-hidden
-          className="fixed bottom-6 left-1/2 z-[9999] -translate-x-1/2 rounded-ha-pill border border-surface-lower bg-surface-default/95 px-ha-4 py-ha-2 text-sm font-semibold text-text-primary shadow-lg"
-        >
-          Aa · {activeLabel}
-        </div>
-      )}
     </FontContext.Provider>
   );
 }

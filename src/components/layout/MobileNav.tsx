@@ -1383,7 +1383,8 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       id: entity.id,
       type: 'entity' as const,
       name: entity.name,
-      subtitle: `${entity.id} · ${entity.state}`,
+      // Friendly state only — raw entity ids are too technical for search results.
+      subtitle: entity.state ? entity.state.charAt(0).toUpperCase() + entity.state.slice(1) : 'Device',
     }));
 
     return [...matchingDashboards, ...matchingApps, ...matchingEntityResults];

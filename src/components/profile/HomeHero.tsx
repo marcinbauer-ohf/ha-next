@@ -1,30 +1,13 @@
 'use client';
 
-import { useSyncExternalStore } from 'react';
 import { mdiPencilOutline, mdiImagePlusOutline } from '@mdi/js';
 import { Icon, HeroImage } from '../ui';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
-
-// Home name lives in localStorage (written by the onboarding wizard as
-// `ha_home_name`) — there is no HA config read for it yet. useSyncExternalStore
-// keeps SSR safe (server snapshot = 'Home', hydration reconciles to the stored
-// value without a setState-in-effect) and live-updates if another tab changes it.
-const LS_HOME_NAME = 'ha_home_name';
+import { useHomeName } from '@/lib/homeName';
 
 // Shared height so the image, empty state, and hydration skeleton never shift
 // the layout as the demo/real decision resolves.
 const HERO_HEIGHT = 'h-40 sm:h-52 lg:h-60';
-
-function subscribe(onChange: () => void) {
-  window.addEventListener('storage', onChange);
-  return () => window.removeEventListener('storage', onChange);
-}
-function getHomeName() {
-  return localStorage.getItem(LS_HOME_NAME) || 'Home';
-}
-function getServerHomeName() {
-  return 'Home';
-}
 
 /**
  * Hero banner for the Home Center. On a real HA instance it shows the home's
@@ -32,7 +15,7 @@ function getServerHomeName() {
  * real home to represent, so it falls back to an empty "add your image" prompt.
  */
 export function HomeHero({ onEdit }: { onEdit?: () => void }) {
-  const homeName = useSyncExternalStore(subscribe, getHomeName, getServerHomeName);
+  const homeName = useHomeName();
   const { demoMode, hydrated } = useHomeAssistant();
 
   // Before hydration `demoMode` is its default (false); render a neutral
