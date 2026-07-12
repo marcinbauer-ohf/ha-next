@@ -2,6 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import { useCloseOnScreensaver } from '@/contexts';
+import { useSheetDrag } from '@/hooks/useSheetDrag';
 
 interface DashboardSidePanelProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface DashboardSidePanelProps {
  */
 export function DashboardSidePanel({ open, onClose, children }: DashboardSidePanelProps) {
   useCloseOnScreensaver(open, onClose);
+  const sheetDrag = useSheetDrag({ onClose });
 
   return (
     <>
@@ -43,9 +45,12 @@ export function DashboardSidePanel({ open, onClose, children }: DashboardSidePan
               className={`absolute bottom-0 left-0 right-0 bg-surface-lower rounded-t-ha-3xl transition-transform duration-300 ease-out ${
                 open ? 'translate-y-0' : 'translate-y-full'
               }`}
-              style={{ maxHeight: '80dvh' }}
+              style={{ maxHeight: '80dvh', ...sheetDrag.dragStyle }}
             >
-              <div className="flex justify-center py-ha-2">
+              <div
+                {...sheetDrag.handleProps}
+                className="flex justify-center py-ha-2 touch-none cursor-grab active:cursor-grabbing"
+              >
                 <div className="w-8 h-1 rounded-full bg-text-secondary/40" />
               </div>
               <div className="overflow-y-auto" style={{ maxHeight: 'calc(80dvh - 20px)' }}>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { Icon } from '@/components/ui/Icon';
 import { SearchField } from '@/components/ui/SearchField';
 import { useHomeAssistantEntities } from '@/hooks/useHomeAssistant';
@@ -84,6 +84,7 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [search, setSearch] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
+  const dragControls = useDragControls();
 
   // Mounted ⇒ open, so always pass true; the screensaver closes it via onClose.
   useCloseOnScreensaver(true, onClose);
@@ -137,11 +138,22 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        drag="y"
+        dragListener={false}
+        dragControls={dragControls}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 0.9 }}
+        onDragEnd={(_, info) => {
+          if (info.offset.y > 120 || info.velocity.y > 800) onClose();
+        }}
         className="relative w-full lg:w-[480px] lg:rounded-ha-3xl bg-surface-default rounded-t-ha-3xl shadow-2xl flex flex-col max-h-[85vh] lg:max-h-[70vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Handle */}
-        <div className="flex justify-center pt-ha-3 pb-ha-1 lg:hidden">
+        {/* Handle — drag down to dismiss (mobile sheet only) */}
+        <div
+          className="flex justify-center pt-ha-3 pb-ha-1 lg:hidden touch-none cursor-grab active:cursor-grabbing"
+          onPointerDown={(e) => dragControls.start(e)}
+        >
           <div className="w-10 h-1 rounded-full bg-surface-mid" />
         </div>
 

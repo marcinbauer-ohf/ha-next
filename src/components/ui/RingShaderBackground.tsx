@@ -35,14 +35,18 @@ export type PulseIntensity = keyof typeof INTENSITY;
  *   dawn       — a slow flowing colour wash, no hard shapes
  *   breathOrb  — one soft glow gently expanding and contracting
  *   weather    — abstract, reactive ambience driven by a weather entity
- *   warp       — liquid domain-warped fBM in violet→magenta→white
+ *   warp       — liquid domain-warped fBM
  *                (port of "Base warp fBM" by trinketMage, shadertoy.com/view/tdG3Rd)
  *   northernLights — raymarched volumetric aurora curtains over a starfield
  *                (port of "Auroras" by nimitz, shadertoy.com/view/XtGGRt)
  *   meshGradient / grainGradient / paperWarp / simplexNoise / metaballs —
  *                ports of the eponymous Paper Shaders effects
- *                (github.com/paper-design/shaders, Apache-2.0) with palettes
- *                and parameters baked in for the screensaver.
+ *                (github.com/paper-design/shaders, Apache-2.0).
+ * Every colour mode shares one HA-blue ramp — deep navy (0.02,0.09,0.20) →
+ * HA primary #18bcf2 (0.094,0.737,0.949) → icy highlight (0.82,0.94,1.0) — so
+ * the whole screensaver family reads as the same blue. 'weather' is exempt
+ * (its colours encode live conditions) and the neutral ring modes stay theme-
+ * coloured.
  */
 export type PulseMode =
   | 'classic' | 'heartbeat' | 'breathing' | 'aurora' | 'bokeh' | 'dawn' | 'breathOrb' | 'weather'
@@ -249,7 +253,10 @@ const FRAG = `
       pt -= of;
       vec3 bpos = ro + pt * rd;
       float rzt = triNoise2d(bpos.zx, 0.06);
-      vec4 col2 = vec4((sin(1.0 - vec3(2.15, -0.5, 1.2) + i * 0.043) * 0.5 + 0.5) * rzt, rzt);
+      // HA-blue curtains: keep the raymarched density (rzt) but recolour the
+      // tone from HA primary → icy highlight instead of the original green.
+      vec3 aurTone = mix(vec3(0.094, 0.737, 0.949), vec3(0.82, 0.94, 1.0), 0.5 + 0.5 * sin(i * 0.043));
+      vec4 col2 = vec4(aurTone * rzt, rzt);
       avgCol = mix(avgCol, col2, 0.5);
       col += avgCol * exp2(-i * 0.065 - 2.5) * smoothstep(0.0, 5.0, i);
     }
@@ -273,7 +280,7 @@ const FRAG = `
       vec2 rn = hash33(id).xy;
       float c2 = 1.0 - smoothstep(0.0, 0.6, length(q));
       c2 *= step(rn.x, 0.0005 + i * i * 0.001);
-      c += c2 * (mix(vec3(1.0, 0.49, 0.1), vec3(0.75, 0.9, 1.0), rn.y) * 0.1 + 0.9);
+      c += c2 * (mix(vec3(0.6, 0.85, 1.0), vec3(0.9, 0.97, 1.0), rn.y) * 0.1 + 0.9);
       p *= 1.3;
     }
     return c * c * 0.8;
@@ -282,7 +289,7 @@ const FRAG = `
   vec3 nightBg(vec3 rd) {
     float sd = dot(normalize(vec3(-0.5, -0.6, 0.9)), rd) * 0.5 + 0.5;
     sd = pow(sd, 5.0);
-    return mix(vec3(0.05, 0.1, 0.2), vec3(0.1, 0.05, 0.2), sd) * 0.63;
+    return mix(vec3(0.03, 0.08, 0.18), vec3(0.05, 0.12, 0.22), sd) * 0.63;
   }
 
   // ── Paper Shaders helpers — ports from github.com/paper-design/shaders
@@ -485,7 +492,9 @@ const FRAG = `
         float yc = 0.5 + 0.16 * sin(uv.x * 3.0 + u_time * 0.3 + fi * 2.1)
                        + 0.12 * (fbm(vec2(uv.x * 2.0 - u_time * 0.05, fi)) - 0.5);
         float band = exp(-pow((uv.y - yc) / 0.13, 2.0));
-        vec3 bcol = 0.5 + 0.5 * cos(6.2831 * (vec3(0.0, 0.35, 0.6) + fi * 0.18 + u_time * 0.03));
+        // HA-blue ribbons: drift between HA primary and an icy highlight.
+        float tcol = 0.5 + 0.5 * sin(fi * 1.7 + u_time * 0.25 + uv.x * 2.0);
+        vec3 bcol = mix(vec3(0.094, 0.737, 0.949), vec3(0.82, 0.94, 1.0), tcol);
         col += bcol * band;
         cover += band;
       }
@@ -508,7 +517,7 @@ const FRAG = `
         float d = length(gp - vec2(x, y));
         float orb = smoothstep(size, size * 0.15, d);
         float vfade = smoothstep(0.0, 0.15, y) * smoothstep(1.0, 0.82, y);
-        vec3 ocol = 0.6 + 0.4 * cos(6.2831 * (vec3(0.05, 0.25, 0.45) + seed));
+        vec3 ocol = mix(vec3(0.094, 0.737, 0.949), vec3(0.82, 0.94, 1.0), seed);
         float w = orb * vfade * (0.4 + 0.6 * seed);
         col += ocol * w;
         cover += w;
@@ -521,10 +530,10 @@ const FRAG = `
       // DAWN — a slow flowing colour wash, no hard shapes.
       float n = fbm(uv * 2.0 + vec2(u_time * 0.03, u_time * 0.02));
       float n2 = fbm(uv * 1.3 - vec2(u_time * 0.025, 0.0));
-      vec3 warm = vec3(0.98, 0.55, 0.38);
-      vec3 cool = vec3(0.32, 0.42, 0.85);
-      vec3 col = mix(cool, warm, smoothstep(0.15, 0.85, uv.y * 0.55 + n * 0.55));
-      col = mix(col, vec3(0.95, 0.72, 0.5), n2 * 0.3);
+      vec3 deep = vec3(0.02, 0.09, 0.20);
+      vec3 blue = vec3(0.094, 0.737, 0.949);
+      vec3 col = mix(deep, blue, smoothstep(0.15, 0.85, uv.y * 0.55 + n * 0.55));
+      col = mix(col, vec3(0.82, 0.94, 1.0), n2 * 0.3);
       a = u_opaque > 0.5 ? 1.0 : u_alpha * 2.6;
       if (u_opaque > 0.5) opaqueFill = 1.0;
       premul = clamp(col * a, 0.0, 1.0);
@@ -533,7 +542,7 @@ const FRAG = `
       float breath = 0.5 + 0.5 * sin(u_time * 0.4);
       float radius = mix(0.28, 0.52, breath);
       float glow = exp(-(dist * dist) / (radius * radius) * 3.0);
-      vec3 col = mix(ambientCol, vec3(1.0, 0.78, 0.55), 0.6);
+      vec3 col = mix(ambientCol, vec3(0.094, 0.737, 0.949), 0.6);
       a = glow * u_alpha * 2.6;
       premul = clamp(col * a, 0.0, 1.0);
     } else if (u_mode == 7) {
@@ -659,10 +668,10 @@ const FRAG = `
       vec3 col = vec3(0.0);
       float tw = 0.0;
       for (int i = 0; i < 4; i++) {
-        vec3 ci = i == 0 ? vec3(0.55, 0.65, 0.98)
-                : i == 1 ? vec3(0.30, 0.20, 0.70)
-                : i == 2 ? vec3(0.95, 0.45, 0.70)
-                : vec3(0.98, 0.93, 0.88);
+        vec3 ci = i == 0 ? vec3(0.094, 0.737, 0.949)
+                : i == 1 ? vec3(0.04, 0.20, 0.42)
+                : i == 2 ? vec3(0.35, 0.83, 0.98)
+                : vec3(0.82, 0.94, 1.0);
         float d = pow(length(muvR - mgPos(i, t)), 3.5);
         float w = 1.0 / (d + 1e-3);
         col += ci * w;
@@ -699,10 +708,10 @@ const FRAG = `
       shape = clamp(shape - 0.5 / 4.0, 0.0, 1.0);
       float totalShape = smoothstep(0.0, 0.72, clamp(shape * 4.0, 0.0, 1.0));
       float mixer = shape * 3.0;
-      vec3 grad = vec3(0.10, 0.25, 0.55);
-      grad = mix(grad, vec3(0.20, 0.60, 0.75), smoothstep(0.14, 0.86, clamp(mixer, 0.0, 1.0)));
-      grad = mix(grad, vec3(0.95, 0.70, 0.40), smoothstep(0.14, 0.86, clamp(mixer - 1.0, 0.0, 1.0)));
-      grad = mix(grad, vec3(0.90, 0.35, 0.45), smoothstep(0.14, 0.86, clamp(mixer - 2.0, 0.0, 1.0)));
+      vec3 grad = vec3(0.02, 0.09, 0.20);
+      grad = mix(grad, vec3(0.094, 0.737, 0.949), smoothstep(0.14, 0.86, clamp(mixer, 0.0, 1.0)));
+      grad = mix(grad, vec3(0.45, 0.85, 0.98), smoothstep(0.14, 0.86, clamp(mixer - 1.0, 0.0, 1.0)));
+      grad = mix(grad, vec3(0.82, 0.94, 1.0), smoothstep(0.14, 0.86, clamp(mixer - 2.0, 0.0, 1.0)));
       float A = u_alpha * 3.0;
       if (u_opaque > 0.5) { A = 1.0; opaqueFill = 1.0; opaqueBg = vec3(0.05, 0.09, 0.18); }
       a = totalShape * A;
@@ -726,9 +735,9 @@ const FRAG = `
       vec2 cuv = wuv * (0.5 + 3.5 * 0.15);
       float shape = 0.5 + 0.5 * sin(cuv.x) * cos(cuv.y);
       float mixer = shape * 2.0;
-      vec3 col = vec3(0.35, 0.50, 0.92);
-      col = mix(col, vec3(0.96, 0.96, 1.00), clamp(mixer, 0.0, 1.0));
-      col = mix(col, vec3(0.93, 0.48, 0.72), clamp(mixer - 1.0, 0.0, 1.0));
+      vec3 col = vec3(0.094, 0.737, 0.949);
+      col = mix(col, vec3(0.96, 0.98, 1.00), clamp(mixer, 0.0, 1.0));
+      col = mix(col, vec3(0.04, 0.28, 0.55), clamp(mixer - 1.0, 0.0, 1.0));
       col += 1.0 / 256.0 * (fract(sin(dot(0.014 * gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453123) - 0.5);
       a = u_opaque > 0.5 ? 1.0 : u_alpha * 2.6;
       if (u_opaque > 0.5) opaqueFill = 1.0;
@@ -741,16 +750,16 @@ const FRAG = `
       float sn = 0.5 + 0.5 * (0.5 * snoise(suv - vec2(0.0, 0.3 * t))
                             + 0.5 * snoise(2.0 * suv + vec2(0.0, 0.32 * t)));
       float mixer = (sn - 0.5 / 5.0) * 5.0;
-      vec3 col = vec3(0.16, 0.22, 0.55);
-      col = mix(col, vec3(0.25, 0.60, 0.80), sxStep(clamp(mixer, 0.0, 1.0)));
-      col = mix(col, vec3(0.92, 0.85, 0.65), sxStep(clamp(mixer - 1.0, 0.0, 1.0)));
-      col = mix(col, vec3(0.90, 0.50, 0.45), sxStep(clamp(mixer - 2.0, 0.0, 1.0)));
-      col = mix(col, vec3(0.45, 0.25, 0.55), sxStep(clamp(mixer - 3.0, 0.0, 1.0)));
+      vec3 col = vec3(0.02, 0.09, 0.20);
+      col = mix(col, vec3(0.094, 0.737, 0.949), sxStep(clamp(mixer, 0.0, 1.0)));
+      col = mix(col, vec3(0.45, 0.85, 0.98), sxStep(clamp(mixer - 1.0, 0.0, 1.0)));
+      col = mix(col, vec3(0.82, 0.94, 1.0), sxStep(clamp(mixer - 2.0, 0.0, 1.0)));
+      col = mix(col, vec3(0.05, 0.30, 0.58), sxStep(clamp(mixer - 3.0, 0.0, 1.0)));
       // Wrap the out-of-range tails back between last and first colour.
       if (mixer < 0.0) {
-        col = mix(vec3(0.45, 0.25, 0.55), vec3(0.16, 0.22, 0.55), sxStep(clamp(mixer + 1.0, 0.0, 1.0)));
+        col = mix(vec3(0.05, 0.30, 0.58), vec3(0.02, 0.09, 0.20), sxStep(clamp(mixer + 1.0, 0.0, 1.0)));
       } else if (mixer > 4.0) {
-        col = mix(vec3(0.45, 0.25, 0.55), vec3(0.16, 0.22, 0.55), sxStep(clamp(mixer - 4.0, 0.0, 1.0)));
+        col = mix(vec3(0.05, 0.30, 0.58), vec3(0.02, 0.09, 0.20), sxStep(clamp(mixer - 4.0, 0.0, 1.0)));
       }
       col += 1.0 / 256.0 * (fract(sin(dot(0.014 * gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453123) - 0.5);
       a = u_opaque > 0.5 ? 1.0 : u_alpha * 2.6;
@@ -771,13 +780,13 @@ const FRAG = `
         float nx = mbNoise(bAngle * 10.0 + fi + t * speed);
         float ny = mbNoise(bAngle * 20.0 + fi - t * speed);
         vec2 pos = vec2(0.5) + 1e-4 + 0.9 * (vec2(nx, ny) - 0.5);
-        vec3 bc = i == 0 ? vec3(1.00, 0.60, 0.25)
-                : i == 1 ? vec3(0.95, 0.35, 0.50)
-                : i == 2 ? vec3(0.72, 0.38, 0.85)
-                : i == 3 ? vec3(1.00, 0.78, 0.40)
-                : i == 4 ? vec3(1.00, 0.60, 0.25)
-                : i == 5 ? vec3(0.95, 0.35, 0.50)
-                : vec3(0.72, 0.38, 0.85);
+        vec3 bc = i == 0 ? vec3(0.094, 0.737, 0.949)
+                : i == 1 ? vec3(0.04, 0.28, 0.55)
+                : i == 2 ? vec3(0.45, 0.85, 0.98)
+                : i == 3 ? vec3(0.82, 0.94, 1.0)
+                : i == 4 ? vec3(0.094, 0.737, 0.949)
+                : i == 5 ? vec3(0.04, 0.28, 0.55)
+                : vec3(0.45, 0.85, 0.98);
         float s = 1.0 - clamp(0.5 * length(buv - pos), 0.0, 1.0);
         s = pow(s, 45.0 - 30.0 * 0.75);
         s *= pow(0.75, 0.2);
@@ -788,7 +797,7 @@ const FRAG = `
       totalColor /= max(totalShape, 1e-4);
       float finalShape = smoothstep(0.4, 0.42, totalShape);
       float A = u_alpha * 3.0;
-      if (u_opaque > 0.5) { A = 1.0; opaqueFill = 1.0; opaqueBg = vec3(0.06, 0.03, 0.10); }
+      if (u_opaque > 0.5) { A = 1.0; opaqueFill = 1.0; opaqueBg = vec3(0.02, 0.05, 0.14); }
       a = finalShape * A;
       premul = clamp(totalColor * a, 0.0, 1.0);
     } else {

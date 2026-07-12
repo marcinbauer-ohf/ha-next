@@ -32,10 +32,11 @@ import { useActivities } from '@/hooks/useActivities';
 import { dismissActivity } from '@/lib/activities/dismissals';
 import { endedDismissKey } from '@/lib/activities/ledger';
 import type { ActivityStatus } from '@/lib/activities/types';
-import { HomeCenterPillIndicators, HomeCenterStatusSections, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
+import { HomeCenterPillIndicators, HomeCenterStatusSections, HomeModeCard, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
+import { HomeCenterBento } from '../ui/HomeCenterOverlay';
 import { SettingsNavPanel } from '@/components/profile';
 import { isSettingsSlug, type SettingsSlug } from '@/components/profile/settingsNavigation';
-import { usePullToRevealContext, useSearchContext, useAssistantContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, useMobileToolbar, type SidebarItem } from '@/contexts';
+import { usePullToRevealContext, useSearchContext, useAssistantContext, useHomeCenterContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, useMobileToolbar, type SidebarItem } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import { subscribeStatusPulse } from '@/lib/statusPulseBus';
 import { isNavAutoHideFrozen, subscribeNavAutoHideFrozen } from '@/lib/navAutoHideBus';
@@ -62,6 +63,8 @@ import {
   mdiCreation,
   mdiPrinter3d,
   mdiViewDashboardOutline,
+  mdiHomeVariant,
+  mdiStarFourPoints,
   mdiMenu,
   mdiCheck,
   mdiCheckCircle,
@@ -281,7 +284,7 @@ function MobileAppTile({
 }
 
 export type ConnectionStatusType = 'connecting' | 'connected' | 'error' | null;
-type BottomSurfaceTab = 'dashboards' | 'search' | 'dashboard' | 'settings' | 'widget';
+type BottomSurfaceTab = 'dashboards' | 'search' | 'homecenter' | 'dashboard' | 'settings' | 'widget';
 type WidgetSurfaceType = 'release' | 'media' | 'timer' | 'camera' | 'printer' | 'vacuum' | 'update' | 'backup' | 'alarm';
 
 interface SearchResultItem {
@@ -338,6 +341,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const { isRevealed, close } = usePullToRevealContext();
   const { searchOpen, closeSearch } = useSearchContext();
   const { openAssistant } = useAssistantContext();
+  const { openHomeCenter } = useHomeCenterContext();
   const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, reorderVisible } =
     useSidebarArrange();
   const { toolbarActive } = useMobileToolbar();
@@ -390,11 +394,12 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const bottomSheetDragProgressRef = useRef(0);
   const isDashboardsSurfaceVisible = statusExpanded && expandedSurfaceTab === 'dashboards';
   const isSearchSurfaceVisible = statusExpanded && expandedSurfaceTab === 'search';
+  const isHomeCenterSurfaceVisible = statusExpanded && expandedSurfaceTab === 'homecenter';
   const isSettingsSurfaceVisible = statusExpanded && expandedSurfaceTab === 'settings';
   const isSettingsRoute = pathname === '/profile' || pathname === '/settings' || pathname.startsWith('/settings/');
   const isSearchActive = isSearchSurfaceVisible || searchOpen;
-  const isSettingsActive = !isDashboardsSurfaceVisible && (isSettingsSurfaceVisible || (!isSearchActive && isSettingsRoute));
-  const isDashboardsActive = isDashboardsSurfaceVisible || (!isSearchActive && !isSettingsActive);
+  const isSettingsActive = !isDashboardsSurfaceVisible && !isHomeCenterSurfaceVisible && (isSettingsSurfaceVisible || (!isSearchActive && isSettingsRoute));
+  const isDashboardsActive = isDashboardsSurfaceVisible || (!isSearchActive && !isSettingsActive && !isHomeCenterSurfaceVisible);
   const pathSegments = pathname.split('/').filter(Boolean);
   const isDashboardSubView = pathSegments[0] === 'dashboard' && pathSegments.length > 1;
   const isRoomSubView = pathSegments[0] === 'room' && pathSegments.length > 1;
@@ -425,13 +430,8 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   // settings routes (Settings, its sub-pages incl. Home Center, and Profile),
   // where the same status lives on the page itself. Keep it for the 'widget' tab
   // so the tapped pill's shared-element transition into the sheet still plays.
-  const topRowVisibleRatio =
+  const baseTopRowVisibleRatio =
     expandedSurfaceTab === 'widget' ? 1 : isSettingsRoute ? 0 : 1 - sheetOpenProgress;
-  const isTopRowHidden = topRowVisibleRatio <= 0.02;
-  // With the top row gone and the sheet down, tighten the drag-handle zone so the
-  // collapsed bar sits shorter. Keep the full grab zone while the sheet is up —
-  // it's the affordance for dragging the sheet closed.
-  const compactHandle = isTopRowHidden && !isSheetVisible;
   // On settings routes the sheet isn't an entry point at all — hide the handle
   // and its expand affordance entirely. It comes back while the sheet is up
   // (opened via the tabs) so it can still be dragged closed.
@@ -1259,6 +1259,19 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const activityOverflowCount = activeWidgetTypes.length - visibleActivityTypes.length;
   const hasActivityOverflow = activityOverflowCount > 0;
 
+  // The Ask + Home Center widgets moved into the bottom tab bar (experiment), so
+  // the top row now only carries live activity glances. Collapse it entirely when
+  // nothing is live so it doesn't reserve an empty strip above the tabs.
+  const hasTopRowContent =
+    showReleaseWidget || showMediaWidget || showTimerWidget || showCameraWidget ||
+    showPrinterWidget || showVacuumWidget || hasActivityOverflow;
+  const topRowVisibleRatio = hasTopRowContent ? baseTopRowVisibleRatio : 0;
+  const isTopRowHidden = topRowVisibleRatio <= 0.02;
+  // With the top row gone and the sheet down, tighten the drag-handle zone so the
+  // collapsed bar sits shorter. Keep the full grab zone while the sheet is up —
+  // it's the affordance for dragging the sheet closed.
+  const compactHandle = isTopRowHidden && !isSheetVisible;
+
   // Handle media widget fade in/out
   // Visibility handles by render logic above
 
@@ -1825,6 +1838,14 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       );
     }
 
+    if (expandedSurfaceTab === 'homecenter') {
+      return (
+        <div className="space-y-ha-5 pb-8">
+          <HomeCenterBento onNavigate={navigateFromSurface} />
+        </div>
+      );
+    }
+
     if (expandedSurfaceTab === 'settings') {
       return (
         <div className="pb-8">
@@ -1845,8 +1866,15 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     // StatusBar pop-up so both stay aligned (order/visibility follow prefs).
     return (
       <div className="space-y-ha-3 pb-8">
+        <HomeModeCard />
         <HomeCenterStatusSections onNavigate={navigateFromSurface} />
-        <OpenHomeCenterButton onNavigate={navigateFromSurface} />
+        <OpenHomeCenterButton
+          onNavigate={navigateFromSurface}
+          onClick={() => {
+            closeExpandedSurface();
+            openHomeCenter();
+          }}
+        />
       </div>
     );
   };
@@ -1976,8 +2004,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               <Icon path={mdiArrowLeft} size={20} />
             </Link>
           )}
-          {/* Ask your home — always-visible entry to the assistant overlay,
-              takes the row's leftover width (activities + status pill are fixed). */}
+          {/* Ask your home — hidden for now: the assistant is reached via the
+              spark-badged search tab in the bottom bar (design experiment). */}
+          {false && (
           <button
             type="button"
             onClick={() => openAssistant()}
@@ -1994,9 +2023,12 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             </span>
             <Icon path={mdiMicrophone} size={18} className="text-text-secondary flex-shrink-0" />
           </button>
+          )}
 
-          {/* Release + Media + Timer + Camera + Printer + Vacuum widgets container */}
-          {(showReleaseWidget || showMediaWidget || showTimerWidget || showCameraWidget || showPrinterWidget || showVacuumWidget) && (
+          {/* Release + Media + Timer + Camera + Printer + Vacuum widgets container.
+              Hidden from the bottom nav — activities now live only in Home Center
+              ("Happening now"). */}
+          {false && (showReleaseWidget || showMediaWidget || showTimerWidget || showCameraWidget || showPrinterWidget || showVacuumWidget) && (
             <div className="flex items-center gap-2 flex-shrink-0">
               <AnimatePresence initial={false} mode="popLayout">
               {/* Release notes - always first */}
@@ -2128,7 +2160,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                     }`}
                   >
                     {activePrinter?.status.phase === 'ended' ? (
-                      <Icon path={mdiCheckCircle} size={26} exact className={activePrinter.status.endLabel === 'Print complete' ? 'text-green-600' : 'text-text-secondary'} />
+                      <Icon path={mdiCheckCircle} size={26} exact className={activePrinter?.status.endLabel === 'Print complete' ? 'text-green-600' : 'text-text-secondary'} />
                     ) : (
                       <CircularProgress
                         progress={(activePrinter?.progress || 0) / 100}
@@ -2251,7 +2283,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                   >
                     <div className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center">
                       {activeMedia?.entityPicture ? (
-                        <img src={getEntityPictureUrl(activeMedia.entityPicture)} alt="" className="w-full h-full object-cover" />
+                        <img src={getEntityPictureUrl(activeMedia?.entityPicture)} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <Icon path={mdiPlay} size={15} exact className="text-ha-blue" />
                       )}
@@ -2370,10 +2402,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
             </div>
           )}
 
-          {/* Status pill: fixed-width, pushed to the right. The Ask widget now
-              owns the row's flexible space, so this sits content-sized at the
-              end. Indicators follow Home Center prefs, same as the desktop pill. */}
-          {(() => {
+          {/* Status pill — hidden for now: Home Center is reached via its own tab
+              in the bottom bar (design experiment). */}
+          {false && (() => {
             const activeWidgetsCount = (showReleaseWidget ? 1 : 0) + (showMediaWidget ? 1 : 0) + (showTimerWidget ? 1 : 0) + (showCameraWidget ? 1 : 0) + (showPrinterWidget ? 1 : 0) + (showVacuumWidget ? 1 : 0);
             // Two indicators when activities compete for width, four when the row
             // is otherwise quiet; the chevron surfaces the rest.
@@ -2382,7 +2413,10 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
 
             return (
               <button
-                onClick={() => navigateFromSurface('/settings/home-center')}
+                onClick={() => {
+                  closeExpandedSurface();
+                  openHomeCenter();
+                }}
                 className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-xl px-ha-4 h-10 flex-shrink-0 ml-auto active:scale-95 transition-transform duration-300 ${statusPulsing ? 'ha-status-pulse' : ''}`}
               >
                 <HomeCenterPillIndicators size={18} max={maxIcons} withTooltips={false} />
@@ -2441,9 +2475,26 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                 isSearchActive ? 'text-ha-blue' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              <Icon path={mdiMagnify} size={28} />
+              <span className="relative inline-flex">
+                <Icon path={mdiMagnify} size={28} />
+                {/* AI spark — signifies the search also answers with the assistant */}
+                <Icon path={mdiStarFourPoints} size={16} exact className="absolute -top-1 -right-1 text-ha-blue" />
+              </span>
               <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
                 isSearchActive ? 'opacity-100' : 'opacity-0'
+              }`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => openExpandedSurface('homecenter')}
+              aria-label="Home Center"
+              className={`relative h-full px-ha-2 flex items-center justify-center transition-colors ${
+                isHomeCenterSurfaceVisible ? 'text-ha-blue' : 'text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              <Icon path={mdiHomeVariant} size={28} />
+              <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
+                isHomeCenterSurfaceVisible ? 'opacity-100' : 'opacity-0'
               }`} />
             </button>
             <button

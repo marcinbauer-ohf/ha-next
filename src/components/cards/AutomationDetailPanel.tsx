@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { mdiCheck, mdiClose, mdiHistory, mdiPlay, mdiRobot } from '@mdi/js';
+import { mdiCheck, mdiClose, mdiHistory, mdiPlay, mdiRobot, mdiPencil } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { ToggleSwitch, ListSection, HALoader } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
@@ -151,8 +151,14 @@ export function AutomationDetailPanel({
   automation: AutomationSummary;
   onClose: () => void;
 }) {
-  const { connected, demoMode, getAutomationConfig, getLogbook } = useHomeAssistant();
+  const { connected, demoMode, getAutomationConfig, getLogbook, isAdmin, haUrl } = useHomeAssistant();
   const { triggerAutomation, setAutomationEnabled } = useAutomationActions();
+
+  // Admins can jump straight to the automation editor in Home Assistant; guests
+  // only get the read-only view above. No editor deep-link in demo (no instance).
+  const editUrl = isAdmin && !demoMode && haUrl && automation.numericId
+    ? `${haUrl.replace(/\/$/, '')}/config/automation/edit/${automation.numericId}`
+    : null;
 
   const [enabled, setEnabled] = useState(automation.enabled);
   const [ran, setRan] = useState(false);
@@ -257,14 +263,27 @@ export function AutomationDetailPanel({
 
       <div className="flex items-center justify-between gap-ha-3 px-ha-4 pb-ha-3 shrink-0">
         <StatusPills automation={{ ...automation, enabled }} />
-        <button
-          type="button"
-          onClick={handleRun}
-          className="inline-flex shrink-0 items-center gap-ha-2 rounded-ha-pill bg-ha-blue px-ha-4 py-ha-2 text-sm font-semibold text-white transition-colors hover:bg-ha-blue/90 active:scale-95"
-        >
-          <Icon path={ran ? mdiCheck : mdiPlay} size={16} />
-          {ran ? 'Triggered' : 'Run now'}
-        </button>
+        <div className="flex shrink-0 items-center gap-ha-2">
+          {editUrl && (
+            <a
+              href={editUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-ha-pill bg-surface-mid px-ha-3 py-ha-2 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-lower hover:text-text-primary active:scale-95"
+            >
+              <Icon path={mdiPencil} size={16} />
+              Edit
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={handleRun}
+            className="inline-flex items-center gap-ha-2 rounded-ha-pill bg-ha-blue px-ha-4 py-ha-2 text-sm font-semibold text-white transition-colors hover:bg-ha-blue/90 active:scale-95"
+          >
+            <Icon path={ran ? mdiCheck : mdiPlay} size={16} />
+            {ran ? 'Triggered' : 'Run now'}
+          </button>
+        </div>
       </div>
 
       <div className="h-px bg-surface-lower mx-ha-4 shrink-0" />

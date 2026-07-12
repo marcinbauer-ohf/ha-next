@@ -7,6 +7,7 @@ import { RollingText } from '../ui/RollingText';
 import { AddMenu } from '../ui/AddMenu';
 import { Tooltip } from '../ui/Tooltip';
 import { shortcutHint, useIsMacPlatform } from '@/lib/keyboardShortcuts';
+import { CONTENT_MAX, CONTENT_GUTTER } from '@/lib/layout';
 import { useHeader, usePullToRevealContext, ENABLE_PULL_TO_REVEAL, useEditMode, useSearchContext } from '@/contexts';
 import { useTheme, useImmersiveMode, useHomeAssistant } from '@/hooks';
 import {
@@ -21,7 +22,7 @@ import {
 
 export function TopBar() {
   const { theme } = useTheme();
-  const { title, subtitle, breadcrumbs, primaryAction, onBack, hideBack, contentGutter, sectionCrumb, sectionCrumbReverse } = useHeader();
+  const { title, subtitle, breadcrumbs, primaryAction, onBack, hideBack, sectionCrumb, sectionCrumbReverse } = useHeader();
   const { isRevealed, toggle } = usePullToRevealContext();
   const { isEditing, toggleEditMode } = useEditMode();
   const { openSearch } = useSearchContext();
@@ -176,17 +177,12 @@ export function TopBar() {
   // doesn't wire an explicit onBack.
   const showBack = !!(subtitle || hasTrail) && !hideBack;
   const handleBack = () => (onBack ? onBack() : router.back());
-  // Every root/detail dashboard sets contentGutter, so the title's left inset is
-  // constant across navigation (no shift). The back arrow sits inline next to the
-  // heading regardless.
-  const useGutter = !!contentGutter;
-
   return (
     <header className="relative h-full py-ha-2 px-ha-0" data-component="TopBar">
-      {/* Inner row shares the page content's box (max-w + centering + gutter) so
-          the title lines up with the content below at every width. On gutter
-          pages the left inset grows to pl-14 so the title clears the back gutter. */}
-      <div className={`relative h-full flex items-center justify-between w-full lg:max-w-[1536px] lg:mx-auto lg:pr-ha-8 ${useGutter ? 'lg:pl-14' : 'lg:pl-ha-8'}`}>
+      {/* Inner row shares the exact content shell (max-w + centering + gutters)
+          used by every page below, so the title/breadcrumbs on the left and the
+          action buttons on the right line up with the content at every width. */}
+      <div className={`relative h-full flex items-center justify-between ${CONTENT_MAX} ${CONTENT_GUTTER}`}>
 
       {/* Desktop: merged search + ask entry — a big centered input-shaped
           trigger that opens the command palette. */}
@@ -220,7 +216,9 @@ export function TopBar() {
               type="button"
               onClick={handleBack}
               aria-label="Back"
-              className="flex h-11 w-11 -ml-2.5 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+              // relative z-10: sit above the title's RollingText fade-gutter
+              // (negative-margin box) so it can't steal the tap on the arrow.
+              className="relative z-10 flex h-11 w-11 -ml-2.5 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
             >
               <Icon path={mdiArrowLeft} size={24} />
             </button>
@@ -290,7 +288,10 @@ export function TopBar() {
           <button
             onClick={handleBack}
             aria-label="Back"
-            className="absolute right-full mr-ha-1 top-1/2 -translate-y-1/2 p-2.5 text-text-secondary hover:text-text-primary transition-colors hover:bg-surface-low rounded-full"
+            // z-10: the title's RollingText has an invisible 1em fade-gutter
+            // (paddingInline + negative margin) that overlaps the arrow's right
+            // side and would otherwise steal the hover — sit above it.
+            className="absolute right-full mr-ha-1 top-1/2 -translate-y-1/2 z-10 p-ha-3 text-text-secondary hover:text-text-primary transition-colors hover:bg-surface-low rounded-full"
           >
             <Icon path={mdiArrowLeft} size={24} />
           </button>

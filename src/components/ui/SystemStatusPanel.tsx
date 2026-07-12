@@ -1,10 +1,13 @@
 'use client';
 
 import { useHomeAssistant, useHomeAssistantSelector, useHomeCenterPrefs } from '@/hooks';
+import { useActivities } from '@/hooks/useActivities';
 import { useNotificationCenter } from '@/contexts';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
+import { buildActivityFeed } from '@/lib/activities/feed';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { isHomeCenterSectionVisible } from '@/components/profile/settingsNavigation';
+import { ActivityFeed } from './ActivityFeed';
 import { Icon } from './Icon';
 import { NavChevron } from './NavChevron';
 import { CountBadge } from './CountBadge';
@@ -173,6 +176,9 @@ export function SystemStatusPanel({
 } = {}) {
   const { connected, connecting, demoMode, isAdmin } = useHomeAssistant();
   const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
+  const { activities } = useActivities();
+  const activityFeed = buildActivityFeed(activities);
+  const activeActivityCount = activityFeed.filter((a) => a.phase === 'active').length;
   const { visibleSections } = useHomeCenterPrefs();
   const { notifications: centerNotifications, removeNotification } = useNotificationCenter();
   const {
@@ -206,6 +212,18 @@ export function SystemStatusPanel({
 
   const renderSection = (id: HomeCenterSectionId) => {
     switch (id) {
+      case 'activity':
+        return (
+          <Section
+            key={id}
+            label="Happening now"
+            tone={activeActivityCount > 0 ? 'primary' : 'default'}
+            count={activityFeed.length}
+            emptyLabel="Nothing happening right now"
+          >
+            <ActivityFeed items={activityFeed} />
+          </Section>
+        );
       case 'notifications': {
         // App-generated notifications (dismissed toasts, e.g. device discovery)
         // first, then Home Assistant's persistent_notification.* entities.

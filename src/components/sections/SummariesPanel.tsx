@@ -21,11 +21,14 @@ import {
 import { Icon } from '../ui/Icon';
 import { clsx } from 'clsx';
 import { arePeoplePresenceEqual, selectPeoplePresence } from '@/lib/homeassistant/selectors';
+import { CONTENT_MAX, CONTENT_GUTTER } from '@/lib/layout';
 import { EnergyGlance, AutomationsGlance } from '../glances';
+import { useHomeMode } from '@/lib/homeMode';
 import type { GlanceId } from '@/types';
 
 export function useLiveSummaryItems() {
   const entities = useHomeAssistantEntities();
+  const homeMode = useHomeMode();
   return useMemo(() => {
     const all = Object.values(entities);
 
@@ -52,6 +55,15 @@ export function useLiveSummaryItems() {
     const weatherTemp = weather?.attributes.temperature as number | undefined;
 
     const items = [
+      // Home mode leads the row when a helper is configured — it's the
+      // "state of the whole home" so it reads first. Display-only.
+      ...(homeMode ? [{
+        id: 'mode' as GlanceId,
+        icon: homeMode.icon,
+        title: 'Mode',
+        state: homeMode.current,
+        color: 'violet' as const,
+      }] : []),
       {
         id: 'lights' as GlanceId,
         icon: mdiLightbulbGroup,
@@ -90,7 +102,7 @@ export function useLiveSummaryItems() {
       ];
     }
     return items;
-  }, [entities]);
+  }, [entities, homeMode]);
 }
 
 const tips = [
@@ -382,7 +394,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
       )}
       style={containerStyle}
     >
-      <div className={clsx('max-w-[1536px] mx-auto w-full', !narrowPreview && 'lg:pl-14 lg:pr-ha-8')}>
+      <div className={clsx(CONTENT_MAX, !narrowPreview && CONTENT_GUTTER)}>
         {/* Wrapping bento row — chips flow onto new lines instead of scrolling */}
         <div className="flex flex-wrap items-center gap-ha-2 px-1">
           <PeopleBadge compact />
@@ -416,7 +428,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
         )}
         style={containerStyle}
       >
-        <div className={clsx('max-w-[1536px] mx-auto w-full', !narrowPreview && 'lg:pl-14 lg:pr-ha-8')}>
+        <div className={clsx(CONTENT_MAX, !narrowPreview && CONTENT_GUTTER)}>
           {extraContent}
         </div>
       </div>

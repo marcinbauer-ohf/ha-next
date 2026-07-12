@@ -7,6 +7,31 @@ export interface HassConfig {
   token: string;
 }
 
+/**
+ * Home Assistant core configuration (the `get_config` WS result). Only the
+ * fields the Home Information page displays are typed here; HA returns more.
+ */
+export interface HaCoreConfig {
+  location_name: string;
+  latitude: number;
+  longitude: number;
+  elevation: number;
+  time_zone: string;
+  currency: string;
+  country: string | null;
+  language: string;
+  unit_system: {
+    length: string;
+    mass: string;
+    temperature: string;
+    volume: string;
+    pressure?: string;
+    wind_speed?: string;
+    accumulated_precipitation?: string;
+  };
+  version?: string;
+}
+
 export interface ConnectionState {
   connected: boolean;
   connecting: boolean;

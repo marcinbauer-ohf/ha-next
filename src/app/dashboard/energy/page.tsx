@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
+import { CONTENT_SHELL } from '@/lib/layout';
 import { NativeViewPlaceholder } from '@/components/layout/NativeViewPlaceholder';
 import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
 import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
@@ -102,7 +103,7 @@ export default function EnergyDashboardPage() {
             {/* One wrapper for controls + content, matching the home dashboard's
                 bounds (max-w-1536, lg:pl-14 lg:pr-ha-8) so the tabs line up with
                 the content exactly like the home summary/tips do. */}
-            <div className="max-w-[1536px] mx-auto w-full lg:pl-14 lg:pr-ha-8">
+            <div className={CONTENT_SHELL}>
 
               {/* Controls row — sticky on mobile. Tabs (grouped button) on the
                   left, date-range filter on the right, wrapping on narrow widths. */}

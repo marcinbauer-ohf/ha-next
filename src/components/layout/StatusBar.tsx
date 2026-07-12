@@ -9,12 +9,12 @@ import { Tooltip } from '../ui/Tooltip';
 import { CircularProgress } from '../ui/CircularProgress';
 import { RollingNumericValue } from '../ui/RollingNumericValue';
 import { useHomeAssistant, useHomeCenterPrefs } from '@/hooks';
-import { useAssistantContext } from '@/contexts';
+import { useAssistantContext, useHomeCenterContext } from '@/contexts';
 import { useActivities } from '@/hooks/useActivities';
 import { dismissActivity } from '@/lib/activities/dismissals';
 import { endedDismissKey } from '@/lib/activities/ledger';
 import { ALERT_WINDOW_MS, type ActivityStatus, type ActivityType } from '@/lib/activities/types';
-import { HomeCenterPillIndicators, HomeCenterStatusSections, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
+import { HomeCenterPillIndicators } from '../sections/HomeCenterStatus';
 import { subscribeStatusPulse } from '@/lib/statusPulseBus';
 import {
   mdiMicrophone,
@@ -34,8 +34,6 @@ import {
   mdiChevronUp,
   mdiVolumeHigh,
   mdiStop,
-  mdiLayers,
-  mdiThermometer,
   mdiAccount,
   mdiVideo,
   mdiMenu,
@@ -299,7 +297,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const pathname = usePathname();
   const router = useRouter();
   const { callService, haUrl } = useHomeAssistant();
-  const { openAssistant } = useAssistantContext();
+  const { toggleAssistant } = useAssistantContext();
+  const { toggleHomeCenter } = useHomeCenterContext();
   const { data: activityData, activities } = useActivities();
   const { visibleSections } = useHomeCenterPrefs();
   const [currentTime, setCurrentTime] = useState({ hours: '', minutes: '' });
@@ -351,14 +350,10 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   // interval below already re-renders every second, so this rides along.
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  // Status pop-up state
+  // Status pop-up state — retained for the activity-widget outside-click logic;
+  // the status pill itself now opens the Home Center bento overlay directly.
   const [statusExpanded, setStatusExpanded] = useState(false);
   const statusContainerRef = useRef<HTMLDivElement>(null);
-
-  const goToSettings = useCallback((path: string) => {
-    setStatusExpanded(false);
-    router.push(path);
-  }, [router]);
 
   // Footer scroll state
   const [showLeftGradient, setShowLeftGradient] = useState(false);
@@ -615,7 +610,11 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const activityDialogStyle = useMemo<CSSProperties>(() => ({
     left: '50%',
     top: '50%',
-    transform: `translate(calc(-50% + ${activityDialogOffset.x}px), calc(-50% + ${activityDialogOffset.y}px))`,
+    // Center via the independent `translate` CSS property, not `transform`:
+    // the dialog card animates scale/y with framer-motion, which owns and
+    // overwrites `transform` — a translate placed there gets dropped, leaving
+    // the card anchored by its top-left corner (off to the lower-right).
+    translate: `calc(-50% + ${activityDialogOffset.x}px) calc(-50% + ${activityDialogOffset.y}px)`,
   }), [activityDialogOffset.x, activityDialogOffset.y]);
 
   useEffect(() => {
@@ -1000,7 +999,11 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     {/* Bottom/right inset matches the desktop corner toast's 1.5rem float
         (.corner-toast) so the bar has the same breathing room from the screen
         edges. Left is anchored to the sidebar column via the shell grid. */}
-    <footer className={`hidden lg:flex items-center justify-between pr-6 pt-ha-2 pb-6 col-span-full z-50 transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : 'opacity-100'}`} data-component="StatusBar">
+    {/* z-50 makes the footer a stacking context (flex item + z-index), which
+        would trap an open activity dialog below the z-[150] scrim. Drop the
+        z-index while a dialog is open so the z-[200] card escapes to the root
+        stacking context and floats above the scrim — like the device dialog. */}
+    <footer className={`hidden lg:flex items-center justify-between pr-6 pt-ha-2 pb-6 col-span-full ${isActivityDialogOpen ? '' : 'z-50'} transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : 'opacity-100'}`} data-component="StatusBar">
       {/* Left side widgets */}
       <div className="flex items-center flex-1 min-w-0 mr-4 gap-ha-5">
         {/* User profile avatar — same hamburger-behind-avatar composition as
@@ -1024,7 +1027,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         {/* Ask your home — always-visible entry to the assistant overlay. */}
         <button
           type="button"
-          onClick={() => openAssistant()}
+          onClick={() => toggleAssistant()}
           aria-label="Ask your home"
           className="group flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 pr-ha-1 h-12 flex-shrink-0 min-w-[200px] border border-transparent hover:bg-surface-mid hover:border-ha-blue/40 transition-all"
         >
@@ -1580,13 +1583,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         {player.mediaArtist || (player.state === 'playing' ? 'Playing' : 'Paused')}
                       </span>
                     </div>
-                    <span
-                      className={`ha-eq shrink-0 ${player.state === 'playing' ? 'text-ha-blue' : 'text-text-disabled'}`}
-                      data-paused={player.state !== 'playing'}
-                      aria-hidden="true"
-                    >
-                      <span /><span /><span />
-                    </span>
                   </div>
                   {showPreview && (
                     <div className="absolute inset-0 flex items-center justify-center text-text-primary pointer-events-none">
@@ -1910,16 +1906,11 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <CircularProgress
                         progress={timerProgress[timer.entity_id] ?? timer.progress}
                         size={28}
-                        strokeWidth={2.5}
+                        strokeWidth={14}
+                        rounded={false}
                         className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
                         trackClassName={timer.state === 'active' ? 'text-fill-primary-quiet' : 'text-yellow-200'}
-                      >
-                        <Icon
-                          path={timer.state === 'active' ? mdiTimerOutline : mdiPause}
-                          size={13}
-                          className={timer.state === 'active' ? 'text-ha-blue' : 'text-yellow-600'}
-                        />
-                      </CircularProgress>
+                      />
                     )}
                     </div>
                     <div className="flex flex-col min-w-0 max-w-[140px]">
@@ -2327,10 +2318,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                     <div className="p-ha-4 flex flex-col items-center">
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
                         <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute bottom-2 right-2 bg-black/60 rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
-                          <Icon path={mdiLayers} size={14} className="text-ha-blue" />
-                          <span className="text-[13px] font-bold text-white font-mono">Layer 142/208</span>
-                        </div>
                       </div>
 
                       <div className="w-full mb-ha-4 px-2">
@@ -2344,19 +2331,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                             animate={{ width: `${printer.progress}%` }}
                             className="bg-ha-blue h-full rounded-full"
                           />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
-                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
-                          <Icon path={mdiThermometer} size={18} className="text-red-500" />
-                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
-                          <span className="text-sm font-bold text-text-primary font-mono">215°C</span>
-                        </div>
-                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
-                          <Icon path={mdiThermometer} size={18} className="text-ha-blue" />
-                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
-                          <span className="text-sm font-bold text-text-primary font-mono">60°C</span>
                         </div>
                       </div>
 
@@ -2407,10 +2381,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
 
                       <div className="w-full aspect-square rounded-ha-2xl overflow-hidden mb-ha-4 shadow-md bg-surface-mid relative border border-surface-low">
                         <img src={getEntityPictureUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
-                        <div className="absolute bottom-2 right-2 bg-black/60 rounded-ha-lg px-2 py-1 flex items-center gap-2 border border-white/10">
-                          <Icon path={mdiLayers} size={14} className="text-ha-blue" />
-                          <span className="text-[13px] font-bold text-white font-mono">Layer 142/208</span>
-                        </div>
                       </div>
 
                       <div className="w-full mb-ha-4 px-2">
@@ -2424,19 +2394,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                             animate={{ width: `${printer.progress}%` }}
                             className="bg-ha-blue h-full rounded-full"
                           />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-ha-3 w-full mb-ha-4">
-                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
-                          <Icon path={mdiThermometer} size={18} className="text-red-500" />
-                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">NOZZLE</span>
-                          <span className="text-sm font-bold text-text-primary font-mono">215°C</span>
-                        </div>
-                        <div className="bg-surface-low rounded-ha-xl p-ha-3 flex flex-col items-center gap-1 border border-surface-mid/30">
-                          <Icon path={mdiThermometer} size={18} className="text-ha-blue" />
-                          <span className="text-[13px] font-bold text-text-disabled uppercase tracking-tight">BED</span>
-                          <span className="text-sm font-bold text-text-primary font-mono">60°C</span>
                         </div>
                       </div>
 
@@ -3278,9 +3235,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         strokeWidth={2.5}
                         className="text-ha-blue shrink-0"
                         trackClassName="text-fill-primary-quiet"
-                      >
-                        <Icon path={mdiUpdate} size={13} className="text-ha-blue" />
-                      </CircularProgress>
+                      />
                     )}
                     </div>
                     <div className="flex flex-col min-w-0 max-w-[140px]">
@@ -3934,35 +3889,11 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       {/* Right side: Status icons + time */}
       <div className="relative" ref={statusContainerRef}>
         
-        {/* Status Details Pop-up */}
-        <AnimatePresence>
-        {statusExpanded && (
-          <motion.div
-            key="status-popup"
-            initial={{ opacity: 0, y: 8, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.95 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute right-0 bottom-full mb-ha-2 w-[340px] bg-surface-default rounded-ha-3xl shadow-xl border border-surface-low overflow-hidden z-50 flex flex-col origin-bottom-right"
-            style={{ maxHeight: 'calc(100vh - 120px)' }}
-          >
-            <div className="flex-1 min-h-0 overflow-y-auto p-ha-3 space-y-ha-3 custom-scrollbar">
-                {/* Status sections — order and visibility follow Home Center prefs */}
-                <HomeCenterStatusSections onNavigate={goToSettings} />
-            </div>
-
-            {/* Home Center link — pinned footer so the CTA stays reachable no matter
-                how many status sections push the list past the popup's max height. */}
-            <div className="shrink-0 border-t border-surface-low p-ha-3">
-              <OpenHomeCenterButton onNavigate={goToSettings} variant="secondary" />
-            </div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
+        {/* The status pill toggles the Home Center bento overlay — clicking it
+            again while open closes it. */}
         <button
           className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all duration-300 active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50 ${statusPulsing ? 'ha-status-pulse' : ''}`}
-          onClick={() => setStatusExpanded(!statusExpanded)}
+          onClick={toggleHomeCenter}
         >
         {/* Status indicators — order and visibility follow Home Center prefs */}
         <HomeCenterPillIndicators />

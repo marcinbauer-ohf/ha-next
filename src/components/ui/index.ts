@@ -11,6 +11,7 @@ export { HALogo } from './HALogo';
 export { CircularProgress } from './CircularProgress';
 export { InfoSidebar } from './InfoSidebar';
 export { ListSection } from './ListSection';
+export { Accordion, AccordionSection } from './Accordion';
 export { SectionLabel } from './SectionLabel';
 export { SearchField } from './SearchField';
 export { DataListView } from './DataListView';

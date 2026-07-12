@@ -2,6 +2,7 @@
 
 import { use, useEffect } from 'react';
 import { NativeViewPlaceholder } from '@/components/layout/NativeViewPlaceholder';
+import { CONTENT_SHELL } from '@/lib/layout';
 import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
 import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { PullToRevealPanel } from '@/components/sections';
@@ -49,7 +50,7 @@ export default function PanelPage({ params }: PanelPageProps) {
           <ImmersiveDogEar />
           <ScreensaverDogEar />
           <div className="h-full overflow-y-auto px-ha-4 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5" data-scrollable="dashboard">
-            <div className="max-w-[1536px] mx-auto lg:pl-14 lg:pr-ha-8 w-full">
+            <div className={CONTENT_SHELL}>
               <NativeViewPlaceholder title={title} icon={panel?.icon ?? undefined} urlPath={`/${slug}`} />
             </div>
           </div>

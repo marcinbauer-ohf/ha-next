@@ -198,12 +198,9 @@ export function PowerAttributionChart() {
   if (!meter) return null;
 
   return (
-    <div className="rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-4 shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)]">
+    <div>
       <div className="flex items-center justify-between gap-ha-3 mb-ha-3">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-text-primary leading-tight truncate">Power attribution</p>
-          <p className="text-[12px] text-text-tertiary leading-tight truncate">{friendlyName(meter)}</p>
-        </div>
+        <p className="min-w-0 truncate text-[12px] text-text-tertiary leading-tight">{friendlyName(meter)}</p>
         <SegmentedControl
           segments={[{ value: '6', label: '6h' }, { value: '24', label: '24h' }]}
           value={String(hours)}

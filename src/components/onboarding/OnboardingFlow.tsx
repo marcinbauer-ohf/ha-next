@@ -246,7 +246,7 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
     >
       {/* The screensaver's ambient shader — immersive full-bleed, forced dark so
           it fills instead of blending over a light surface. */}
-      <RingShaderBackground mode="northernLights" resolvedMode="dark" center={ringOrigin.center} reach={ringOrigin.reach} opaque />
+      <RingShaderBackground mode="warp" resolvedMode="dark" center={ringOrigin.center} reach={ringOrigin.reach} opaque />
       {/* Flat 15% black backdrop over the shader — knocks every mode down
           uniformly so the white text/chips read on top (matches screensaver). */}
       <div className="absolute inset-0 bg-black/15" aria-hidden />

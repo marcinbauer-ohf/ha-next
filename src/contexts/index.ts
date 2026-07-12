@@ -4,6 +4,7 @@ export type { SidebarItem } from './SidebarItemsContext';
 export { SidebarArrangeProvider, useSidebarArrange, arrangeItems } from './SidebarArrangeContext';
 export { SearchProvider, useSearchContext } from './SearchContext';
 export { AssistantProvider, useAssistantContext } from './AssistantContext';
+export { HomeCenterProvider, useHomeCenterContext } from './HomeCenterContext';
 export { HeaderProvider, useHeader } from './HeaderContext';
 export type { BreadcrumbItem } from './HeaderContext';
 export { AddContextProvider, useAddContext } from './AddContext';

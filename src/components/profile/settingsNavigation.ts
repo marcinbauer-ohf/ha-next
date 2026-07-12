@@ -25,6 +25,7 @@ import {
   mdiNetwork,
   mdiPuzzle,
   mdiRobot,
+  mdiPulse,
   mdiScriptText,
   mdiShape,
   mdiSitemap,
@@ -39,6 +40,10 @@ import type { HomeCenterSectionId } from '@/lib/homeCenter';
 
 export type SettingsSlug =
   | 'home-center'
+  // Home Information — reached from the Home Center hero "Edit home" button,
+  // not shown in the sidebar. Home name, location, regional + Home Mode config.
+  | 'home-information'
+  | 'activity'
   // Notifications sits at the top, above the prototype tools; updates/repairs/
   // connectivity stay routable but hidden from the sidebar (reached from Home Center).
   | 'notifications'
@@ -196,6 +201,8 @@ export const settingsNavSections: SettingsNavSection[] = [
 // kept out of settingsNavSections so they don't appear in the settings sidebar —
 // they are reached from the Home Center page's section links.
 export const hiddenSettingsLinks: SettingsNavLink[] = [
+  { slug: 'home-information', icon: mdiHomeVariant, label: 'Home Information', description: 'Home name, location, regional settings and Home Mode' },
+  { slug: 'activity', icon: mdiPulse, label: 'Happening now', description: 'Live activity in progress across your home' },
   { slug: 'updates', icon: mdiUpdate, label: 'Updates', description: 'Available updates for integrations and add-ons' },
   { slug: 'repairs', icon: mdiWrench, label: 'Repairs', description: 'Suggested fixes for your setup' },
   { slug: 'connectivity', icon: mdiWeb, label: 'Connectivity', description: 'Home Assistant and remote access status' },
@@ -211,7 +218,7 @@ export const allSettingsLinks: SettingsNavLink[] = [
 // (Settings + Developer Tools are entirely admin-gated there; only a user's
 // own profile, notifications and the Home Center overview stay reachable). New
 // slugs default to admin-only unless explicitly added here.
-const publicSettingsSlugs = new Set<SettingsSlug>(['notifications', 'profile', 'home-center']);
+const publicSettingsSlugs = new Set<SettingsSlug>(['notifications', 'profile', 'home-center', 'activity']);
 
 export function isAdminOnlySlug(slug: SettingsSlug): boolean {
   return !publicSettingsSlugs.has(slug);
@@ -220,6 +227,7 @@ export function isAdminOnlySlug(slug: SettingsSlug): boolean {
 // Each Home Center status section deep-links to a settings destination. Single
 // source of truth for that mapping (SettingsDetailPage + the status widgets).
 export const homeCenterSectionTarget: Record<HomeCenterSectionId, SettingsSlug> = {
+  activity: 'activity',
   notifications: 'notifications',
   updates: 'updates',
   repairs: 'repairs',
@@ -274,6 +282,8 @@ export const addableSettingsItems: AddableSettingsItem[] = settingsNavSections.f
 // Keep in sync with the dedicated branches in SettingsDetailPage.
 const IMPLEMENTED_SETTINGS_SLUGS = new Set<SettingsSlug>([
   'home-center',
+  'home-information',
+  'activity',
   'developer',
   'integrations',
   'devices',

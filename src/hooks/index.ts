@@ -6,6 +6,7 @@ export {
   useEntity,
   useEntities,
   useConnectionAlive,
+  useRestartPending,
 } from './useHomeAssistant';
 
 export {
@@ -25,6 +26,7 @@ export { useFastScrollLabels } from './useFastScrollLabels';
 export { useIdleMarquee } from './useIdleMarquee';
 export { useWeatherParams } from './useWeatherParams';
 export { HomeCenterPrefsProvider, useHomeCenterPrefs } from './useHomeCenterPrefs';
+export { useActivities, type UseActivitiesResult } from './useActivities';
 
 export { useIdleTimer } from './useIdleTimer';
 
@@ -36,11 +38,14 @@ export { useHomeEventReactor, REACTIVE_TRIGGER_KINDS, type ReactiveTriggerKind, 
 export { useHomePingPulse } from './useHomePingPulse';
 
 export { useSidebarItems, type SidebarItem } from './useSidebarItems';
+export { useDashboardThumbnailCapture } from './useDashboardThumbnailCapture';
 
 export { ImmersiveModeProvider, useImmersiveMode } from './useImmersiveMode';
 export { useDesktopImmersivePageLayout } from './useDesktopImmersivePageLayout';
 
 export { usePullToReveal } from './usePullToReveal';
+
+export { useSheetDrag } from './useSheetDrag';
 
 export { useVacuumSimulator } from './useVacuumSimulator';
 

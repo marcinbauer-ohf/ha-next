@@ -24,6 +24,7 @@ import {
   getFloorRegistry as getFloorRegistryAction,
   getLabelRegistry as getLabelRegistryAction,
   getConfigEntries as getConfigEntriesAction,
+  getCoreConfig as getCoreConfigAction,
   getIntegrationManifests as getIntegrationManifestsAction,
   getEntityHistory as getEntityHistoryAction,
   getStatistics as getStatisticsAction,
@@ -43,8 +44,10 @@ import {
   getCurrentUser as getCurrentUserAction,
   subscribeToConnectionStatus,
   isSocketAlive,
+  subscribeToRestartPending,
+  isRestartPending,
 } from '@/lib/homeassistant';
-import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, StatisticValue, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields, HassUser } from '@/lib/homeassistant';
+import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, StatisticValue, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields, HassUser, HaCoreConfig } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 import { emitHomePulse, PULSE_COLORS, type PulseColor, type PulseMeta } from '@/lib/homePulseBus';
@@ -93,6 +96,7 @@ interface HomeAssistantContextValue {
   updateLabel: (labelId: string, fields: LabelWriteFields) => Promise<LabelRegistryEntry>;
   deleteLabel: (labelId: string) => Promise<void>;
   getConfigEntries: () => Promise<ConfigEntry[]>;
+  getCoreConfig: () => Promise<HaCoreConfig | null>;
   getIntegrationManifests: () => Promise<IntegrationManifest[]>;
   getEntityHistory: (entityId: string, hoursBack?: number) => Promise<HistoryPoint[]>;
   getStatistics: (entityId: string, hoursBack: number, period: '5minute' | 'hour' | 'day') => Promise<StatisticValue[]>;
@@ -496,6 +500,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const deleteLabel = useCallback(async (labelId: string) => { assertWritable(); return deleteLabelAction(labelId); }, [assertWritable]);
 
   const getConfigEntries = useCallback(() => getConfigEntriesAction(), []);
+  const getCoreConfig = useCallback(() => getCoreConfigAction(), []);
   const getIntegrationManifests = useCallback(() => getIntegrationManifestsAction(), []);
   const getEntityHistory = useCallback((entityId: string, hoursBack?: number) => getEntityHistoryAction(entityId, hoursBack), []);
   const getStatistics = useCallback((entityId: string, hoursBack: number, period: '5minute' | 'hour' | 'day') => getStatisticsAction(entityId, hoursBack, period), []);
@@ -556,6 +561,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     updateLabel,
     deleteLabel,
     getConfigEntries,
+    getCoreConfig,
     getIntegrationManifests,
     getEntityHistory,
     getStatistics,
@@ -597,6 +603,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     updateLabel,
     deleteLabel,
     getConfigEntries,
+    getCoreConfig,
     getIntegrationManifests,
     getEntityHistory,
     getStatistics,
@@ -634,6 +641,10 @@ export function useHomeAssistant(): HomeAssistantContextValue {
  */
 export function useConnectionAlive(): boolean {
   return useSyncExternalStore(subscribeToConnectionStatus, isSocketAlive, () => false);
+}
+
+export function useRestartPending(): boolean {
+  return useSyncExternalStore(subscribeToRestartPending, isRestartPending, () => false);
 }
 
 export function useHomeAssistantEntities(): HassEntities {

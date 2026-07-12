@@ -3,12 +3,13 @@
 import { Suspense, useState, useEffect, useRef, ReactNode, CSSProperties, useCallback, useMemo } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar, EditingToolbar } from '@/components/layout';
-import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout, useTheme, useStandaloneMode, useVacuumSimulator } from '@/hooks';
+import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout, useTheme, useStandaloneMode, useVacuumSimulator, useDashboardThumbnailCapture } from '@/hooks';
 import { PulseWallpaper } from '@/components/layout/PulseWallpaper';
 import { useSearchContext, useHeader, useEditMode, useToast, useAssistantContext, useDebugFlags } from '@/contexts';
 import { mdiConnection, mdiCheckCircle, mdiAlertCircle, mdiCellphoneArrowDown, mdiRoundedCorner } from '@mdi/js';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
+import { HomeCenterOverlay } from '@/components/ui/HomeCenterOverlay';
 import { KeyboardShortcutsDialog } from '@/components/ui/KeyboardShortcutsDialog';
 import { HudFlash } from '@/components/ui/HudFlash';
 import { canFireBareShortcut, matchShortcut, subscribeShortcutsHelp } from '@/lib/keyboardShortcuts';
@@ -79,6 +80,9 @@ function AppShellContent({ children }: AppShellProps) {
   // Self-driving demo robot vacuum — randomly starts/finishes cleaning cycles so
   // the activity surface has live coming-and-going content (demo mode only).
   useVacuumSimulator();
+  // Snapshot the current view (on edit-exit / first visit) for the sidebar
+  // hover preview.
+  useDashboardThumbnailCapture();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -803,6 +807,9 @@ function AppShellContent({ children }: AppShellProps) {
 
       {/* Assistant overlay */}
       <AssistantOverlay />
+
+      {/* Home Center bento overlay */}
+      <HomeCenterOverlay />
 
       {/* Keyboard shortcuts cheat-sheet (?) */}
       <KeyboardShortcutsDialog open={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />

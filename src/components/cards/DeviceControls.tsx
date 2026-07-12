@@ -134,7 +134,7 @@ function ControlSlider({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onKeyDown={onKeyDown}
-        className="relative h-9 flex-1 cursor-pointer touch-none select-none overflow-hidden rounded-ha-xl bg-surface-low outline-none focus-visible:ring-2 focus-visible:ring-ha-blue/60"
+        className="relative h-12 flex-1 cursor-pointer touch-none select-none overflow-hidden rounded-ha-xl bg-surface-low outline-none focus-visible:ring-2 focus-visible:ring-ha-blue/60"
         style={trackStyle}
       >
         <div
@@ -143,8 +143,8 @@ function ControlSlider({
         />
         {/* Handle bar — a slim vertical pill at the fill edge, like HA tiles. */}
         <div
-          className="absolute top-1.5 bottom-1.5 w-1 rounded-full bg-text-primary/80"
-          style={{ left: `calc(${fraction * 100}% - 2px)` }}
+          className="absolute top-2 bottom-2 w-1.5 rounded-full bg-text-primary/80"
+          style={{ left: `calc(${fraction * 100}% - 3px)` }}
         />
       </div>
       <span className="w-12 flex-shrink-0 text-right text-sm font-semibold text-text-primary tabular-nums">
@@ -400,7 +400,7 @@ function MediaControls({ entity }: { entity: HassEntity }) {
             aria-label={muted ? 'Unmute' : 'Mute'}
             aria-pressed={muted}
             onClick={() => call('volume_mute', { is_volume_muted: !muted })}
-            className={clsx('flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-ha-lg transition-colors', muted ? 'bg-fill-primary-normal text-ha-blue' : 'text-text-secondary hover:bg-surface-low')}
+            className={clsx('flex h-12 w-11 flex-shrink-0 items-center justify-center rounded-ha-lg transition-colors', muted ? 'bg-fill-primary-normal text-ha-blue' : 'text-text-secondary hover:bg-surface-low')}
           >
             <Icon path={muted ? mdiVolumeMute : mdiVolumeHigh} size={18} />
           </button>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { mdiRobot } from '@mdi/js';
+import { mdiRobot, mdiChevronRight } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { HALoader } from '../ui';
 import { useAutomations, type AutomationSummary } from '@/hooks';
@@ -18,22 +18,52 @@ import type { LogbookEntry } from '@/lib/homeassistant';
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
-// ── Bucketing ────────────────────────────────────────────────────────────────
+// ── Per-automation colours ───────────────────────────────────────────────────
+// Categorical palette (mid-tone, readable on surface bg in light + dark). Each
+// automation gets a stable colour by its position; the stacked bars and the runs
+// table both use it, so a colour visually links a segment to its automation.
 
-/** Counts per hour for the last `hours`, oldest → newest. */
-function hourlyCounts(events: LogbookEntry[], hours: number): number[] {
-  const nowHour = Math.floor(Date.now() / HOUR_MS);
-  const counts = new Array(hours).fill(0);
-  for (const e of events) {
-    const idx = hours - 1 - (nowHour - Math.floor((e.when * 1000) / HOUR_MS));
-    if (idx >= 0 && idx < hours) counts[idx] += 1;
-  }
-  return counts;
+const PALETTE = [
+  '#8b5cf6', '#0ea5e9', '#10b981', '#f59e0b', '#f43f5e', '#6366f1',
+  '#14b8a6', '#f97316', '#ec4899', '#84cc16', '#06b6d4', '#d946ef',
+];
+
+function hashKey(key: string): number {
+  let h = 0;
+  for (let i = 0; i < key.length; i += 1) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return h;
 }
 
-function countSince(events: LogbookEntry[], ms: number): number {
-  const t = Date.now() - ms;
-  return events.filter((e) => e.when * 1000 >= t).length;
+/** color(key) / order(key) for automation keys, from a stable id ordering. */
+interface Palette { color: (key: string) => string; order: (key: string) => number }
+
+function buildPalette(ids: string[]): Palette {
+  const index = new Map(ids.map((id, i) => [id, i]));
+  return {
+    color: (key) => PALETTE[(index.get(key) ?? hashKey(key)) % PALETTE.length],
+    order: (key) => index.get(key) ?? 1_000 + hashKey(key) % 1_000,
+  };
+}
+
+// ── Bucketing ────────────────────────────────────────────────────────────────
+
+interface HourBucket { total: number; segs: [string, number][] }
+
+/** Per-automation counts per hour for the last `hours`, oldest → newest. */
+function hourlyBreakdown(events: LogbookEntry[], hours: number): HourBucket[] {
+  const nowHour = Math.floor(Date.now() / HOUR_MS);
+  const maps = Array.from({ length: hours }, () => new Map<string, number>());
+  for (const e of events) {
+    const idx = hours - 1 - (nowHour - Math.floor((e.when * 1000) / HOUR_MS));
+    if (idx < 0 || idx >= hours) continue;
+    const key = e.entity_id ?? e.name ?? 'unknown';
+    maps[idx].set(key, (maps[idx].get(key) ?? 0) + 1);
+  }
+  return maps.map((m) => {
+    let total = 0;
+    for (const c of m.values()) total += c;
+    return { total, segs: [...m.entries()] };
+  });
 }
 
 const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -109,33 +139,46 @@ function HourTicks({ count }: { count: number }) {
   );
 }
 
-function BarsView({ events, selected, onSelect }: {
+function BarsView({ events, palette, selected, onSelect, highlightKey }: {
   events: LogbookEntry[];
+  palette: Palette;
   selected: number | null;
   onSelect: (i: number | null) => void;
+  highlightKey: string | null;
 }) {
-  const counts = useMemo(() => hourlyCounts(events, 24), [events]);
-  const max = Math.max(1, ...counts);
+  const buckets = useMemo(() => hourlyBreakdown(events, 24), [events]);
+  const max = Math.max(1, ...buckets.map((b) => b.total));
   return (
     <div>
       <div className="flex h-24 items-end gap-px">
-        {counts.map((c, i) => {
+        {buckets.map((b, i) => {
           const active = selected === i;
           const dimmed = selected != null && !active;
+          // Fixed vertical order so a given automation always stacks in the same place.
+          const segs = [...b.segs].sort((x, y) => palette.order(x[0]) - palette.order(y[0]));
           return (
             <button
               key={i}
               type="button"
               onClick={() => onSelect(active ? null : i)}
-              className="group flex h-full flex-1 items-end"
-              title={`${c} run${c === 1 ? '' : 's'} · tap to inspect`}
+              className={`group flex h-full flex-1 flex-col justify-end gap-px transition-opacity ${
+                dimmed ? 'opacity-30' : 'opacity-100'
+              }`}
+              title={`${b.total} run${b.total === 1 ? '' : 's'} · tap to inspect`}
             >
-              <div
-                className={`w-full rounded-t-sm transition-colors ${
-                  active ? 'bg-violet-500' : dimmed ? 'bg-violet-500/30' : 'bg-violet-500/70 group-hover:bg-violet-500'
-                }`}
-                style={{ height: `${(c / max) * 100}%`, minHeight: c > 0 ? 3 : 0 }}
-              />
+              {segs.map(([key, c], si) => (
+                <div
+                  key={key}
+                  className={si === 0 ? 'w-full rounded-t-sm transition-opacity' : 'w-full transition-opacity'}
+                  style={{
+                    height: `${(c / max) * 100}%`,
+                    minHeight: 2,
+                    background: palette.color(key),
+                    // Row selection highlights one automation across every hour.
+                    opacity: highlightKey && key !== highlightKey ? 0.15 : 1,
+                  }}
+                />
+              ))}
             </button>
           );
         })}
@@ -147,7 +190,16 @@ function BarsView({ events, selected, onSelect }: {
 
 // ── Runs table ─────────────────────────────────────────────────────────────
 
-function RunsTable({ rows, label, selected }: { rows: RanRow[]; label: string; selected: boolean }) {
+function RunsTable({ rows, label, selected, palette, highlightKey, onHighlight, onOpen, canOpen }: {
+  rows: RanRow[];
+  label: string;
+  selected: boolean;
+  palette: Palette;
+  highlightKey: string | null;
+  onHighlight: (key: string | null) => void;
+  onOpen: (key: string) => void;
+  canOpen: (key: string) => boolean;
+}) {
   return (
     <div className="mt-ha-4">
       <div className="mb-ha-2 flex items-center justify-between gap-ha-2">
@@ -162,20 +214,50 @@ function RunsTable({ rows, label, selected }: { rows: RanRow[]; label: string; s
         </p>
       ) : (
         <div className="max-h-64 divide-y divide-surface-low/40 overflow-y-auto rounded-ha-xl border border-surface-lower">
-          {rows.map((r) => (
-            <div key={r.key} className="flex items-center gap-ha-3 px-ha-3 py-ha-2">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-ha-lg bg-violet-500/15 text-violet-500">
-                <Icon path={mdiRobot} size={15} />
-              </span>
-              <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{r.name}</span>
-              {r.count > 1 && (
-                <span className="shrink-0 rounded-full bg-surface-mid px-ha-2 py-0.5 text-[12px] font-semibold tabular-nums text-text-secondary">
-                  ×{r.count}
+          {rows.map((r) => {
+            const color = palette.color(r.key);
+            const active = highlightKey === r.key;
+            const openable = canOpen(r.key);
+            return (
+            <div
+              key={r.key}
+              className={`flex items-center gap-ha-2 pr-ha-2 transition-colors ${active ? 'bg-surface-low' : ''}`}
+            >
+              {/* Body toggles the bar highlight for this automation. */}
+              <button
+                type="button"
+                onClick={() => onHighlight(active ? null : r.key)}
+                className="flex min-w-0 flex-1 items-center gap-ha-3 rounded-ha-lg px-ha-3 py-ha-2 text-left transition-colors hover:bg-surface-low"
+                title="Highlight this automation across the chart"
+              >
+                <span
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-ha-lg"
+                  style={{ background: `${color}26`, color }}
+                >
+                  <Icon path={mdiRobot} size={15} />
                 </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{r.name}</span>
+                {r.count > 1 && (
+                  <span className="shrink-0 rounded-full bg-surface-mid px-ha-2 py-0.5 text-[12px] font-semibold tabular-nums text-text-secondary">
+                    ×{r.count}
+                  </span>
+                )}
+                <span className="shrink-0 text-[12px] tabular-nums text-text-tertiary">{clock(r.last * 1000)}</span>
+              </button>
+              {openable && (
+                <button
+                  type="button"
+                  onClick={() => onOpen(r.key)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-ha-lg text-text-tertiary transition-colors hover:bg-surface-mid hover:text-text-primary"
+                  aria-label={`Open ${r.name}`}
+                  title="Open this automation"
+                >
+                  <Icon path={mdiChevronRight} size={18} />
+                </button>
               )}
-              <span className="shrink-0 text-[12px] tabular-nums text-text-tertiary">{clock(r.last * 1000)}</span>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -184,16 +266,20 @@ function RunsTable({ rows, label, selected }: { rows: RanRow[]; label: string; s
 
 // ── Widget ───────────────────────────────────────────────────────────────────
 
-export function AutomationActivityChart() {
+export function AutomationActivityChart({ onOpenAutomation }: { onOpenAutomation?: (id: string) => void } = {}) {
   const { automations } = useAutomations();
   const { connected, demoMode, getLogbook } = useHomeAssistant();
   const [selectedHour, setSelectedHour] = useState<number | null>(null);
+  const [highlightKey, setHighlightKey] = useState<string | null>(null);
   const [events, setEvents] = useState<LogbookEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   const ids = useMemo(() => automations.map((a) => a.id), [automations]);
   const idsKey = ids.join(',');
+  const idSet = useMemo(() => new Set(ids), [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const nameById = useMemo(() => new Map(automations.map((a) => [a.id, a.name])), [automations]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const palette = useMemo(() => buildPalette(ids), [idsKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -217,8 +303,6 @@ export function AutomationActivityChart() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey, connected, demoMode, getLogbook]);
 
-  const windowTotal = useMemo(() => countSince(events, DAY_MS), [events]);
-
   const { rows, tableLabel } = useMemo(() => {
     const w = windowFor(selectedHour);
     return { rows: runsInWindow(events, w.start, w.end, nameById), tableLabel: w.label };
@@ -227,23 +311,28 @@ export function AutomationActivityChart() {
   if (automations.length === 0) return null;
 
   return (
-    <div className="rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-3 shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)]">
-      <div className="mb-ha-3 flex items-center gap-ha-2">
-        <Icon path={mdiRobot} size={16} className="text-violet-500" />
-        <span className="text-sm font-semibold text-text-primary">Automation activity</span>
-        {!loading && (
-          <span className="text-[13px] text-text-tertiary">
-            · {windowTotal} run{windowTotal === 1 ? '' : 's'} · 24h
-          </span>
-        )}
-      </div>
-
+    <div>
       {loading ? (
         <div className="flex h-24 items-center justify-center"><HALoader size="sm" /></div>
       ) : (
         <>
-          <BarsView events={events} selected={selectedHour} onSelect={setSelectedHour} />
-          <RunsTable rows={rows} label={tableLabel} selected={selectedHour != null} />
+          <BarsView
+            events={events}
+            palette={palette}
+            selected={selectedHour}
+            onSelect={setSelectedHour}
+            highlightKey={highlightKey}
+          />
+          <RunsTable
+            rows={rows}
+            label={tableLabel}
+            selected={selectedHour != null}
+            palette={palette}
+            highlightKey={highlightKey}
+            onHighlight={setHighlightKey}
+            onOpen={(key) => onOpenAutomation?.(key)}
+            canOpen={(key) => !!onOpenAutomation && idSet.has(key)}
+          />
         </>
       )}
     </div>

@@ -189,8 +189,12 @@ export function formatHoverTime(tsSeconds: number): string {
   return d.toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
+export function EntityDetailBody({ entity, thumbnail }: { entity: PanelEntity; thumbnail?: string | null }) {
   const { getEntityHistory, getStatistics, connected, demoMode } = useHomeAssistant();
+  // Product-render thumbnail, shown inside the tappable hero card. Hidden if the
+  // hand-dropped PNG 404s (render-adjust pattern, same as DeviceCardV2).
+  const [thumb, setThumb] = useState<{ src?: string | null; ok: boolean }>({ src: thumbnail, ok: true });
+  if (thumb.src !== thumbnail) setThumb({ src: thumbnail, ok: true });
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   // Long-term statistics buckets — the data source for 7d/30d spans. Null
   // means "not using statistics" (short span, or the entity has none).
@@ -344,9 +348,27 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
       if (prev && prev.state === pts[i].s) prev.end = end;
       else segs.push({ state: pts[i].s, start, end });
     }
+    // Fallback — no usable history but we know the current state. Show a single
+    // band across the whole window so toggleable entities (lights, switches,
+    // locks…) always get a duration timeline instead of an empty slot.
+    if (segs.length === 0 && !isNumeric && entity.state) {
+      segs.push({ state: entity.state, start: startTs, end: endTs });
+    }
     return { segs, startTs, endTs };
-  }, [history, hours]);
+  }, [history, hours, isNumeric, entity.state]);
   const showTimeline = !isNumeric && !isHistoryLoading && timeline.segs.length >= 1;
+
+  // Whole hero is one tappable card: product thumb + name + switch + state. Any
+  // click on it toggles (the ToggleSwitch stops propagation, so it fires once).
+  const canToggle = !!(entity.toggleable && entity.onToggle && !entity.entityPicture);
+  const showThumb = !!thumbnail && thumb.ok && !entity.entityPicture;
+  const cardBg = canToggle
+    ? (entity.active
+        ? 'bg-green-500/10 hover:bg-green-500/[0.16] active:bg-green-500/20 cursor-pointer'
+        : 'bg-surface-low hover:bg-surface-mid cursor-pointer')
+    : showThumb
+      ? 'bg-surface-low'
+      : '';
 
   return (
     <div className="shrink-0 flex flex-col items-center gap-3 px-6 py-5 overflow-hidden">
@@ -359,57 +381,79 @@ export function EntityDetailBody({ entity }: { entity: PanelEntity }) {
         </div>
       )}
       <div className="flex flex-col items-center gap-3 w-full">
-        {/* Focused entity name — labels the value/graph below so it's clear which
-            entity is shown, especially after switching via "Also on this device"
-            (the panel header only carries the device name). */}
-        <span className="max-w-full truncate text-center text-sm font-medium text-text-secondary">
-          {entity.name}
-        </span>
-        {/* Header — fixed height so the hero doesn't jump between a tall toggle
-            and a shorter text value when switching entities. */}
-        <div className="flex w-full flex-col items-center justify-center gap-2 min-h-[80px]">
-        {/* Feed/artwork entities (e.g. a camera) have nothing to toggle — show
-            their state, not a control, even if flagged toggleable. */}
-        {entity.toggleable && !entity.entityPicture ? (
-          <>
-            {entity.onToggle ? (
-              <ToggleSwitch on={entity.active} onToggle={entity.onToggle} size="lg" />
-            ) : (
-              <div className={clsx(
-                'w-16 h-16 rounded-full flex items-center justify-center',
-                entity.active ? 'bg-green-500/20 text-green-500' : 'bg-surface-low text-text-secondary',
-              )}>
-                <Icon path={entity.icon} size={28} />
-              </div>
-            )}
-            <RollingNumericValue
-              value={entity.state}
-              className="text-lg font-semibold font-mono capitalize text-text-primary"
+        {/* Tap-anywhere toggle card — thumb, name, switch and state grouped in one
+            surface. Clicking anywhere toggles a controllable entity. */}
+        <div
+          role={canToggle ? 'button' : undefined}
+          tabIndex={canToggle ? 0 : undefined}
+          aria-label={canToggle ? `Toggle ${entity.name}` : undefined}
+          onClick={canToggle ? entity.onToggle : undefined}
+          onKeyDown={canToggle ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); entity.onToggle!(); } } : undefined}
+          className={clsx('w-full rounded-ha-2xl flex flex-col items-center gap-2 px-4 py-4 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ha-blue/60', cardBg)}
+        >
+          {showThumb && (
+            <img
+              src={thumbnail!}
+              alt=""
+              aria-hidden
+              onError={() => setThumb(t => ({ ...t, ok: false }))}
+              className="h-28 md:h-36 w-auto max-w-[70%] object-contain select-none pointer-events-none"
             />
-          </>
-        ) : (
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex items-baseline justify-center">
-              {isNumeric && entity.unit ? (
-                <>
-                  <RollingNumericValue value={displayValue} className="text-4xl font-bold font-mono text-text-primary" />
-                  <span className="text-lg font-mono ml-2 text-text-secondary">{entity.unit}</span>
-                </>
+          )}
+
+          {/* Focused entity name — labels the value/graph below so it's clear which
+              entity is shown, especially after switching via "Also on this device"
+              (the panel header only carries the device name). */}
+          <span className="max-w-full truncate text-center text-sm font-medium text-text-secondary">
+            {entity.name}
+          </span>
+
+          {/* Fixed height so the hero doesn't jump between a tall toggle and a
+              shorter text value when switching entities. */}
+          <div className="flex w-full flex-col items-center justify-center gap-2 min-h-[80px]">
+          {/* Feed/artwork entities (e.g. a camera) have nothing to toggle — show
+              their state, not a control, even if flagged toggleable. */}
+          {entity.toggleable && !entity.entityPicture ? (
+            <>
+              {entity.onToggle ? (
+                <ToggleSwitch on={entity.active} onToggle={entity.onToggle} size="lg" />
               ) : (
-                <RollingNumericValue value={entity.state} className="text-2xl font-bold font-mono capitalize text-text-primary" />
+                <div className={clsx(
+                  'w-16 h-16 rounded-full flex items-center justify-center',
+                  entity.active ? 'bg-green-500/20 text-green-500' : 'bg-surface-low text-text-secondary',
+                )}>
+                  <Icon path={entity.icon} size={28} />
+                </div>
+              )}
+              <RollingNumericValue
+                value={entity.state}
+                className="text-lg font-semibold font-mono capitalize text-text-primary"
+              />
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex items-baseline justify-center">
+                {isNumeric && entity.unit ? (
+                  <>
+                    <RollingNumericValue value={displayValue} className="text-4xl font-bold font-mono text-text-primary" />
+                    <span className="text-lg font-mono ml-2 text-text-secondary">{entity.unit}</span>
+                  </>
+                ) : (
+                  <RollingNumericValue value={entity.state} className="text-2xl font-bold font-mono capitalize text-text-primary" />
+                )}
+              </div>
+              {/* Time label: "NOW" at rest, timestamp on hover (numeric/boolean only) */}
+              {(isNumeric || isBoolean) && (
+                <span className={clsx(
+                  'text-[13px] font-semibold uppercase tracking-wider transition-colors',
+                  hoveredIndex !== null ? 'text-text-secondary' : 'text-ha-blue',
+                )}>
+                  {timeLabel}
+                </span>
               )}
             </div>
-            {/* Time label: "NOW" at rest, timestamp on hover (numeric/boolean only) */}
-            {(isNumeric || isBoolean) && (
-              <span className={clsx(
-                'text-[13px] font-semibold uppercase tracking-wider transition-colors',
-                hoveredIndex !== null ? 'text-text-secondary' : 'text-ha-blue',
-              )}>
-                {timeLabel}
-              </span>
-            )}
+          )}
           </div>
-        )}
         </div>
 
         {/* Domain controls — brightness/color, setpoint, position, transport…
@@ -614,12 +658,6 @@ export function EntityDetailPanel({
   // focuses it in the hero; selecting it again returns to the main entity.
   const otherEntities = entities.filter(e => e.entityId !== initialEntityId);
 
-  // Product thumbnail — hidden again if the hand-dropped PNG 404s (same
-  // render-adjust pattern as DeviceCardV2).
-  const [thumb, setThumb] = useState<{ src?: string | null; ok: boolean }>({ src: deviceMeta?.thumbnail, ok: true });
-  if (thumb.src !== deviceMeta?.thumbnail) setThumb({ src: deviceMeta?.thumbnail, ok: true });
-  const showThumb = !!deviceMeta?.thumbnail && thumb.ok;
-
   const iconButton = 'p-1.5 rounded-full transition-colors';
 
   return (
@@ -680,28 +718,9 @@ export function EntityDetailPanel({
         <DeviceInfoTab deviceName={deviceName} deviceMeta={deviceMeta} entities={entities} onNavigate={onClose} />
       ) : (
         <>
-          {/* Product render — large, centered, fading out toward the bottom so
-              the main control below tucks under the fade. Suppressed when the
-              focused entity has its own feed/artwork (e.g. a camera), so we show
-              the real feed rather than a generic product image on top of it. */}
-          {showThumb && !focusedEntity?.entityPicture && (
-            <div className="shrink-0 flex justify-center px-ha-4 pt-ha-2 -mb-7 pointer-events-none">
-              <img
-                src={deviceMeta!.thumbnail!}
-                alt=""
-                aria-hidden
-                onError={() => setThumb(t => ({ ...t, ok: false }))}
-                className="h-44 md:h-52 w-auto max-w-[70%] object-contain select-none"
-                style={{
-                  WebkitMaskImage: 'linear-gradient(to bottom, #000 55%, transparent 96%)',
-                  maskImage: 'linear-gradient(to bottom, #000 55%, transparent 96%)',
-                }}
-              />
-            </div>
-          )}
-
-          {/* Big preview — the focused entity (clicked card / row) */}
-          {focusedEntity && <EntityDetailBody key={focusedEntity.entityId} entity={focusedEntity} />}
+          {/* Big preview — the focused entity (clicked card / row). The product
+              thumbnail now lives inside the body's tappable hero card. */}
+          {focusedEntity && <EntityDetailBody key={focusedEntity.entityId} entity={focusedEntity} thumbnail={deviceMeta?.thumbnail} />}
 
           {/* Other entities on the device — click to focus */}
           {otherEntities.length > 0 && (

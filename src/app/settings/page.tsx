@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
+import { CONTENT_SHELL } from '@/lib/layout';
 import { SettingsNavPanel } from '@/components/profile';
 import { SettingsDetailPage } from '@/components/profile/SettingsDetailPage';
 import { useHeader } from '@/contexts';
@@ -142,8 +143,9 @@ function SettingsWorkspace() {
       </div>
 
       {/* Wide (≥ xl): two independent scrolling columns with gradient masks.
-          Widened to 1536px so content + an in-content sidebar both fit. */}
-      <div className="hidden xl:flex xl:h-full max-w-[1536px] mx-auto w-full lg:px-ha-8">
+          Shares the dashboards' content shell (1536px + matching gutters) so the
+          settings content edges line up with every other route. */}
+      <div className={`hidden xl:flex xl:h-full ${CONTENT_SHELL}`}>
         {/* Slides away while a focused editor is open. The inner column keeps
             its fixed width so its content doesn't reflow mid-animation. */}
         <div

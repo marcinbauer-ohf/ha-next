@@ -5,6 +5,8 @@ interface CircularProgressProps {
   className?: string;
   trackClassName?: string;
   children?: React.ReactNode;
+  /** Rounded stroke caps. Set false for thick/pie-style rings so the wedge reads square. */
+  rounded?: boolean;
 }
 
 export function CircularProgress({
@@ -14,6 +16,7 @@ export function CircularProgress({
   className = 'text-ha-blue',
   trackClassName = 'text-surface-lower',
   children,
+  rounded = true,
 }: CircularProgressProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
@@ -38,7 +41,7 @@ export function CircularProgress({
           r={radius}
           fill="none"
           strokeWidth={strokeWidth}
-          strokeLinecap="round"
+          strokeLinecap={rounded ? 'round' : 'butt'}
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           className={`stroke-current ${className} transition-all duration-1000`}

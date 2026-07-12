@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/core';
 import { mdiHomeAssistant, mdiViewGrid, mdiCube, mdiAutoFix, mdiStar, mdiViewAgenda, mdiViewGridOutline, mdiMapOutline, mdiViewListOutline } from '@mdi/js';
 import { flashHud } from '@/lib/hudFlashBus';
+import { CONTENT_MAX, CONTENT_GUTTER } from '@/lib/layout';
 import { clsx } from 'clsx';
 
 const DashboardFloorView = dynamic(() => import('@/components/sections/DashboardFloorView'), { ssr: false });
@@ -945,11 +946,11 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className={clsx(
-                  'max-w-[1536px] mx-auto w-full space-y-ha-6',
+                  CONTENT_MAX, 'space-y-ha-6',
                   // Desktop-only gutters (asymmetric: rail clearance left, gap
                   // right). Suppressed in a below-lg preview so the frame shows
                   // the symmetric mobile edge padding instead.
-                  !previewingBelowLg && 'lg:pl-14 lg:pr-ha-8',
+                  !previewingBelowLg && CONTENT_GUTTER,
                   // Clearance for the floating DashboardFilterBar pill on desktop.
                   !isEditing && (floors.length >= 2 || areas.size > 0) && 'lg:pb-28',
                   // Reserve room for the scroll-index rail so its dots never

@@ -19,7 +19,8 @@ import {
 } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon } from '../ui/Icon';
-import { domainIcon, friendlyName, deviceThumbnail } from '@/lib/homeassistant/entityHelpers';
+import { domainIcon, friendlyName, deviceThumbnail, entityDomain } from '@/lib/homeassistant/entityHelpers';
+import type { HassEntity } from '@/lib/homeassistant/types';
 import { DEVICE_THUMBNAIL_GROUPS, deviceThumbnailPath } from '@/lib/deviceThumbnails';
 import type { HassDevice } from '@/hooks/useDevices';
 import type { EntitySlot, EntitySection, DeviceCardConfig } from '@/hooks/useDeviceCardConfig';
@@ -50,6 +51,21 @@ const SECTIONS: Array<{
   { key: 'hidden', label: 'Hidden', accent: 'border-surface-lower', hint: 'Not on the card, still active in HA' },
   { key: 'disabled', label: 'Disabled', accent: 'border-surface-lower', hint: 'Turned off in Home Assistant' },
 ];
+
+// Humanize a snake/kebab token — "binary_sensor" → "Binary sensor".
+function humanize(token: string): string {
+  const t = token.replace(/[_-]+/g, ' ').trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+// Short descriptor for an entity row: unit if it has one, else device_class,
+// else the domain. e.g. "°C", "Temperature", "Light".
+function entityMeta(entity: HassEntity): string {
+  const unit = entity.attributes.unit_of_measurement as string | undefined;
+  if (unit) return unit;
+  const deviceClass = entity.attributes.device_class as string | undefined;
+  return humanize(deviceClass ?? entityDomain(entity));
+}
 
 // Selected-badge for a thumbnail tile — a ha-blue check in the top-right corner.
 function ThumbCheck() {
@@ -340,6 +356,7 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, h
                     if (!entity) return null;
                     const isDimmed = key === 'hidden' || key === 'disabled';
                     const isInsertBefore = key === 'secondary' && insertBeforeId === slot.entity_id && dragId !== slot.entity_id;
+                    const meta = entityMeta(entity);
                     return (
                       <div key={slot.entity_id}>
                         <div className={clsx('h-0.5 rounded-full mb-1 transition-opacity', isInsertBefore ? 'bg-ha-blue opacity-100' : 'opacity-0')} />
@@ -360,8 +377,18 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, h
                           <div className={clsx('shrink-0', isDimmed ? 'text-text-tertiary' : 'text-text-secondary')}>
                             <Icon path={domainIcon(entity)} size={16} />
                           </div>
-                          <span className={clsx('flex-1 text-sm truncate min-w-0', isDimmed ? 'text-text-tertiary line-through' : 'text-text-primary')}>
-                            {friendlyName(entity)}
+                          <div className="flex-1 min-w-0">
+                            <span className={clsx('block text-sm truncate', isDimmed ? 'text-text-tertiary line-through' : 'text-text-primary')}>
+                              {friendlyName(entity)}
+                            </span>
+                            {/* Mobile: meta as a second line */}
+                            <span className="sm:hidden block text-xs text-text-tertiary truncate mt-0.5">
+                              {meta}
+                            </span>
+                          </div>
+                          {/* Desktop: meta right-aligned near the icons */}
+                          <span className="hidden sm:block text-xs text-text-tertiary shrink-0 max-w-[8rem] truncate">
+                            {meta}
                           </span>
                           {key === 'secondary' && entity.attributes.unit_of_measurement != null && (
                             <button

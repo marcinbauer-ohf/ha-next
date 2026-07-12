@@ -4,11 +4,15 @@ import { Icon } from '../ui/Icon';
 import { NavChevron } from '../ui';
 import { Tooltip } from '../ui/Tooltip';
 import { useHomeAssistant, useHomeAssistantSelector, useHomeCenterPrefs } from '@/hooks';
+import { useActivities } from '@/hooks/useActivities';
 import { useNotificationCenter } from '@/contexts';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
+import { buildActivityFeed } from '@/lib/activities/feed';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { isHomeCenterSectionVisible } from '@/components/profile/settingsNavigation';
+import { ActivityFeed } from '../ui/ActivityFeed';
 import { resolveEntityPictureUrl } from '@/lib/utils';
+import { useHomeMode } from '@/lib/homeMode';
 import {
   mdiAlertCircle,
   mdiBackupRestore,
@@ -19,6 +23,7 @@ import {
   mdiCloudOff,
   mdiDevices,
   mdiHomeVariant,
+  mdiPulse,
   mdiUpdate,
   mdiWeb,
   mdiWrench,
@@ -39,6 +44,28 @@ function useHomeCenterStatusData() {
   return { haUrl, demoMode, connected, connecting, activityData, visibleSections };
 }
 
+/**
+ * Current home mode as a compact banner card. Rendered at the top of the Home
+ * Center surfaces (desktop clock pop-up + mobile nav) beside the same chips the
+ * dashboard and lock screen show. Display-only — renders nothing until a
+ * mode helper is configured in settings.
+ */
+export function HomeModeCard() {
+  const homeMode = useHomeMode();
+  if (!homeMode) return null;
+  return (
+    <div className="flex items-center gap-ha-3 rounded-2xl bg-surface-low p-ha-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-500/10 text-violet-500">
+        <Icon path={homeMode.icon} size={22} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-wider text-text-secondary">Home Mode</p>
+        <p className="truncate text-base font-semibold text-text-primary">{homeMode.current}</p>
+      </div>
+    </div>
+  );
+}
+
 export function HomeCenterPillIndicators({
   size = 20,
   max,
@@ -50,6 +77,8 @@ export function HomeCenterPillIndicators({
 }) {
   const { activityData, visibleSections } = useHomeCenterStatusData();
   const { notifications: centerNotifications } = useNotificationCenter();
+  const { activities } = useActivities();
+  const activeActivityCount = buildActivityFeed(activities).filter((a) => a.phase === 'active').length;
 
   const notificationCount = activityData.activeNotifications.length + centerNotifications.length;
   const pendingUpdates = activityData.activeUpdates.length;
@@ -66,6 +95,12 @@ export function HomeCenterPillIndicators({
     let dot: string | null = null;
     let pulse = false;
     switch (id) {
+      case 'activity':
+        icon = mdiPulse;
+        tooltip = activeActivityCount > 0 ? `Happening now: ${activeActivityCount} in progress` : 'Happening now: Nothing active';
+        dot = activeActivityCount > 0 ? 'bg-ha-blue' : null;
+        pulse = activeActivityCount > 0;
+        break;
       case 'notifications':
         icon = mdiBell;
         tooltip = notificationCount > 0 ? `Notifications: ${notificationCount} active` : 'Notifications: None';
@@ -127,6 +162,9 @@ export function HomeCenterPillIndicators({
 export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: string) => void }) {
   const { haUrl, demoMode, connected, connecting, activityData, visibleSections } = useHomeCenterStatusData();
   const { notifications: centerNotifications } = useNotificationCenter();
+  const { activities } = useActivities();
+  const activityFeed = buildActivityFeed(activities);
+  const activeActivityCount = activityFeed.filter((a) => a.phase === 'active').length;
 
   // App-generated notifications (dismissed toasts) ahead of HA persistent ones.
   const activeNotifications = [...centerNotifications, ...activityData.activeNotifications];
@@ -157,6 +195,27 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
 
   const renderSection = (id: HomeCenterSectionId) => {
     switch (id) {
+      case 'activity':
+        return (
+          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+            <button type="button" onClick={() => onNavigate('/settings?section=activity')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
+              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Happening Now</h4>
+              <div className="flex items-center gap-ha-2">
+                {activeActivityCount > 0 && (
+                  <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeActivityCount}</span>
+                )}
+                <NavChevron size={16} className="text-text-disabled group-hover:text-text-secondary" />
+              </div>
+            </button>
+            {activityFeed.length > 0 ? (
+              <div className="overflow-hidden rounded-xl bg-surface-mid/30">
+                <ActivityFeed items={activityFeed} />
+              </div>
+            ) : (
+              <p className="text-xs text-text-disabled px-1 py-1">Nothing happening right now</p>
+            )}
+          </div>
+        );
       case 'notifications':
         return (
           <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
@@ -339,9 +398,12 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
 
 export function OpenHomeCenterButton({
   onNavigate,
+  onClick,
   variant = 'primary',
 }: {
   onNavigate: (path: string) => void;
+  /** Overrides the default settings navigation — used to open the bento overlay. */
+  onClick?: () => void;
   variant?: 'primary' | 'secondary';
 }) {
   const tone =
@@ -351,7 +413,7 @@ export function OpenHomeCenterButton({
   return (
     <button
       type="button"
-      onClick={() => onNavigate('/settings?section=home-center')}
+      onClick={() => (onClick ? onClick() : onNavigate('/settings?section=home-center'))}
       className={`w-full h-11 rounded-ha-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all ${tone}`}
     >
       <Icon path={mdiHomeVariant} size={18} />

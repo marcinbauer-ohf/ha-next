@@ -3,6 +3,7 @@ import {
   mdiBatteryAlertVariantOutline,
   mdiBell,
   mdiDevices,
+  mdiPulse,
   mdiUpdate,
   mdiWeb,
   mdiWrench,
@@ -12,6 +13,7 @@ import {
 // all render the same set of status sections in the same configurable order.
 // This registry is the single source of truth for that set.
 export type HomeCenterSectionId =
+  | 'activity'
   | 'notifications'
   | 'updates'
   | 'repairs'
@@ -36,6 +38,7 @@ export interface HomeCenterSectionDef {
 // Default display order. Connectivity is locked on and intentionally last —
 // it's the "is my home reachable" anchor that should always be present.
 export const HOME_CENTER_SECTIONS: HomeCenterSectionDef[] = [
+  { id: 'activity', label: 'Happening now', description: 'Live activity in progress — installs, backups, timers and more', icon: mdiPulse, dotClass: 'bg-ha-blue' },
   { id: 'notifications', label: 'Notifications', description: 'Active notifications from your home', icon: mdiBell, dotClass: 'bg-yellow-500' },
   { id: 'updates', label: 'Updates', description: 'Available updates for integrations and add-ons', icon: mdiUpdate, dotClass: 'bg-ha-blue' },
   { id: 'repairs', label: 'Repairs', description: 'Issues Home Assistant suggests you fix', icon: mdiWrench, dotClass: 'bg-orange-500' },

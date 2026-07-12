@@ -8,7 +8,7 @@ import { ThemeProvider } from '@/hooks/useTheme';
 import { FontProvider } from '@/hooks/useFont';
 import { ImmersiveModeProvider } from '@/hooks/useImmersiveMode';
 import { DogEarConfigProvider } from '@/hooks/useDogEarConfig';
-import { PullToRevealProvider, SidebarItemsProvider, SidebarArrangeProvider, SearchProvider, AssistantProvider, HeaderProvider, AddContextProvider, ScreensaverProvider, EditModeProvider, MobileToolbarProvider, ToastProvider, NotificationCenterProvider, DebugFlagsProvider } from '@/contexts';
+import { PullToRevealProvider, SidebarItemsProvider, SidebarArrangeProvider, SearchProvider, AssistantProvider, HomeCenterProvider, HeaderProvider, AddContextProvider, ScreensaverProvider, EditModeProvider, MobileToolbarProvider, ToastProvider, NotificationCenterProvider, DebugFlagsProvider } from '@/contexts';
 import { AppShell } from '@/components/layout';
 import { SystemUpdateWatcher } from '@/components/ui/SystemUpdateWatcher';
 
@@ -124,6 +124,7 @@ export default function RootLayout({
                   <PullToRevealProvider>
                     <SearchProvider>
                       <AssistantProvider>
+                        <HomeCenterProvider>
                         <HeaderProvider>
                           <AddContextProvider>
                           <NotificationCenterProvider>
@@ -140,6 +141,7 @@ export default function RootLayout({
                           </NotificationCenterProvider>
                           </AddContextProvider>
                         </HeaderProvider>
+                        </HomeCenterProvider>
                       </AssistantProvider>
                     </SearchProvider>
                   </PullToRevealProvider>

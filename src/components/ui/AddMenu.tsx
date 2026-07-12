@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { mdiChevronDown, mdiLayers } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon } from './Icon';
@@ -49,6 +49,7 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
   const [expanded, setExpanded] = useState(false);
   const { attach: attachDropdownFades, showTop: dropdownTop, showBottom: dropdownBottom } = useScrollFades<HTMLDivElement>();
   const { attach: attachSheetFades, showTop: sheetTop, showBottom: sheetBottom } = useScrollFades<HTMLDivElement>();
+  const dragControls = useDragControls();
 
   useCloseOnScreensaver(isOpen, onClose);
 
@@ -209,10 +210,21 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            drag="y"
+            dragListener={false}
+            dragControls={dragControls}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.9 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 120 || info.velocity.y > 800) onClose();
+            }}
             className="lg:hidden fixed inset-x-0 bottom-0 z-[200] bg-surface-default rounded-t-ha-3xl"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
           >
-            <div className="flex justify-center pt-ha-3 pb-ha-1">
+            <div
+              className="flex justify-center pt-ha-3 pb-ha-1 touch-none cursor-grab active:cursor-grabbing"
+              onPointerDown={(e) => dragControls.start(e)}
+            >
               <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
             </div>
             <div className="px-ha-4 pt-ha-2 pb-ha-3">

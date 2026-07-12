@@ -15,6 +15,12 @@ interface SystemUpdateOverlayProps {
   visible: boolean;
   install: SystemUpdateInstall | null;
   phase: SystemUpdatePhase;
+  /**
+   * When set, the overlay is being shown as a debug preview: clicking anywhere
+   * dismisses it and a hint appears. Undefined for the real update/restart flow,
+   * which must not be dismissable by the user.
+   */
+  onDismissPreview?: () => void;
 }
 
 function statusLine(phase: SystemUpdatePhase, install: SystemUpdateInstall | null): string {
@@ -31,9 +37,10 @@ function statusLine(phase: SystemUpdatePhase, install: SystemUpdateInstall | nul
   }
 }
 
-export function SystemUpdateOverlay({ visible, install, phase }: SystemUpdateOverlayProps) {
-  // Match the screensaver wallpaper so this reads as the same family of screens.
-  const { wavyBackgroundEnabled, pulseMode } = useFeatureFlags();
+export function SystemUpdateOverlay({ visible, install, phase, onDismissPreview }: SystemUpdateOverlayProps) {
+  // Warp shader background — same wallpaper as onboarding, so update/restart
+  // reads as the same family of screens.
+  const { wavyBackgroundEnabled } = useFeatureFlags();
   const weatherParams = useWeatherParams();
   const ringOrigin = useRingOrigin();
 
@@ -59,10 +66,18 @@ export function SystemUpdateOverlay({ visible, install, phase }: SystemUpdateOve
     };
   }, [visible]);
 
-  const isImmersiveMode = !['classic', 'heartbeat', 'breathing', 'breathOrb'].includes(pulseMode);
+  const isImmersiveMode = true;
   const showLabel = install?.label ?? 'Home Assistant';
   const percentage = install?.percentage ?? null;
   const settling = phase === 'settling';
+  // Restart with no update entity behind it (e.g. Settings → System → Restart).
+  const bareRestart = phase === 'restarting' && !install;
+
+  const heading = settling
+    ? 'Your home is ready'
+    : bareRestart
+      ? 'Restarting your home'
+      : 'Updating your home';
 
   if (!shouldRender) return null;
 
@@ -73,7 +88,8 @@ export function SystemUpdateOverlay({ visible, install, phase }: SystemUpdateOve
       aria-live="polite"
       className={`fixed inset-0 z-[110] bg-surface-default flex flex-col items-center justify-center px-ha-6 transition-opacity duration-500 ease-out select-none ${
         isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-      }`}
+      } ${onDismissPreview ? 'cursor-pointer' : ''}`}
+      onClick={onDismissPreview}
       onTransitionEnd={() => {
         if (!visible && !isVisible) setShouldRender(false);
       }}
@@ -82,7 +98,7 @@ export function SystemUpdateOverlay({ visible, install, phase }: SystemUpdateOve
         wavy={wavyBackgroundEnabled}
         center={ringOrigin.center}
         reach={ringOrigin.reach}
-        mode={pulseMode}
+        mode="warp"
         weather={weatherParams}
         opaque
       />
@@ -98,22 +114,18 @@ export function SystemUpdateOverlay({ visible, install, phase }: SystemUpdateOve
       )}
 
       <div className="relative flex flex-col items-center text-center max-w-md">
-        {/* Logo mark, gently pulsing while working; settles to a check when done */}
+        {/* Bare logo — no circle, matching the onboarding hero. Gently pulsing
+            while working; settles to a check when done. */}
         <div className="relative mb-ha-6">
-          {!settling && (
-            <span className="absolute inset-0 rounded-full bg-ha-blue/15 animate-ping" aria-hidden />
+          {settling ? (
+            <Icon path={mdiCheckCircle} size={64} className="text-green-500" />
+          ) : (
+            <HALogo size={64} className="animate-pulse" />
           )}
-          <div className="relative w-20 h-20 rounded-full bg-surface-low/70 border border-surface-lower flex items-center justify-center backdrop-blur-sm">
-            {settling ? (
-              <Icon path={mdiCheckCircle} size={40} className="text-green-500" />
-            ) : (
-              <HALogo size={44} className="animate-pulse" />
-            )}
-          </div>
         </div>
 
         <h1 className="text-2xl md:text-3xl font-semibold text-text-primary leading-tight">
-          {settling ? 'Your home is ready' : 'Updating your home'}
+          {heading}
         </h1>
         <p className="mt-ha-2 text-base text-text-secondary">{showLabel}</p>
 
@@ -138,8 +150,14 @@ export function SystemUpdateOverlay({ visible, install, phase }: SystemUpdateOve
 
         <p className="mt-ha-8 text-sm text-text-disabled leading-relaxed">
           This can take a few minutes. Your devices keep running — the screen
-          returns on its own once the update is done.
+          returns on its own once your home is back.
         </p>
+
+        {onDismissPreview && (
+          <p className="mt-ha-6 text-xs font-medium uppercase tracking-wide text-text-disabled">
+            Preview · tap anywhere or press Esc to close
+          </p>
+        )}
       </div>
     </div>
   );

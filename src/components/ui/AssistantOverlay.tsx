@@ -8,6 +8,7 @@ import { SectionLabel } from './SectionLabel';
 import { useAssistantContext } from '@/contexts/AssistantContext';
 import { useCloseOnScreensaver } from '@/contexts';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useSheetDrag } from '@/hooks/useSheetDrag';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { processConversation, startVoiceAssist, type VoiceAssistSession } from '@/lib/homeassistant';
 import {
@@ -49,6 +50,8 @@ export function AssistantOverlay() {
   const [glowRoot, setGlowRoot] = useState<HTMLElement | null>(null);
 
   useFocusTrap(assistantOpen, containerRef);
+
+  const sheetDrag = useSheetDrag({ onClose: closeAssistant, disabled: isDesktop });
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
@@ -201,10 +204,13 @@ export function AssistantOverlay() {
             ? 'mx-ha-6 mb-ha-6 rounded-ha-3xl border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
             : 'w-full rounded-t-ha-3xl'
         } ${visible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
-        style={{ maxHeight: contained ? 'calc(85% - var(--ha-space-6))' : '85dvh', paddingBottom: 'env(safe-area-inset-bottom)' }}
+        style={{ maxHeight: contained ? 'calc(85% - var(--ha-space-6))' : '85dvh', paddingBottom: 'env(safe-area-inset-bottom)', ...sheetDrag.dragStyle }}
       >
-        {/* Drag indicator + close */}
-        <div className="flex items-center justify-between px-ha-4 pt-ha-3 pb-ha-1">
+        {/* Drag indicator + close. This row doubles as the drag handle. */}
+        <div
+          {...sheetDrag.handleProps}
+          className={`flex items-center justify-between px-ha-4 pt-ha-3 pb-ha-1 ${isDesktop ? '' : 'touch-none cursor-grab active:cursor-grabbing'}`}
+        >
           <div className="w-8" />
           <div className="w-10 h-1 rounded-full bg-text-secondary/30" />
           <button

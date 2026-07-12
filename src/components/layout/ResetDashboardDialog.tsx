@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useCloseOnScreensaver, useToast } from '@/contexts';
 import { haptic } from '@/lib/haptics';
 import { Icon } from '@/components/ui/Icon';
+import { ListSection } from '@/components/ui';
 import { mdiCheck, mdiBackupRestore } from '@mdi/js';
 
 // Each option maps a human choice to the localStorage keys it clears. Reset is
@@ -106,7 +107,8 @@ export function ResetDashboardDialog({ open, onClose }: { open: boolean; onClose
               </p>
             </div>
 
-            <div className="px-ha-4 pb-ha-2 flex flex-col gap-ha-2">
+            <div className="px-ha-4 pb-ha-2">
+              <ListSection>
               {RESET_OPTIONS.map(opt => {
                 const checked = selected.has(opt.key);
                 return (
@@ -123,7 +125,7 @@ export function ResetDashboardDialog({ open, onClose }: { open: boolean; onClose
                         return next;
                       });
                     }}
-                    className="w-full rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3 flex items-center gap-ha-3 text-left hover:bg-surface-low transition-colors"
+                    className="w-full px-ha-4 py-ha-3 flex items-center gap-ha-3 text-left hover:bg-surface-low transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-text-primary">{opt.label}</div>
@@ -139,6 +141,7 @@ export function ResetDashboardDialog({ open, onClose }: { open: boolean; onClose
                   </button>
                 );
               })}
+              </ListSection>
             </div>
 
             <div className="flex gap-ha-2 p-ha-4 pt-ha-3">

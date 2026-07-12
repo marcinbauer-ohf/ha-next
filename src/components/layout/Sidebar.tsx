@@ -26,6 +26,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { ContextMenu, type ContextMenuAction } from '../ui/ContextMenu';
 import { useSidebarItems, useLongPress } from '@/hooks';
 import { useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
+import { useDashboardThumbnail } from '@/lib/dashboardThumbnails';
 import { mdiClose, mdiCheck, mdiDragVariant, mdiDeleteOutline } from '@mdi/js';
 import { clsx } from 'clsx';
 import { haptic } from '@/lib/haptics';
@@ -63,7 +64,11 @@ interface RailItemProps {
   onEnterArrange: () => void;
   onRequestDelete: (item: SidebarItem) => void;
   onOpenMenu: (item: SidebarItem, x: number, y: number) => void;
-  onHoverShow: (trigger: HTMLElement, content: string, shortcut?: string) => void;
+  onHoverShow: (
+    trigger: HTMLElement,
+    content: string,
+    opts?: { shortcut?: string; urlPath?: string },
+  ) => void;
   onHoverHide: () => void;
 }
 
@@ -137,7 +142,11 @@ function RailItem({
           onMouseEnter={
             arranging
               ? undefined
-              : (event) => onHoverShow(event.currentTarget, formatTooltipLabel(item.title), isHome ? 'H' : undefined)
+              : (event) =>
+                  onHoverShow(event.currentTarget, formatTooltipLabel(item.title), {
+                    shortcut: isHome ? 'H' : undefined,
+                    urlPath: item.urlPath,
+                  })
           }
           onMouseLeave={arranging ? undefined : onHoverHide}
           className={clsx(
@@ -215,10 +224,12 @@ export function Sidebar({
   const [tooltip, setTooltip] = useState({
     content: '',
     shortcut: undefined as string | undefined,
+    urlPath: '',
     top: 0,
     left: 0,
     visible: false,
   });
+  const previewThumb = useDashboardThumbnail(tooltip.urlPath);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -269,7 +280,19 @@ export function Sidebar({
     return { top, left };
   };
 
-  const showTooltip = (trigger: HTMLElement, content: string, shortcut?: string) => {
+  const showTooltip = (
+    trigger: HTMLElement,
+    content: string,
+    opts?: { shortcut?: string; urlPath?: string },
+  ) => {
+    // Touch devices synthesize mouseenter on tap; the hover tooltip/preview is a
+    // pointer affordance only — never surface it without a real hovering cursor.
+    if (
+      typeof window !== 'undefined' &&
+      !window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    ) {
+      return;
+    }
     clearHideTooltipTimeout();
     hoveredItemRef.current = trigger;
     const nextPosition = getTooltipPosition(trigger);
@@ -277,7 +300,8 @@ export function Sidebar({
     setTooltip((prev) => ({
       ...prev,
       content,
-      shortcut,
+      shortcut: opts?.shortcut,
+      urlPath: opts?.urlPath ?? '',
       top: nextPosition.top,
       left: nextPosition.left,
       visible: true,
@@ -350,6 +374,18 @@ export function Sidebar({
       window.removeEventListener('scroll', updateTooltipPosition, true);
     };
   }, []);
+
+  // The preview card is taller than the label pill, so re-measure and re-center
+  // whenever the tooltip's content (and thus its height) changes while visible.
+  useEffect(() => {
+    if (!tooltip.visible || !hoveredItemRef.current) return;
+    const next = getTooltipPosition(hoveredItemRef.current);
+    setTooltip((prev) =>
+      prev.top === next.top && prev.left === next.left
+        ? prev
+        : { ...prev, top: next.top, left: next.left }
+    );
+  }, [tooltip.content, tooltip.urlPath, previewThumb, tooltip.visible]);
 
   useEffect(() => {
     return () => {
@@ -477,24 +513,56 @@ export function Sidebar({
         {typeof document !== 'undefined' &&
           tooltip.content &&
           createPortal(
-            <div
-              ref={tooltipRef}
-              className={clsx(
-                'fixed z-[200] flex items-center gap-ha-2 px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 pointer-events-none text-xs text-text-primary whitespace-nowrap font-medium',
-                tooltip.visible ? 'opacity-100' : 'opacity-0'
-              )}
-              style={{
-                top: `${tooltip.top}px`,
-                left: `${tooltip.left}px`,
-              }}
-            >
-              {tooltip.content}
-              {tooltip.shortcut && (
-                <kbd className="px-ha-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[11px] leading-4 font-medium text-text-secondary">
-                  {tooltip.shortcut}
-                </kbd>
-              )}
-            </div>,
+            previewThumb ? (
+              // Rich preview: a snapshot thumbnail of the view, captured on
+              // edit-exit / first visit, with the label + shortcut beneath it.
+              <div
+                ref={tooltipRef}
+                className={clsx(
+                  'fixed z-[200] w-56 overflow-hidden bg-surface-default border border-surface-lower rounded-ha-lg shadow-xl shadow-black/30 pointer-events-none transition-opacity duration-150',
+                  tooltip.visible ? 'opacity-100' : 'opacity-0'
+                )}
+                style={{
+                  top: `${tooltip.top}px`,
+                  left: `${tooltip.left}px`,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewThumb.dataUrl}
+                  alt=""
+                  aria-hidden
+                  className="block h-32 w-full object-cover object-top bg-surface-lower"
+                />
+                <div className="flex items-center gap-ha-2 px-ha-2 py-ha-1.5 border-t border-surface-lower text-xs text-text-primary font-medium">
+                  <span className="truncate">{tooltip.content}</span>
+                  {tooltip.shortcut && (
+                    <kbd className="ml-auto flex-shrink-0 px-ha-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[11px] leading-4 font-medium text-text-secondary">
+                      {tooltip.shortcut}
+                    </kbd>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div
+                ref={tooltipRef}
+                className={clsx(
+                  'fixed z-[200] flex items-center gap-ha-2 px-ha-2 py-ha-1 bg-surface-default border border-surface-lower rounded-ha-lg shadow-lg shadow-black/20 pointer-events-none text-xs text-text-primary whitespace-nowrap font-medium',
+                  tooltip.visible ? 'opacity-100' : 'opacity-0'
+                )}
+                style={{
+                  top: `${tooltip.top}px`,
+                  left: `${tooltip.left}px`,
+                }}
+              >
+                {tooltip.content}
+                {tooltip.shortcut && (
+                  <kbd className="px-ha-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[11px] leading-4 font-medium text-text-secondary">
+                    {tooltip.shortcut}
+                  </kbd>
+                )}
+              </div>
+            ),
             document.body
           )}
       </aside>

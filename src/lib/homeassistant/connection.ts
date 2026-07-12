@@ -7,7 +7,7 @@ import {
   ERR_CANNOT_CONNECT,
   ERR_INVALID_AUTH,
 } from 'home-assistant-js-websocket';
-import type { HassConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, StatisticValue, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, HassUser } from './types';
+import type { HassConfig, HaCoreConfig, CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, StatisticValue, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, HassUser } from './types';
 
 let connection: Connection | null = null;
 let entitySubscription: (() => void) | null = null;
@@ -44,6 +44,34 @@ export function isSocketAlive(): boolean {
   return socketAlive;
 }
 
+// ── Restart pending ───────────────────────────────────────────────────────────
+// HA fires a `homeassistant_stop` bus event when it is shutting down or
+// restarting (including the `homeassistant.restart` service and Settings →
+// System → Restart). Unlike a bare socket drop, this is an explicit signal that
+// the instance is going away on purpose — so the "restarting" overlay can take
+// over even when no OS/Supervisor/Core update preceded it, without firing on
+// ordinary network blips. Cleared when the socket comes back `ready`.
+type RestartPendingListener = (pending: boolean) => void;
+const restartPendingListeners = new Set<RestartPendingListener>();
+let restartPending = false;
+
+function setRestartPending(pending: boolean): void {
+  if (restartPending === pending) return;
+  restartPending = pending;
+  restartPendingListeners.forEach((listener) => listener(pending));
+}
+
+export function subscribeToRestartPending(listener: RestartPendingListener): () => void {
+  restartPendingListeners.add(listener);
+  return () => {
+    restartPendingListeners.delete(listener);
+  };
+}
+
+export function isRestartPending(): boolean {
+  return restartPending;
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -62,8 +90,15 @@ export async function connect(config: HassConfig): Promise<Connection> {
     setSocketAlive(true);
     // The Connection object persists across the library's internal reconnects,
     // so listeners attached once here cover every socket drop/revive.
-    connection.addEventListener('ready', () => setSocketAlive(true));
+    connection.addEventListener('ready', () => {
+      setSocketAlive(true);
+      // Back online → whatever restart was pending has completed.
+      setRestartPending(false);
+    });
     connection.addEventListener('disconnected', () => setSocketAlive(false));
+    // Explicit restart/shutdown signal from the HA event bus. Fire-and-forget:
+    // the sub rides the persistent Connection across the library's reconnects.
+    void connection.subscribeEvents(() => setRestartPending(true), 'homeassistant_stop');
     return connection;
   } catch (error) {
     if (error === ERR_CANNOT_CONNECT) {
@@ -89,6 +124,7 @@ export function disconnect(): void {
   restToken = null;
   currentUser = null;
   setSocketAlive(false);
+  setRestartPending(false);
 }
 
 export function getConnection(): Connection | null {
@@ -227,6 +263,16 @@ export async function getConfigEntries(): Promise<ConfigEntry[]> {
     return await conn.sendMessagePromise<ConfigEntry[]>({ type: 'config_entries/get' }) ?? [];
   } catch {
     return [];
+  }
+}
+
+export async function getCoreConfig(): Promise<HaCoreConfig | null> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return null;
+  try {
+    return await conn.sendMessagePromise<HaCoreConfig>({ type: 'get_config' });
+  } catch {
+    return null;
   }
 }
 

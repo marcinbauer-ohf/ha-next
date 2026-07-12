@@ -130,6 +130,18 @@ export function createDemoEntities(now = new Date()): HassEntities {
       },
       timestamp
     ),
+    // Dropdown helper the Home Mode chip reads (display-only). A real home wires
+    // its automations to option changes; the demo just shows the current mode.
+    'input_select.home_mode': createEntity(
+      'input_select.home_mode',
+      'Home',
+      {
+        friendly_name: 'Home Mode',
+        options: ['Home', 'Away', 'Night', 'Vacation', 'Guest'],
+        icon: 'mdi:home',
+      },
+      timestamp
+    ),
     'sensor.energy_today': createEntity(
       'sensor.energy_today',
       '14.8',
