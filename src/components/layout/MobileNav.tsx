@@ -387,6 +387,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const bottomSheetHandleRef = useRef<HTMLButtonElement | null>(null);
+  const navPillRef = useRef<HTMLDivElement | null>(null);
   const expandedSurfaceScrollRef = useRef<HTMLDivElement | null>(null);
   const activityListScrollRef = useRef<HTMLDivElement | null>(null);
   const bottomSheetTouchStartY = useRef<number | null>(null);
@@ -1034,11 +1035,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     ]
   );
 
-  // Shared drag handle behavior:
-  // collapsed -> drag up to open, expanded -> drag down to close.
+  // Sheet drag behavior, attached to the whole nav pill:
+  // collapsed -> drag up from anywhere on the bar to open,
+  // expanded -> drag down on the handle to close (the sheet content
+  // underneath has to keep scrolling normally).
   useEffect(() => {
-    const handle = bottomSheetHandleRef.current;
-    if (!handle) return;
+    const pill = navPillRef.current;
+    if (!pill) return;
 
     const getDragRangePx = () => {
       if (typeof window === 'undefined') return 280;
@@ -1065,6 +1068,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     };
 
     const onTouchStart = (e: TouchEvent) => {
+      // While the sheet is up, only the handle drags it closed.
+      if (
+        statusExpanded &&
+        !(e.target instanceof Node && bottomSheetHandleRef.current?.contains(e.target))
+      ) {
+        return;
+      }
       const touch = e.touches[0];
       if (!touch) return;
       bottomSheetTouchStartY.current = touch.clientY;
@@ -1130,16 +1140,16 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       setBottomSheetDragProgressClamped(0);
     };
 
-    handle.addEventListener('touchstart', onTouchStart, { passive: true });
-    handle.addEventListener('touchmove', onTouchMove, { passive: false });
-    handle.addEventListener('touchend', onTouchEnd, { passive: true });
-    handle.addEventListener('touchcancel', onTouchCancel, { passive: true });
+    pill.addEventListener('touchstart', onTouchStart, { passive: true });
+    pill.addEventListener('touchmove', onTouchMove, { passive: false });
+    pill.addEventListener('touchend', onTouchEnd, { passive: true });
+    pill.addEventListener('touchcancel', onTouchCancel, { passive: true });
 
     return () => {
-      handle.removeEventListener('touchstart', onTouchStart);
-      handle.removeEventListener('touchmove', onTouchMove);
-      handle.removeEventListener('touchend', onTouchEnd);
-      handle.removeEventListener('touchcancel', onTouchCancel);
+      pill.removeEventListener('touchstart', onTouchStart);
+      pill.removeEventListener('touchmove', onTouchMove);
+      pill.removeEventListener('touchend', onTouchEnd);
+      pill.removeEventListener('touchcancel', onTouchCancel);
     };
   }, [
     closeExpandedSurface,
@@ -1909,7 +1919,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         style={{ opacity: isSheetVisible ? 1 : 0 }}
       />
       <div className="relative z-10 px-edge">
-        <div className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden">
+        <div
+          ref={navPillRef}
+          className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden"
+          // Collapsed, the whole bar is the drag-up affordance; expanded, touch
+          // handling goes back to the browser so the sheet content can scroll.
+          style={{ touchAction: statusExpanded ? 'auto' : 'none' }}
+        >
           <div className="relative rounded-[calc(var(--ha-radius-3xl)-1px)] bg-surface-default/95">
             <div className="flex flex-col px-ha-2 pt-ha-1 pb-ha-2">
               <div className="flex justify-center py-0 mb-0 shrink-0">
@@ -1994,7 +2010,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               : 'max-height 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.3s cubic-bezier(0.22,1,0.36,1)',
           }}
         >
-        <div className="flex items-center gap-ha-2 shrink-0 pt-1.5">
+        <div className="flex items-center gap-ha-2 shrink-0 pt-0.5">
           {showHomeBackButton && (
             <Link prefetch={false}
               href={backHref}
