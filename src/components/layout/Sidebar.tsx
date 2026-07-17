@@ -24,10 +24,13 @@ import { MdiIcon } from '../ui/MdiIcon';
 import { HALogo } from '../ui/HALogo';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { ContextMenu, type ContextMenuAction } from '../ui/ContextMenu';
-import { useSidebarItems, useLongPress } from '@/hooks';
+import { useSidebarItems, useLongPress, useRunShortcut } from '@/hooks';
 import { useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
 import { useDashboardThumbnail } from '@/lib/dashboardThumbnails';
-import { mdiClose, mdiCheck, mdiDragVariant, mdiDeleteOutline } from '@mdi/js';
+import { removeShortcut } from '@/lib/sidebarShortcuts';
+import { ShortcutPicker } from '../ui/ShortcutPicker';
+import { mdiMinus, mdiCheck, mdiPlus, mdiPlusBoxOutline, mdiDragVariant, mdiDeleteOutline, mdiMinusCircleOutline, mdiChevronDoubleLeft, mdiChevronDoubleRight, mdiArrowTopRight } from '@mdi/js';
+import { shortcutHint, useIsMacPlatform } from '@/lib/keyboardShortcuts';
 import { clsx } from 'clsx';
 import { haptic } from '@/lib/haptics';
 
@@ -59,8 +62,10 @@ interface RailItemProps {
   isActive: boolean;
   arranging: boolean;
   pinned: boolean;
+  expanded: boolean;
   splitNavigationEnabled: boolean;
   onNavigate?: (href: string, options?: { openInSplit?: boolean }) => void;
+  onRunShortcut?: (item: SidebarItem) => void;
   onEnterArrange: () => void;
   onRequestDelete: (item: SidebarItem) => void;
   onOpenMenu: (item: SidebarItem, x: number, y: number) => void;
@@ -78,8 +83,10 @@ function RailItem({
   isActive,
   arranging,
   pinned,
+  expanded,
   splitNavigationEnabled,
   onNavigate,
+  onRunShortcut,
   onEnterArrange,
   onRequestDelete,
   onOpenMenu,
@@ -132,6 +139,12 @@ function RailItem({
               event.preventDefault();
               return;
             }
+            // Action / link shortcuts run instead of navigating.
+            if (item.shortcut && item.shortcut.kind !== 'view') {
+              event.preventDefault();
+              onRunShortcut?.(item);
+              return;
+            }
             if (!onNavigate) return;
             if (event.defaultPrevented) return;
             const isModifiedClick = event.metaKey || event.ctrlKey;
@@ -140,7 +153,9 @@ function RailItem({
             onNavigate(item.urlPath, { openInSplit: splitNavigationEnabled && isModifiedClick });
           }}
           onMouseEnter={
-            arranging
+            // Expanded rows carry their own label — the hover tooltip is a
+            // rail-only affordance.
+            arranging || expanded
               ? undefined
               : (event) =>
                   onHoverShow(event.currentTarget, formatTooltipLabel(item.title), {
@@ -148,37 +163,70 @@ function RailItem({
                     urlPath: item.urlPath,
                   })
           }
-          onMouseLeave={arranging ? undefined : onHoverHide}
+          onMouseLeave={arranging || expanded ? undefined : onHoverHide}
           className={clsx(
-            'w-12 h-12 rounded-ha-xl transition-colors flex items-center justify-center select-none',
-            isActive
-              ? 'bg-surface-mid'
-              : item.isApp
-                ? 'bg-surface-low hover:bg-surface-mid'
-                : 'hover:bg-surface-low',
-            item.isApp && 'ha-app-icon-shell',
-            item.isApp && isActive && 'ha-app-icon-shell-active',
+            // Rows are always full-width with a fixed 48px icon slot at the
+            // left, so nothing re-flows when the rail's width animates — in
+            // rail mode the row IS the 48px tile. Apps carry their background
+            // on the icon tile only (see the span below), dashboards on the
+            // whole row.
+            'group h-12 w-full rounded-ha-xl transition-colors flex items-center select-none',
+            !item.isApp && (isActive ? 'bg-surface-mid' : 'hover:bg-surface-low'),
             arranging && !pinned && 'cursor-grab active:cursor-grabbing'
           )}
         >
-          {isHome ? (
-            <HALogo size={26} />
-          ) : (
-            <MdiIcon
-              icon={item.icon || (item.isApp ? 'mdi:application' : 'mdi:view-dashboard')}
-              size={24}
-              className={clsx(
-                isActive
-                  ? item.isApp && palette
-                    ? palette.text
-                    : 'text-ha-blue'
-                  : item.isApp && palette
-                    ? palette.text
-                    : 'text-text-secondary',
-                item.isApp && 'ha-app-icon-glyph'
-              )}
-            />
-          )}
+          <span
+            className={clsx(
+              'relative w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-ha-xl transition-colors',
+              item.isApp &&
+                (isActive ? 'bg-surface-mid' : 'bg-surface-low group-hover:bg-surface-mid'),
+              item.isApp && 'ha-app-icon-shell',
+              item.isApp && isActive && 'ha-app-icon-shell-active'
+            )}
+          >
+            {/* Shortcut marker — the classic corner arrow (macOS alias /
+                Windows shortcut overlay) sets user shortcuts apart from
+                dashboards and apps. Muted so it doesn't compete with the
+                icon, glyph kept large enough to read. */}
+            {item.isShortcut && (
+              <span
+                className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-surface-mid text-text-secondary ring-1 ring-surface-default flex items-center justify-center"
+                aria-hidden
+              >
+                <Icon path={mdiArrowTopRight} size={11} exact />
+              </span>
+            )}
+            {isHome ? (
+              <HALogo size={26} />
+            ) : (
+              <MdiIcon
+                icon={item.icon || (item.isApp ? 'mdi:application' : 'mdi:view-dashboard')}
+                size={24}
+                className={clsx(
+                  isActive
+                    ? item.isApp && palette
+                      ? palette.text
+                      : 'text-ha-blue'
+                    : item.isApp && palette
+                      ? palette.text
+                      : 'text-text-secondary',
+                  item.isApp && 'ha-app-icon-glyph'
+                )}
+              />
+            )}
+          </span>
+          {/* Always mounted: at rail width the flex-1 slot collapses to zero
+              and the label clips away, so expanding/collapsing reveals it
+              smoothly instead of popping it in and out. */}
+          <span
+            className={clsx(
+              'min-w-0 flex-1 truncate pl-3 pr-3 text-left text-sm font-medium transition-opacity duration-200',
+              expanded ? 'opacity-100' : 'opacity-0',
+              isActive ? 'text-text-primary' : 'text-text-secondary'
+            )}
+          >
+            {formatTooltipLabel(item.title)}
+          </span>
         </Link>
       </div>
 
@@ -192,9 +240,9 @@ function RailItem({
             e.stopPropagation();
             onRequestDelete(item);
           }}
-          className="ha-arrange-badge absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-2 ring-surface-default"
+          className="ha-arrange-badge absolute -top-1 -right-1 z-10 w-[18px] h-[18px] rounded-full bg-gray-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-1 ring-surface-default"
         >
-          <Icon path={mdiClose} size={10} />
+          <Icon path={mdiMinus} size={11} exact />
         </button>
       )}
     </div>
@@ -204,13 +252,18 @@ function RailItem({
 export function Sidebar({
   onNavigate,
   splitNavigationEnabled = false,
+  expanded = false,
+  onToggleExpanded,
 }: {
   onNavigate?: (href: string, options?: { openInSplit?: boolean }) => void;
   splitNavigationEnabled?: boolean;
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
 } = {}) {
   const pathname = usePathname();
+  const sidebarShortcut = shortcutHint('global.sidebar', useIsMacPlatform());
   const { items, loading } = useSidebarItems();
-  const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, reorderVisible } =
+  const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, restoreItem, reorderVisible } =
     useSidebarArrange();
 
   const scrollableRef = useRef<HTMLDivElement | null>(null);
@@ -219,7 +272,11 @@ export function Sidebar({
   const hideTooltipTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showTopGradient, setShowTopGradient] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<SidebarItem | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    item: SidebarItem;
+    /** Apps distinguish taking the icon off the rail from uninstalling. */
+    mode: 'remove' | 'uninstall';
+  } | null>(null);
   const [menu, setMenu] = useState<{ item: SidebarItem; x: number; y: number } | null>(null);
   const [tooltip, setTooltip] = useState({
     content: '',
@@ -232,15 +289,34 @@ export function Sidebar({
   const previewThumb = useDashboardThumbnail(tooltip.urlPath);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const runShortcut = useRunShortcut();
 
-  // Home is pinned first; the rest sort dashboards-before-apps, then the
-  // session arrange order + soft-hides are layered on top.
+  // Shortcuts delete instantly — they're trivial to recreate from the picker,
+  // so no confirmation. Dashboards and apps keep the confirm dialog.
+  const requestDelete = (item: SidebarItem, mode: 'remove' | 'uninstall') => {
+    if (item.isShortcut) {
+      haptic('impact');
+      removeShortcut(item.id);
+      return;
+    }
+    setPendingDelete({ item, mode });
+  };
+
+  // Home is pinned first; the rest is one freely-mixable list. Default order
+  // ranks dashboards → apps → shortcuts (new shortcuts appear at the end,
+  // right where the "+" tile sits), then the shared arrange order +
+  // soft-hides layer on top — the mobile sheet renders the same single list.
   const homeItem = (items || []).find((it) => it && it.urlPath === '/');
+  const rank = (it: SidebarItem) => (it.isShortcut ? 2 : it.isApp ? 1 : 0);
   const defaultSorted = (items || [])
     .filter((it): it is SidebarItem => !!it && it.urlPath !== '/')
-    .sort((a, b) => (a.isApp === b.isApp ? 0 : a.isApp ? 1 : -1));
+    .sort((a, b) => rank(a) - rank(b));
   const displayItems = arrangeItems(defaultSorted, order, hiddenIds);
   const sortableIds = displayItems.map((it) => it.id);
+  // Hidden items resurface (dimmed, restorable) while arranging — HA-style
+  // visibility toggles rather than one-way removal.
+  const hiddenRailItems = defaultSorted.filter((it) => hiddenIds.has(it.id));
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -248,9 +324,8 @@ export function Sidebar({
     const oldIndex = sortableIds.indexOf(active.id as string);
     const newIndex = sortableIds.indexOf(over.id as string);
     if (oldIndex < 0 || newIndex < 0) return;
-    const next = arrayMove(sortableIds, oldIndex, newIndex);
     haptic('impact');
-    reorderVisible(sortableIds, sortableIds, next);
+    reorderVisible(sortableIds, sortableIds, arrayMove(sortableIds, oldIndex, newIndex));
   };
 
   const clearHideTooltipTimeout = () => {
@@ -323,11 +398,15 @@ export function Sidebar({
     setTooltip((prev) => ({ ...prev, visible: false }));
   };
 
-  // Hide any tooltip the moment arrange mode begins.
+  // Hide any tooltip the moment arrange mode begins or the rail switches
+  // between icon-only and expanded (⌘B can fire mid-hover, leaving the pill
+  // orphaned over the content). rAF-wrapped so the compiler lint doesn't see
+  // a synchronous setState-in-effect.
   useEffect(() => {
-    if (arranging) hideTooltipNow();
+    const raf = requestAnimationFrame(() => hideTooltipNow());
+    return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [arranging]);
+  }, [arranging, expanded]);
 
   // Monitor scroll position to show/hide gradients
   useEffect(() => {
@@ -396,45 +475,40 @@ export function Sidebar({
   return (
     <>
       <aside
-        className="hidden lg:flex flex-col items-center w-16 py-ha-2 h-full"
+        className={clsx(
+          'hidden lg:flex flex-col items-center py-ha-2 h-full overflow-hidden transition-[width] duration-300 ease-out',
+          // Icon-only rail vs expanded rail with labels — the auto grid
+          // column in AppShell follows this width as it animates.
+          expanded ? 'w-56' : 'w-16'
+        )}
         data-component="Sidebar"
         onMouseLeave={hideTooltipNow}
       >
         {/* Pinned home / HA logo — stays put while the rest of the rail scrolls.
             Its center sits 32px below the sidebar top (py-ha-2 + half the 48px
             tile), matching the app bar title's vertical center so the two align.
-            While arranging, this slot becomes the save/done check button. */}
-        {arranging ? (
-          <div className="flex-shrink-0 mb-ha-2">
-            <button
-              onClick={exitArrange}
-              aria-label="Done arranging"
-              className="w-12 h-12 rounded-ha-xl transition-colors flex items-center justify-center bg-ha-blue text-white"
-            >
-              <Icon path={mdiCheck} size={24} />
-            </button>
-          </div>
-        ) : (
-          !loading &&
+            It stays visible (pinned, inert) while arranging — the Done button
+            lives in the bottom slot. */}
+        {!loading &&
           homeItem && (
-            <div className="flex-shrink-0 mb-ha-2">
+            <div className="flex-shrink-0 mb-ha-2 w-full px-2">
               <RailItem
                 item={homeItem}
                 index={-1}
                 isActive={pathname === '/'}
                 arranging={arranging}
                 pinned
+                expanded={expanded}
                 splitNavigationEnabled={splitNavigationEnabled}
                 onNavigate={onNavigate}
                 onEnterArrange={enterArrange}
-                onRequestDelete={setPendingDelete}
+                onRequestDelete={(item) => requestDelete(item, 'remove')}
                 onOpenMenu={(item, x, y) => setMenu({ item, x, y })}
                 onHoverShow={showTooltip}
                 onHoverHide={hideTooltipSoon}
               />
             </div>
-          )
-        )}
+          )}
 
         {/* The rest of the rail (dashboards + apps) scrolls, with the top/bottom
             fades preserved and applied to the scrolling items only. */}
@@ -456,7 +530,7 @@ export function Sidebar({
                 setShowBottomGradient(scrollTop + clientHeight < scrollHeight - 1);
               }
             }}
-            className="h-full w-full flex flex-col items-center gap-ha-2 overflow-y-auto scrollbar-hide py-2"
+            className="h-full w-full flex flex-col items-stretch gap-ha-2 overflow-y-auto scrollbar-hide py-2 px-2"
           >
             {loading ? (
               // Loading placeholders
@@ -464,41 +538,106 @@ export function Sidebar({
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="w-12 h-12 flex-shrink-0 rounded-ha-xl bg-surface-low animate-pulse"
+                    className="h-12 w-full flex-shrink-0 rounded-ha-xl bg-surface-low animate-pulse"
                   />
                 ))}
               </>
             ) : (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-                  {displayItems.map((item, index) => {
-                    const isActive =
-                      pathname === item.urlPath ||
-                      (item.urlPath !== '/' && pathname?.startsWith(item.urlPath));
-                    return (
-                      <RailItem
-                        key={item.id}
-                        item={item}
-                        index={index}
-                        isActive={!!isActive}
-                        arranging={arranging}
-                        pinned={false}
-                        splitNavigationEnabled={splitNavigationEnabled}
-                        onNavigate={onNavigate}
-                        onEnterArrange={enterArrange}
-                        onRequestDelete={setPendingDelete}
-                        onOpenMenu={(item, x, y) => setMenu({ item, x, y })}
-                        onHoverShow={showTooltip}
-                        onHoverHide={hideTooltipSoon}
-                      />
-                    );
-                  })}
-                </SortableContext>
-              </DndContext>
+              <>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                    {displayItems.map((item, index) => {
+                      const isActive =
+                        pathname === item.urlPath ||
+                        (item.urlPath !== '/' && pathname?.startsWith(item.urlPath));
+                      return (
+                        <RailItem
+                          key={item.id}
+                          item={item}
+                          index={index}
+                          isActive={!!isActive}
+                          arranging={arranging}
+                          pinned={false}
+                          expanded={expanded}
+                          splitNavigationEnabled={splitNavigationEnabled}
+                          onNavigate={onNavigate}
+                          onRunShortcut={(it) => it.shortcut && runShortcut(it.shortcut)}
+                          onEnterArrange={enterArrange}
+                          onRequestDelete={(it) => requestDelete(it, 'remove')}
+                          onOpenMenu={(it, x, y) => setMenu({ item: it, x, y })}
+                          onHoverShow={showTooltip}
+                          onHoverHide={hideTooltipSoon}
+                        />
+                      );
+                    })}
+                  </SortableContext>
+                </DndContext>
+                {/* "+" appears while arranging; the context menu covers the
+                    non-arranging path. */}
+                {arranging && (
+                  <button
+                    type="button"
+                    aria-label="Add shortcut"
+                    onClick={() => setPickerOpen(true)}
+                    className="h-12 w-full flex-shrink-0 rounded-ha-xl border border-dashed border-text-tertiary/40 text-text-tertiary hover:text-text-secondary hover:bg-surface-low transition-colors flex items-center"
+                  >
+                    <span className="w-12 flex-shrink-0 flex items-center justify-center">
+                      <Icon path={mdiPlus} size={20} />
+                    </span>
+                    <span
+                      className={clsx(
+                        'min-w-0 flex-1 truncate pl-3 pr-3 text-left text-sm font-medium transition-opacity duration-200',
+                        expanded ? 'opacity-100' : 'opacity-0'
+                      )}
+                    >
+                      Add shortcut
+                    </span>
+                  </button>
+                )}
+                {/* Hidden items — dimmed with a restore "+", so hiding is a
+                    toggle (HA-style), never a dead end. */}
+                {arranging && hiddenRailItems.length > 0 && (
+                  <>
+                    <div className="h-px flex-shrink-0 bg-border-default mx-1" aria-hidden />
+                    {hiddenRailItems.map((item) => (
+                      <div key={item.id} className="relative w-full flex-shrink-0">
+                        <div className="h-12 w-full rounded-ha-xl flex items-center opacity-40 select-none">
+                          <span className="w-12 h-12 flex-shrink-0 flex items-center justify-center">
+                            <MdiIcon
+                              icon={item.icon || (item.isApp ? 'mdi:application' : 'mdi:view-dashboard')}
+                              size={24}
+                              className="text-text-secondary"
+                            />
+                          </span>
+                          <span
+                            className={clsx(
+                              'min-w-0 flex-1 truncate pl-3 pr-3 text-left text-sm font-medium text-text-secondary transition-opacity duration-200',
+                              expanded ? 'opacity-100' : 'opacity-0'
+                            )}
+                          >
+                            {formatTooltipLabel(item.title)}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label={`Show ${item.title}`}
+                          onClick={() => {
+                            haptic('impact');
+                            restoreItem(item.id);
+                          }}
+                          className="ha-arrange-badge absolute -top-1 -right-1 z-10 w-[18px] h-[18px] rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-1 ring-surface-default"
+                        >
+                          <Icon path={mdiPlus} size={11} exact />
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </>
             )}
           </div>
 
@@ -509,6 +648,52 @@ export function Sidebar({
             }`}
           />
         </div>
+
+        {/* Bottom pinned slot. While arranging it holds the Done button so
+            the exit affordance sits in the same place on desktop and mobile;
+            otherwise the expand/collapse toggle lives here. */}
+        {arranging && (
+          <div className="flex-shrink-0 mt-ha-2 w-full px-2">
+            <button
+              onClick={exitArrange}
+              aria-label="Done arranging"
+              className="h-12 w-full rounded-ha-xl transition-colors flex items-center bg-ha-blue text-white"
+            >
+              <span className="w-12 flex-shrink-0 flex items-center justify-center">
+                <Icon path={mdiCheck} size={24} />
+              </span>
+              <span
+                className={clsx(
+                  'min-w-0 flex-1 truncate pl-3 pr-3 text-left text-sm font-medium transition-opacity duration-200',
+                  expanded ? 'opacity-100' : 'opacity-0'
+                )}
+              >
+                Done
+              </span>
+            </button>
+          </div>
+        )}
+        {!arranging && onToggleExpanded && (
+          <div className="flex-shrink-0 mt-ha-2 w-full px-2">
+            <button
+              type="button"
+              aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}
+              onClick={() => {
+                hideTooltipNow();
+                onToggleExpanded();
+              }}
+              onMouseEnter={(event) =>
+                showTooltip(event.currentTarget, expanded ? 'Collapse Sidebar' : 'Expand Sidebar', {
+                  shortcut: sidebarShortcut,
+                })
+              }
+              onMouseLeave={hideTooltipSoon}
+              className="w-12 h-10 rounded-ha-xl transition-colors flex items-center justify-center text-text-secondary hover:bg-surface-low hover:text-text-primary"
+            >
+              <Icon path={expanded ? mdiChevronDoubleLeft : mdiChevronDoubleRight} size={18} />
+            </button>
+          </div>
+        )}
 
         {typeof document !== 'undefined' &&
           tooltip.content &&
@@ -571,14 +756,38 @@ export function Sidebar({
         (() => {
           const actions: ContextMenuAction[] = [
             { label: 'Rearrange icons', icon: mdiDragVariant, onSelect: enterArrange },
+            { label: 'Add shortcut…', icon: mdiPlusBoxOutline, onSelect: () => setPickerOpen(true) },
           ];
-          if (menu.item.urlPath !== '/') {
+          if (menu.item.isShortcut) {
             actions.push({
-              label: menu.item.isApp ? 'Uninstall' : 'Remove',
+              label: 'Remove',
               icon: mdiDeleteOutline,
               danger: true,
-              onSelect: () => setPendingDelete(menu.item),
+              onSelect: () => requestDelete(menu.item, 'remove'),
             });
+          } else if (menu.item.urlPath !== '/') {
+            if (menu.item.isApp) {
+              // Apps distinguish clearing the icon off the rail from
+              // uninstalling the app itself.
+              actions.push({
+                label: 'Remove from sidebar',
+                icon: mdiMinusCircleOutline,
+                onSelect: () => setPendingDelete({ item: menu.item, mode: 'remove' }),
+              });
+              actions.push({
+                label: 'Uninstall',
+                icon: mdiDeleteOutline,
+                danger: true,
+                onSelect: () => setPendingDelete({ item: menu.item, mode: 'uninstall' }),
+              });
+            } else {
+              actions.push({
+                label: 'Remove',
+                icon: mdiDeleteOutline,
+                danger: true,
+                onSelect: () => setPendingDelete({ item: menu.item, mode: 'remove' }),
+              });
+            }
           }
           return (
             <ContextMenu x={menu.x} y={menu.y} actions={actions} onClose={() => setMenu(null)} />
@@ -589,19 +798,25 @@ export function Sidebar({
         open={!!pendingDelete}
         title={
           pendingDelete
-            ? `${pendingDelete.isApp ? 'Uninstall' : 'Remove'} ${pendingDelete.title}?`
+            ? `${pendingDelete.mode === 'uninstall' ? 'Uninstall' : 'Remove'} ${pendingDelete.item.title}?`
             : ''
         }
-        message="This only hides it here for now — your Home Assistant configuration isn't changed."
-        confirmLabel={pendingDelete?.isApp ? 'Uninstall' : 'Remove'}
+        message={
+          pendingDelete?.item.isApp && pendingDelete.mode === 'remove'
+            ? 'Takes it off your sidebar — the app stays installed.'
+            : 'Hides it from your sidebar — bring it back anytime while rearranging.'
+        }
+        confirmLabel={pendingDelete?.mode === 'uninstall' ? 'Uninstall' : 'Remove'}
         cancelLabel="Keep"
-        destructive
+        destructive={!(pendingDelete?.item.isApp && pendingDelete.mode === 'remove')}
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => {
-          if (pendingDelete) hideItem(pendingDelete.id);
+          if (pendingDelete) hideItem(pendingDelete.item.id);
           setPendingDelete(null);
         }}
       />
+
+      <ShortcutPicker open={pickerOpen} onClose={() => setPickerOpen(false)} />
     </>
   );
 }

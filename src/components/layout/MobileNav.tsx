@@ -27,7 +27,9 @@ import { Avatar } from '../ui/Avatar';
 import { HALogo } from '../ui/HALogo';
 import { MdiIcon } from '../ui/MdiIcon';
 import { CircularProgress } from '../ui/CircularProgress';
-import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPress, useHomeCenterPrefs } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPress, useHomeCenterPrefs, useRunShortcut } from '@/hooks';
+import { removeShortcut } from '@/lib/sidebarShortcuts';
+import { ShortcutPicker } from '../ui/ShortcutPicker';
 import { useActivities } from '@/hooks/useActivities';
 import { dismissActivity } from '@/lib/activities/dismissals';
 import { endedDismissKey } from '@/lib/activities/ledger';
@@ -65,7 +67,10 @@ import {
   mdiViewDashboardOutline,
   mdiHomeVariant,
   mdiStarFourPoints,
+  mdiArrowTopRight,
   mdiMenu,
+  mdiMinus,
+  mdiPlus,
   mdiCheck,
   mdiCheckCircle,
   mdiRobotVacuum,
@@ -118,9 +123,9 @@ function ArrangeDeleteBadge({ label, onDelete }: { label: string; onDelete: () =
         e.stopPropagation();
         onDelete();
       }}
-      className="ha-arrange-badge absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-2 ring-surface-default"
+      className="ha-arrange-badge absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-gray-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-2 ring-surface-default"
     >
-      <Icon path={mdiClose} size={11} />
+      <Icon path={mdiMinus} size={13} exact />
     </button>
   );
 }
@@ -134,6 +139,8 @@ interface MobileArrangeCardProps {
   onClose: () => void;
   onEnterArrange: () => void;
   onRequestDelete: (item: SidebarItem) => void;
+  /** Action/link shortcuts run on tap instead of navigating. */
+  onRunShortcut?: (item: SidebarItem) => void;
 }
 
 function MobileDashboardCard({
@@ -145,6 +152,7 @@ function MobileDashboardCard({
   onClose,
   onEnterArrange,
   onRequestDelete,
+  onRunShortcut,
 }: MobileArrangeCardProps) {
   const longPress = useLongPress(onEnterArrange);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -157,6 +165,12 @@ function MobileDashboardCard({
     zIndex: isDragging ? 60 : undefined,
     touchAction: arranging && !pinned ? 'none' : undefined,
   };
+
+  // Apps and shortcuts share the dashboard card cell but fill the preview
+  // area with a centered icon tile instead of the layout mock; shortcuts get
+  // a spark badge so they read as "yours" at a glance.
+  const isIconCell = !!item.isApp || !!item.isShortcut;
+  const palette = item.isApp ? getAppPalette(item.id) : null;
 
   return (
     <div ref={setNodeRef} style={style} className="relative">
@@ -175,26 +189,65 @@ function MobileDashboardCard({
               e.preventDefault();
               return;
             }
+            if (item.shortcut && item.shortcut.kind !== 'view') {
+              e.preventDefault();
+              onRunShortcut?.(item);
+              onClose();
+              return;
+            }
             onClose();
           }}
-          className={`-m-1 rounded-ha-xl p-1 flex flex-col group transition-colors select-none ${
+          // Long-press enters arrange mode — never the browser's link menu.
+          // ha-no-callout kills the iOS Safari preview sheet; preventDefault
+          // covers Android's long-press context menu.
+          onContextMenu={(e) => e.preventDefault()}
+          draggable={false}
+          className={`ha-no-callout -m-1 rounded-ha-xl p-1 flex flex-col group transition-colors select-none ${
             isActive ? 'bg-surface-low/80' : 'hover:bg-surface-low/40'
           }`}
         >
           <div
             className={`w-full aspect-[3/4] rounded-ha-xl overflow-hidden transition-all ${
               isActive ? 'bg-fill-primary-normal ring-2 ring-ha-blue/35' : 'bg-surface-lower'
-            }`}
+            } ${isIconCell ? 'flex items-center justify-center' : ''}`}
           >
-            <div className="p-ha-2 space-y-ha-1">
-              <div className={`h-2 rounded-full w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
-              <div className={`h-2 rounded-full w-3/4 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
-              <div className={`h-3 rounded-ha-lg w-full mt-ha-2 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
-              <div className={`h-3 rounded-ha-lg w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
-            </div>
+            {isIconCell ? (
+              <div
+                className={`relative w-14 h-14 rounded-ha-xl flex items-center justify-center transition-colors ${
+                  item.isApp ? 'ha-app-icon-shell' : ''
+                } ${isActive ? `bg-surface-mid ${item.isApp ? 'ha-app-icon-shell-active' : ''}` : 'bg-surface-low'}`}
+              >
+                <MdiIcon
+                  icon={item.icon || (item.isApp ? 'mdi:application' : 'mdi:arrow-top-right')}
+                  size={28}
+                  className={
+                    item.isApp && palette
+                      ? `${palette.text} ha-app-icon-glyph`
+                      : isActive
+                        ? 'text-ha-blue'
+                        : 'text-text-secondary'
+                  }
+                />
+                {item.isShortcut && (
+                  <span
+                    className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-surface-mid text-text-secondary ring-2 ring-surface-lower flex items-center justify-center"
+                    aria-hidden
+                  >
+                    <Icon path={mdiArrowTopRight} size={13} exact />
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="p-ha-2 space-y-ha-1">
+                <div className={`h-2 rounded-full w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+                <div className={`h-2 rounded-full w-3/4 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+                <div className={`h-3 rounded-ha-lg w-full mt-ha-2 ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+                <div className={`h-3 rounded-ha-lg w-full ${isActive ? 'bg-ha-blue/25' : 'bg-surface-low'}`} />
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-ha-1 mt-ha-1">
-            {item.icon ? (
+            {isIconCell ? null : item.icon ? (
               <MdiIcon
                 icon={item.icon}
                 size={24}
@@ -210,75 +263,6 @@ function MobileDashboardCard({
         </Link>
       </div>
       {arranging && !pinned && <ArrangeDeleteBadge label={item.title} onDelete={() => onRequestDelete(item)} />}
-    </div>
-  );
-}
-
-function MobileAppTile({
-  item,
-  isActive,
-  arranging,
-  index,
-  onClose,
-  onEnterArrange,
-  onRequestDelete,
-}: MobileArrangeCardProps) {
-  const longPress = useLongPress(onEnterArrange);
-  const palette = getAppPalette(item.id);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: item.id,
-    disabled: !arranging,
-  });
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 60 : undefined,
-    touchAction: arranging ? 'none' : undefined,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} className="relative">
-      <div className={arrangeWobble(arranging, false, isDragging, index)}>
-        <Link
-          prefetch={false}
-          href={item.urlPath}
-          {...(arranging ? { ...attributes, ...listeners } : {})}
-          {...(!arranging ? longPress.handlers : {})}
-          onClick={(e) => {
-            if (longPress.consume()) {
-              e.preventDefault();
-              return;
-            }
-            if (arranging) {
-              e.preventDefault();
-              return;
-            }
-            onClose();
-          }}
-          className="w-full rounded-ha-xl flex flex-col items-center gap-1 p-ha-1.5 min-w-0 select-none"
-          title={item.title}
-        >
-          <div
-            className={`w-12 h-12 rounded-ha-xl flex items-center justify-center transition-colors ha-app-icon-shell ${
-              isActive ? 'bg-surface-mid ha-app-icon-shell-active' : 'bg-surface-low'
-            }`}
-          >
-            <MdiIcon
-              icon={item.icon || 'mdi:application'}
-              size={24}
-              className={`${palette.text} ha-app-icon-glyph`}
-            />
-          </div>
-          <span
-            className={`w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center text-[13px] leading-tight font-medium ${
-              isActive ? 'text-text-primary' : 'text-text-secondary'
-            }`}
-          >
-            {item.title}
-          </span>
-        </Link>
-      </div>
-      {arranging && <ArrangeDeleteBadge label={item.title} onDelete={() => onRequestDelete(item)} />}
     </div>
   );
 }
@@ -342,10 +326,23 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const { searchOpen, closeSearch } = useSearchContext();
   const { openAssistant } = useAssistantContext();
   const { openHomeCenter } = useHomeCenterContext();
-  const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, reorderVisible } =
+  const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, restoreItem, reorderVisible } =
     useSidebarArrange();
   const { toolbarActive } = useMobileToolbar();
   const [pendingDelete, setPendingDelete] = useState<SidebarItem | null>(null);
+  const [shortcutPickerOpen, setShortcutPickerOpen] = useState(false);
+  const runShortcut = useRunShortcut();
+
+  // Shortcuts delete instantly — trivial to recreate from the picker, so no
+  // confirmation. Dashboards and apps keep the confirm dialog.
+  const requestDelete = useCallback((item: SidebarItem) => {
+    if (item.isShortcut) {
+      haptic('impact');
+      removeShortcut(item.id);
+      return;
+    }
+    setPendingDelete(item);
+  }, []);
   const arrangeSensors = useSensors(
     useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 6 } }),
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } })
@@ -507,9 +504,15 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   }, [onNavAutoHiddenChange]);
 
   // Track the external freeze flag (scroll-index rail scrubbing, etc.).
+  // rAF-wrapped initial sync so the compiler lint doesn't see a synchronous
+  // setState-in-effect.
   useEffect(() => {
-    setNavFrozenExternally(isNavAutoHideFrozen());
-    return subscribeNavAutoHideFrozen(setNavFrozenExternally);
+    const raf = requestAnimationFrame(() => setNavFrozenExternally(isNavAutoHideFrozen()));
+    const unsubscribe = subscribeNavAutoHideFrozen(setNavFrozenExternally);
+    return () => {
+      cancelAnimationFrame(raf);
+      unsubscribe();
+    };
   }, []);
 
   // Hold the nav at its current state while a toast is up OR an external
@@ -1277,10 +1280,6 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     showPrinterWidget || showVacuumWidget || hasActivityOverflow;
   const topRowVisibleRatio = hasTopRowContent ? baseTopRowVisibleRatio : 0;
   const isTopRowHidden = topRowVisibleRatio <= 0.02;
-  // With the top row gone and the sheet down, tighten the drag-handle zone so the
-  // collapsed bar sits shorter. Keep the full grab zone while the sheet is up —
-  // it's the affordance for dragging the sheet closed.
-  const compactHandle = isTopRowHidden && !isSheetVisible;
 
   // Handle media widget fade in/out
   // Visibility handles by render logic above
@@ -1331,49 +1330,51 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   // order + soft-hides. Soft-hidden items also drop out of search.
   const homeItem = useMemo(() => items.find((item) => item && item.urlPath === '/'), [items]);
   const dashboards = useMemo(
-    () => arrangeItems(items.filter((item) => item && !item.isApp && item.urlPath !== '/'), order, hiddenIds),
+    () => arrangeItems(items.filter((item) => item && !item.isApp && !item.isShortcut && item.urlPath !== '/'), order, hiddenIds),
     [items, order, hiddenIds]
   );
   const apps = useMemo(
     () => arrangeItems(items.filter((item) => item && item.isApp), order, hiddenIds),
     [items, order, hiddenIds]
   );
+  // One mixed, freely-reorderable grid — same list the desktop rail renders.
+  // Default order ranks dashboards → apps → shortcuts (new shortcuts appear
+  // at the end, next to the "add" cell) before the shared arrange order
+  // applies.
+  const gridItems = useMemo(() => {
+    const rank = (it: SidebarItem) => (it.isShortcut ? 2 : it.isApp ? 1 : 0);
+    return arrangeItems(
+      items
+        .filter((item): item is SidebarItem => !!item && item.urlPath !== '/')
+        .sort((a, b) => rank(a) - rank(b)),
+      order,
+      hiddenIds
+    );
+  }, [items, order, hiddenIds]);
   const searchDashboards = useMemo(
     () => (homeItem ? [homeItem, ...dashboards] : dashboards),
     [homeItem, dashboards]
   );
 
-  const allVisibleArrangeIds = useMemo(
-    () => [...dashboards, ...apps].map((item) => item.id),
-    [dashboards, apps]
+  const gridIds = useMemo(() => gridItems.map((item) => item.id), [gridItems]);
+  // Hidden items resurface (dimmed, restorable) while arranging — HA-style
+  // visibility toggles rather than one-way removal.
+  const hiddenGridItems = useMemo(
+    () => items.filter((item): item is SidebarItem => !!item && hiddenIds.has(item.id)),
+    [items, hiddenIds]
   );
-  const dashboardIds = useMemo(() => dashboards.map((item) => item.id), [dashboards]);
-  const appIds = useMemo(() => apps.map((item) => item.id), [apps]);
 
-  const handleDashboardDragEnd = useCallback(
+  const handleGridDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event;
       if (!over || active.id === over.id) return;
-      const oldIndex = dashboardIds.indexOf(active.id as string);
-      const newIndex = dashboardIds.indexOf(over.id as string);
+      const oldIndex = gridIds.indexOf(active.id as string);
+      const newIndex = gridIds.indexOf(over.id as string);
       if (oldIndex < 0 || newIndex < 0) return;
       haptic('impact');
-      reorderVisible(allVisibleArrangeIds, dashboardIds, arrayMove(dashboardIds, oldIndex, newIndex));
+      reorderVisible(gridIds, gridIds, arrayMove(gridIds, oldIndex, newIndex));
     },
-    [dashboardIds, allVisibleArrangeIds, reorderVisible]
-  );
-
-  const handleAppDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-      const oldIndex = appIds.indexOf(active.id as string);
-      const newIndex = appIds.indexOf(over.id as string);
-      if (oldIndex < 0 || newIndex < 0) return;
-      haptic('impact');
-      reorderVisible(allVisibleArrangeIds, appIds, arrayMove(appIds, oldIndex, newIndex));
-    },
-    [appIds, allVisibleArrangeIds, reorderVisible]
+    [gridIds, reorderVisible]
   );
 
   const dashboardSearchResults = useMemo<SearchResultItem[]>(() => {
@@ -1443,84 +1444,105 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const renderExpandedSurfaceContent = () => {
     if (expandedSurfaceTab === 'dashboards') {
       return (
-        <div className="space-y-ha-4">
-          <div>
-            <div className="flex items-center justify-between mb-ha-3">
-              <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider">Dashboards</div>
+        <div>
+          {/* One mixed grid — dashboards, shortcuts, and apps reorder freely,
+              mirroring the desktop rail. */}
+          <DndContext
+            sensors={arrangeSensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleGridDragEnd}
+          >
+            <div className="grid grid-cols-3 gap-ha-3">
+              {/* Home stays visible while arranging — pinned (no jiggle, no
+                  badge, not sortable) so the grid order matches non-arrange
+                  mode and dragging can't displace slot one. */}
+              {homeItem && (
+                <MobileDashboardCard
+                  item={homeItem}
+                  index={-1}
+                  isActive={isNavItemActive(pathname, homeItem.urlPath)}
+                  arranging={arranging}
+                  pinned
+                  onClose={closeExpandedSurface}
+                  onEnterArrange={enterArrange}
+                  onRequestDelete={requestDelete}
+                />
+              )}
+              <SortableContext items={gridIds} strategy={rectSortingStrategy}>
+                {gridItems.map((gridItem, index) => (
+                  <MobileDashboardCard
+                    key={gridItem.id}
+                    item={gridItem}
+                    index={index}
+                    isActive={isNavItemActive(pathname, gridItem.urlPath)}
+                    arranging={arranging}
+                    onClose={closeExpandedSurface}
+                    onEnterArrange={enterArrange}
+                    onRequestDelete={requestDelete}
+                    onRunShortcut={(it) => it.shortcut && runShortcut(it.shortcut)}
+                  />
+                ))}
+              </SortableContext>
+              {/* Ghost cell — "add a shortcut", shown while editing only
+                  (long-press any tile to get here), matching the desktop
+                  arrange-mode "+" tile. */}
               {arranging && (
                 <button
                   type="button"
-                  onClick={exitArrange}
-                  className="flex items-center gap-1 h-7 pl-ha-2 pr-ha-3 rounded-full bg-ha-blue text-white text-[11px] font-bold uppercase tracking-wider active:scale-95 transition-transform"
+                  onClick={() => setShortcutPickerOpen(true)}
+                  aria-label="Add shortcut"
+                  className="-m-1 rounded-ha-xl p-1 flex flex-col select-none"
                 >
-                  <Icon path={mdiCheck} size={14} />
-                  Done
+                  <div className="w-full aspect-[3/4] rounded-ha-xl border border-dashed border-text-tertiary/40 text-text-tertiary flex items-center justify-center">
+                    <Icon path={mdiPlus} size={26} />
+                  </div>
+                  <span className="text-[13px] text-text-tertiary mt-ha-1 text-left">Add shortcut</span>
                 </button>
               )}
+              {/* Hidden items — dimmed with a restore "+", so hiding is a
+                  toggle (HA-style), never a dead end. */}
+              {arranging &&
+                hiddenGridItems.map((hiddenItem) => (
+                  <div key={hiddenItem.id} className="relative">
+                    <div className="-m-1 rounded-ha-xl p-1 flex flex-col select-none opacity-40">
+                      <div className="w-full aspect-[3/4] rounded-ha-xl bg-surface-lower flex items-center justify-center">
+                        <MdiIcon
+                          icon={hiddenItem.icon || (hiddenItem.isApp ? 'mdi:application' : 'mdi:view-dashboard')}
+                          size={28}
+                          className="text-text-secondary"
+                        />
+                      </div>
+                      <div className="flex items-center gap-ha-1 mt-ha-1">
+                        <span className="text-[13px] truncate text-text-secondary">{hiddenItem.title}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label={`Show ${hiddenItem.title}`}
+                      onClick={() => {
+                        haptic('impact');
+                        restoreItem(hiddenItem.id);
+                      }}
+                      className="ha-arrange-badge absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-2 ring-surface-default"
+                    >
+                      <Icon path={mdiPlus} size={13} exact />
+                    </button>
+                  </div>
+                ))}
             </div>
-            <DndContext
-              sensors={arrangeSensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDashboardDragEnd}
+          </DndContext>
+          {/* Done sits below the grid — same bottom placement as desktop,
+              and thumb-reachable. */}
+          {arranging && (
+            <button
+              type="button"
+              onClick={exitArrange}
+              className="mt-ha-4 w-full h-11 rounded-ha-xl bg-ha-blue text-white text-sm font-semibold flex items-center justify-center gap-ha-2 active:scale-[0.98] transition-transform"
             >
-              <div className="grid grid-cols-3 gap-ha-3">
-                {homeItem && !arranging && (
-                  <MobileDashboardCard
-                    item={homeItem}
-                    index={-1}
-                    isActive={isNavItemActive(pathname, homeItem.urlPath)}
-                    arranging={arranging}
-                    pinned
-                    onClose={closeExpandedSurface}
-                    onEnterArrange={enterArrange}
-                    onRequestDelete={setPendingDelete}
-                  />
-                )}
-                <SortableContext items={dashboardIds} strategy={rectSortingStrategy}>
-                  {dashboards.map((dashboard, index) => (
-                    <MobileDashboardCard
-                      key={dashboard.id}
-                      item={dashboard}
-                      index={index}
-                      isActive={isNavItemActive(pathname, dashboard.urlPath)}
-                      arranging={arranging}
-                      onClose={closeExpandedSurface}
-                      onEnterArrange={enterArrange}
-                      onRequestDelete={setPendingDelete}
-                    />
-                  ))}
-                </SortableContext>
-              </div>
-            </DndContext>
-          </div>
-
-          <div className="h-px bg-border-default" />
-
-          <div>
-            <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
-            <DndContext
-              sensors={arrangeSensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleAppDragEnd}
-            >
-              <SortableContext items={appIds} strategy={rectSortingStrategy}>
-                <div className="grid grid-cols-5 gap-x-ha-2 gap-y-ha-1.5">
-                  {apps.map((app, index) => (
-                    <MobileAppTile
-                      key={app.id}
-                      item={app}
-                      index={index}
-                      isActive={isNavItemActive(pathname, app.urlPath)}
-                      arranging={arranging}
-                      onClose={closeExpandedSurface}
-                      onEnterArrange={enterArrange}
-                      onRequestDelete={setPendingDelete}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          </div>
+              <Icon path={mdiCheck} size={18} />
+              Done
+            </button>
+          )}
         </div>
       );
     }
@@ -1921,13 +1943,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
       <div className="relative z-10 px-edge">
         <div
           ref={navPillRef}
-          className="mobile-nav-pill relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden"
+          className="mobile-nav-pill relative rounded-[var(--mobile-nav-radius)] bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden"
           // Collapsed, the whole bar is the drag-up affordance; expanded, touch
           // handling goes back to the browser so the sheet content can scroll.
           style={{ touchAction: statusExpanded ? 'auto' : 'none' }}
         >
-          <div className="relative rounded-[calc(var(--ha-radius-3xl)-1px)] bg-surface-default/95">
-            <div className="flex flex-col px-ha-2 pt-ha-1 pb-ha-2">
+          <div className="relative rounded-[calc(var(--mobile-nav-radius)_-_1px)] bg-surface-default/95">
+            <div className="flex flex-col px-ha-2 pt-0 pb-ha-2">
               <div className="flex justify-center py-0 mb-0 shrink-0">
                 {/* Generous, mostly-invisible grab zone so a swipe that starts
                     anywhere near the pill's top edge reliably opens/closes the
@@ -1940,12 +1962,12 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                   className={`w-32 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none transition-[height,margin,opacity] duration-300 ease-out ${
                     hideHandle
                       ? 'h-0 my-0 opacity-0 pointer-events-none'
-                      : compactHandle
-                        ? '-my-ha-2 h-5'
-                        : '-my-ha-2 h-7'
+                      : statusExpanded
+                        ? 'mt-0 -mb-ha-2 h-6'
+                        : '-my-ha-2 h-6'
                   }`}
                 >
-                  <span className="w-7 h-1 rounded-full bg-text-secondary/30" />
+                  <span className="w-7 h-[3px] rounded-full bg-text-secondary/30" />
                 </button>
               </div>
               <div
@@ -2010,7 +2032,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               : 'max-height 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.3s cubic-bezier(0.22,1,0.36,1)',
           }}
         >
-        <div className="flex items-center gap-ha-2 shrink-0 pt-0.5">
+        <div className="flex items-center gap-ha-2 shrink-0">
           {showHomeBackButton && (
             <Link prefetch={false}
               href={backHref}
@@ -2457,18 +2479,19 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
           className="overflow-hidden transition-[max-height,margin-top,opacity,transform] duration-120 ease-out shrink-0"
           style={{
             maxHeight: `${56 * bottomRowVisibleRatio}px`,
-            // 8px gap below the top row; when that row is collapsed (settings
-            // routes), shrink to 4px so wrapper pt (4px) + this = the 8px side
-            // padding and the tabs sit centered.
-            marginTop: `${(4 + 4 * topRowVisibleRatio) * bottomRowVisibleRatio}px`,
+            // The tab strip sits an even 8px in from the pill on all sides. When
+            // the drag handle shows (non-settings) its band already fills that 8px
+            // top gap, so no extra margin; when it's hidden (settings routes) this
+            // supplies the 8px directly.
+            marginTop: `${(hideHandle ? 8 : 0) * bottomRowVisibleRatio}px`,
             opacity: bottomRowVisibleRatio,
             transform: `translateY(${8 * effectiveHideProgress}px)`,
             pointerEvents: isBottomRowHidden ? 'none' : 'auto',
           }}
         >
-          {/* Concentric rounding: outer surface is ha-3xl with ha-2 (8px) padding,
-              so this inner surface uses ha-xl (3xl − 8px across themes). */}
-          <div className="mobile-nav-tabs flex items-center justify-around bg-surface-low rounded-ha-xl px-ha-4 h-14">
+          {/* Concentric rounding: outer pill is --mobile-nav-radius with ha-2 (8px)
+              side padding, so this inner strip is that radius minus 8px. */}
+          <div className="mobile-nav-tabs flex items-center justify-around bg-surface-low rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-4 h-14">
             <button
               type="button"
               onClick={() => openExpandedSurface('dashboards')}
@@ -2684,7 +2707,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     <ConfirmDialog
       open={!!pendingDelete}
       title={pendingDelete ? `Remove ${pendingDelete.title}?` : ''}
-      message="This only hides it here for now — your Home Assistant configuration isn't changed."
+      message="Hides it from your sidebar — bring it back anytime while rearranging."
       confirmLabel="Remove"
       cancelLabel="Keep"
       destructive
@@ -2694,6 +2717,8 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         setPendingDelete(null);
       }}
     />
+
+    <ShortcutPicker open={shortcutPickerOpen} onClose={() => setShortcutPickerOpen(false)} />
     </>
   );
 }

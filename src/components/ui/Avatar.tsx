@@ -1,4 +1,5 @@
 import { clsx } from 'clsx';
+import { GenerativeAvatar } from './GenerativeAvatar';
 
 interface AvatarProps {
   src?: string;
@@ -16,6 +17,10 @@ const sizeClasses = {
   xl: 'w-20 h-20 text-2xl',
 };
 
+// Rendered edge length per size — lets the generative avatar decide whether the
+// home motif and initials are legible enough to draw.
+const sizePx = { xs: 28, sm: 32, md: 40, lg: 48, xl: 80 };
+
 export function Avatar({ src, alt = 'User', initials, size = 'md', className }: AvatarProps) {
   if (src) {
     return (
@@ -32,14 +37,11 @@ export function Avatar({ src, alt = 'User', initials, size = 'md', className }: 
   }
 
   return (
-    <div
-      className={clsx(
-        'rounded-full bg-fill-primary-normal text-text-primary flex items-center justify-center font-medium',
-        sizeClasses[size],
-        className
-      )}
-    >
-      {initials || alt.charAt(0).toUpperCase()}
-    </div>
+    <GenerativeAvatar
+      seed={alt}
+      initials={initials || alt.charAt(0).toUpperCase()}
+      pxSize={sizePx[size]}
+      className={clsx(sizeClasses[size], className)}
+    />
   );
 }

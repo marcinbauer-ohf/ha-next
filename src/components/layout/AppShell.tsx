@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useRef, ReactNode, CSSProperties, useCallback, useMemo } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar, EditingToolbar } from '@/components/layout';
-import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useDesktopImmersivePageLayout, useTheme, useStandaloneMode, useVacuumSimulator, useDashboardThumbnailCapture } from '@/hooks';
+import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useSidebarExpanded, useDesktopImmersivePageLayout, useTheme, useStandaloneMode, useVacuumSimulator, useDashboardThumbnailCapture } from '@/hooks';
 import { PulseWallpaper } from '@/components/layout/PulseWallpaper';
 import { useSearchContext, useHeader, useEditMode, useToast, useAssistantContext, useDebugFlags } from '@/contexts';
 import { mdiConnection, mdiCheckCircle, mdiAlertCircle, mdiCellphoneArrowDown, mdiRoundedCorner } from '@mdi/js';
@@ -13,6 +13,8 @@ import { HomeCenterOverlay } from '@/components/ui/HomeCenterOverlay';
 import { KeyboardShortcutsDialog } from '@/components/ui/KeyboardShortcutsDialog';
 import { HudFlash } from '@/components/ui/HudFlash';
 import { canFireBareShortcut, matchShortcut, subscribeShortcutsHelp } from '@/lib/keyboardShortcuts';
+import { initCardTuner, toggleCardTunerPanel } from '@/lib/cardTuner';
+import { DeviceCardTunerPanel } from '@/components/ui/DeviceCardTunerPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { Preloader } from '@/components/ui/Preloader';
 import { OnboardingFlow } from '@/components/onboarding';
@@ -77,6 +79,7 @@ function AppShellContent({ children }: AppShellProps) {
   const { isEditing, toggleEditMode, previewViewport, previewOrientation } = useEditMode();
   const { isToastVisible, showToast, dismissToast } = useToast();
   const { items: sidebarItems } = useSidebarItems();
+  const { expanded: sidebarExpanded, toggle: toggleSidebar } = useSidebarExpanded();
   // Self-driving demo robot vacuum — randomly starts/finishes cleaning cycles so
   // the activity surface has live coming-and-going content (demo mode only).
   useVacuumSimulator();
@@ -288,6 +291,10 @@ function AppShellContent({ children }: AppShellProps) {
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
   useEffect(() => subscribeShortcutsHelp(() => setShortcutsHelpOpen(true)), []);
 
+  // Re-apply persisted card-tuner tweaks (CSS vars on <html>) on load, so a
+  // tuned card layout survives reloads even while the panel stays closed.
+  useEffect(() => initCardTuner(), []);
+
   // Squircle corners are a subtle change, so confirm every toggle (keyboard,
   // debug switch, or command palette all flip the same flag) with a toast.
   // Track the previous value rather than a mount flag so a spurious toast never
@@ -315,6 +322,13 @@ function AppShellContent({ children }: AppShellProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       // During first-run onboarding the shell isn't interactive yet.
       if (onboardingActive) return;
+      // ⌘⇧X — device card tuner panel (developer tool, registry: debug.card-tuner).
+      // Not ⌘⇧C: that's the browser's inspect-element chord and can't be preempted.
+      if (matchShortcut(e, 'debug.card-tuner')) {
+        e.preventDefault();
+        toggleCardTunerPanel();
+        return;
+      }
       // Modifier chords work even while typing — they can't collide with text.
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         switch (e.key.toLowerCase()) {
@@ -325,6 +339,10 @@ function AppShellContent({ children }: AppShellProps) {
           case 'h':
             e.preventDefault();
             router.push('/');
+            break;
+          case 'b':
+            e.preventDefault();
+            toggleSidebar();
             break;
         }
         return;
@@ -375,7 +393,7 @@ function AppShellContent({ children }: AppShellProps) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleSearch, openSearch, toggleAssistant, toggleEditMode, toggleDebugBadges, isEditing, pathname, router, onboardingActive]);
+  }, [toggleSearch, openSearch, toggleAssistant, toggleEditMode, toggleDebugBadges, toggleSidebar, isEditing, pathname, router, onboardingActive]);
 
   // Reset preloader when user logs out so it shows again on next login
   useEffect(() => {
@@ -629,11 +647,18 @@ function AppShellContent({ children }: AppShellProps) {
         }`}
         style={layoutStyle}
       >
-        {/* Sidebar - Desktop only, spans top bar and content rows */}
+        {/* Sidebar - Desktop only, spans top bar and content rows. The rail
+            itself animates between icon-only and expanded (labels) widths;
+            the auto grid column follows it. */}
         <div className={`hidden lg:block lg:row-span-2 relative z-10 transition-opacity duration-300 ease-out ${
           hideDesktopChrome ? 'opacity-0 pointer-events-none' : isEditing ? 'opacity-30 pointer-events-none' : 'opacity-100'
         }`}>
-          <Sidebar onNavigate={sidebarNavigate} splitNavigationEnabled={desktopSplitViewEnabled} />
+          <Sidebar
+            onNavigate={sidebarNavigate}
+            splitNavigationEnabled={desktopSplitViewEnabled}
+            expanded={sidebarExpanded}
+            onToggleExpanded={toggleSidebar}
+          />
         </div>
 
         {/* TopBar - Desktop & Mobile persistent header */}
@@ -816,6 +841,9 @@ function AppShellContent({ children }: AppShellProps) {
 
       {/* Center-screen HUD flash — brief shortcut confirmation */}
       <HudFlash />
+
+      {/* Floating device-card tuner (⌘⇧X / command palette / developer flags) */}
+      <DeviceCardTunerPanel />
     </div>
   );
 }

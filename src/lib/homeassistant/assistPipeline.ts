@@ -32,6 +32,10 @@ export interface VoiceAssistCallbacks {
   onError?: (message: string) => void;
   /** Session over — mic released (fires on success, error, and manual stop). */
   onEnd?: () => void;
+  /** Mic input level (RMS, ~0–0.5 for speech) per audio frame while streaming. */
+  onLevel?: (level: number) => void;
+  /** TTS reply playback started/finished — drives "speaking" visuals. */
+  onSpeakingChange?: (speaking: boolean) => void;
 }
 
 export interface VoiceAssistSession {
@@ -110,7 +114,20 @@ export async function startVoiceAssist(
     callbacks.onEnd?.();
   };
 
-  processor.onaudioprocess = (e) => sendAudio(e.inputBuffer.getChannelData(0));
+  processor.onaudioprocess = (e) => {
+    const samples = e.inputBuffer.getChannelData(0);
+    if (callbacks.onLevel) {
+      // Coarse RMS (every 16th sample) is plenty for a visualizer.
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < samples.length; i += 16) {
+        sum += samples[i] * samples[i];
+        count += 1;
+      }
+      callbacks.onLevel(Math.sqrt(sum / Math.max(count, 1)));
+    }
+    sendAudio(samples);
+  };
   source.connect(processor);
   // ScriptProcessor only fires while wired into the graph; a zero-gain sink
   // keeps the mic out of the speakers.
@@ -149,7 +166,11 @@ export async function startVoiceAssist(
         const base = getRestUrl();
         if (url && base) {
           const audio = new Audio(url.startsWith('http') ? url : `${base}${url}`);
-          audio.play().catch(() => {});
+          const speechDone = () => callbacks.onSpeakingChange?.(false);
+          audio.addEventListener('ended', speechDone);
+          audio.addEventListener('error', speechDone);
+          callbacks.onSpeakingChange?.(true);
+          audio.play().catch(speechDone);
         }
         break;
       }

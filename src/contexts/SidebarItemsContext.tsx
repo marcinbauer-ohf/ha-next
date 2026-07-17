@@ -4,6 +4,8 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { getPanels, type HaPanel, waitForConnection } from '@/lib/homeassistant';
 
+import type { SidebarShortcut } from '@/lib/sidebarShortcuts';
+
 export interface SidebarItem {
   id: string;
   title: string;
@@ -13,6 +15,9 @@ export interface SidebarItem {
   isCustom?: boolean;
   isApp?: boolean;
   isPlaceholder?: boolean;
+  /** User-defined shortcut (pinned view, action, or link) — see sidebarShortcuts.ts. */
+  isShortcut?: boolean;
+  shortcut?: SidebarShortcut;
 }
 
 interface SidebarItemsContextType {

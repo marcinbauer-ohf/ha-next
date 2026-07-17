@@ -29,6 +29,7 @@ import {
   mdiAccessPointNetwork,
   mdiRobotOutline,
   mdiKeyboardOutline,
+  mdiTune,
 } from '@mdi/js';
 import { useTheme } from './useTheme';
 import { useFont } from './useFont';
@@ -51,6 +52,7 @@ import {
 import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
 import { announceAutomationNotification, pickAutomationNotification } from '@/lib/automationNotify';
 import { openShortcutsHelp } from '@/lib/keyboardShortcuts';
+import { toggleCardTunerPanel } from '@/lib/cardTuner';
 
 export type CommandGroup = 'command' | 'navigate' | 'debug';
 
@@ -221,6 +223,15 @@ export function useCommands(): CommandItem[] {
         state: onOff(debug.debugBadgesEnabled),
         active: debug.debugBadgesEnabled,
         run: debug.toggleDebugBadges,
+      },
+      {
+        id: 'dbg.card-tuner',
+        group: 'debug',
+        icon: mdiTune,
+        label: 'Device card tuner',
+        keywords: ['card', 'tuner', 'sliders', 'readability', 'typography', 'tweak'],
+        closeOnRun: true,
+        run: () => toggleCardTunerPanel(),
       },
       {
         id: 'dbg.demo',

@@ -51,6 +51,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: 'global.assistant', group: 'Global', label: 'Toggle assistant', keys: [{ key: 'a' }] },
   { id: 'global.home', group: 'Global', label: 'Go to home dashboard', keys: [{ key: 'h' }, { key: 'h', mod: true, hidden: true }] },
   { id: 'global.settings', group: 'Global', label: 'Open settings', keys: [{ key: 's' }] },
+  { id: 'global.sidebar', group: 'Global', label: 'Toggle sidebar', keys: [{ key: 'b', mod: true }] },
   { id: 'global.help', group: 'Global', label: 'Show keyboard shortcuts', keys: [{ key: '?' }] },
   { id: 'global.color-mode', group: 'Global', label: 'Toggle light / dark mode', keys: [{ key: 'd', mod: true, shift: true }], displayOnly: true },
   { id: 'global.theme', group: 'Global', label: 'Cycle theme', keys: [{ key: 't', mod: true, shift: true }], displayOnly: true },
@@ -76,6 +77,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   // Safe toggles get real keys; destructive resets stay behind the command
   // palette (palette: true) so a stray keypress can't wipe customisations.
   { id: 'debug.badges', group: 'Debug', label: 'Toggle debug badges', keys: [{ key: 'b' }] },
+  { id: 'debug.card-tuner', group: 'Debug', label: 'Toggle device card tuner', keys: [{ key: 'x', mod: true, shift: true }] },
   { id: 'debug.reset', group: 'Debug', label: 'Prototype reset (wipe & reload)', keys: [], palette: true },
   { id: 'debug.more', group: 'Debug', label: 'More toggles & resets (Settings › Prototype & Debug Tools)', keys: [], palette: true },
 ];

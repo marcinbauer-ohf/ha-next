@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { RollingDigit } from './RollingDigit';
-import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor, useHomePingPulse, useHomeCenterPrefs, useWeatherParams } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor, useHomePingPulse, useHomeCenterPrefs, useWeatherParams, useHomeSummary } from '@/hooks';
 import { useNotificationCenter } from '@/contexts';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import {
@@ -21,7 +21,9 @@ import {
   mdiBatteryAlertVariantOutline,
   mdiBackupRestore,
   mdiRobotVacuum,
+  mdiMicrophone,
 } from '@mdi/js';
+import { ScreensaverVoiceMode } from './ScreensaverVoiceMode';
 import { CircularProgress } from './CircularProgress';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import { SummaryCard, TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
@@ -303,6 +305,30 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const [dragDistance, setDragDistance] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
+  // Voice mode — the screensaver's "face": clock UI fades, the dot-wave takes
+  // over, and the Assist conversation runs as chat bubbles.
+  const [voiceMode, setVoiceMode] = useState(false);
+  // "While you were away" — the talk pill narrates what changed since the
+  // screensaver came up, rotating through phrases; tapping it still opens the
+  // conversation to dig deeper. Window resets each time the saver appears.
+  // Seeded rAF-inside-effect (not in render) — Date.now() at render and
+  // ref-reads-during-render both trip compiler rules. Until seeded, the
+  // sentinel keeps the "since" window empty.
+  const [summarySince, setSummarySince] = useState(Number.MAX_SAFE_INTEGER);
+  useEffect(() => {
+    if (!visible) return;
+    const raf = requestAnimationFrame(() => setSummarySince(Date.now()));
+    return () => cancelAnimationFrame(raf);
+  }, [visible]);
+  const summaryPhrases = useHomeSummary(summarySince);
+  const [summaryIndex, setSummaryIndex] = useState(0);
+  useEffect(() => {
+    if (summaryPhrases.length < 2) return;
+    const id = setInterval(() => setSummaryIndex((i) => i + 1), 5000);
+    return () => clearInterval(id);
+  }, [summaryPhrases.length]);
+  const summaryText =
+    summaryPhrases.length > 0 ? summaryPhrases[summaryIndex % summaryPhrases.length] : null;
   const router = useRouter();
   const dragStartY = useRef<number | null>(null);
   const activePointerId = useRef<number | null>(null);
@@ -395,12 +421,14 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     }
     if (!visible && !isVisible) {
       setShouldRender(false);
+      setVoiceMode(false);
     }
   };
 
-  // Mobile drag to dismiss - works anywhere on screen
+  // Mobile drag to dismiss - works anywhere on screen. Suspended in voice
+  // mode: a conversation in progress must not fly off on a stray swipe.
   useEffect(() => {
-    if (!shouldRender) return;
+    if (!shouldRender || voiceMode) return;
 
     const container = containerRef.current;
     if (!container) return;
@@ -495,7 +523,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       document.removeEventListener('pointerup', handlePointerUpOrCancel);
       document.removeEventListener('pointercancel', handlePointerUpOrCancel);
     };
-  }, [onDismiss, shouldRender]);
+  }, [onDismiss, shouldRender, voiceMode]);
 
   useEffect(() => {
     // Only tick while the screensaver is actually mounted; the colon blink is
@@ -626,7 +654,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         opacity: isDismissing ? 0 : isDragging ? 1 - dragProgress * 0.3 : undefined,
       }}
       onClick={() => {
-        if (window.innerWidth >= 1024) {
+        if (!voiceMode && window.innerWidth >= 1024) {
           onDismiss();
         }
       }}
@@ -664,6 +692,15 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             vignette, so no corner keeps a bright/white tint. */}
         <div className="absolute inset-0 bg-black/15" />
       </div>
+
+      {/* Everything clock-ish lives in this wrapper so voice mode can fade the
+          whole surface out in one move while the background keeps running. */}
+      <div
+        className={`absolute inset-0 flex flex-col items-center justify-center max-lg:pb-12 transition-opacity duration-500 ${
+          voiceMode ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
+        aria-hidden={voiceMode}
+      >
 
       {/* Names the entity behind each reactive ripple, bottom-center. Opt-in
           (Settings → screensaver) and only while the reactive background is on. */}
@@ -804,6 +841,24 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         </button>
       </div>
 
+      {/* Voice mode entry — the screensaver becomes the home's face */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setVoiceMode(true);
+        }}
+        className="mt-4 md:mt-5 flex items-center gap-ha-2 rounded-ha-pill px-ha-4 py-ha-2 lg:px-ha-5 lg:py-ha-3 transition-all hover:brightness-110 active:scale-95 bg-ha-blue/15 border border-ha-blue/40 backdrop-blur-md shadow-[0_0_24px_rgba(24,188,242,0.25)]"
+      >
+        <Icon path={mdiMicrophone} size={18} className="text-ha-blue flex-shrink-0" />
+        <span
+          key={summaryText ?? 'invite'}
+          className="ha-summary-swap text-sm font-medium text-white max-w-[70vw] truncate"
+        >
+          {summaryText ?? 'Talk to your home'}
+        </span>
+      </button>
+
       {/* Desktop: Hint to dismiss + clickable style cycler */}
       <div className="hidden lg:flex flex-col items-center gap-ha-2 mt-12">
         <p className="text-sm text-white/50 animate-pulse">
@@ -831,6 +886,11 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         </p>
         <div className="w-10 h-1.5 rounded-full bg-white/40" />
       </div>
+
+      </div>
+
+      {/* Voice mode overlay — covers the shader with its own reactive scene */}
+      {voiceMode && <ScreensaverVoiceMode onExit={() => setVoiceMode(false)} />}
     </div>
   );
 }

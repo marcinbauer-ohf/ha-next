@@ -38,6 +38,9 @@ export { useHomeEventReactor, REACTIVE_TRIGGER_KINDS, type ReactiveTriggerKind, 
 export { useHomePingPulse } from './useHomePingPulse';
 
 export { useSidebarItems, type SidebarItem } from './useSidebarItems';
+export { useSidebarExpanded } from './useSidebarExpanded';
+export { useRunShortcut, defaultShortcutIcon } from './useRunShortcut';
+export { useHomeSummary } from './useHomeSummary';
 export { useDashboardThumbnailCapture } from './useDashboardThumbnailCapture';
 
 export { ImmersiveModeProvider, useImmersiveMode } from './useImmersiveMode';

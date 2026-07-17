@@ -13,6 +13,7 @@ import { HomeHero } from './HomeHero';
 import { HomeInformation } from './HomeInformation';
 import { ShortcutList } from '@/components/ui/KeyboardShortcutsDialog';
 import { openShortcutsHelp } from '@/lib/keyboardShortcuts';
+import { toggleCardTunerPanel } from '@/lib/cardTuner';
 import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { useHeader, useScreensaver, useAddContext, useDebugFlags, useCloseOnScreensaver, type BreadcrumbItem } from '@/contexts';
@@ -1519,6 +1520,12 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           description="Expose small diagnostic hints on cards and settings rows."
           checked={debugBadgesEnabled}
           onToggle={toggleDebugBadges}
+        />
+        <ActionRow
+          label="Device card tuner"
+          description="Floating panel with live sliders for card typography, spacing, and image size (⇧⌘X). Tweaks persist until reset."
+          buttonLabel="Open"
+          onClick={() => toggleCardTunerPanel(true)}
         />
         <ToggleRow
           label="Squircle corners"

@@ -47,6 +47,14 @@
   /* HA Edge Padding - outer edges of the application */
   --ha-edge-padding: 12px;
   --ha-edge-padding-mobile: 12px;
+
+  /* Mobile bottom-nav pill outer radius. Tuned to read as concentric with the
+     phone's physical screen corner: pill ≈ device-screen-radius − edge gap
+     (~12px). Modern iPhone display corners are ~47–55px, so ~40px lands close.
+     Bump this to match the specific device the prototype runs on. The inner
+     surface (−1px border) and the tab strip (−8px content padding) derive from
+     it so the whole pill stays concentric. */
+  --mobile-nav-radius: 40px;
   --ha-font-family-base: 'Hyperlegible Sans', var(--font-inter), sans-serif;
 
   /* Mobile overlay top bar: how far content/sticky elements must clear so they
@@ -127,6 +135,13 @@
   :root {
     --app-topbar-clear: calc(4rem + env(safe-area-inset-top, 0px));
     --app-bottomnav-clear: calc(7rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* The floating nav bar sits well inside its 7rem reserved clearance, so
+     anchoring the bottom edge hint to the full clearance leaves it floating
+     high above the bar. Pull it down to hug just above the nav on mobile. */
+  .ha-edge-hint-hit--bottom {
+    bottom: calc(var(--app-bottomnav-clear, 0px) - 3rem);
   }
 }
 
@@ -1186,6 +1201,8 @@
 
 [data-theme="eink"] [data-component="MobileNav"] .mobile-nav-pill,
 [data-theme="eink"] [data-component="MobileNav"] .mobile-nav-tabs {
+  /* Keep the pill sharp in e-ink instead of the 40px device-matched radius. */
+  --mobile-nav-radius: var(--ha-radius-3xl);
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -1470,6 +1487,13 @@
 }
 .ha-colon-blink {
   animation: ha-colon-blink 2s linear infinite;
+}
+
+/* Screensaver voice mode — the idle mic orb breathes so the "face" never
+   looks frozen while waiting. Referenced via animate-[ha-orb-breathe_…]. */
+@keyframes ha-orb-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
 }
 
 /* Indeterminate progress sweep for the system-update overlay — used when HA
@@ -1996,6 +2020,26 @@ html {
 }
 @media (prefers-reduced-motion: reduce) {
   .ha-surface-enter { animation: none; }
+}
+
+/* Long-pressable tiles (mobile nav grid) — suppress the iOS Safari link
+   preview / callout sheet so press-and-hold enters arrange mode instead.
+   Pair with an onContextMenu preventDefault for Android's long-press menu. */
+.ha-no-callout {
+  -webkit-touch-callout: none;
+}
+
+/* Screensaver talk pill — each rotating "while you were away" phrase is
+   re-keyed, replaying a soft fade + rise on swap. */
+.ha-summary-swap {
+  animation: ha-summary-swap 350ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ha-summary-swap {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-summary-swap { animation: none; }
 }
 
 /* Settings detail pane — soft fade + slide when column-2 content changes

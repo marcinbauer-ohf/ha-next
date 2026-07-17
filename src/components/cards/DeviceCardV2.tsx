@@ -120,16 +120,28 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   // Read-only text block (area eyebrow → prominent name → state / unavailable /
   // hover-scrubbed value). Shared by both layouts; `hero` only tweaks type sizes
   // and reserves right padding to clear the right-anchored thumbnail.
+  // Type sizes read `--dct-*` vars (set by the developer card-tuner panel) with
+  // the production value as fallback, so live tuning repaints without renders.
   const renderNameState = (hero: boolean) => (
     <div className={clsx(
       'flex-1 min-w-0',
-      hero && showThumb && !showFeed && 'pr-[38%] md:pr-[42%]',
+      hero && showThumb && !showFeed && 'pr-[38%] md:pr-[calc(var(--dct-thumb-w,44%)_-_2%)]',
       showFeed && '[text-shadow:0_1px_3px_rgba(0,0,0,0.7)]',
     )}>
       {areaName && (
-        <p className={clsx('font-medium leading-none truncate ha-card-marquee', hero ? 'text-[12px] mb-1' : 'text-[13px] mb-0.5', showFeed ? 'text-white/75' : 'text-text-tertiary')}><span data-marquee>{areaName}</span></p>
+        <p
+          className={clsx('font-medium leading-none truncate ha-card-marquee', hero ? 'mb-1' : 'mb-0.5', showFeed ? 'text-white/75' : 'text-text-tertiary')}
+          style={{
+            fontSize: hero ? 'var(--dct-area-size, 12px)' : 'var(--dct-area-size, 13px)',
+            textTransform: 'var(--dct-area-transform, none)' as 'none',
+            letterSpacing: 'var(--dct-area-tracking, normal)',
+          }}
+        ><span data-marquee>{areaName}</span></p>
       )}
-      <p className={clsx('font-semibold leading-tight truncate ha-card-marquee', hero ? 'text-[15px]' : 'text-sm', showFeed ? 'text-white' : 'text-text-primary')}><span data-marquee>{primary.name}</span></p>
+      <p
+        className={clsx('leading-tight truncate ha-card-marquee', showFeed ? 'text-white' : 'text-text-primary')}
+        style={{ fontSize: 'var(--dct-name-size, 15px)', fontWeight: 'var(--dct-name-weight, 600)' }}
+      ><span data-marquee>{primary.name}</span></p>
       {isUnavailable ? (
         <div className={clsx('flex items-baseline gap-1.5', hero ? 'mt-1' : 'mt-0.5')}>
           <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-amber-500/90">Offline</span>
@@ -144,7 +156,14 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
       ) : (
         // State sits under the name. For numeric sensors this is the reading
         // (and scrubs to the hovered sparkline point on desktop).
-        <p className={clsx('font-medium font-mono mt-0.5 truncate', hero ? 'text-[13px]' : 'text-sm', showFeed ? 'text-white/85' : 'text-text-secondary')}>
+        <p
+          className={clsx('font-medium truncate', showFeed ? 'text-white/85' : 'text-text-secondary')}
+          style={{
+            fontSize: hero ? 'var(--dct-state-size, 13px)' : 'var(--dct-state-size, 15px)',
+            marginTop: 'var(--dct-state-gap, 2px)',
+            fontFamily: 'var(--dct-state-font, var(--font-mono))',
+          }}
+        >
           {hoverPoint
             ? `${Number.isInteger(hoverPoint.value) ? hoverPoint.value : hoverPoint.value.toFixed(1)}${primary.unit ? ` ${primary.unit}` : ''}`
             : primary.state}
@@ -198,10 +217,11 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
 
       {/* Primary entity — unavailable keeps the same layout, tinted amber */}
       <div
+        style={{ padding: 'var(--dct-pad, 12px)' }}
         className={clsx(
-          'flex flex-col justify-between px-3 pt-3 pb-3 relative overflow-hidden transition-colors',
+          'flex flex-col justify-between relative overflow-hidden transition-colors',
           hasSecondary ? 'rounded-t-ha-2xl' : 'rounded-ha-2xl',
-          'min-h-[104px] md:min-h-[136px]',
+          'min-h-[104px] md:min-h-[var(--dct-min-h,136px)]',
           editMode
             ? 'bg-surface-default hover:bg-surface-low'
             : isUnavailable
@@ -240,12 +260,14 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                 aria-hidden
                 onError={() => setThumb((t) => ({ ...t, ok: false }))}
                 className={clsx(
-                  'pointer-events-none select-none absolute right-1 top-1/2 -translate-y-1/2 z-[2] h-[52%] w-[40%] md:h-[64%] md:w-[44%] object-contain object-right',
-                  isUnavailable && 'opacity-50 grayscale',
+                  'pointer-events-none select-none absolute right-1 top-1/2 -translate-y-1/2 z-[2] object-contain object-right',
+                  'h-[52%] w-[40%] md:h-[var(--dct-thumb-h,64%)] md:w-[var(--dct-thumb-w,44%)]',
+                  isUnavailable && 'grayscale',
                 )}
                 style={{
-                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 28%)',
-                  maskImage: 'linear-gradient(to right, transparent 0%, #000 28%)',
+                  opacity: isUnavailable ? 'calc(var(--dct-thumb-alpha, 1) * 0.5)' : 'var(--dct-thumb-alpha, 1)',
+                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 var(--dct-thumb-fade, 28%))',
+                  maskImage: 'linear-gradient(to right, transparent 0%, #000 var(--dct-thumb-fade, 28%))',
                 }}
               />
             )}
@@ -266,7 +288,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                 where the device pixels begin — the graph "ends" at the image no
                 matter how big the thumbnail is. */}
             {primary.unit && !isUnavailable && (
-              <div className="relative z-[1] w-full">
+              <div className="relative z-[1] w-full" style={{ opacity: 'var(--dct-spark-alpha, 1)' }}>
                 <EntityMiniSparkline entityId={primary.entityId} onHover={setHoverPoint} />
               </div>
             )}
@@ -323,7 +345,9 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
 
             {/* Sparkline — sensor entities only */}
             {primary.unit && !isUnavailable && (
-              <EntityMiniSparkline entityId={primary.entityId} onHover={setHoverPoint} />
+              <div style={{ opacity: 'var(--dct-spark-alpha, 1)' }}>
+                <EntityMiniSparkline entityId={primary.entityId} onHover={setHoverPoint} />
+              </div>
             )}
 
             {/* Bottom: name + state on the left, the toggle on the right. */}
@@ -345,8 +369,9 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             return (
               <div
                 key={entity.entityId}
+                style={{ minHeight: 'var(--dct-row-h, 52px)' }}
                 className={clsx(
-                  'flex items-center gap-3 px-3 border-t border-surface-lower transition-colors min-h-[52px]',
+                  'flex items-center gap-3 px-3 border-t border-surface-lower transition-colors',
                   entityUnavailable
                     ? 'opacity-50 cursor-default'
                     : editMode
@@ -368,10 +393,13 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                   />
                 )}
 
-                <span className={clsx(
-                  'flex-1 truncate ha-card-marquee',
-                  entity.size === 'sm' ? 'text-xs text-text-secondary' : 'text-sm text-text-primary',
-                )}>
+                <span
+                  style={entity.size === 'sm' ? undefined : { fontSize: 'var(--dct-row-size, 15px)' }}
+                  className={clsx(
+                    'flex-1 truncate ha-card-marquee',
+                    entity.size === 'sm' ? 'text-xs text-text-secondary' : 'text-text-primary',
+                  )}
+                >
                   <span data-marquee>{entity.name}</span>
                 </span>
 

@@ -345,7 +345,7 @@ export function PullToRevealPanel() {
   // Separate dashboards and apps
   if (!ENABLE_PULL_TO_REVEAL) return null;
 
-  const dashboards = items.filter(item => !item.isApp);
+  const dashboards = items.filter(item => !item.isApp && !item.isShortcut);
     const apps = items.filter(item => item.isApp);
 
     // Height includes content + handle bar area

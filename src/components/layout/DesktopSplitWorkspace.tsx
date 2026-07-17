@@ -170,6 +170,9 @@ export function buildSplitViewOptions(initialPathname: string, items: SidebarIte
   });
 
   items.forEach((item) => {
+    // Action/link shortcuts have no route to split into; view shortcuts point
+    // at settings routes already covered by the settings options below.
+    if (item.isShortcut) return;
     append({
       route: item.urlPath,
       title: item.title,

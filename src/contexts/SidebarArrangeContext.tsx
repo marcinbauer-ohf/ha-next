@@ -4,12 +4,14 @@ import { createContext, useContext, useState, useCallback, useMemo, useEffect, R
 import type { SidebarItem } from './SidebarItemsContext';
 
 /**
- * Session-only arrange ("jiggle") state for the sidebar / bottom-sheet items.
+ * Arrange ("jiggle") state for the sidebar / bottom-sheet items.
  *
- * Nothing here is persisted: order + hidden reset on reload. Deletes are SOFT —
- * an item is only hidden locally, the Home Assistant config is never touched.
- * `order` only ever holds visible (non-hidden, non-home) ids so a reorder can
- * map group slots one-to-one with the dragged sequence.
+ * Order + hidden persist per browser (HA-style: hiding a dashboard is a
+ * visibility toggle, not a delete). Hides are SOFT — an item is only hidden
+ * locally, the Home Assistant config is never touched, and edit mode lists
+ * hidden items with a restore affordance. `order` only ever holds visible
+ * (non-hidden, non-home) ids so a reorder can map group slots one-to-one with
+ * the dragged sequence.
  */
 interface SidebarArrangeValue {
   arranging: boolean;
@@ -19,8 +21,10 @@ interface SidebarArrangeValue {
   order: string[];
   hiddenIds: Set<string>;
   isHidden: (id: string) => boolean;
-  /** Soft-hide an item for this session (also drops it from the order). */
+  /** Soft-hide an item (also drops it from the order). */
   hideItem: (id: string) => void;
+  /** Bring one soft-hidden item back. */
+  restoreItem: (id: string) => void;
   /** Restore every soft-hidden item. */
   restoreAll: () => void;
   /**
@@ -40,9 +44,21 @@ const SidebarArrangeContext = createContext<SidebarArrangeValue>({
   hiddenIds: new Set(),
   isHidden: () => false,
   hideItem: () => {},
+  restoreItem: () => {},
   restoreAll: () => {},
   reorderVisible: () => {},
 });
+
+const LS_ORDER_KEY = 'ha-sidebar-order';
+const LS_HIDDEN_KEY = 'ha-sidebar-hidden';
+
+function loadCsv(key: string): string[] {
+  if (typeof window === 'undefined') return [];
+  return (localStorage.getItem(key) ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 /** Drop ids no longer present, then append any new ids in their incoming order. */
 function normalizeOrder(order: string[], ids: string[]): string[] {
@@ -57,8 +73,16 @@ function normalizeOrder(order: string[], ids: string[]): string[] {
 
 export function SidebarArrangeProvider({ children }: { children: ReactNode }) {
   const [arranging, setArranging] = useState(false);
-  const [order, setOrder] = useState<string[]>([]);
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set());
+  const [order, setOrder] = useState<string[]>(() => loadCsv(LS_ORDER_KEY));
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => new Set(loadCsv(LS_HIDDEN_KEY)));
+
+  // Persist arrangement + visibility per browser, HA-style.
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem(LS_ORDER_KEY, order.join(','));
+  }, [order]);
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem(LS_HIDDEN_KEY, [...hiddenIds].join(','));
+  }, [hiddenIds]);
 
   const enterArrange = useCallback(() => setArranging(true), []);
   const exitArrange = useCallback(() => setArranging(false), []);
@@ -73,6 +97,15 @@ export function SidebarArrangeProvider({ children }: { children: ReactNode }) {
       return next;
     });
     setOrder((prev) => prev.filter((x) => x !== id));
+  }, []);
+
+  const restoreItem = useCallback((id: string) => {
+    setHiddenIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }, []);
 
   const restoreAll = useCallback(() => {
@@ -110,10 +143,11 @@ export function SidebarArrangeProvider({ children }: { children: ReactNode }) {
       hiddenIds,
       isHidden,
       hideItem,
+      restoreItem,
       restoreAll,
       reorderVisible,
     }),
-    [arranging, enterArrange, exitArrange, order, hiddenIds, isHidden, hideItem, restoreAll, reorderVisible]
+    [arranging, enterArrange, exitArrange, order, hiddenIds, isHidden, hideItem, restoreItem, restoreAll, reorderVisible]
   );
 
   return <SidebarArrangeContext.Provider value={value}>{children}</SidebarArrangeContext.Provider>;

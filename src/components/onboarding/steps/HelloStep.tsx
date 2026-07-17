@@ -33,10 +33,10 @@ export function HelloStep({ next, onSkipAll }: HelloStepProps) {
           className="text-[2.6rem] leading-[1.08] md:text-6xl font-semibold tracking-tight text-text-primary"
           style={DISPLAY_FONT}
         >
-          Welcome home.
+          Let&apos;s set up home.
         </h1>
         <StepSubtitle>
-          Let&apos;s make this screen feel like yours.
+          We&apos;ll make this screen feel like yours.
           <br className="hidden md:block" /> It takes about a minute — and nothing is set in stone.
         </StepSubtitle>
       </Rise>
