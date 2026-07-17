@@ -1496,6 +1496,17 @@
   50% { transform: scale(1.04); }
 }
 
+/* Screensaver style toggle — the wallpaper name flashes in under the ghost
+   icon after each change, lingers a beat, then fades out on its own. */
+@keyframes ha-style-flash {
+  0% { opacity: 0; transform: translateY(-2px); }
+  8%, 65% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; }
+}
+.ha-style-flash {
+  animation: ha-style-flash 2.6s ease forwards;
+}
+
 /* Indeterminate progress sweep for the system-update overlay — used when HA
    reports an install in progress but no percentage. A narrow fill glides across
    the track on loop. */

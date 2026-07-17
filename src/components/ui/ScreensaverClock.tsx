@@ -21,8 +21,10 @@ import {
   mdiBatteryAlertVariantOutline,
   mdiBackupRestore,
   mdiRobotVacuum,
-  mdiMicrophone,
+  mdiChevronRight,
+  mdiPaletteOutline,
 } from '@mdi/js';
+import { TalkWidgetGlow } from './TalkWidgetGlow';
 import { ScreensaverVoiceMode } from './ScreensaverVoiceMode';
 import { CircularProgress } from './CircularProgress';
 import { resolveEntityPictureUrl } from '@/lib/utils';
@@ -31,7 +33,6 @@ import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
 import { RingShaderBackground, useRingOrigin } from './RingShaderBackground';
 import { ScreensaverPulseLog } from './ScreensaverPulseLog';
 import { EnergyGlance } from '../glances';
-import { APP_BUILD } from '@/lib/version';
 import {
   areActivityDataEqual,
   areScreensaverDataEqual,
@@ -308,9 +309,9 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   // Voice mode — the screensaver's "face": clock UI fades, the dot-wave takes
   // over, and the Assist conversation runs as chat bubbles.
   const [voiceMode, setVoiceMode] = useState(false);
-  // "While you were away" — the talk pill narrates what changed since the
-  // screensaver came up, rotating through phrases; tapping it still opens the
-  // conversation to dig deeper. Window resets each time the saver appears.
+  // "While you were away" — the talk widget shows the single most notable
+  // thing since the screensaver came up (urgent-first, no ticker); tapping it
+  // opens the conversation to dig deeper. Window resets when the saver appears.
   // Seeded rAF-inside-effect (not in render) — Date.now() at render and
   // ref-reads-during-render both trip compiler rules. Until seeded, the
   // sentinel keeps the "since" window empty.
@@ -321,14 +322,30 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     return () => cancelAnimationFrame(raf);
   }, [visible]);
   const summaryPhrases = useHomeSummary(summarySince);
-  const [summaryIndex, setSummaryIndex] = useState(0);
+  // The widget reads like an AI-written note left on the door: one longer
+  // sentence composed from the top phrases (urgent-first, no ticker). Each
+  // time the saver comes up it shows a brief "catching up" loading beat —
+  // dummy pacing for now; a real summarizer can slot in behind the same state.
+  const [summaryLoading, setSummaryLoading] = useState(true);
   useEffect(() => {
-    if (summaryPhrases.length < 2) return;
-    const id = setInterval(() => setSummaryIndex((i) => i + 1), 5000);
-    return () => clearInterval(id);
-  }, [summaryPhrases.length]);
-  const summaryText =
-    summaryPhrases.length > 0 ? summaryPhrases[summaryIndex % summaryPhrases.length] : null;
+    if (!visible) return;
+    const raf = requestAnimationFrame(() => setSummaryLoading(true));
+    const timer = setTimeout(() => setSummaryLoading(false), 1800);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [visible]);
+  const summaryText = useMemo(() => {
+    if (summaryPhrases.length === 0) {
+      return 'All quiet while you were away — nothing needed your attention, and everything is just as you left it.';
+    }
+    const parts = summaryPhrases.slice(0, 3);
+    const joined =
+      parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+    const rest = summaryPhrases.length - parts.length;
+    return `While you were away: ${joined}${rest > 0 ? `, plus ${rest} more thing${rest > 1 ? 's' : ''}` : ''}.`;
+  }, [summaryPhrases]);
   const router = useRouter();
   const dragStartY = useRef<number | null>(null);
   const activePointerId = useRef<number | null>(null);
@@ -367,21 +384,6 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
     };
   }, [screensaverData.user, haUrl]);
   
-  const buildInfo = useMemo(() => {
-    const now = new Date();
-    const date = now.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-    const time = now.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-    return `Build ${APP_BUILD} • ${date} • ${time}`;
-  }, []);
-
   // Handle mount/unmount with animation
   useEffect(() => {
     let firstFrameId: number | null = null;
@@ -706,26 +708,29 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
           (Settings → screensaver) and only while the reactive background is on. */}
       {reactiveBackgroundEnabled && reactiveTriggerLabelsEnabled && <ScreensaverPulseLog />}
 
-      {/* Build Info - Top */}
-      <div className="absolute top-8 left-0 right-0 flex justify-center px-ha-6 pointer-events-none">
-        <p className="text-[13px] lg:text-xs text-white/40 font-mono text-center">
-          {buildInfo}
-        </p>
-      </div>
-
-      {/* Mobile: clickable style cycler, top of screen */}
-      <div className="lg:hidden absolute top-16 left-0 right-0 flex justify-center px-ha-6">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            cyclePulseMode();
-          }}
-          className="text-sm text-white/70"
-        >
-          Style: {PULSE_MODE_LABELS[pulseMode]} — tap to change
-        </button>
-      </div>
+      {/* Style toggle — a near-invisible ghost, top-right. No fill, no border;
+          it only reveals itself on hover. The style name flashes for a moment
+          after each change, then fades away. */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          cyclePulseMode();
+        }}
+        aria-label={`Wallpaper style: ${PULSE_MODE_LABELS[pulseMode]} — tap to change`}
+        title={`Style: ${PULSE_MODE_LABELS[pulseMode]}`}
+        className="absolute top-5 right-5 lg:top-6 lg:right-6 w-9 h-9 flex items-center justify-center text-white/20 hover:text-white/70 transition-colors active:scale-95"
+        style={{ marginTop: 'env(safe-area-inset-top)' }}
+      >
+        <Icon path={mdiPaletteOutline} size={15} />
+      </button>
+      <span
+        key={pulseMode}
+        className="ha-style-flash absolute top-14 right-5 lg:top-16 lg:right-6 text-xs text-white/45 pointer-events-none"
+        style={{ marginTop: 'env(safe-area-inset-top)' }}
+      >
+        {PULSE_MODE_LABELS[pulseMode]}
+      </span>
 
       {/* Main time display */}
       <div
@@ -841,45 +846,64 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         </button>
       </div>
 
-      {/* Voice mode entry — the screensaver becomes the home's face */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setVoiceMode(true);
-        }}
-        className="mt-4 md:mt-5 flex items-center gap-ha-2 rounded-ha-pill px-ha-4 py-ha-2 lg:px-ha-5 lg:py-ha-3 transition-all hover:brightness-110 active:scale-95 bg-ha-blue/15 border border-ha-blue/40 backdrop-blur-md shadow-[0_0_24px_rgba(24,188,242,0.25)]"
+      {/* Talk widget — docked exactly where the voice-mode input lands (same
+          container padding, same max-w-lg pill, same bottom offset), so
+          entering the mode keeps the bar in place while the scene changes
+          around it. Shows the one-line "while you were away" note. */}
+      <div
+        className="absolute bottom-0 left-0 right-0 px-ha-6"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
       >
-        <Icon path={mdiMicrophone} size={18} className="text-ha-blue flex-shrink-0" />
-        <span
-          key={summaryText ?? 'invite'}
-          className="ha-summary-swap text-sm font-medium text-white max-w-[70vw] truncate"
+        {/* Ambient halo under the widget — toast-family blue glow with a slow
+            rainbow drift and the voice screen's wave dots mixed in, so the bar
+            foreshadows the talking UI it opens. Livelier while "thinking". */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-52 pointer-events-none overflow-hidden [mask-image:linear-gradient(to_top,black_45%,transparent)]"
+          aria-hidden
         >
-          {summaryText ?? 'Talk to your home'}
-        </span>
-      </button>
-
-      {/* Desktop: Hint to dismiss + clickable style cycler */}
-      <div className="hidden lg:flex flex-col items-center gap-ha-2 mt-12">
-        <p className="text-sm text-white/50 animate-pulse">
-          Tap anywhere to dismiss
-        </p>
+          <TalkWidgetGlow className="w-full h-full" active={summaryLoading} />
+        </div>
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            cyclePulseMode();
+            setVoiceMode(true);
           }}
-          className="text-sm text-white/70 hover:text-white transition-colors"
+          className="relative w-full max-w-lg mx-auto flex items-center gap-ha-2 min-h-12 py-ha-2 px-ha-4 rounded-ha-pill bg-white/8 border border-white/12 backdrop-blur-md transition-colors hover:bg-white/12 hover:border-white/20 active:scale-[0.99]"
         >
-          Style: {PULSE_MODE_LABELS[pulseMode]} — tap to change
+          {summaryLoading ? (
+            <span className="flex-1 flex items-center gap-ha-3 text-left">
+              <span className="flex gap-1" aria-hidden>
+                <span className="w-1.5 h-1.5 rounded-full bg-ha-blue/90 animate-bounce motion-reduce:animate-none [animation-delay:0ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-ha-blue/90 animate-bounce motion-reduce:animate-none [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-ha-blue/90 animate-bounce motion-reduce:animate-none [animation-delay:300ms]" />
+              </span>
+              <span className="text-base lg:text-sm text-white/50">Catching up on your home…</span>
+            </span>
+          ) : (
+            <span
+              key={summaryText}
+              className="ha-summary-swap flex-1 text-left text-base lg:text-sm leading-snug text-white/80 line-clamp-2"
+            >
+              {summaryText}
+            </span>
+          )}
+          <Icon path={mdiChevronRight} size={20} className="text-white/50 flex-shrink-0" />
         </button>
       </div>
 
-      {/* Mobile: Drag handle visual at bottom */}
+      {/* Desktop: Hint to dismiss */}
+      <div className="hidden lg:flex flex-col items-center gap-ha-2 mt-12">
+        <p className="text-sm text-white/50 animate-pulse">
+          Tap anywhere to dismiss
+        </p>
+      </div>
+
+      {/* Mobile: drag hint sits just above the talk widget (which owns the
+          bottom edge now) */}
       <div
-        className="lg:hidden absolute bottom-0 left-0 right-0 flex flex-col items-center"
-        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + 1rem)`, paddingTop: '1rem' }}
+        className="lg:hidden absolute bottom-0 left-0 right-0 flex flex-col items-center pointer-events-none"
+        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + 5.75rem)`, paddingTop: '1rem' }}
       >
         <p className="text-sm text-white/50 mb-ha-2 animate-pulse">
           Drag up to dismiss

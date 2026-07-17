@@ -29,6 +29,7 @@ import { useSidebarArrange, arrangeItems, type SidebarItem } from '@/contexts';
 import { useDashboardThumbnail } from '@/lib/dashboardThumbnails';
 import { removeShortcut } from '@/lib/sidebarShortcuts';
 import { ShortcutPicker } from '../ui/ShortcutPicker';
+import { EditItemsButton } from '../ui/EditItemsButton';
 import { mdiMinus, mdiCheck, mdiPlus, mdiPlusBoxOutline, mdiDragVariant, mdiDeleteOutline, mdiMinusCircleOutline, mdiChevronDoubleLeft, mdiChevronDoubleRight, mdiArrowTopRight } from '@mdi/js';
 import { shortcutHint, useIsMacPlatform } from '@/lib/keyboardShortcuts';
 import { clsx } from 'clsx';
@@ -673,8 +674,20 @@ export function Sidebar({
             </button>
           </div>
         )}
-        {!arranging && onToggleExpanded && (
+        {!arranging && (
           <div className="flex-shrink-0 mt-ha-2 w-full px-2">
+            <EditItemsButton
+              variant="rail"
+              onClick={enterArrange}
+              onMouseEnter={(event) =>
+                showTooltip(event.currentTarget, 'Edit Sidebar')
+              }
+              onMouseLeave={hideTooltipSoon}
+            />
+          </div>
+        )}
+        {!arranging && onToggleExpanded && (
+          <div className="flex-shrink-0 mt-ha-1 w-full px-2">
             <button
               type="button"
               aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}

@@ -30,6 +30,7 @@ import { CircularProgress } from '../ui/CircularProgress';
 import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPress, useHomeCenterPrefs, useRunShortcut } from '@/hooks';
 import { removeShortcut } from '@/lib/sidebarShortcuts';
 import { ShortcutPicker } from '../ui/ShortcutPicker';
+import { EditItemsButton } from '../ui/EditItemsButton';
 import { useActivities } from '@/hooks/useActivities';
 import { dismissActivity } from '@/lib/activities/dismissals';
 import { endedDismissKey } from '@/lib/activities/ledger';
@@ -1531,18 +1532,22 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                 ))}
             </div>
           </DndContext>
-          {/* Done sits below the grid — same bottom placement as desktop,
-              and thumb-reachable. */}
-          {arranging && (
-            <button
-              type="button"
-              onClick={exitArrange}
-              className="mt-ha-4 w-full h-11 rounded-ha-xl bg-ha-blue text-white text-sm font-semibold flex items-center justify-center gap-ha-2 active:scale-[0.98] transition-transform"
-            >
-              <Icon path={mdiCheck} size={18} />
-              Done
-            </button>
-          )}
+          {/* Bottom slot — Edit normally, Done while arranging. Same
+              full-width bottom placement as the desktop rail, thumb-reachable. */}
+          <div className="mt-ha-4">
+            {arranging ? (
+              <button
+                type="button"
+                onClick={exitArrange}
+                className="w-full h-11 rounded-ha-xl bg-ha-blue text-white text-sm font-semibold flex items-center justify-center gap-ha-2 active:scale-[0.98] transition-transform"
+              >
+                <Icon path={mdiCheck} size={18} />
+                Done
+              </button>
+            ) : (
+              <EditItemsButton variant="bar" onClick={enterArrange} />
+            )}
+          </div>
         </div>
       );
     }
