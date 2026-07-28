@@ -712,14 +712,17 @@ export async function getDashboards(): Promise<HaDashboard[]> {
   }
 
   try {
-    // Try the standard lovelace/dashboards endpoint
+    // NB: the command is `/list` — plain `lovelace/dashboards` is not a command
+    // and HA answers it with `unknown_command`. Returns only user-created
+    // storage-mode dashboards; the default Overview is a panel, not a dashboard,
+    // so use getPanels() above if you need it too.
     const result = await activeConnection.sendMessagePromise<HaDashboard[]>({
-      type: 'lovelace/dashboards',
+      type: 'lovelace/dashboards/list',
     });
     return result;
   } catch (err) {
+    // Non-admin users can't list dashboards — degrade to none rather than throw.
     console.error('getDashboards error details:', JSON.stringify(err));
-    // Return empty array if dashboards API fails (might not be available)
     return [];
   }
 }

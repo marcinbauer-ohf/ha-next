@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, ReactNode, useCallback, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useIdleTimer } from '@/hooks';
 import { ScreensaverClock } from '@/components/ui/ScreensaverClock';
 import { useOnboardingGate } from '@/lib/onboarding';
@@ -50,11 +51,15 @@ export function ScreensaverProvider({ children }: ScreensaverProviderProps) {
   // clock. useIdleTimer reads the latest onIdle each render, so the plain
   // closure below always sees the current gate value.
   const onboardingActive = useOnboardingGate();
+  // Prototype spinoffs under /dev/ own the whole screen and aren't part of the
+  // screensaver's project — idling (or ⌘⇧S) there must not summon the clock.
+  const pathname = usePathname();
+  const suppressed = onboardingActive || pathname.startsWith('/dev/');
 
   const { wake } = useIdleTimer({
     timeout: SCREENSAVER_TIMEOUT,
     onIdle: () => {
-      if (onboardingActive) return;
+      if (suppressed) return;
       setIsActive(true);
     },
   });
@@ -73,7 +78,7 @@ export function ScreensaverProvider({ children }: ScreensaverProviderProps) {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd/Ctrl + Shift + S for screensaver
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 's') {
-        if (onboardingActive) return;
+        if (suppressed) return;
         e.preventDefault();
         if (isActive) {
           dismiss();
@@ -85,7 +90,7 @@ export function ScreensaverProvider({ children }: ScreensaverProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isActive, dismiss, activate, onboardingActive]);
+  }, [isActive, dismiss, activate, suppressed]);
 
   return (
     <ScreensaverContext.Provider value={{ isActive, activate, dismiss }}>

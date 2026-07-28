@@ -1024,22 +1024,19 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         </button>
         </Tooltip>
 
-        {/* Ask your home — always-visible entry to the assistant overlay. */}
+        {/* Ask your home — always-visible entry to the assistant overlay,
+            styled as the same quiet field as the lock screen's talk widget:
+            flat pill, left-aligned text, trailing chevron, no mic chrome. */}
         <button
           type="button"
           onClick={() => toggleAssistant()}
           aria-label="Ask your home"
-          className="group flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 pr-ha-1 h-12 flex-shrink-0 min-w-[200px] border border-transparent hover:bg-surface-mid hover:border-ha-blue/40 transition-all"
+          className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill px-ha-4 h-12 flex-shrink-0 min-w-[220px] border border-surface-low hover:bg-surface-mid hover:border-ha-blue/40 transition-colors active:scale-[0.99]"
         >
-          <div className="w-8 h-8 rounded-full bg-ha-blue flex items-center justify-center shadow-ha-sm group-hover:scale-110 transition-transform">
-            <Icon path={mdiMicrophone} size={18} className="text-white" />
-          </div>
-          <span className="flex-1 text-sm font-medium text-text-primary text-left">
+          <span className="flex-1 text-sm text-text-secondary text-left">
             Ask your home…
           </span>
-          <div className="p-ha-1 rounded-full group-hover:bg-surface-lower transition-colors">
-            <Icon path={mdiChevronRight} size={20} className="text-text-secondary" />
-          </div>
+          <Icon path={mdiChevronRight} size={20} className="text-text-tertiary flex-shrink-0" />
         </button>
 
         {/* Scrollable Container for Activities */}

@@ -604,7 +604,7 @@ function AppShellContent({ children }: AppShellProps) {
     return null;
   }
 
-  if (pathname.startsWith('/dev/')) {
+  if (pathname.startsWith('/dev/') || pathname.startsWith('/spin')) {
     return <>{children}</>;
   }
 
