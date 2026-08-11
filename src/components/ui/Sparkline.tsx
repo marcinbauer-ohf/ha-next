@@ -11,6 +11,12 @@ interface SparklineProps {
   stepped?: boolean;
   /** Called with nearest data-point index on hover, null on leave */
   onHover?: (index: number | null) => void;
+  /**
+   * Externally driven hover, for when the pointer target is something bigger
+   * than the chart (a whole dashboard card). Overrides the svg's own tracking:
+   * the crosshair and marker follow this index instead of the mouse.
+   */
+  hoverIndex?: number | null;
   /** Stretch to fill parent height instead of fixed intrinsic height */
   fillHeight?: boolean;
   /** Mark the latest value with a small dot at the end of the line */
@@ -39,7 +45,7 @@ interface SparklineProps {
   bandHigh?: number[];
 }
 
-export function Sparkline({ points, on, gradientId, small, stepped, onHover, fillHeight, endDot, crisp, xFractions, rgb, bandLow, bandHigh }: SparklineProps) {
+export function Sparkline({ points, on, gradientId, small, stepped, onHover, hoverIndex, fillHeight, endDot, crisp, xFractions, rgb, bandLow, bandHigh }: SparklineProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   // Index of the data point under the cursor; drives both the crosshair line
   // and the marker dot that rides the line as the pointer moves.
@@ -124,7 +130,9 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, fil
     onHover?.(null);
   }
 
-  const hoverPt = hoverIdx !== null ? coords[hoverIdx] : null;
+  // Controlled when a `hoverIndex` is passed, self-tracking otherwise.
+  const activeIdx = hoverIndex !== undefined ? hoverIndex : hoverIdx;
+  const hoverPt = activeIdx !== null && activeIdx !== undefined ? coords[activeIdx] : null;
 
   const svg = (
     <svg
@@ -165,7 +173,7 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, fil
   // Overlay layer is needed for the end dot and/or the moving hover dot. HTML
   // dots positioned by percentage — a <circle> would stretch into an ellipse
   // under preserveAspectRatio="none".
-  if (!endDot && !onHover) return svg;
+  if (!endDot && !onHover && hoverIndex === undefined) return svg;
 
   const last = coords[coords.length - 1];
   return (

@@ -3,7 +3,7 @@
 import { useState, ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Icon } from '@/components/ui/Icon';
-import { mdiClose, mdiDragVariant, mdiArrowExpandHorizontal, mdiArrowCollapseHorizontal, mdiEyeOff, mdiEye } from '@mdi/js';
+import { mdiClose, mdiDragHorizontalVariant, mdiArrowExpandHorizontal, mdiArrowCollapseHorizontal, mdiEyeOff, mdiEye } from '@mdi/js';
 import type { CardColSpan, CardRowSpan } from '@/hooks/useDashboardLayout';
 
 interface EditableCardProps {
@@ -92,7 +92,7 @@ export function EditableCard({
               transition={{ duration: 0.15, delay: 0.03 }}
               className="absolute top-1.5 right-1.5 z-30 w-6 h-6 rounded-full bg-black/20 text-white flex items-center justify-center shadow-md cursor-grab active:cursor-grabbing"
             >
-              <Icon path={mdiDragVariant} size={14} />
+              <Icon path={mdiDragHorizontalVariant} size={14} />
             </motion.div>
           )}
 

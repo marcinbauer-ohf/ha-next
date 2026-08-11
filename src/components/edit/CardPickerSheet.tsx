@@ -158,15 +158,15 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-ha-4 py-ha-3">
-          <h2 className="text-base font-semibold text-text-primary">Add Card</h2>
+        <div className="flex items-center gap-ha-2 px-ha-4 py-ha-3">
           <button
             onClick={onClose}
             aria-label="Close"
-            className="p-1.5 rounded-full hover:bg-surface-low text-text-secondary transition-colors"
+            className="p-1.5 rounded-full hover:bg-surface-low text-text-secondary transition-colors shrink-0"
           >
             <Icon path={mdiClose} size={20} />
           </button>
+          <h2 className="text-base font-semibold text-text-primary">Add Card</h2>
         </div>
 
         {/* Search */}

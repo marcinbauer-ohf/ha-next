@@ -177,6 +177,19 @@ export function TopBar() {
   // doesn't wire an explicit onBack.
   const showBack = !!(subtitle || hasTrail) && !hideBack;
   const handleBack = () => (onBack ? onBack() : router.back());
+
+  // Edit affordance sits next to the heading (both breakpoints), sized and
+  // coloured like the sidebar's arrange pencil rather than the 24px actions.
+  const editPencil = isDashboardPage && !isEditing && (
+    <button
+      type="button"
+      aria-label="Edit dashboard"
+      onClick={toggleEditMode}
+      className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-tertiary transition-colors hover:bg-surface-low hover:text-text-primary"
+    >
+      <Icon path={pencilIcon} size={17} exact />
+    </button>
+  );
   return (
     <header className="relative h-full py-ha-2 px-ha-0" data-component="TopBar">
       {/* Inner row shares the exact content shell (max-w + centering + gutters)
@@ -242,6 +255,7 @@ export function TopBar() {
               {titleContent}
             </div>
           )}
+          {editPencil}
         </div>
 
         {/* Mobile Actions */}
@@ -252,15 +266,6 @@ export function TopBar() {
               className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors"
             >
               <Icon path={primaryAction.icon} size={24} />
-            </button>
-          )}
-          {isDashboardPage && !isEditing && (
-            <button
-              aria-label="Edit dashboard"
-              onClick={toggleEditMode}
-              className="p-ha-3 rounded-ha-xl transition-colors hover:bg-surface-low text-text-secondary"
-            >
-              <Icon path={pencilIcon} size={24} />
             </button>
           )}
           {!isEditing && isAdmin && (
@@ -297,6 +302,11 @@ export function TopBar() {
           </button>
         )}
         {desktopTitleContent}
+        {editPencil && (
+          <Tooltip content="Edit dashboard" shortcut="E" placement="bottom">
+            {editPencil}
+          </Tooltip>
+        )}
       </div>
 
       {/* Desktop Actions */}
@@ -308,17 +318,6 @@ export function TopBar() {
           >
             <Icon path={primaryAction.icon} size={24} />
           </button>
-        )}
-        {isDashboardPage && !isEditing && (
-          <Tooltip content="Edit dashboard" shortcut="E" placement="bottom">
-            <button
-              aria-label="Edit dashboard"
-              onClick={toggleEditMode}
-              className="p-ha-3 rounded-ha-xl transition-colors hover:bg-surface-low text-text-secondary"
-            >
-              <Icon path={pencilIcon} size={24} />
-            </button>
-          </Tooltip>
         )}
         {!isEditing && isAdmin && (
           <button

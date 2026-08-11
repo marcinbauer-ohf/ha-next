@@ -1,8 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { getEntityHistory } from '@/lib/homeassistant/connection';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { clsx } from 'clsx';
+import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { Sparkline } from './Sparkline';
+
+/** Accent the curve takes while the card is being scrubbed (--ha-color-blue). */
+const HOVER_RGB = '24,188,242';
 
 export interface MiniSparklinePoint {
   value: number;
@@ -16,6 +20,13 @@ interface EntityMiniSparklineProps {
   tiny?: boolean;
   /** Called with the hovered data point (value + timestamp), null on leave */
   onHover?: (point: MiniSparklinePoint | null) => void;
+  /**
+   * Track the pointer over this element instead of over the chart itself. A
+   * dashboard card's graph is a 40px strip along the bottom edge — hunting for
+   * it with the mouse is fiddly, so the card hands its own box over and the
+   * whole card scrubs the curve.
+   */
+  hoverTarget?: React.RefObject<HTMLElement | null>;
 }
 
 // Bucket raw readings into ~N evenly-spaced averaged samples (mid-slice timestamp).
@@ -33,7 +44,10 @@ function bucket(pts: MiniSparklinePoint[], target: number): MiniSparklinePoint[]
   return out;
 }
 
-export function EntityMiniSparkline({ entityId, tiny, onHover }: EntityMiniSparklineProps) {
+export function EntityMiniSparkline({ entityId, tiny, onHover, hoverTarget }: EntityMiniSparklineProps) {
+  // Through the provider, not the raw connection: that's what makes the sample
+  // home and staged (mock) entities draw a curve instead of nothing.
+  const { getEntityHistory } = useHomeAssistant();
   const [points, setPoints] = useState<MiniSparklinePoint[] | null>(null);
   const [visible, setVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -72,7 +86,34 @@ export function EntityMiniSparkline({ entityId, tiny, onHover }: EntityMiniSpark
       setPoints(raw.length >= 3 ? bucket(raw, 32) : []);
     });
     return () => { cancelled = true; };
-  }, [entityId, visible]);
+  }, [entityId, visible, getEntityHistory]);
+
+  // Index under the pointer while the card (not the chart) is being tracked —
+  // drives the crosshair, the marker and the "this graph is live" highlight.
+  const [cardHoverIdx, setCardHoverIdx] = useState<number | null>(null);
+  const emit = useCallback((idx: number | null) => {
+    if (idx === lastHoverIdx.current) return;
+    lastHoverIdx.current = idx;
+    setCardHoverIdx(idx);
+    onHover?.(idx === null || !points ? null : points[idx]);
+  }, [onHover, points]);
+
+  useEffect(() => {
+    const el = hoverTarget?.current;
+    if (!el || !points || points.length < 3) return;
+    const move = (e: MouseEvent) => {
+      const r = el.getBoundingClientRect();
+      const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+      emit(Math.round(f * (points.length - 1)));
+    };
+    const leave = () => emit(null);
+    el.addEventListener('mousemove', move);
+    el.addEventListener('mouseleave', leave);
+    return () => {
+      el.removeEventListener('mousemove', move);
+      el.removeEventListener('mouseleave', leave);
+    };
+  }, [hoverTarget, points, emit]);
 
   const hasData = !!points && points.length >= 3;
   const isBoolean = hasData && points.every(p => p.value === 0 || p.value === 1);
@@ -113,15 +154,26 @@ export function EntityMiniSparkline({ entityId, tiny, onHover }: EntityMiniSpark
       }
     : undefined;
 
+  // Card-tracked: the chart itself takes no pointer events (the card owns them)
+  // and lights up — full opacity, in the accent — while it's being scrubbed, so
+  // it's obvious which graph the readout above belongs to.
+  const tracked = !!hoverTarget;
+  const lit = tracked && cardHoverIdx !== null;
   return (
-    <div className={onHover ? 'w-full opacity-55' : 'w-full opacity-55 pointer-events-none'}>
+    <div className={clsx(
+      'w-full transition-opacity duration-150',
+      lit ? 'opacity-100' : 'opacity-55',
+      tracked || !onHover ? 'pointer-events-none' : '',
+    )}>
       <Sparkline
         points={points.map(p => p.value)}
         on={false}
         gradientId={gradientId}
         small
         stepped={isBoolean}
-        onHover={handleHover}
+        onHover={tracked ? undefined : handleHover}
+        hoverIndex={tracked ? cardHoverIdx : undefined}
+        rgb={lit ? HOVER_RGB : undefined}
         endDot
       />
     </div>

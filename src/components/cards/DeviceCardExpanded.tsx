@@ -155,7 +155,7 @@ export function DeviceCardExpanded({
           {/* Features list */}
           {panelEntities.length > 0 && (
             <div className="border-t border-surface-lower">
-              <SectionLabel className="px-ha-4 pt-ha-3 pb-ha-1">Features</SectionLabel>
+              <SectionLabel inset className="pt-ha-3 pb-ha-1">Features</SectionLabel>
               {panelEntities.map(entity => {
                 const isActive = entity.entityId === activeEntityId;
                 return (

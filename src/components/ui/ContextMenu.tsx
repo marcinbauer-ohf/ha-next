@@ -65,11 +65,13 @@ export function ContextMenu({
 
   if (typeof document === 'undefined') return null;
 
+  // z-210 sits above ModalSheet (z-200) — the menu also opens inside dialogs.
+
   return createPortal(
     <div
       ref={ref}
       style={{ top: y, left: x, transformOrigin: 'top left' }}
-      className="fixed z-[130] min-w-[188px] py-ha-1 bg-surface-default border border-surface-lower rounded-ha-xl shadow-2xl shadow-black/40 animate-in fade-in zoom-in-95 duration-150"
+      className="fixed z-[210] min-w-[188px] py-ha-1 bg-surface-default border border-surface-lower rounded-ha-xl shadow-2xl shadow-black/40 animate-in fade-in zoom-in-95 duration-150"
       onContextMenu={(e) => e.preventDefault()}
     >
       {actions.map((action, i) => (

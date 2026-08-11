@@ -42,9 +42,6 @@ function fmtDur(sec: number): string {
   return mm ? `${h}h ${mm}m` : `${h}h`;
 }
 
-const fmtClock = (ts: number) =>
-  new Date(ts * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
 const TARGET_CELL_PX = 7; // aim for ~7px cells; cell count adapts to width
 
 /**
@@ -54,10 +51,20 @@ const TARGET_CELL_PX = 7; // aim for ~7px cells; cell count adapts to width
  * collapses to sub-pixel slivers when an entity flaps), and a per-state legend
  * sums total time. The categorical analogue of the numeric sparkline.
  */
-export function StateTimeline({ segments, startTs, endTs }: { segments: StateSegment[]; startTs: number; endTs: number }) {
+export function StateTimeline({ segments, startTs, endTs, compact, onHover }: {
+  segments: StateSegment[];
+  startTs: number;
+  endTs: number;
+  /** Strip variant — bar only, no hover readout or legend (used inline under a value). */
+  compact?: boolean;
+  /**
+   * The state under the cursor and when it held — lets the hero show what the
+   * entity read at that moment instead of what it reads now.
+   */
+  onHover?: (hit: { state: string; ts: number } | null) => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
-  const [hover, setHover] = useState<number | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -101,17 +108,14 @@ export function StateTimeline({ segments, startTs, endTs }: { segments: StateSeg
     return [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [segments]);
 
-  const hoverState = hover !== null ? cells[hover] : null;
-  const hoverLabel = hover !== null && hoverState
-    ? `${fmtClock(startTs + hover * cellDur)} · ${prettyState(hoverState)}`
-    : '';
-
   return (
     <div className="w-full">
       <div
         ref={ref}
-        className="flex w-full h-9 gap-px rounded-ha-lg overflow-hidden"
-        onMouseLeave={() => setHover(null)}
+        // Both variants are 36px: compact is the dialog's 24h strip, which sits
+        // in the 48px control row and should fill it, not float inside it.
+        className="flex w-full gap-px rounded-ha-lg overflow-hidden h-9"
+        onMouseLeave={() => onHover?.(null)}
         role="img"
         aria-label="State history heatmap"
       >
@@ -120,18 +124,13 @@ export function StateTimeline({ segments, startTs, endTs }: { segments: StateSeg
             key={i}
             className="h-full flex-1 bg-surface-low transition-[filter] hover:brightness-125"
             style={state ? { backgroundColor: stateColor(state) } : undefined}
-            onMouseEnter={() => setHover(i)}
+            onMouseEnter={() => onHover?.(state ? { state, ts: startTs + i * cellDur } : null)}
           />
         ))}
       </div>
 
-      {/* Hover readout — reserves height so the layout doesn't jump */}
-      <div className="h-4 mt-1 text-center text-[11px] font-medium text-text-secondary truncate">
-        {hoverLabel}
-      </div>
-
       {/* Legend: total time per state */}
-      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-0.5">
+      {!compact && <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-0.5">
         {legend.map(([state, dur]) => (
           <span key={state} className="inline-flex items-center gap-1 text-[11px] text-text-tertiary">
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stateColor(state) }} />
@@ -139,7 +138,7 @@ export function StateTimeline({ segments, startTs, endTs }: { segments: StateSeg
             <span className="text-text-secondary font-medium tabular-nums">{fmtDur(dur)}</span>
           </span>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { Icon } from '../ui/Icon';
-import { mdiDrag } from '@mdi/js';
+import { mdiDragHorizontalVariant } from '@mdi/js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tray of not-yet-placed devices for the active floor. Drag an item onto the
@@ -62,7 +62,7 @@ export function DeviceTray({
                 <span className="block truncate text-sm font-medium text-text-primary">{d.name}</span>
                 <span className="block truncate text-xs text-text-tertiary">{d.areaName}</span>
               </span>
-              <Icon path={mdiDrag} size={16} className="flex-shrink-0 text-text-disabled" />
+              <Icon path={mdiDragHorizontalVariant} size={16} className="flex-shrink-0 text-text-disabled" />
             </div>
           ))}
         </div>

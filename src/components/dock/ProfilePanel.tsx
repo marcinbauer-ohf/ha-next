@@ -20,8 +20,10 @@ import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks/useHomeAssis
 import type { HassEntities } from '@/types';
 import { useHomeName } from '@/lib/homeName';
 import { DockSlotIcon } from './DockBar';
+import { AskChatPane } from './DockAsk';
 import {
   APPLICATIONS_ID,
+  ASK_ID,
   HOME_CENTER_ID,
   HOME_CENTER_ITEMS,
   NOTIFICATIONS_ID,
@@ -437,6 +439,7 @@ function DetailPane({ item }: { item: DockItem }) {
  */
 export function ProfilePanel({
   liveCategories,
+  searchItems,
   pins,
   fixedId,
   view,
@@ -448,6 +451,8 @@ export function ProfilePanel({
 }: {
   /** Dashboards + apps read from the connected instance, shown above the pages. */
   liveCategories: DockCategory[];
+  /** Everything the ask page can search: live dashboards + apps + every HA page. */
+  searchItems: DockItem[];
   pins: string[];
   /** HA's default dashboard — shown as permanently pinned. */
   fixedId: string | null;
@@ -564,7 +569,9 @@ export function ProfilePanel({
             menuShown && !view && 'hidden md:block',
           )}
         >
-          {view?.id === HOME_CENTER_ID ? (
+          {view?.id === ASK_ID ? (
+            <AskChatPane items={searchItems} onOpen={onOpen} />
+          ) : view?.id === HOME_CENTER_ID ? (
             <HomeCenterList pins={pins} onOpen={onOpen} onTogglePin={onTogglePin} />
           ) : view?.id === NOTIFICATIONS_ID ? (
             <NotificationsPane />

@@ -134,7 +134,7 @@ export function SpinDock({ onHome, atHome }: { onHome: () => void; atHome: boole
   };
 
   return (
-    <div className="relative z-10 flex justify-center pb-[104px] pt-1">
+    <div className="relative z-10 flex justify-center pb-5 pt-1">
       <motion.div
         className="flex max-w-[calc(100vw-24px)] items-end gap-2.5 overflow-x-auto rounded-[26px] border border-white/12 bg-[#081020]/45 px-3.5 py-2.5 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onMouseMove={(e) => mouseX.set(e.clientX)}

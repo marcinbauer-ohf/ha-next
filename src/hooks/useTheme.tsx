@@ -9,7 +9,9 @@ import {
 } from '@mdi/js';
 import { flashHud } from '@/lib/hudFlashBus';
 
-export const THEMES = ['default', 'glass', 'teenage', 'cyberpunk', 'material', 'eink', 'fallout'] as const;
+// Note: the CSS gates the shared Material rules on [data-theme^="material"], so
+// any future Material variant must keep the `material` prefix.
+export const THEMES = ['default', 'glass', 'teenage', 'cyberpunk', 'material', 'material-ha', 'eink', 'fallout'] as const;
 export type Theme = (typeof THEMES)[number];
 export type ColorMode = 'light' | 'dark' | 'system';
 export type Background = 'gradient' | 'image' | 'solid' | 'none' | 'pulse';
@@ -45,6 +47,7 @@ const THEME_LABEL: Record<Theme, string> = {
   teenage: 'Teenage Engineering',
   cyberpunk: 'Cyberpunk',
   material: 'Material',
+  'material-ha': 'HA Material',
   eink: 'E-ink',
   fallout: 'Fallout',
 };

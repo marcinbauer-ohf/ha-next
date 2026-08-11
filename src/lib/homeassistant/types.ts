@@ -58,6 +58,8 @@ export interface EntityRegistryEntry {
   platform: string;
   disabled_by: string | null;
   hidden_by: string | null;
+  /** 'config' | 'diagnostic' — set for entities HA keeps out of the main UI. */
+  entity_category?: string | null;
 }
 
 export interface DeviceRegistryEntry {

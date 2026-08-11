@@ -491,8 +491,11 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
         {groups.map((bucket) => (
           <div key={bucket.key} className="space-y-ha-2">
             {grouped && bucket.title && (
+              // Same rule as ListSection: over a card of rows the heading lines
+              // up with the row text; over a grid of cards it lines up with the
+              // cards' outer edge.
               <div
-                className={`sticky z-20 ${solidBg} flex items-center gap-ha-2 px-ha-1 py-ha-1`}
+                className={`sticky z-20 ${solidBg} flex items-center gap-ha-2 py-ha-1 ${layout === 'grid' && renderCard ? 'px-ha-1' : 'px-ha-4'}`}
                 style={{ top: headerStickyTop }}
               >
                 <SectionLabel>{bucket.title}</SectionLabel>
@@ -636,27 +639,27 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
       {hasMobileSheet && (
         <ModalSheet open={sheetOpen} onClose={() => setSheetOpen(false)}>
           <div className="px-ha-4 pb-ha-6">
-            <div className="mb-ha-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-text-primary">Filters</h3>
-              <div className="flex items-center gap-ha-3">
-                {activeFilterCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    className="text-xs font-semibold text-ha-blue"
-                  >
-                    Reset
-                  </button>
-                )}
+            <div className="mb-ha-4 flex items-center justify-between gap-ha-2">
+              <div className="flex min-w-0 items-center gap-ha-2">
                 <button
                   type="button"
                   aria-label="Close"
                   onClick={() => setSheetOpen(false)}
-                  className="flex h-7 w-7 items-center justify-center rounded-ha-lg text-text-secondary hover:bg-surface-low"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-ha-lg text-text-secondary hover:bg-surface-low"
                 >
                   <Icon path={mdiClose} size={18} />
                 </button>
+                <h3 className="text-sm font-semibold text-text-primary">Filters</h3>
               </div>
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="text-xs font-semibold text-ha-blue"
+                >
+                  Reset
+                </button>
+              )}
             </div>
 
             <div className="flex flex-col gap-ha-4">

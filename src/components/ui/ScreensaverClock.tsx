@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { RollingDigit } from './RollingDigit';
-import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor, useHomePingPulse, useHomeCenterPrefs, useWeatherParams, useHomeSummary } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor, useHomePingPulse, useHomeCenterPrefs, useWeatherParams, useHomeSummary, summaryToSentence } from '@/hooks';
 import { useNotificationCenter } from '@/contexts';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import {
@@ -336,16 +336,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       clearTimeout(timer);
     };
   }, [visible]);
-  const summaryText = useMemo(() => {
-    if (summaryPhrases.length === 0) {
-      return 'All quiet while you were away — nothing needed your attention, and everything is just as you left it.';
-    }
-    const parts = summaryPhrases.slice(0, 3);
-    const joined =
-      parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
-    const rest = summaryPhrases.length - parts.length;
-    return `While you were away: ${joined}${rest > 0 ? `, plus ${rest} more thing${rest > 1 ? 's' : ''}` : ''}.`;
-  }, [summaryPhrases]);
+  const summaryText = useMemo(() => summaryToSentence(summaryPhrases), [summaryPhrases]);
   const router = useRouter();
   const dragStartY = useRef<number | null>(null);
   const activePointerId = useRef<number | null>(null);
@@ -851,8 +842,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
           entering the mode keeps the bar in place while the scene changes
           around it. Shows the one-line "while you were away" note. */}
       <div
-        className="absolute bottom-0 left-0 right-0 px-ha-6"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
+        className="absolute bottom-0 left-0 right-0 px-ha-6 pb-[calc(env(safe-area-inset-bottom)+3rem)] lg:pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
       >
         {/* Ambient halo under the widget — toast-family blue glow with a slow
             rainbow drift and the voice screen's wave dots mixed in, so the bar
@@ -897,18 +887,6 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         <p className="text-sm text-white/50 animate-pulse">
           Tap anywhere to dismiss
         </p>
-      </div>
-
-      {/* Mobile: drag hint sits just above the talk widget (which owns the
-          bottom edge now) */}
-      <div
-        className="lg:hidden absolute bottom-0 left-0 right-0 flex flex-col items-center pointer-events-none"
-        style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + 5.75rem)`, paddingTop: '1rem' }}
-      >
-        <p className="text-sm text-white/50 mb-ha-2 animate-pulse">
-          Drag up to dismiss
-        </p>
-        <div className="w-10 h-1.5 rounded-full bg-white/40" />
       </div>
 
       </div>

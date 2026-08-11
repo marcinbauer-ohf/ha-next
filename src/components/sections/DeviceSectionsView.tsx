@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { mdiImageOffOutline } from '@mdi/js';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
 import { DeferredCard } from '@/components/cards/DeferredCard';
@@ -10,7 +11,8 @@ import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { NavChevron } from '@/components/ui';
 import { useDevices, useHomeAssistant, useDeviceCardConfig } from '@/hooks';
 import {
-  entityDomain, entityLabel, stateLabel, isOn, TOGGLEABLE, primaryCornerBadge, domainIcon, deviceFeedEntity, deviceThumbnail,
+  entityDomain, entityLabel, stateLabel, stateExtras, isOn, TOGGLEABLE, primaryCornerBadge, domainIcon, deviceFeedEntity, deviceThumbnail,
+  PRESSABLE,
 } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -89,7 +91,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
       if (!e) return [];
       const dom = entityDomain(e);
       const isToggleable = TOGGLEABLE.has(dom);
-      const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
+      const isPressable = PRESSABLE.has(dom);
       const p = e.attributes.entity_picture as string | undefined;
       return [{
         entityId: e.entity_id,
@@ -159,6 +161,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
         ];
     const [primarySlotInfo, ...secondarySlotInfos] = displaySlots;
     const primaryEntity = device.entities.find(e => e.entity_id === primarySlotInfo?.entity_id) ?? device.primaryEntity;
+    const primaryExtras = stateExtras(primaryEntity);
     const p = primaryEntity.attributes.entity_picture as string | undefined;
     const feedEntity = deviceFeedEntity(device.entities);
     const feedImage = feedEntity?.attributes.entity_picture
@@ -181,6 +184,8 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
           thumbnail: config.thumbnail !== undefined ? config.thumbnail : deviceThumbnail(device.primaryEntity),
           name: device.name,
           state: stateLabel(primaryEntity),
+          details: primaryExtras.details,
+          dotColor: primaryExtras.accentRgb ? `rgb(${primaryExtras.accentRgb.join(' ')})` : undefined,
           lastChanged: primaryEntity.last_changed,
           active: isOn(primaryEntity),
           entityPicture: p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined,
@@ -196,7 +201,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
           if (!e) return [];
           const dom = entityDomain(e);
           const isToggleable = TOGGLEABLE.has(dom);
-          const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
+          const isPressable = PRESSABLE.has(dom);
           return [{
             entityId: e.entity_id,
             icon: domainIcon(e),
@@ -277,6 +282,12 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
             }}
             onClose={closePanel}
             onEditCard={() => setPanelMode('edit')}
+            thumbnailPicker={{
+              value: getConfig(selectedDevice.id).thumbnail,
+              auto: selectedDevice.primaryEntity ? deviceThumbnail(selectedDevice.primaryEntity) : null,
+              iconPath: selectedDevice.primaryEntity ? domainIcon(selectedDevice.primaryEntity) : mdiImageOffOutline,
+              onChange: thumbnail => setConfig(selectedDevice.id, { ...getConfig(selectedDevice.id), thumbnail }),
+            }}
           />
         )}
         {selectedDevice && panelMode === 'edit' && (

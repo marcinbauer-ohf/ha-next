@@ -57,6 +57,7 @@ import {
   mdiTimerOutline,
   mdiPause,
   mdiChevronRight,
+  mdiChevronUp,
   mdiMicrophone,
   mdiDevices,
   mdiClose,
@@ -86,6 +87,10 @@ function parseTime(time: string): number {
   if (parts.length === 2) return parts[0] * 60 + parts[1];
   return 0;
 }
+
+// Screen height left above the open pull-up sheet. Also the 1:1 drag range, so
+// keep the sheet height and getDragRangePx() reading the same number.
+const SHEET_TOP_INSET_REM = 20;
 
 const appPalettes = [
   { text: 'text-ha-blue' },
@@ -431,10 +436,10 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   // so the tapped pill's shared-element transition into the sheet still plays.
   const baseTopRowVisibleRatio =
     expandedSurfaceTab === 'widget' ? 1 : isSettingsRoute ? 0 : 1 - sheetOpenProgress;
-  // On settings routes the sheet isn't an entry point at all — hide the handle
-  // and its expand affordance entirely. It comes back while the sheet is up
-  // (opened via the tabs) so it can still be dragged closed.
-  const hideHandle = isSettingsRoute && !isSheetVisible;
+  // The grabber only exists to drag the sheet closed, so it appears with the
+  // sheet. Closed, the whole bar is still the drag-up target (see the pill's
+  // touch handlers) and the dashboards tab opens it on tap.
+  const hideHandle = !isSheetVisible;
   // Broadcast the open state so surfaces floating above the scrim (corner toast,
   // dashboard filter FAB) can fade out while the sheet is up, and back in after.
   useEffect(() => {
@@ -982,6 +987,17 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     [close, closeExpandedSurface, closeSearch, currentSettingsSlug, expandedSurfaceTab, isRevealed, searchOpen, statusExpanded]
   );
 
+  // The dashboards tab goes home first — browsing the other dashboards and apps
+  // is the second tap (and the drag handle right above it, which opens the same
+  // surface). Mirrors handleSettingsTap: tap again on the destination = "more".
+  const handleDashboardsTap = useCallback(() => {
+    if (pathname === '/') {
+      openExpandedSurface('dashboards');
+      return;
+    }
+    navigateFromSurface('/');
+  }, [pathname, openExpandedSurface, navigateFromSurface]);
+
   const openWidgetSurface = useCallback(
     (type: WidgetSurfaceType, entityId: string) => {
       setIsBottomSheetDragging(false);
@@ -1049,11 +1065,10 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
 
     const getDragRangePx = () => {
       if (typeof window === 'undefined') return 280;
-      // Match the sheet's open height (100svh - 15rem, see the content div
-      // below) so a px of finger travel moves the sheet a px — the handle
-      // tracks the finger 1:1 instead of racing ahead of it.
+      // Match the sheet's open height so a px of finger travel moves the sheet
+      // a px — the handle tracks the finger 1:1 instead of racing ahead of it.
       const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      return Math.max(120, window.innerHeight - 15 * rem);
+      return Math.max(120, window.innerHeight - SHEET_TOP_INSET_REM * rem);
     };
 
     // A finger must clear this before the gesture counts as a drag instead of a
@@ -1978,7 +1993,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               <div
                 className={`overflow-hidden flex flex-col ${isSheetVisible ? 'mb-ha-1' : 'mb-0 pointer-events-none'}`}
                 style={{
-                  height: `calc(${sheetOpenProgress} * (100svh - 15rem))`,
+                  height: `calc(${sheetOpenProgress} * (100svh - ${SHEET_TOP_INSET_REM}rem))`,
                   opacity: Math.max(0, Math.min(1, sheetOpenProgress * 1.5)),
                   transition: isBottomSheetDragging
                     ? 'none'
@@ -2496,14 +2511,25 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         >
           {/* Concentric rounding: outer pill is --mobile-nav-radius with ha-2 (8px)
               side padding, so this inner strip is that radius minus 8px. */}
-          <div className="mobile-nav-tabs flex items-center justify-around bg-surface-low rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-4 h-14">
+          <div className="mobile-nav-tabs flex items-center justify-around rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-4 h-14">
             <button
               type="button"
-              onClick={() => openExpandedSurface('dashboards')}
+              onClick={handleDashboardsTap}
+              aria-label={pathname === '/' ? 'Browse dashboards and apps' : 'Home'}
               className={`relative h-full px-ha-2 flex items-center justify-center text-text-secondary transition-colors ${
                 isDashboardsActive ? 'text-text-primary' : 'hover:text-text-primary'
               }`}
             >
+              {/* Once you're home the tap changes meaning to "browse" — the caret
+                  says there's more above, matching the sheet's drag handle. */}
+              <Icon
+                path={mdiChevronUp}
+                size={16}
+                exact
+                className={`absolute top-1 left-1/2 -translate-x-1/2 text-text-tertiary transition-opacity ${
+                  pathname === '/' && !statusExpanded ? 'opacity-100' : 'opacity-0'
+                }`}
+              />
               <svg width="26" height="24" viewBox="0 0 20 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                 <path d="M16 0C18.2091 0 20 1.79086 20 4V14C20 16.2091 18.2091 18 16 18H4C1.79086 18 1.61066e-08 16.2091 0 14V4C0 1.79086 1.79086 6.44256e-08 4 0H16ZM4 11.5859C2.89546 11.5859 2.00004 12.4814 2 13.5859V14C2.00011 15.1045 2.8955 16 4 16H10V13.5859C9.99996 12.4814 9.10454 11.5859 8 11.5859H4ZM12 16H16C17.1046 16 18 15.1046 18 14V4C18 2.89543 17.1046 2 16 2H12V16ZM6.70703 2.29297C6.31652 1.9025 5.68348 1.9025 5.29297 2.29297L2.29297 5.29297C2.10552 5.48048 2.00002 5.73486 2 6V8.58594C2.0002 9.13805 2.44784 9.58594 3 9.58594H9C9.55216 9.58594 9.9998 9.13805 10 8.58594V6C9.99998 5.73486 9.89448 5.48048 9.70703 5.29297L6.70703 2.29297Z"/>
               </svg>

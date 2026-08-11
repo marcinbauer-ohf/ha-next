@@ -82,7 +82,15 @@ export function AutomationsGlance({ compact, variant, size, translucent }: Autom
           </div>
         ) : (
           <div className="p-ha-4 lg:p-ha-5 space-y-ha-4">
-            <header className="flex items-start justify-between gap-ha-3">
+            <header className="flex items-start gap-ha-3">
+              <button
+                type="button"
+                onClick={close}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-ha-lg text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+                aria-label="Close"
+              >
+                <Icon path={mdiClose} size={20} />
+              </button>
               <div className="flex items-center gap-ha-3 min-w-0">
                 <span className="relative flex h-10 w-10 items-center justify-center rounded-ha-xl bg-violet-500/15 text-violet-500 shrink-0">
                   {running && <span className="absolute inline-flex h-full w-full animate-ping rounded-ha-xl bg-violet-500/30" />}
@@ -96,14 +104,6 @@ export function AutomationsGlance({ compact, variant, size, translucent }: Autom
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={close}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-ha-lg text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-                aria-label="Close"
-              >
-                <Icon path={mdiClose} size={20} />
-              </button>
             </header>
 
             <AutomationActivityChart onOpenAutomation={setDetailId} />

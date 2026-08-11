@@ -7,6 +7,7 @@ import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, u
 import { PulseWallpaper } from '@/components/layout/PulseWallpaper';
 import { useSearchContext, useHeader, useEditMode, useToast, useAssistantContext, useDebugFlags } from '@/contexts';
 import { mdiConnection, mdiCheckCircle, mdiAlertCircle, mdiCellphoneArrowDown, mdiRoundedCorner } from '@mdi/js';
+import { friendlyConnectionError } from '@/lib/friendlyConnectionError';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
 import { AssistantOverlay } from '@/components/ui/AssistantOverlay';
 import { HomeCenterOverlay } from '@/components/ui/HomeCenterOverlay';
@@ -98,6 +99,9 @@ function AppShellContent({ children }: AppShellProps) {
   // shell renders nothing until `hydrated`, so the states never hit the DOM.
   const onboardingActive = useOnboardingGate();
   const [showPreloader, setShowPreloader] = useState(() => !isOnboardingActive());
+  // Connection form reachable from the error toast, so a failed connect can be
+  // fixed where it's reported instead of hunting through settings.
+  const [setupOpen, setSetupOpen] = useState(false);
   const [mobileNavHideProgress, setMobileNavHideProgress] = useState(0);
   const [isLgScreen, setIsLgScreen] = useState(false);
   const wasConnecting = useRef(false);
@@ -192,7 +196,16 @@ function AppShellContent({ children }: AppShellProps) {
   // Surface connection status through the shared toast component. Each status
   // change replaces the previous connection toast instead of stacking on it.
   const connectionToastId = useRef<number | null>(null);
+  const connectionToastKey = useRef<string | null>(null);
   useEffect(() => {
+    // Nothing new to say → leave the live toast alone. Without this, any
+    // re-render carrying the same status tears the card down and builds an
+    // identical one, which reads as a stream of fresh notifications for one
+    // unchanged problem.
+    const key = connectionStatus && `${connectionStatus}|${error ?? ''}`;
+    if (key === connectionToastKey.current) return;
+    connectionToastKey.current = key ?? null;
+
     if (connectionToastId.current != null) {
       dismissToast(connectionToastId.current);
       connectionToastId.current = null;
@@ -218,9 +231,11 @@ function AppShellContent({ children }: AppShellProps) {
         icon: mdiAlertCircle,
         iconColor: 'text-red-500',
         title: 'Connection error',
-        subtitle: typeof error === 'string' ? error : undefined,
+        subtitle: friendlyConnectionError(error),
         duration: null,
-        action: { label: 'Reload', onClick: () => window.location.reload() },
+        // The address or key is the usual culprit, so hand over the form that
+        // edits them rather than a reload that repeats the same failure.
+        action: { label: 'Connection settings', onClick: () => setSetupOpen(true) },
         statusSection: 'connectivity',
       });
     }
@@ -835,6 +850,26 @@ function AppShellContent({ children }: AppShellProps) {
 
       {/* Home Center bento overlay */}
       <HomeCenterOverlay />
+
+      {/* Connection form, opened from the connection-error toast. */}
+      <SetupScreen
+        open={setupOpen}
+        onClose={() => setSetupOpen(false)}
+        onSave={async (url, token) => {
+          try {
+            await saveCredentials(url, token);
+            setSetupOpen(false);
+          } catch {
+            /* the form shows the friendly error inline */
+          }
+        }}
+        onUseDemo={() => {
+          enableDemoMode();
+          setSetupOpen(false);
+        }}
+        error={error}
+        connecting={connecting}
+      />
 
       {/* Keyboard shortcuts cheat-sheet (?) */}
       <KeyboardShortcutsDialog open={shortcutsHelpOpen} onClose={() => setShortcutsHelpOpen(false)} />

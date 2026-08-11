@@ -78,7 +78,7 @@ export function SetupScreen({ onSave, onUseDemo, error, connecting, onClose, ope
               required
               value={url}
               onChange={e => setUrl(e.target.value)}
-              placeholder="homeassistant.local:8123"
+              placeholder="homeassistant.local"
               disabled={connecting}
               className={INPUT_CLASS}
               autoCapitalize="none"
@@ -86,7 +86,8 @@ export function SetupScreen({ onSave, onUseDemo, error, connecting, onClose, ope
               spellCheck={false}
             />
             <p className="text-xs text-text-tertiary">
-              The address you type in your browser to open Home Assistant.
+              The address you type in your browser to open Home Assistant — with or
+              without the <span className="font-mono">:8123</span> on the end.
             </p>
           </div>
 

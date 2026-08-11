@@ -5,6 +5,7 @@ import {
   mdiBell,
   mdiCalendarClock,
   mdiChartLine,
+  mdiCreation,
   mdiFormatListChecks,
   mdiHomeVariant,
   mdiLightningBolt,
@@ -55,6 +56,17 @@ export interface DockCategory {
  * (profile, security), Home Center at the very top, and Cloud on its own.
  */
 const LIFTED_SLUGS = new Set(['profile', 'notifications', 'home-center', 'cloud']);
+
+/** The chat surface behind the ask pill/chip — a page like any other. */
+export const ASK_ID = 'page:ask';
+
+export const ASK_ITEM: DockItem = {
+  id: ASK_ID,
+  label: 'Ask',
+  description: 'Ask about your home, or find anything in it',
+  icon: mdiCreation,
+  category: 'You',
+};
 
 export const HOME_CENTER_ID = 'page:home-center';
 export const NOTIFICATIONS_ID = 'page:notifications';
@@ -192,7 +204,7 @@ export const PAGE_CATEGORIES: DockCategory[] = [
 ];
 
 const ALL_PAGES = new Map(
-  [...PAGE_CATEGORIES.flatMap((c) => c.items), ...HOME_CENTER_ITEMS].map((i) => [i.id, i]),
+  [...PAGE_CATEGORIES.flatMap((c) => c.items), ...HOME_CENTER_ITEMS, ASK_ITEM].map((i) => [i.id, i]),
 );
 
 /** Cards pinned to the top of the mega menu, in this order. */

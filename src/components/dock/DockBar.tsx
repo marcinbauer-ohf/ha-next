@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { clsx } from 'clsx';
-import { AnimatePresence } from 'framer-motion';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { mdiDotsHorizontal, mdiMagnify, mdiMenu, mdiPinOffOutline, mdiViewDashboard } from '@mdi/js';
+import { mdiDotsHorizontal, mdiMenu, mdiPinOffOutline, mdiViewDashboard } from '@mdi/js';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { ContextMenu } from '@/components/ui/ContextMenu';
 import { Icon } from '@/components/ui/Icon';
 import { MdiIcon } from '@/components/ui/MdiIcon';
-import { SearchPanel, SearchSheet } from './DockSearch';
+import { AskPill } from './DockAsk';
 import { DOCK_DROPPABLE_ID, usesLovelace, type DockItem } from './dockItems';
 
 /** Slot geometry — also drives how many pins fit, so it lives in one place. */
@@ -22,10 +21,10 @@ const DOCK_PADDING = 32;
 /** Breathing room left at the window edges. */
 const PAGE_MARGIN = 32;
 /**
- * Everything right of the pins: gap + search button + gap + the hamburger/avatar
- * pair. Fixed by construction, and must be kept in step with that markup.
+ * Everything right of the pins: gap + the hamburger/avatar pair. Fixed by
+ * construction, and must be kept in step with that markup.
  */
-const CLUSTER_PX = 96;
+const CLUSTER_PX = 56;
 
 /**
  * How many slots fit on the row at this window width. The dock takes all the
@@ -147,11 +146,12 @@ export function DockBar({
   profileOpen,
   hidden,
   fixedId,
-  searchItems,
+  askVisible,
   dropActive,
   onSelect,
   onUnpin,
   onProfile,
+  onAsk,
 }: {
   pins: DockItem[];
   activeId: string | null;
@@ -160,19 +160,19 @@ export function DockBar({
   hidden: boolean;
   /** HA's default dashboard — pinned permanently, so no remove affordances. */
   fixedId: string | null;
-  /** Everything searchable: live dashboards + apps + every HA page. */
-  searchItems: DockItem[];
+  /** False while the screensaver owns the pill — it can only exist in one place. */
+  askVisible: boolean;
   /** True while a catalog item is being dragged, so the strip can invite a drop. */
   dropActive: boolean;
   onSelect: (item: DockItem) => void;
   onUnpin: (id: string) => void;
   onProfile: () => void;
+  onAsk: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: DOCK_DROPPABLE_ID });
   const [menu, setMenu] = useState<{ x: number; y: number; item: DockItem } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [pressedId, setPressedId] = useState<string | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [viewport, setViewport] = useState(() => (typeof window === 'undefined' ? 1280 : window.innerWidth));
 
   useEffect(() => {
@@ -180,13 +180,6 @@ export function DockBar({
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-
-  // Tailwind's md breakpoint — keeps the JS split and the CSS in agreement.
-  const isMobile = viewport < 768;
-  const openFromSearch = (item: DockItem) => {
-    setSearchOpen(false);
-    onSelect(item);
-  };
 
   const perRow = fitCount(viewport);
   const overflowing = pins.length > perRow;
@@ -197,23 +190,15 @@ export function DockBar({
   return (
     <>
       {/* Slides fully clear of the bottom edge rather than fading, so it never
-          sits half-visible over content. Never hides with search open. */}
+          sits half-visible over content. */}
       <div
         className={clsx(
           'pointer-events-none fixed inset-x-0 bottom-0 z-30 flex flex-col items-center gap-2 pb-[max(18px,env(safe-area-inset-bottom))] transition-transform duration-300 ease-out',
-          hidden && !searchOpen && 'translate-y-[130%]',
+          hidden && 'translate-y-[130%]',
         )}
       >
-        {/* Desktop floats a panel above the pill; mobile gets the full sheet below. */}
-        <AnimatePresence>
-          {searchOpen && !isMobile && (
-            <SearchPanel
-              items={searchItems}
-              onOpen={openFromSearch}
-              onClose={() => setSearchOpen(false)}
-            />
-          )}
-        </AnimatePresence>
+        {/* The screensaver pill's resting place — same element, morphed down. */}
+        {askVisible && <AskPill variant="chip" onOpen={onAsk} />}
         <div
           // Droppable covers the whole dock so releasing anywhere on it keeps the
           // pin; only a release clear of the dock dismisses.
@@ -279,22 +264,6 @@ export function DockBar({
             )}
           </div>
 
-          {/* Fixed alongside the avatar, never scrolled or overflowed away. */}
-          <button
-            type="button"
-            aria-label="Search or ask Assist"
-            aria-expanded={searchOpen}
-            onClick={() => setSearchOpen((o) => !o)}
-            className={clsx(
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-150 hover:-translate-y-0.5 active:scale-95',
-              searchOpen ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 hover:text-neutral-800',
-            )}
-          >
-            {/* 24 to match the slots: DockSlotIcon omits `exact`, so Icon's 24px
-                legibility floor lifts them all to 24 regardless of the size given. */}
-            <Icon path={mdiMagnify} size={24} />
-          </button>
-
           {/* The one fixture of the dock. The hamburger sits *behind* the face and
               peeks out to its left — one control, both meanings. */}
           <button
@@ -343,13 +312,6 @@ export function DockBar({
           />
         )}
       </div>
-
-      <SearchSheet
-        open={searchOpen && isMobile}
-        items={searchItems}
-        onOpen={openFromSearch}
-        onClose={() => setSearchOpen(false)}
-      />
 
       {/* The pins that didn't fit, as navigation. Bottom sheet on mobile,
           centered card on desktop — ModalSheet already handles both. */}

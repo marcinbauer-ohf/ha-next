@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useCloseOnScreensaver } from '@/contexts';
+import { lastPointerPoint } from '@/lib/lastPointer';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { visibleFocusables } from '@/hooks/useFocusTrap';
 
@@ -80,15 +81,34 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
 
   if (typeof document === 'undefined') return null;
 
-  // Crossfade content when transitionKey changes (panel switch inside the open dialog)
+  // Grow the desktop card out of whatever was clicked. The offset is damped —
+  // the card drifts *from that direction* rather than literally flying across
+  // the screen — and falls back to a plain centred pop when there's no fresh
+  // pointer (keyboard, a toast action, the screensaver closing something).
+  const origin = (() => {
+    const p = open ? lastPointerPoint() : null;
+    if (!p) return { dx: 0, dy: 16, transformOrigin: 'center' };
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    return {
+      dx: (p.x - cx) * 0.35,
+      dy: (p.y - cy) * 0.35,
+      transformOrigin: `${((p.x / window.innerWidth) * 100).toFixed(1)}% ${((p.y / window.innerHeight) * 100).toFixed(1)}%`,
+    };
+  })();
+
+  // Crossfade content when transitionKey changes (panel switch inside the open
+  // dialog). Deliberately gentle: the two panels share a header, so a big slide
+  // makes a swap that is mostly the *same* dialog look like a different one.
+  // The outgoing panel leaves faster than the incoming arrives, and the card
+  // itself carries a `layout` animation so the height eases instead of snapping.
   const content = transitionKey !== undefined ? (
     <AnimatePresence mode="popLayout" initial={false}>
       <motion.div
         key={transitionKey}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -12 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
+        initial={{ opacity: 0, scale: 0.985 }}
+        animate={{ opacity: 1, scale: 1, transition: { duration: 0.22, ease: 'easeOut', delay: 0.05 } }}
+        exit={{ opacity: 0, scale: 0.985, transition: { duration: 0.1, ease: 'easeIn' } }}
         className="flex flex-col min-h-0"
       >
         {children}
@@ -117,19 +137,23 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             onClick={onClose}
           />
 
-          {/* Desktop: centered card — scales in from slightly below */}
+          {/* Desktop: centered card — grows from wherever you clicked */}
           <motion.div
             key="desktop-card"
-            initial={{ opacity: 0, scale: 0.90, y: 16 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.90, y: 16 }}
+            // `layout` eases the card's height between panels — popLayout pulls
+            // the outgoing panel out of flow, so without it the card snaps to the
+            // new height in one frame while the content is still fading.
+            layout={transitionKey !== undefined ? 'size' : false}
+            initial={{ opacity: 0, scale: 0.90, x: origin.dx, y: origin.dy }}
+            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+            exit={{ opacity: 0, scale: 0.90, x: origin.dx, y: origin.dy }}
             transition={SPRING}
-            className="hidden lg:flex relative w-full flex-col bg-surface-default rounded-ha-3xl overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)]"
-            style={{ maxWidth, maxHeight: '85vh' }}
+            className="hidden lg:flex relative w-full flex-col bg-surface-lower rounded-ha-3xl overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)]"
+            style={{ maxWidth, maxHeight: '85vh', transformOrigin: origin.transformOrigin }}
           >
             <div className="relative flex-1 flex flex-col min-h-0">
-              <div className={clsx('absolute top-0 left-0 right-0 h-10 pointer-events-none bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', desktopTop ? 'opacity-100' : 'opacity-0')} />
-              <div className={clsx('absolute bottom-0 left-0 right-0 h-10 pointer-events-none bg-gradient-to-t from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', desktopBottom ? 'opacity-100' : 'opacity-0')} />
+              <div className={clsx('absolute top-0 left-0 right-0 h-10 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', desktopTop ? 'opacity-100' : 'opacity-0')} />
+              <div className={clsx('absolute bottom-0 left-0 right-0 h-10 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', desktopBottom ? 'opacity-100' : 'opacity-0')} />
               <div ref={attachDesktopFades} className="overflow-y-auto scrollbar-hide flex-1 flex flex-col">
                 {content}
               </div>

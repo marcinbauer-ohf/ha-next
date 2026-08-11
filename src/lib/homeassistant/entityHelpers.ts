@@ -28,13 +28,19 @@ import {
   mdiCctv,
 } from '@mdi/js';
 import type { HassEntity } from '@/types';
+import { mdiIconByName } from './mdiIconByName';
 
 export function entityDomain(entity: HassEntity): string {
   return entity.entity_id.split('.')[0];
 }
 
 export function friendlyName(entity: HassEntity): string {
-  return (entity.attributes.friendly_name as string | undefined) ?? entity.entity_id;
+  const name = entity.attributes.friendly_name as string | undefined;
+  if (name) return name;
+  // No name from the integration — HA falls back to the humanised object id
+  // rather than showing a raw `sensor.foo_bar` in the UI.
+  const objectId = entity.entity_id.split('.')[1] ?? entity.entity_id;
+  return objectId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 /** Strip device name prefix from entity name for use in contexts where device is already shown. */
@@ -49,12 +55,115 @@ export function entityLabel(entity: HassEntity, deviceName: string): string {
   return name;
 }
 
-export function stateLabel(entity: HassEntity): string {
+// ── State formatting ─────────────────────────────────────────────────────────
+// Everything the card, the entity list and the dialog hero show routes through
+// stateLabel, so the domain-specific wording and number formatting live here
+// rather than in each surface.
+
+/** on/off wording per binary_sensor device_class — HA's own phrasing. */
+const BINARY_WORDS: Record<string, [on: string, off: string]> = {
+  battery: ['Low', 'Normal'],
+  battery_charging: ['Charging', 'Not charging'],
+  carbon_monoxide: ['Detected', 'Clear'],
+  cold: ['Cold', 'Normal'],
+  connectivity: ['Connected', 'Disconnected'],
+  door: ['Open', 'Closed'],
+  garage_door: ['Open', 'Closed'],
+  gas: ['Detected', 'Clear'],
+  heat: ['Hot', 'Normal'],
+  light: ['Detected', 'No light'],
+  lock: ['Unlocked', 'Locked'],
+  moisture: ['Wet', 'Dry'],
+  motion: ['Detected', 'Clear'],
+  moving: ['Moving', 'Stopped'],
+  occupancy: ['Detected', 'Clear'],
+  opening: ['Open', 'Closed'],
+  plug: ['Plugged in', 'Unplugged'],
+  power: ['Detected', 'No power'],
+  presence: ['Home', 'Away'],
+  problem: ['Problem', 'OK'],
+  running: ['Running', 'Not running'],
+  safety: ['Unsafe', 'Safe'],
+  smoke: ['Detected', 'Clear'],
+  sound: ['Detected', 'Clear'],
+  tamper: ['Tampered', 'Clear'],
+  update: ['Update available', 'Up-to-date'],
+  vibration: ['Detected', 'Clear'],
+  window: ['Open', 'Closed'],
+};
+
+/** Domains whose state IS a timestamp (last press / last fire / last activation). */
+const TIMESTAMP_DOMAINS = new Set(['button', 'input_button', 'event', 'scene']);
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}|$)/;
+
+/** Slug → sentence: `armed_home` → `Armed home`, `heat_cool` → `Heat cool`. */
+function humanizeState(s: string): string {
+  const words = s.replace(/_/g, ' ').trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** `1 h 12 min`-style label for a duration reading in s / min / h. */
+function formatDuration(value: number, unit: string): string {
+  const seconds = Math.round(unit === 'h' ? value * 3600 : unit === 'min' ? value * 60 : value);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return m > 0 ? `${h} h ${m} min` : `${h} h`;
+  if (m > 0) return s > 0 ? `${m} min ${s} s` : `${m} min`;
+  return `${s} s`;
+}
+
+/** Local date-time for an ISO state (timestamp sensors, button presses, events). */
+export function formatTimestampState(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return sameDay ? `Today ${time}` : `${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} ${time}`;
+}
+
+/**
+ * The display text for an entity's state, split from the unit that should be
+ * typeset separately (the dialog hero renders the unit smaller, cards join the
+ * two). One function so a card row, an entity list and the hero can never
+ * disagree about rounding or wording.
+ *
+ * `suggested_display_precision` is what HA's own frontend rounds by — without
+ * it a sensor reporting 21.400000001 prints in full.
+ */
+export function stateParts(entity: HassEntity): { text: string; unit?: string } {
   const s = entity.state;
-  if (s === 'unavailable') return 'Unavailable';
-  if (s === 'unknown') return 'Unknown';
-  const unit = entity.attributes.unit_of_measurement as string | undefined;
-  return unit ? `${s} ${unit}` : s.charAt(0).toUpperCase() + s.slice(1);
+  if (s === 'unavailable') return { text: 'Unavailable' };
+  if (s === 'unknown') return { text: 'Unknown' };
+
+  const a = entity.attributes;
+  const domain = entityDomain(entity);
+  const deviceClass = a.device_class as string | undefined;
+  const unit = a.unit_of_measurement as string | undefined;
+
+  if (domain === 'binary_sensor' && deviceClass && BINARY_WORDS[deviceClass]) {
+    return { text: BINARY_WORDS[deviceClass][s === 'on' ? 0 : 1] };
+  }
+  if ((deviceClass === 'timestamp' || TIMESTAMP_DOMAINS.has(domain)) && ISO_DATE.test(s)) {
+    return { text: formatTimestampState(s) };
+  }
+
+  const raw = Number(s);
+  if (s.trim() === '' || isNaN(raw)) return { text: humanizeState(s) };
+
+  // Durations read as words, so the unit is already inside the text.
+  if (deviceClass === 'duration' && unit) return { text: formatDuration(raw, unit) };
+
+  const precision = a.suggested_display_precision ?? a.display_precision;
+  const text = typeof precision === 'number' ? raw.toFixed(precision) : String(raw);
+  return { text, unit };
+}
+
+export function stateLabel(entity: HassEntity): string {
+  const { text, unit } = stateParts(entity);
+  return unit ? `${text} ${unit}` : text;
 }
 
 export function isOn(entity: HassEntity): boolean {
@@ -64,6 +173,16 @@ export function isOn(entity: HassEntity): boolean {
 
 export const TOGGLEABLE = new Set([
   'light', 'switch', 'fan', 'input_boolean', 'media_player', 'cover', 'lock',
+  'siren', 'humidifier', 'valve',
+]);
+
+/**
+ * Press-only domains: one action, no state to hold — the card shows an action
+ * button instead of a switch. Single source of truth; every card surface used to
+ * keep its own copy of this list, which is how `scene` ended up inert.
+ */
+export const PRESSABLE = new Set([
+  'button', 'input_button', 'script', 'automation', 'scene',
 ]);
 
 /** Compact "time ago" for a last-changed timestamp (now, 5m, 3h, 2d, 1w). */
@@ -93,6 +212,108 @@ export interface CornerBadge {
   text: string;
   /** Accessible label / tooltip naming the value. */
   label: string;
+}
+
+// Nearest common name for a light's colour. Deliberately coarse — "Warm white"
+// and "Purple" is what someone says about a bulb; "#E8B47A" is not.
+const HUE_NAMES: Array<[number, string]> = [
+  [15, 'Red'], [45, 'Orange'], [70, 'Yellow'], [160, 'Green'],
+  [200, 'Teal'], [250, 'Blue'], [290, 'Purple'], [335, 'Pink'], [360, 'Red'],
+];
+
+function colorName([r, g, b]: [number, number, number]): string {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  // Near-greys are whites, told apart by whether red or blue leads.
+  if (d < 26) return r > b + 8 ? 'Warm white' : b > r + 8 ? 'Cool white' : 'White';
+  let h: number;
+  if (max === r) h = 60 * (((g - b) / d) % 6);
+  else if (max === g) h = 60 * ((b - r) / d + 2);
+  else h = 60 * ((r - g) / d + 4);
+  if (h < 0) h += 360;
+  return HUE_NAMES.find(([limit]) => h <= limit)![1];
+}
+
+export interface StateExtras {
+  /** Short facts to append after the state, joined by "・" on the card. */
+  details: string[];
+  /** A colour worth showing as a dot (a light's current colour). */
+  accentRgb?: [number, number, number];
+}
+
+/**
+ * What else is worth saying about a device beyond "On". A light that is on is
+ * really "On ・ Warm white"; a thermostat is "Heat ・ 21°"; a speaker is
+ * "Playing ・ Spotify". Deliberately excludes anything the corner badge already
+ * shows (brightness, fan speed, position, volume, current temp) so the card
+ * never prints the same number twice.
+ */
+export function stateExtras(entity: HassEntity): StateExtras {
+  const domain = entityDomain(entity);
+  const a = entity.attributes;
+  const details: string[] = [];
+  let accentRgb: [number, number, number] | undefined;
+
+  if (entity.state === 'unavailable' || entity.state === 'unknown') return { details };
+
+  switch (domain) {
+    case 'light': {
+      if (!isOn(entity)) break;
+      const rgb = a.rgb_color as [number, number, number] | undefined;
+      if (Array.isArray(rgb) && rgb.length === 3) {
+        accentRgb = rgb;
+        details.push(colorName(rgb));
+      }
+      const effect = a.effect as string | undefined;
+      if (effect && effect.toLowerCase() !== 'none') details.push(humanizeState(effect));
+      break;
+    }
+    case 'media_player': {
+      const source = (a.source ?? a.app_name) as string | undefined;
+      if (source) details.push(source);
+      break;
+    }
+    case 'climate': {
+      const action = a.hvac_action as string | undefined;
+      if (action && action !== 'off' && action !== entity.state) details.push(humanizeState(action));
+      const target = a.temperature ?? a.target_temp_high;
+      if (target != null && Number.isFinite(Number(target))) details.push(`→ ${Math.round(Number(target))}°`);
+      break;
+    }
+    case 'humidifier': {
+      const target = a.humidity;
+      if (target != null && Number.isFinite(Number(target))) details.push(`→ ${Math.round(Number(target))}%`);
+      const mode = a.mode as string | undefined;
+      if (mode) details.push(humanizeState(mode));
+      break;
+    }
+    case 'vacuum': {
+      const speed = a.fan_speed as string | undefined;
+      if (speed) details.push(humanizeState(speed));
+      const battery = a.battery_level;
+      if (battery != null && Number.isFinite(Number(battery))) details.push(`${Math.round(Number(battery))}%`);
+      break;
+    }
+    case 'water_heater': {
+      const op = a.operation_mode as string | undefined;
+      if (op && op !== entity.state) details.push(humanizeState(op));
+      break;
+    }
+    case 'fan': {
+      const preset = a.preset_mode as string | undefined;
+      if (isOn(entity) && preset) details.push(humanizeState(preset));
+      break;
+    }
+    case 'person': {
+      const zones = a.in_zones as string[] | undefined;
+      if (Array.isArray(zones) && zones.length > 0) details.push(humanizeState(zones[0]));
+      break;
+    }
+  }
+
+  // Two extras is the most a card line can carry before it truncates anyway.
+  return { details: details.slice(0, 2), accentRgb };
 }
 
 /**
@@ -159,6 +380,9 @@ export function domainIcon(entity: HassEntity): string {
   const domain = entityDomain(entity);
   const on = isOn(entity);
   const dc = entity.attributes.device_class as string | undefined;
+  // A user's own icon choice (registry / customize) outranks every rule below.
+  const override = mdiIconByName(entity.attributes.icon);
+  if (override) return override;
   if (domain === 'light') return on ? mdiLightbulb : mdiLightbulbOutline;
   if (domain === 'switch') return on ? mdiToggleSwitchOutline : mdiToggleSwitchOffOutline;
   if (domain === 'climate') return mdiThermometer;
@@ -244,6 +468,9 @@ export function deviceThumbnail(entity: HassEntity): string | null {
   if (has('iphone', 'smartphone', 'pixel', 'oneplus') || hasWord('phone')) return img('smartphone');
   if (has('irrigation', 'sprinkler')) return img('irrigation_controller');
   if (has('doorbell', 'door bell')) return img('doorbell');
+  // Cameras also surface as their motion/person binary_sensor (that's what the
+  // demo ships), so match the name before the domain switch.
+  if (has('camera')) return img(has('bullet', 'outdoor') ? 'camera_bullet' : 'camera_dome');
 
   switch (domain) {
     case 'vacuum':

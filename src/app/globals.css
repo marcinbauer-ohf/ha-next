@@ -160,7 +160,7 @@
 
   /* HA Text Colors - Dark */
   --ha-color-text-primary: #f5f5f5;
-  --ha-color-text-secondary: #a0a0a0;
+  --ha-color-text-secondary: #bdbdbd;
   --ha-color-text-tertiary: #808080;
   --ha-color-text-disabled: #666666;
 
@@ -371,6 +371,91 @@
   --ha-radius-2xl: 18px;
   --ha-radius-3xl: 24px;
   --ha-radius-pill: 9999px;
+}
+
+/* ── Home Assistant Material ────────────────────────────────────────────────
+   Material Design 3 structure (tonal surfaces, Roboto, MD3 radii) but built on
+   HA's own brand blue instead of MD3's default indigo-blue — so it reads as
+   Home Assistant rendered in Material rather than generic Material You.
+   Buttons are fully rounded (see the pill rule further down). */
+[data-theme="material-ha"][data-mode="dark"] {
+  /* Tonal surfaces tinted toward the brand hue (MD3 surface-container ramp). */
+  --ha-color-surface-default: #101619;
+  --ha-color-surface-low: #171f24;
+  --ha-color-surface-mid: #1c262b;
+  --ha-color-surface-lower: #223035;
+
+  --ha-color-text-primary: #e0e4e6;
+  --ha-color-text-secondary: #bfc8cc;
+  --ha-color-text-tertiary: #a0abb0;
+  --ha-color-text-disabled: #7d888d;
+
+  --ha-color-fill-primary-normal: #1d4557;
+  --ha-color-fill-primary-quiet: #16333f;
+  --ha-color-fill-danger-normal: #5f2a30;
+  --ha-color-fill-success-normal: #1f4232;
+  --ha-color-yellow-95: #4c3d1f;
+
+  /* MD3 dark mode uses the light tonal steps of the brand hue for primary. */
+  --ha-color-blue: #7fd8f5;
+  --ha-color-blue-dark: #56c8ea;
+  --ha-color-yellow-500: #f1c65f;
+  --ha-color-yellow-600: #e7b84d;
+  --ha-color-green-500: #77d69d;
+  --ha-color-green-600: #62be87;
+
+  --ha-font-family-base: var(--font-material), "Roboto", system-ui, sans-serif;
+  --ha-radius-md: 8px;
+  --ha-radius-lg: 12px;
+  --ha-radius-xl: 16px;
+  --ha-radius-2xl: 20px;
+  --ha-radius-3xl: 28px;
+  --ha-radius-pill: 9999px;
+}
+
+[data-theme="material-ha"][data-mode="light"] {
+  --ha-color-surface-default: #f7fbfd;
+  --ha-color-surface-low: #eef5f8;
+  --ha-color-surface-mid: #e5eff3;
+  --ha-color-surface-lower: #dae7ec;
+
+  --ha-color-text-primary: #171c1f;
+  --ha-color-text-secondary: #414a4e;
+  --ha-color-text-tertiary: #5c666b;
+  --ha-color-text-disabled: #7c878c;
+
+  --ha-color-fill-primary-normal: #cfe9f5;
+  --ha-color-fill-primary-quiet: #e6f4fa;
+  --ha-color-fill-danger-normal: #ffdfe2;
+  --ha-color-fill-success-normal: #d5f0df;
+  --ha-color-yellow-95: #fff1cf;
+
+  /* Darkened HA blue so text/icons on light surfaces clear AA contrast. */
+  --ha-color-blue: #0a6f92;
+  --ha-color-blue-dark: #075a77;
+  --ha-color-yellow-500: #a67500;
+  --ha-color-yellow-600: #875f00;
+  --ha-color-green-500: #2f8d53;
+  --ha-color-green-600: #256f42;
+
+  --ha-font-family-base: var(--font-material), "Roboto", system-ui, sans-serif;
+  --ha-radius-md: 8px;
+  --ha-radius-lg: 12px;
+  --ha-radius-xl: 16px;
+  --ha-radius-2xl: 20px;
+  --ha-radius-3xl: 28px;
+  --ha-radius-pill: 9999px;
+}
+
+/* MD3's signature: buttons are fully rounded while cards stay rectangular.
+   Scoped to the radii that only ever land on controls (md/lg) plus the
+   fixed-height xl controls — cards use 2xl/3xl and menu rows keep their shape.
+   ponytail: keyed off Tailwind radius/height classes, so a control that stops
+   using them stops getting the pill; upgrade to a shared `.ha-btn` class if
+   button styling ever needs more than this. */
+[data-theme="material-ha"] button:is(.rounded-ha-md, .rounded-ha-lg),
+[data-theme="material-ha"] button.rounded-ha-xl:is(.h-9, .h-10, .h-11, .h-12) {
+  border-radius: var(--ha-radius-pill);
 }
 
 /* E-Ink Theme - Light Mode */
@@ -918,9 +1003,9 @@
 }
 
 /* Non-Glass Themes - Background Image/Gradient applied to main dashboard container only */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"],
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"] {
   position: relative;
   /* Ensure we create a stacking context */
@@ -930,7 +1015,7 @@
 }
 
 /* Image Layer - Bottom (z-index -2) */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
@@ -947,7 +1032,7 @@
 }
 
 /* Gradient Layer - Bottom (z-index -2) */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
@@ -963,15 +1048,15 @@
 }
 
 /* None Background - Solid Grey */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="none"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="none"]
   [data-component="dashboard-surface"] {
   background-color: var(--ha-color-surface-lower) !important;
 }
 
 /* Scrim/Overlay Layer - Top (z-index -1) with 80% Opacity */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"]::after,
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   content: "";
   position: absolute;
@@ -983,17 +1068,17 @@
 }
 
 /* Light Mode: White Scrim */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="light"][data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-mode="light"][data-background="image"]
   [data-component="dashboard-surface"]::after,
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="light"][data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-mode="light"][data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   background-color: #ffffff;
 }
 
 /* Dark Mode: Dark Scrim */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="dark"][data-background="image"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-mode="dark"][data-background="image"]
   [data-component="dashboard-surface"]::after,
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme="material"], [data-theme="fallout"])[data-mode="dark"][data-background="gradient"]
+:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-mode="dark"][data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   background-color: #1a1a1a;
 }
@@ -1496,6 +1581,37 @@
   50% { transform: scale(1.04); }
 }
 
+/* Screensaver talk widget — "thinking" text: a soft light sweep across
+   placeholder-grey text, and the spark icon pulsing in step. */
+.ha-think-shimmer {
+  color: transparent;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.35) 40%,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(255, 255, 255, 0.35) 60%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: ha-think-shimmer 2.2s linear infinite;
+}
+@keyframes ha-think-shimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -130% 0; }
+}
+.ha-think-pulse {
+  animation: ha-think-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ha-think-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.75; }
+  50% { transform: scale(1.18); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-think-shimmer { animation: none; color: rgba(255, 255, 255, 0.5); background: none; }
+  .ha-think-pulse { animation: none; }
+}
+
 /* Screensaver style toggle — the wallpaper name flashes in under the ghost
    icon after each change, lingers a beat, then fades out on its own. */
 @keyframes ha-style-flash {
@@ -1687,12 +1803,12 @@ html[data-theme="teenage"] :is(h1, h2, h3, .font-semibold, .font-bold) {
   letter-spacing: 0.01em;
 }
 
-html[data-theme="material"] body,
-html[data-theme="material"] button,
-html[data-theme="material"] input,
-html[data-theme="material"] textarea,
-html[data-theme="material"] select,
-html[data-theme="material"] label {
+html[data-theme^="material"] body,
+html[data-theme^="material"] button,
+html[data-theme^="material"] input,
+html[data-theme^="material"] textarea,
+html[data-theme^="material"] select,
+html[data-theme^="material"] label {
   /* Material Design's own typeface; MD3 specs body/label at 0 tracking. */
   font-family: var(--font-material), "Roboto", var(--ha-font-family-base), system-ui, sans-serif;
   letter-spacing: 0;

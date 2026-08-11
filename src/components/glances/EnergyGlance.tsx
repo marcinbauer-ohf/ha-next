@@ -54,7 +54,15 @@ export function EnergyGlance({ compact, variant, size, translucent }: EnergyGlan
 
       <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={760}>
         <div className="p-ha-4 lg:p-ha-5 space-y-ha-4">
-          <header className="flex items-start justify-between gap-ha-3">
+          <header className="flex items-start gap-ha-3">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-ha-lg text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+              aria-label="Close"
+            >
+              <Icon path={mdiClose} size={20} />
+            </button>
             <div className="flex items-center gap-ha-3 min-w-0">
               <span className="flex h-10 w-10 items-center justify-center rounded-ha-xl bg-amber-500/15 text-amber-500 shrink-0">
                 <Icon path={mdiFlash} size={20} />
@@ -67,14 +75,6 @@ export function EnergyGlance({ compact, variant, size, translucent }: EnergyGlan
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-ha-lg text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-              aria-label="Close"
-            >
-              <Icon path={mdiClose} size={20} />
-            </button>
           </header>
 
           <PowerAttributionChart />

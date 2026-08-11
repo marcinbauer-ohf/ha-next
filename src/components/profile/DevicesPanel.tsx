@@ -19,6 +19,7 @@ import {
   domainIcon,
   TOGGLEABLE,
   type DeviceCategory,
+  PRESSABLE,
 } from '@/lib/homeassistant/entityHelpers';
 import {
   mdiDevices,
@@ -498,7 +499,7 @@ function DeviceInfoPanel({ device }: { device: DeviceSummary }) {
       {/* Device info — area + integration drill into their views; manufacturer,
           model and device ID copy to the clipboard on click. */}
       <div className="space-y-ha-3">
-        <SectionLabel className="px-ha-1">Device info</SectionLabel>
+        <SectionLabel inset>Device info</SectionLabel>
         <div className="bg-surface-default rounded-ha-2xl border border-surface-lower overflow-hidden">
           {device.areaId ? (
             <NavInfoRow
@@ -569,7 +570,7 @@ export function DeviceDetailView({
   const panelEntities = useMemo<PanelEntity[]>(() => entities.map((e) => {
     const dom = e.entity_id.split('.')[0];
     const isToggleable = TOGGLEABLE.has(dom);
-    const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
+    const isPressable = PRESSABLE.has(dom);
     const p = e.attributes.entity_picture as string | undefined;
     return {
       entityId: e.entity_id,
@@ -632,7 +633,7 @@ export function DeviceDetailView({
 
         {/* Configure (placeholder — production opens HA's device page) */}
         <div className="space-y-ha-3">
-          <SectionLabel className="px-ha-1">Configuration</SectionLabel>
+          <SectionLabel inset>Configuration</SectionLabel>
           <div className="flex items-center gap-ha-2 px-ha-4 py-ha-3 bg-surface-low rounded-ha-2xl border border-surface-lower">
             <Icon path={mdiOpenInNew} size={15} className="text-text-tertiary flex-shrink-0" />
             <span className="text-xs text-text-secondary">

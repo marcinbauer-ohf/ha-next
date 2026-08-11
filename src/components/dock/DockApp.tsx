@@ -20,9 +20,11 @@ import { Icon } from '@/components/ui/Icon';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { getConnection, getPanels } from '@/lib/homeassistant';
 import { DockBar, DockSlotIcon, SLOT_PX } from './DockBar';
+import { DockScreensaver, useDockScreensaver } from './DockScreensaver';
 import { HomeDashboard } from './HomeDashboard';
 import { ProfilePanel } from './ProfilePanel';
 import {
+  ASK_ITEM,
   DOCK_DROPPABLE_ID,
   HOME_CENTER_ITEM,
   HOME_CENTER_ITEMS,
@@ -239,6 +241,13 @@ export function DockApp() {
   /** From a row inside the mega menu — keeps the list beside it. */
   const openFromMenu = (item: DockItem) => showItem(item, 'menu');
 
+  const screensaver = useDockScreensaver();
+  /** The ask pill and chip both land here: leave the saver, open the chat page. */
+  const openAsk = () => {
+    screensaver.dismiss();
+    showItem(ASK_ITEM, 'page');
+  };
+
   // The hamburger is the menu button: it always toggles, and opening lands on
   // Home Center rather than wherever the last sub view left off. Mobile shows the
   // list on its own instead — there, a default selection would cover it.
@@ -402,6 +411,7 @@ export function DockApp() {
               <ProfilePanel
                 key="panel"
                 liveCategories={liveCategories}
+                searchItems={searchItems}
                 pins={pinIds}
                 fixedId={defaultItem?.id ?? null}
                 view={menuView}
@@ -421,11 +431,18 @@ export function DockApp() {
           profileOpen={menuOpen}
           hidden={chromeHidden}
           fixedId={defaultItem?.id ?? null}
-          searchItems={searchItems}
+          askVisible={!screensaver.active}
           dropActive={Boolean(dragging?.fromCatalog)}
           onSelect={open}
           onUnpin={(id) => updatePins(pinIds.filter((p) => p !== id))}
           onProfile={toggleMenu}
+          onAsk={openAsk}
+        />
+
+        <DockScreensaver
+          active={screensaver.active}
+          onDismiss={screensaver.dismiss}
+          onAsk={openAsk}
         />
       </div>
 

@@ -14,7 +14,7 @@ import {
   useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { mdiHomeAssistant, mdiViewGrid, mdiCube, mdiAutoFix, mdiStar, mdiViewAgenda, mdiViewGridOutline, mdiMapOutline, mdiViewListOutline } from '@mdi/js';
+import { mdiHomeAssistant, mdiViewGrid, mdiCube, mdiAutoFix, mdiStar, mdiViewAgenda, mdiViewGridOutline, mdiMapOutline, mdiViewListOutline, mdiImageOffOutline } from '@mdi/js';
 import { flashHud } from '@/lib/hudFlashBus';
 import { CONTENT_MAX, CONTENT_GUTTER } from '@/lib/layout';
 import { clsx } from 'clsx';
@@ -45,10 +45,11 @@ import { SetupScreen } from '@/components/ui/SetupScreen';
 import { OffscreenChangeHints } from '@/components/ui/OffscreenChangeHints';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import {
-  entityDomain, friendlyName, entityLabel, stateLabel, isOn, TOGGLEABLE, primaryCornerBadge,
+  entityDomain, friendlyName, entityLabel, stateLabel, stateExtras, isOn, TOGGLEABLE, primaryCornerBadge,
   domainIcon, deviceThumbnail, deviceFeedEntity, SECTION_ORDER, SECTION_TITLES,
   entityCategory, CATEGORY_ORDER, CATEGORY_TITLES,
   AREA_ICON, domainTypeIcon, CATEGORY_ICONS, type DeviceCategory,
+  PRESSABLE,
 } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -697,6 +698,7 @@ export default function DashboardPage() {
         ];
     const [primarySlotInfo, ...secondarySlotInfos] = displaySlots;
     const primaryEntity = device.entities.find(e => e.entity_id === primarySlotInfo?.entity_id) ?? device.primaryEntity;
+    const primaryExtras = stateExtras(primaryEntity);
     // Camera/media feed shown as the card hero; clicking opens
     // that entity so the modal shows the feed too.
     const feedEntity = deviceFeedEntity(device.entities);
@@ -725,6 +727,10 @@ export default function DashboardPage() {
           thumbnail: config.thumbnail !== undefined ? config.thumbnail : deviceThumbnail(device.primaryEntity),
           name: device.name,
           state: stateLabel(primaryEntity),
+          // "On" alone says little about a light or a speaker — stateExtras adds
+          // its colour / source / setpoint, and the colour as a dot.
+          details: primaryExtras.details,
+          dotColor: primaryExtras.accentRgb ? `rgb(${primaryExtras.accentRgb.join(' ')})` : undefined,
           lastChanged: primaryEntity.last_changed,
           active: isOn(primaryEntity),
           entityPicture: (() => { const p = primaryEntity.attributes.entity_picture as string | undefined; return p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined; })(),
@@ -740,7 +746,7 @@ export default function DashboardPage() {
           if (!e) return [];
           const dom = entityDomain(e);
           const isToggleable = TOGGLEABLE.has(dom);
-          const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
+          const isPressable = PRESSABLE.has(dom);
           return [{
             entityId: e.entity_id,
             icon: domainIcon(e),
@@ -782,7 +788,7 @@ export default function DashboardPage() {
       if (!e) return [];
       const dom = entityDomain(e);
       const isToggleable = TOGGLEABLE.has(dom);
-      const isPressable = ['button', 'script', 'automation', 'input_button'].includes(dom);
+      const isPressable = PRESSABLE.has(dom);
       return [{
         entityId: e.entity_id,
         icon: domainIcon(e),
@@ -1158,6 +1164,12 @@ export default function DashboardPage() {
                 onEditCard={() => setPanelMode('edit')}
                 isFavorite={isFavorite(selectedDevice.id)}
                 onToggleFavorite={() => toggleFavorite(selectedDevice.id)}
+                thumbnailPicker={{
+                  value: getConfig(selectedDevice.id).thumbnail,
+                  auto: selectedDevice.primaryEntity ? deviceThumbnail(selectedDevice.primaryEntity) : null,
+                  iconPath: selectedDevice.primaryEntity ? domainIcon(selectedDevice.primaryEntity) : mdiImageOffOutline,
+                  onChange: thumbnail => setConfig(selectedDevice.id, { ...getConfig(selectedDevice.id), thumbnail }),
+                }}
               />
             )}
             {selectedDevice && panelMode === 'edit' && (

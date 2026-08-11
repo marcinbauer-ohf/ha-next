@@ -529,12 +529,14 @@ const themeLabels: Record<Theme, string> = {
   teenage: 'Teenage Engineering',
   cyberpunk: 'Cyberpunk',
   material: 'Material Design',
+  'material-ha': 'Home Assistant Material',
   eink: 'E-Ink',
   fallout: 'Fallout',
 };
 
 const themeCaptions: Partial<Record<Theme, string>> = {
   glass: 'Layered and airy',
+  'material-ha': 'Material Design in HA blue, rounded buttons',
   eink: 'Paper-like contrast',
 };
 

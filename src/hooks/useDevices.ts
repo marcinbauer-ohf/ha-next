@@ -52,6 +52,12 @@ export interface HassDevice {
   /** Registry entry_type === 'service' — a virtual/cloud helper (weather
    *  provider, Sun, …) rather than physical hardware. */
   isService?: boolean;
+  /**
+   * entity_id → registry `entity_category` ('config' | 'diagnostic'). Lives on
+   * the device because the category is a registry field, not a state attribute —
+   * the more-info dialog uses it to group diagnostics away from the controls.
+   */
+  categories?: Record<string, string>;
 }
 
 // ── Real-HA device builder (registry-based) ────────────────────────────────
@@ -66,11 +72,13 @@ function buildFromRegistry(
   // Used to give a device an area when the device itself has none — common when
   // the user assigns the area on the entity rather than the device.
   const entityArea = new Map<string, string>();
+  const entityCategoryById = new Map<string, string>();
   for (const e of entityReg) {
     if (e.device_id && !e.disabled_by && !e.hidden_by) {
       entityToDevice.set(e.entity_id, e.device_id);
     }
     if (e.area_id) entityArea.set(e.entity_id, e.area_id);
+    if (e.entity_category) entityCategoryById.set(e.entity_id, e.entity_category);
   }
 
   const deviceEntities = new Map<string, HassEntity[]>();
@@ -93,6 +101,11 @@ function buildFromRegistry(
       const areaId = d.area_id
         ?? sorted.map((e) => entityArea.get(e.entity_id)).find(Boolean)
         ?? undefined;
+      const categories: Record<string, string> = {};
+      for (const e of sorted) {
+        const category = entityCategoryById.get(e.entity_id);
+        if (category) categories[e.entity_id] = category;
+      }
       return {
         id: d.id,
         name: d.name_by_user ?? d.name ?? friendlyName(sorted[0]) ?? d.id,
@@ -102,6 +115,7 @@ function buildFromRegistry(
         entities: sorted,
         primaryEntity: sorted[0],
         isService: d.entry_type === 'service',
+        categories,
       };
     });
 }

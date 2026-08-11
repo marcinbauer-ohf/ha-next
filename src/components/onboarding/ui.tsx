@@ -1,6 +1,5 @@
 'use client';
 
-import { motion, useReducedMotion } from 'framer-motion';
 import { Icon } from '@/components/ui';
 import { mdiArrowRight } from '@mdi/js';
 
@@ -11,28 +10,13 @@ export const DISPLAY_FONT: React.CSSProperties = {
   fontFamily: 'var(--ha-font-family-base, var(--font-poppins)), system-ui, sans-serif',
 };
 
-/** Staggered entrance for a step's hero block: fade + gentle rise. */
-export function Rise({
-  children,
-  delay = 0,
-  className,
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  className?: string;
-}) {
-  const reduce = useReducedMotion();
-  return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: reduce ? 0 : 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay, ease: EASE_OUT }}
-    >
-      {children}
-    </motion.div>
-  );
-}
+/** The flow's regular text field: filled, rounded, blue focus ring. */
+export const FIELD_CLASS =
+  'w-full h-13 min-h-[52px] px-ha-4 rounded-ha-xl bg-surface-low/80 backdrop-blur-sm border border-surface-lower text-text-primary text-base placeholder:text-text-tertiary select-text focus:outline-none focus:ring-2 focus:ring-ha-blue/40 focus:border-ha-blue/60 transition-colors disabled:opacity-50';
+
+/** The same field, inflated to hero scale — so it still reads as "type here". */
+export const BIG_FIELD_CLASS =
+  'w-full max-w-[520px] h-[76px] md:h-[92px] px-ha-5 rounded-ha-3xl bg-surface-low/80 backdrop-blur-sm border-2 border-surface-lower text-center text-4xl md:text-5xl font-semibold tracking-tight text-text-primary placeholder:text-text-tertiary/60 select-text caret-ha-blue focus:outline-none focus:ring-2 focus:ring-ha-blue/40 focus:border-ha-blue/60 transition-colors';
 
 /** Big centered step question, screensaver-scale type. Focusable (-1) so the
     flow can move screen-reader focus to the new question on step change. */

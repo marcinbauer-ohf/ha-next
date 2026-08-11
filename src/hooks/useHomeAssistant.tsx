@@ -50,6 +50,7 @@ import {
 import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, StatisticValue, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields, HassUser, HaCoreConfig } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
+import { synthesizeHistory } from '@/lib/homeassistant/demoHistory';
 import { emitHomePulse, PULSE_COLORS, type PulseColor, type PulseMeta } from '@/lib/homePulseBus';
 
 const LS_URL_KEY = 'ha_url';
@@ -153,6 +154,26 @@ function setMockEntities(nextEntities: HassEntities): void {
   notifyEntityStoreListeners();
 }
 
+/**
+ * Stage extra entities in the mock store and return a remover. Used by the
+ * benchmark rig (/dev/entity-matrix) to mount synthetic entities for the
+ * duration of one page — services targeting them resolve locally (see
+ * isMockEntity), so they behave the same whether or not HA is connected.
+ */
+export function injectMockEntities(entities: HassEntities): () => void {
+  setMockEntities({ ...mockEntitiesStore, ...entities });
+  return () => {
+    const next = { ...mockEntitiesStore };
+    for (const id of Object.keys(entities)) delete next[id];
+    setMockEntities(next);
+  };
+}
+
+/** Mock entities never reach the wire, connected or not. */
+function isMockEntity(entityId: string): boolean {
+  return entityId in mockEntitiesStore;
+}
+
 function updateMockEntityInStore(entityId: string, entity: HassEntity | null): void {
   if (entity === null) {
     if (!(entityId in mockEntitiesStore)) return;
@@ -201,6 +222,49 @@ function setDemoEntityState(entityId: string, nextState: string): void {
   });
 }
 
+/** Merge attributes on a mock entity (setter services — brightness, setpoint…). */
+function patchDemoEntityAttrs(entityId: string, attrs: Record<string, unknown>): void {
+  const entity = mergedEntitiesStore[entityId];
+  if (!entity) return;
+  updateMockEntityInStore(entityId, {
+    ...entity,
+    attributes: { ...entity.attributes, ...attrs },
+    last_updated: new Date().toISOString(),
+  });
+}
+
+/**
+ * Attribute writes for services that set a value rather than flip on/off —
+ * without these a demo slider snaps back to its old position on release.
+ */
+function demoAttrPatch(
+  domain: string,
+  service: string,
+  d: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (domain === 'light' && service === 'turn_on') {
+    const p: Record<string, unknown> = {};
+    if (d.brightness != null) p.brightness = Number(d.brightness);
+    if (d.brightness_pct != null) p.brightness = Math.round(Number(d.brightness_pct) * 2.55);
+    if (d.color_temp_kelvin != null) p.color_temp_kelvin = Number(d.color_temp_kelvin);
+    if (d.rgb_color != null) p.rgb_color = d.rgb_color;
+    return Object.keys(p).length ? p : null;
+  }
+  if (domain === 'climate' && service === 'set_temperature') return { temperature: Number(d.temperature) };
+  if (domain === 'cover' && service === 'set_cover_position') return { current_position: Number(d.position) };
+  if (domain === 'fan' && service === 'set_percentage') return { percentage: Number(d.percentage) };
+  if (domain === 'media_player' && service === 'volume_set') return { volume_level: Number(d.volume_level) };
+  if (domain === 'media_player' && service === 'volume_mute') return { is_volume_muted: !!d.is_volume_muted };
+  return null;
+}
+
+function serviceTargetIds(params: CallServiceParams): string[] {
+  const rawTarget =
+    params.target?.entity_id ??
+    (params.serviceData?.entity_id as string | string[] | undefined);
+  return Array.isArray(rawTarget) ? rawTarget : rawTarget ? [rawTarget] : [];
+}
+
 function demoToggleEntity(entityId: string, currentState?: string): void {
   const entity = mergedEntitiesStore[entityId];
   if (!entity) return;
@@ -212,11 +276,12 @@ function demoToggleEntity(entityId: string, currentState?: string): void {
 
 /** Best-effort local handling of the common demo services (on/off/toggle…). */
 function demoCallService(params: CallServiceParams): void {
-  const rawTarget =
-    params.target?.entity_id ??
-    (params.serviceData?.entity_id as string | string[] | undefined);
-  const ids = Array.isArray(rawTarget) ? rawTarget : rawTarget ? [rawTarget] : [];
+  const ids = serviceTargetIds(params);
+  const data = (params.serviceData ?? {}) as Record<string, unknown>;
   for (const id of ids) {
+    const domain = id.split('.')[0];
+    const attrs = demoAttrPatch(domain, params.service, data);
+    if (attrs) patchDemoEntityAttrs(id, attrs);
     switch (params.service) {
       case 'turn_on':
         setDemoEntityState(id, DEMO_TOGGLE_STATES[id.split('.')[0]]?.[0] ?? 'on');
@@ -244,6 +309,23 @@ function demoCallService(params: CallServiceParams): void {
         break;
       case 'media_pause':
         setDemoEntityState(id, 'paused');
+        break;
+      case 'media_play_pause':
+        demoToggleEntity(id);
+        break;
+      case 'set_hvac_mode':
+        if (typeof data.hvac_mode === 'string') setDemoEntityState(id, data.hvac_mode);
+        break;
+      case 'set_percentage':
+        setDemoEntityState(id, Number(data.percentage) > 0 ? 'on' : 'off');
+        break;
+      // number / input_number / text / input_text write their value straight
+      // into the state, so typing into the box moves the reading in demo too.
+      case 'set_value':
+        if (data.value != null) setDemoEntityState(id, String(data.value));
+        break;
+      case 'select_option':
+        if (typeof data.option === 'string') setDemoEntityState(id, data.option);
         break;
       default:
         break; // everything else stays display-only in the demo
@@ -443,7 +525,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   }, [haUrl, haToken, doConnect]);
 
   const toggleEntity = useCallback(async (entityId: string, currentState?: string) => {
-    if (demoMode) {
+    if (demoMode || isMockEntity(entityId)) {
       demoToggleEntity(entityId, currentState);
       return;
     }
@@ -461,7 +543,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   }, [demoMode, connected]);
 
   const callService = useCallback(async (params: CallServiceParams) => {
-    if (demoMode) {
+    const ids = serviceTargetIds(params);
+    if (demoMode || (ids.length > 0 && ids.every(isMockEntity))) {
       demoCallService(params);
       return;
     }
@@ -502,7 +585,17 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const getConfigEntries = useCallback(() => getConfigEntriesAction(), []);
   const getCoreConfig = useCallback(() => getCoreConfigAction(), []);
   const getIntegrationManifests = useCallback(() => getIntegrationManifestsAction(), []);
-  const getEntityHistory = useCallback((entityId: string, hoursBack?: number) => getEntityHistoryAction(entityId, hoursBack), []);
+  // History for entities that can't have any on the wire (demo home, offline
+  // session, staged mock entities) is synthesised here rather than in each
+  // caller, so a card's sparkline and the dialog's chart agree.
+  const getEntityHistory = useCallback(async (entityId: string, hoursBack?: number) => {
+    const hours = hoursBack ?? 24;
+    if (demoMode || !connected || isMockEntity(entityId)) {
+      const entity = mergedEntitiesStore[entityId];
+      return entity ? synthesizeHistory(entity, hours) : [];
+    }
+    return getEntityHistoryAction(entityId, hours);
+  }, [demoMode, connected]);
   const getStatistics = useCallback((entityId: string, hoursBack: number, period: '5minute' | 'hour' | 'day') => getStatisticsAction(entityId, hoursBack, period), []);
   const getLogbook = useCallback((entityId: string | string[], hoursBack?: number) => getLogbookAction(entityId, hoursBack), []);
   const getAutomationConfig = useCallback((numericId: string) => getAutomationConfigAction(numericId), []);
@@ -523,9 +616,13 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     }
 
     hasAutoConnected.current = true;
-    doConnect(haUrl, haToken).catch(() => {
-      hasAutoConnected.current = false;
-    });
+    // Stays armed even when the attempt fails: clearing it here re-triggers this
+    // effect (via the `connecting` dep) and hammers an unreachable instance in a
+    // loop, which surfaces as an endless run of connection toasts. One attempt
+    // per page load — retrying is the user's call (error toast → Connection
+    // settings, or `reconnect()`). The ref re-arms when credentials or demo mode
+    // change, in the guard above.
+    doConnect(haUrl, haToken).catch(() => {});
   }, [configured, haUrl, haToken, doConnect, demoMode, connected, connecting]);
 
   const isAdmin = !!currentUser?.is_admin && !previewAsNonAdmin;

@@ -5,27 +5,38 @@ import { useEffect, useState } from 'react';
 interface RollingDigitProps {
   digit: string;
   className?: string; // To pass font styles
+  /**
+   * Which way the digit travels. 'up' (default) = the new digit rises in from
+   * below; 'down' = it drops in from above (the incoming digit is stacked on
+   * top and the column starts scrolled past it). Used to make a scrubbed chart
+   * roll with the direction of the cursor.
+   */
+  direction?: 'up' | 'down';
 }
 
-export function RollingDigit({ digit, className = '' }: RollingDigitProps) {
+export function RollingDigit({ digit, className = '', direction = 'up' }: RollingDigitProps) {
   const [currentDigit, setCurrentDigit] = useState(digit);
   const [nextDigit, setNextDigit] = useState<string | null>(null);
   const [translateY, setTranslateY] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const down = direction === 'down';
 
   useEffect(() => {
     if (digit !== currentDigit && nextDigit === null) {
       setNextDigit(digit);
+      // Rolling down: the incoming digit renders above, so park the column on
+      // the current digit first, then animate back to the top.
+      if (down) setTranslateY(-50);
       // Wait for render to display nextDigit
       requestAnimationFrame(() => {
         // Double RAF to ensure browser has painted the new DOM node (nextDigit)
         requestAnimationFrame(() => {
           setIsTransitioning(true);
-          setTranslateY(-50);
+          setTranslateY(down ? 0 : -50);
         });
       });
     }
-  }, [digit, currentDigit, nextDigit]);
+  }, [digit, currentDigit, nextDigit, down]);
 
   const handleTransitionEnd = () => {
     // Disable transition to reset instantly
@@ -56,10 +67,15 @@ export function RollingDigit({ digit, className = '' }: RollingDigitProps) {
         }}
         onTransitionEnd={handleTransitionEnd}
       >
+        {down && nextDigit !== null && (
+          <div style={{ height: '1em', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {nextDigit}
+          </div>
+        )}
         <div style={{ height: '1em', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {currentDigit}
         </div>
-        {nextDigit !== null && (
+        {!down && nextDigit !== null && (
           <div style={{ height: '1em', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {nextDigit}
           </div>

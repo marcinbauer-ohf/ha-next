@@ -7,7 +7,7 @@ import {
   type NodeKind,
   defOf,
 } from './automationFlow';
-import { mdiCrosshairsGps, mdiDrag, mdiFlash, mdiHelpCircle, mdiPlay } from '@mdi/js';
+import { mdiCrosshairsGps, mdiDragHorizontalVariant, mdiFlash, mdiHelpCircle, mdiPlay } from '@mdi/js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Node-graph view of an automation flow — a full-bleed canvas (grid background,
@@ -276,7 +276,7 @@ export function AutomationNodeCanvas({
                     <span className="mt-0.5 block truncate text-xs text-text-secondary">{def.label}</span>
                   </span>
                   <Icon
-                    path={mdiDrag}
+                    path={mdiDragHorizontalVariant}
                     size={16}
                     className="flex-shrink-0 text-text-disabled opacity-0 transition-opacity group-hover:opacity-100"
                   />

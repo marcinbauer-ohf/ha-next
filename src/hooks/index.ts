@@ -40,7 +40,7 @@ export { useHomePingPulse } from './useHomePingPulse';
 export { useSidebarItems, type SidebarItem } from './useSidebarItems';
 export { useSidebarExpanded } from './useSidebarExpanded';
 export { useRunShortcut, defaultShortcutIcon } from './useRunShortcut';
-export { useHomeSummary } from './useHomeSummary';
+export { useHomeSummary, summaryToSentence } from './useHomeSummary';
 export { useDashboardThumbnailCapture } from './useDashboardThumbnailCapture';
 
 export { ImmersiveModeProvider, useImmersiveMode } from './useImmersiveMode';

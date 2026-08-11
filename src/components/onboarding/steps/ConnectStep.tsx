@@ -8,11 +8,8 @@ import { haptic } from '@/lib/haptics';
 import { mdiCheck, mdiChevronDown } from '@mdi/js';
 import { friendlyConnectionError } from '@/lib/friendlyConnectionError';
 import { normalizeHaUrl } from '@/lib/normalizeHaUrl';
-import type { StepProps } from '../types';
-import { EASE_OUT, PrimaryPill, QuietButton, Rise, StepSubtitle, StepTitle } from '../ui';
-
-const FIELD_CLASS =
-  'w-full h-13 min-h-[52px] px-ha-4 rounded-ha-xl bg-surface-low/80 backdrop-blur-sm border border-surface-lower text-text-primary text-base placeholder:text-text-tertiary select-text focus:outline-none focus:ring-2 focus:ring-ha-blue/40 focus:border-ha-blue/60 transition-colors disabled:opacity-50';
+import { MAX_FLOORS, type StepProps } from '../types';
+import { EASE_OUT, FIELD_CLASS, PrimaryPill, QuietButton, StepSubtitle, StepTitle } from '../ui';
 
 interface ConnectStepProps extends StepProps {
   /** "Use the demo instead" — the sample home is already loaded. */
@@ -20,7 +17,8 @@ interface ConnectStepProps extends StepProps {
 }
 
 export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
-  const { saveCredentials, getAreaRegistry, connecting, connected, demoMode, error } = useHomeAssistant();
+  const { saveCredentials, getAreaRegistry, getFloorRegistry, connecting, connected, demoMode, error } =
+    useHomeAssistant();
   const reduce = useReducedMotion();
   const [url, setUrl] = useState('');
   const [token, setToken] = useState('');
@@ -42,9 +40,9 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
   // Celebrate once, then move on — only for a connection made HERE (attempted);
   // revisiting via Back shows the green state without re-advancing. The timer
   // lives in a ref and is only cleared on unmount so a re-render can't cancel
-  // the scheduled advance. While the check pulses we also peek at the area
-  // registry, so the flow can skip the rooms question for homes that already
-  // have their rooms set up.
+  // the scheduled advance. While the check pulses we also peek at the area and
+  // floor registries, so the flow can skip the rooms question for homes that
+  // already have their rooms set up, and show their real floor count.
   useEffect(() => {
     if (!succeeded || !attempted || celebratedRef.current) return;
     celebratedRef.current = true;
@@ -52,8 +50,16 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
     getAreaRegistry()
       .then((areas) => update({ existingAreaCount: areas.length }))
       .catch(() => update({ existingAreaCount: null }));
+    getFloorRegistry()
+      .then((floors) =>
+        update({
+          existingFloorCount: floors.length,
+          ...(floors.length > 0 ? { floorCount: Math.min(floors.length, MAX_FLOORS) } : {}),
+        }),
+      )
+      .catch(() => update({ existingFloorCount: null }));
     advanceTimer.current = setTimeout(next, 1100);
-  }, [succeeded, attempted, next, getAreaRegistry, update]);
+  }, [succeeded, attempted, next, getAreaRegistry, getFloorRegistry, update]);
 
   useEffect(() => () => {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
@@ -71,17 +77,17 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
 
   return (
     <div className="flex flex-col items-center text-center gap-ha-6 w-full">
-      <Rise className="space-y-ha-3">
-        <StepTitle>Let&apos;s find your home.</StepTitle>
+      <div className="space-y-ha-3">
+        <StepTitle>Let&apos;s find your home</StepTitle>
         <StepSubtitle>
           Two things link this screen to your Home Assistant. Both stay on this device.
         </StepSubtitle>
-      </Rise>
+      </div>
 
-      <Rise delay={0.05} className="w-full max-w-[520px] mx-auto">
+      <div className="w-full max-w-[520px] mx-auto">
         <form onSubmit={submit} noValidate className="w-full space-y-ha-4 text-left">
           <div className="space-y-ha-1.5">
-            <label htmlFor="onb-url" className="block text-sm font-medium text-text-secondary px-ha-1">
+            <label htmlFor="onb-url" className="block text-sm font-medium text-text-secondary px-ha-4">
               Web address
             </label>
             <input
@@ -91,7 +97,7 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
               inputMode="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="homeassistant.local:8123"
+              placeholder="homeassistant.local"
               disabled={connecting || succeeded}
               className={FIELD_CLASS}
               autoComplete="url"
@@ -99,13 +105,14 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
               autoCorrect="off"
               spellCheck={false}
             />
-            <p className="text-[13px] text-text-tertiary px-ha-1">
-              The address you type in your browser to open Home Assistant.
+            <p className="text-[13px] text-text-tertiary px-ha-4">
+              The address you type in your browser to open Home Assistant — with or
+              without the <span className="font-mono">:8123</span> on the end.
             </p>
           </div>
 
           <div className="space-y-ha-1.5">
-            <label htmlFor="onb-token" className="block text-sm font-medium text-text-secondary px-ha-1">
+            <label htmlFor="onb-token" className="block text-sm font-medium text-text-secondary px-ha-4">
               Access key
             </label>
             <input
@@ -121,7 +128,7 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
             <button
               type="button"
               onClick={() => setHelpOpen((v) => !v)}
-              className="flex items-center gap-ha-1 text-[13px] font-medium text-ha-blue hover:underline px-ha-1"
+              className="flex items-center gap-ha-1 text-[13px] font-medium text-ha-blue hover:underline px-ha-4"
               aria-expanded={helpOpen}
             >
               Where do I find my access key?
@@ -140,7 +147,7 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
                   transition={{ duration: 0.25, ease: EASE_OUT }}
                   className="overflow-hidden"
                 >
-                  <ol className="mx-ha-1 mt-ha-1 rounded-ha-2xl bg-surface-low/70 border border-surface-lower p-ha-4 space-y-ha-2 text-[13px] leading-relaxed text-text-secondary list-decimal list-inside">
+                  <ol className="mt-ha-1 rounded-ha-2xl bg-surface-low/70 border border-surface-lower p-ha-4 space-y-ha-2 text-[13px] leading-relaxed text-text-secondary list-decimal list-inside">
                     <li>Open Home Assistant in your browser.</li>
                     <li>Click your name in the bottom-left corner.</li>
                     <li>Open the <span className="font-medium text-text-primary">Security</span> tab.</li>
@@ -202,7 +209,7 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
             )}
           </div>
         </form>
-      </Rise>
+      </div>
     </div>
   );
 }

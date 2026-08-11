@@ -8,7 +8,9 @@ export function friendlyConnectionError(raw: string | null | undefined): string 
     return 'That access key doesn’t seem right. Double-check you copied the whole thing, then try again.';
   }
   if (msg.includes('url') || msg.includes('connect') || msg.includes('network') || msg.includes('fetch')) {
-    return 'We couldn’t find your home at that address. Check it’s the same address you use in your browser.';
+    // HA 2026.8 moved new installs to port 80, and offers existing ones the
+    // switch — a saved `…:8123` address stops working the moment they accept.
+    return 'We couldn’t find your home at that address. Check it’s the same address you use in your browser — recent Home Assistant versions drop the :8123 from the end.';
   }
   return 'Something went wrong while connecting. Give it another try in a moment.';
 }

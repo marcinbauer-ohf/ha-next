@@ -18,6 +18,14 @@ interface DropdownProps<T extends string> {
   className?: string;
   /** Which edge the menu aligns to. Default 'right'. */
   align?: 'left' | 'right';
+  /**
+   * 'pill' (default) — compact trigger that lines up beside a SegmentedControl.
+   * 'row'  — a full-width list row: label on the left, value and chevron on the
+   *          right, the whole row tappable. For a setting that owns its line.
+   */
+  variant?: 'pill' | 'row';
+  /** Row variant only — the label that sits on the left of the row. */
+  label?: string;
 }
 
 interface MenuPos {
@@ -40,6 +48,8 @@ export function Dropdown<T extends string>({
   onChange,
   className,
   align = 'right',
+  variant = 'pill',
+  label,
 }: DropdownProps<T>) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<MenuPos | null>(null);
@@ -82,25 +92,49 @@ export function Dropdown<T extends string>({
   }, [open, place]);
 
   return (
-    <div className={clsx('relative inline-flex', className)}>
-      {/* Trigger mirrors a SegmentedControl's active segment for matching height. */}
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        className="inline-flex items-center bg-surface-mid rounded-ha-xl p-[3px]"
-      >
-        <span className="flex items-center gap-1 rounded-ha-lg bg-surface-default px-ha-3 py-1.5 text-sm font-medium text-text-primary shadow-sm">
-          {current?.label ?? ''}
-          <Icon
-            path={mdiChevronDown}
-            size={14}
-            className={clsx('shrink-0 transition-transform duration-200', open && 'rotate-180')}
-          />
-        </span>
-      </button>
+    <div className={clsx(variant === 'row' ? 'relative flex w-full' : 'relative inline-flex', className)}>
+      {variant === 'row' ? (
+        // A setting that owns its line: the whole row is the control, so the
+        // target is the row rather than a small pill parked at its end.
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={label}
+          className="flex h-12 w-full items-center justify-between gap-ha-3 rounded-ha-xl bg-surface-default px-ha-3 text-sm transition-colors hover:bg-surface-low"
+        >
+          <span className="truncate text-text-secondary">{label}</span>
+          <span className="flex min-w-0 items-center gap-1 font-medium text-text-primary">
+            <span className="truncate">{current?.label ?? ''}</span>
+            <Icon
+              path={mdiChevronDown}
+              size={16}
+              className={clsx('shrink-0 text-text-tertiary transition-transform duration-200', open && 'rotate-180')}
+            />
+          </span>
+        </button>
+      ) : (
+        /* Trigger mirrors a SegmentedControl's active segment for matching height. */
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className="inline-flex items-center bg-surface-mid rounded-ha-xl p-[3px]"
+        >
+          <span className="flex items-center gap-1 rounded-ha-lg bg-surface-default px-ha-3 py-1.5 text-sm font-medium text-text-primary shadow-sm">
+            {current?.label ?? ''}
+            <Icon
+              path={mdiChevronDown}
+              size={14}
+              className={clsx('shrink-0 transition-transform duration-200', open && 'rotate-180')}
+            />
+          </span>
+        </button>
+      )}
 
       {open && pos && typeof document !== 'undefined' && createPortal(
         <div

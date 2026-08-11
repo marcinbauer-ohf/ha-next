@@ -16,7 +16,7 @@ import {
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  mdiPlus, mdiPencil, mdiTrashCanOutline, mdiDrag, mdiMapMarkerOutline, mdiLayers,
+  mdiPlus, mdiPencil, mdiTrashCanOutline, mdiDragHorizontalVariant, mdiMapMarkerOutline, mdiLayers,
   mdiHomeFloorNegative1, mdiTagOutline, mdiAlertCircleOutline, mdiClose,
 } from '@mdi/js';
 import { useAreasFloors, type AreaWithCounts, type FloorWithAreas } from '@/hooks';
@@ -433,7 +433,7 @@ function AreaCard({
           {...attributes}
           {...listeners}
         >
-          <Icon path={mdiDrag} size={18} />
+          <Icon path={mdiDragHorizontalVariant} size={18} />
         </button>
       )}
 
@@ -549,7 +549,7 @@ function FloorGroup({
             {...floorAttributes}
             {...floorListeners}
           >
-            <Icon path={mdiDrag} size={18} />
+            <Icon path={mdiDragHorizontalVariant} size={18} />
           </button>
         )}
         <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-ha-lg bg-surface-mid text-text-secondary">

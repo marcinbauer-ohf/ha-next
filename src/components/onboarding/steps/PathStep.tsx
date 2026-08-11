@@ -1,9 +1,9 @@
 'use client';
 
 import { Icon } from '@/components/ui';
-import { mdiChevronRight, mdiHomeAssistant, mdiHomeSearchOutline } from '@mdi/js';
+import { mdiChevronRight, mdiFlaskOutline, mdiHomeAssistant, mdiHomeSearchOutline } from '@mdi/js';
 import type { StepProps } from '../types';
-import { Rise, StepSubtitle, StepTitle } from '../ui';
+import { StepSubtitle, StepTitle } from '../ui';
 
 interface PathStepProps extends StepProps {
   /** Chosen "Connect my home" — records the path and advances to the connect step. */
@@ -18,12 +18,12 @@ const CARD_CLASS =
 export function PathStep({ onConnect, onDemo }: PathStepProps) {
   return (
     <div className="flex flex-col items-center text-center gap-ha-6 w-full">
-      <Rise className="space-y-ha-3">
+      <div className="space-y-ha-3">
         <StepTitle>How would you like to start?</StepTitle>
         <StepSubtitle>You can switch between these anytime.</StepSubtitle>
-      </Rise>
+      </div>
 
-      <Rise delay={0.05} className="w-full max-w-[520px] mx-auto space-y-ha-3">
+      <div className="w-full max-w-[520px] mx-auto space-y-ha-3">
         <button type="button" className={CARD_CLASS} onClick={onConnect}>
           <span className="w-12 h-12 rounded-full bg-ha-blue/12 border border-ha-blue/25 flex items-center justify-center shrink-0">
             <Icon path={mdiHomeAssistant} size={26} className="text-ha-blue" />
@@ -61,7 +61,18 @@ export function PathStep({ onConnect, onDemo }: PathStepProps) {
             className="text-text-tertiary shrink-0 transition-transform group-hover:translate-x-0.5"
           />
         </button>
-      </Rise>
+
+        {/* This whole question only exists because it's a prototype — the real
+            thing is already connected to your home and never asks. Say so. */}
+        <div className="flex items-start gap-ha-3 text-left rounded-ha-2xl border border-dashed border-surface-lower bg-surface-low/40 px-ha-4 py-ha-3">
+          <Icon path={mdiFlaskOutline} size={18} className="text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-[13px] leading-snug text-text-tertiary">
+            <span className="font-semibold text-text-secondary">This is a prototype.</span> You
+            wouldn&apos;t see this question in the real thing — it would already be your home. The
+            demo is here so you can try it without one.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

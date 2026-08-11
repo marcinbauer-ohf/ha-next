@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { clsx } from 'clsx';
 import { mdiCheck, mdiClose, mdiHistory, mdiPlay, mdiRobot, mdiPencil } from '@mdi/js';
 import { Icon } from '../ui/Icon';
-import { ToggleSwitch, ListSection, HALoader } from '../ui';
+import { ToggleSwitch, ListSection, HALoader, SectionLabel, SegmentedControl } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
+import { useScrollFades } from '@/hooks/useScrollFades';
 import {
   useHomeAssistant,
   useEntities,
@@ -55,92 +57,93 @@ function dailyCounts(events: LogbookEntry[], days = 7): number[] {
   return counts;
 }
 
-function StatusPills({ automation }: { automation: AutomationSummary }) {
+/** Qualifying line under the band's state: run mode, then when it last ran. */
+function metaLine(automation: AutomationSummary): string {
   const mode = automation.mode ? MODE_LABEL[automation.mode] ?? automation.mode : null;
-  return (
-    <div className="flex flex-wrap items-center gap-ha-2">
-      {automation.running && (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/15 px-ha-2 py-0.5 text-[12px] font-semibold text-green-500">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500/70" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
-          </span>
-          Running
-        </span>
-      )}
-      <span className={`rounded-full px-ha-2 py-0.5 text-[12px] font-semibold ${
-        automation.enabled ? 'bg-fill-primary-quiet text-ha-blue' : 'bg-surface-mid text-text-tertiary'
-      }`}>
-        {automation.enabled ? 'Enabled' : 'Disabled'}
-      </span>
-      {mode && (
-        <span className="rounded-full bg-surface-mid px-ha-2 py-0.5 text-[12px] font-medium text-text-secondary">
-          {mode} mode
-        </span>
-      )}
-    </div>
-  );
+  return [mode && `${mode} mode`, formatLastTriggered(automation.lastTriggered)]
+    .filter(Boolean)
+    .join(' \u30fb ');
 }
 
-/** Run-history list + per-day frequency sparkline, from logbook (real) data. */
+/**
+ * The past, on its own surface — the automation's counterpart of the device
+ * dialog's History/Log panel: same header row, same fixed slot, so flipping
+ * between the shape of the week and the individual runs moves nothing.
+ */
 function RunHistory({ events, loading }: { events: LogbookEntry[]; loading: boolean }) {
+  const [tab, setTab] = useState<'chart' | 'log'>('chart');
   const counts = useMemo(() => dailyCounts(events), [events]);
   const hasChart = counts.filter((c) => c > 0).length >= 3;
-
-  if (loading) {
-    return (
-      <div className="flex h-20 items-center justify-center">
-        <HALoader size="sm" />
-      </div>
-    );
-  }
-  if (events.length === 0) {
-    return <p className="px-ha-4 py-ha-3 text-sm text-text-tertiary">No recent runs in the last 7 days.</p>;
-  }
-
   // Newest first for the list; cap so the panel doesn't grow unbounded.
-  const rows = [...events].sort((a, b) => b.when - a.when).slice(0, 12);
+  const rows = useMemo(() => [...events].sort((a, b) => b.when - a.when).slice(0, 12), [events]);
 
   return (
-    <div className="space-y-ha-3">
-      {hasChart && (
-        <div className="px-ha-4">
-          <p className="mb-1 text-[12px] font-medium uppercase tracking-wider text-text-tertiary">Runs / day · 7d</p>
-          <div className="h-12 w-full opacity-80">
-            <Sparkline points={counts} on gradientId="automation-runs" fillHeight />
+    <div className="flex w-full flex-col gap-ha-1 rounded-ha-2xl bg-surface-low p-ha-2">
+      <div className="flex w-full items-center gap-ha-2">
+        <SegmentedControl
+          segments={[{ value: 'chart', label: 'Runs' }, { value: 'log', label: 'Log' }]}
+          value={tab}
+          onChange={(v) => setTab(v as 'chart' | 'log')}
+          className="text-xs"
+        />
+        <span className="ml-auto text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">7 days</span>
+      </div>
+      <div className="flex h-[124px] w-full flex-col overflow-hidden">
+        {loading ? (
+          <div className="flex h-full items-center justify-center"><HALoader size="sm" /></div>
+        ) : events.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm text-text-tertiary">
+            Hasn&apos;t run in the last 7 days
           </div>
-        </div>
-      )}
-      <ListSection>
-        {rows.map((e, i) => (
-          <div key={`${e.when}-${i}`} className="flex items-center gap-ha-3 px-ha-4 py-ha-2">
-            <Icon path={mdiHistory} size={16} className="shrink-0 text-text-tertiary" />
-            <span className="flex-1 truncate text-sm text-text-primary">{e.message || 'Triggered'}</span>
-            <span className="shrink-0 text-[13px] text-text-secondary">{formatWhen(e.when)}</span>
+        ) : tab === 'chart' ? (
+          <div className="flex h-full w-full flex-col justify-center gap-1">
+            {hasChart ? (
+              <div className="h-16 w-full opacity-80">
+                <Sparkline points={counts} on gradientId="automation-runs" fillHeight />
+              </div>
+            ) : (
+              <p className="text-center text-2xl font-bold font-mono text-text-primary">
+                {events.length}
+                <span className="ml-2 font-sans text-sm font-medium text-text-secondary">runs</span>
+              </p>
+            )}
+            <p className="text-center text-[11px] font-medium text-text-tertiary">Runs per day</p>
           </div>
-        ))}
-      </ListSection>
+        ) : (
+          <div className="min-h-0 w-full flex-1 overflow-y-auto scrollbar-hide">
+            <ListSection>
+              {rows.map((e, i) => (
+                <div key={`${e.when}-${i}`} className="flex items-center gap-ha-3 px-ha-4 py-ha-2">
+                  <Icon path={mdiHistory} size={16} className="shrink-0 text-text-tertiary" />
+                  <span className="flex-1 truncate text-sm text-text-primary">{e.message || 'Triggered'}</span>
+                  <span className="shrink-0 font-mono text-xs text-text-tertiary">{formatWhen(e.when)}</span>
+                </div>
+              ))}
+            </ListSection>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-/** Entities referenced by the automation's config, with their current state. */
-function RelatedEntities({ ids }: { ids: string[] }) {
+/** Rows for the entities the automation's config references, with live state. */
+function RelatedRows({ ids }: { ids: string[] }) {
   const entities = useEntities(ids);
-  const resolved = ids
-    .map((id, i) => ({ id, entity: entities[i] }))
-    .filter((r) => r.entity);
-  if (resolved.length === 0) return null;
   return (
-    <ListSection title={`Related devices (${resolved.length})`}>
-      {resolved.map(({ id, entity }) => (
-        <div key={id} className="flex items-center gap-ha-3 px-ha-4 py-ha-2">
-          <Icon path={domainIcon(entity!)} size={18} className="shrink-0 text-text-secondary" />
-          <span className="flex-1 truncate text-sm text-text-primary">{entityLabel(entity!, '')}</span>
-          <span className="shrink-0 text-[13px] capitalize text-text-secondary">{stateLabel(entity!)}</span>
-        </div>
-      ))}
-    </ListSection>
+    <>
+      {ids.map((id, i) => {
+        const entity = entities[i];
+        if (!entity) return null;
+        return (
+          <div key={id} className="flex items-center gap-ha-3 px-ha-4 py-ha-2">
+            <Icon path={domainIcon(entity)} size={16} className="shrink-0 text-text-tertiary" />
+            <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{entityLabel(entity, '')}</span>
+            <span className="shrink-0 font-mono text-sm font-medium capitalize text-text-secondary">{stateLabel(entity)}</span>
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -239,80 +242,112 @@ export function AutomationDetailPanel({
     return () => clearTimeout(t);
   }, [ran]);
 
+  const { attach: attachListFades, showTop: listTop, showBottom: listBottom } = useScrollFades<HTMLDivElement>();
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  const stateWord = !enabled ? 'Off' : automation.running ? 'Running' : 'On';
+
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-start gap-ha-3 px-ha-4 pt-ha-4 pb-ha-3 shrink-0">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-ha-2xl bg-violet-500/15 text-violet-500">
-          <Icon path={mdiRobot} size={24} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold leading-tight text-text-primary">{automation.name}</p>
-          <p className="mt-0.5 text-[13px] text-text-secondary">{formatLastTriggered(automation.lastTriggered)}</p>
-        </div>
-        <ToggleSwitch on={enabled} onToggle={handleToggle} />
+    // Same frame as the device dialog: one height for every automation, a
+    // scrolling middle, and a fixed shelf of what it touches at the bottom.
+    <div className="h-[min(78dvh,760px)] lg:h-[min(85vh,780px)] flex flex-col overflow-hidden">
+      {/* Header — close on the left, eyebrow over a large name, actions right. */}
+      <div className="flex items-start justify-between gap-2 px-ha-4 pt-ha-4 pb-ha-2 shrink-0">
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="ml-ha-1 shrink-0 rounded-ha-lg p-1.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+          title="Close"
+          className="shrink-0 rounded-full p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
         >
-          <Icon path={mdiClose} size={22} />
+          <Icon path={mdiClose} size={24} />
         </button>
-      </div>
-
-      <div className="flex items-center justify-between gap-ha-3 px-ha-4 pb-ha-3 shrink-0">
-        <StatusPills automation={{ ...automation, enabled }} />
-        <div className="flex shrink-0 items-center gap-ha-2">
-          {editUrl && (
-            <a
-              href={editUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-ha-pill bg-surface-mid px-ha-3 py-ha-2 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-lower hover:text-text-primary active:scale-95"
-            >
-              <Icon path={mdiPencil} size={16} />
-              Edit
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={handleRun}
-            className="inline-flex items-center gap-ha-2 rounded-ha-pill bg-ha-blue px-ha-4 py-ha-2 text-sm font-semibold text-white transition-colors hover:bg-ha-blue/90 active:scale-95"
+        <div className="min-w-0 flex-1">
+          <p className="mb-0.5 truncate text-sm leading-none text-text-tertiary">Automation</p>
+          <p className="truncate text-2xl font-bold leading-tight text-text-primary">{automation.name}</p>
+        </div>
+        {editUrl && (
+          <a
+            href={editUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Edit in Home Assistant"
+            aria-label="Edit in Home Assistant"
+            className="shrink-0 rounded-full p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
           >
-            <Icon path={ran ? mdiCheck : mdiPlay} size={16} />
-            {ran ? 'Triggered' : 'Run now'}
-          </button>
-        </div>
+            <Icon path={mdiPencil} size={24} />
+          </a>
+        )}
       </div>
 
-      <div className="h-px bg-surface-lower mx-ha-4 shrink-0" />
+      {/* Body — takes whatever the frame has left. */}
+      <div ref={bodyRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-6 py-3">
+        <div className="flex w-full flex-col gap-ha-2">
+          {/* State and what you can do about it, as one card — the device
+              dialog's hero band plus its grouped controls. */}
+          <div className="flex w-full flex-col gap-ha-2 rounded-ha-2xl bg-surface-low p-ha-2">
+            <div className={clsx(
+              'flex w-full items-center gap-ha-3 rounded-ha-2xl px-ha-3 py-ha-2 transition-colors',
+              automation.running && enabled ? 'bg-green-500/15' : 'bg-surface-default',
+            )}>
+              <Icon path={mdiRobot} size={28} className={clsx('shrink-0', enabled ? 'text-violet-500' : 'text-text-tertiary')} />
+              {/* Value first, its qualifiers under it. */}
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate text-2xl font-bold font-mono text-text-primary">{stateWord}</span>
+                <span className="truncate text-xs text-text-tertiary">{metaLine(automation)}</span>
+              </div>
+              <ToggleSwitch on={enabled} onToggle={handleToggle} />
+            </div>
+            {/* Run now — the automation's one setter, on the same white tile as
+                a slider or a mode picker in the device dialog. */}
+            <button
+              type="button"
+              onClick={handleRun}
+              className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.99]"
+            >
+              <Icon path={ran ? mdiCheck : mdiPlay} size={18} className={ran ? 'text-green-500' : 'text-ha-blue'} />
+              {ran ? 'Triggered' : 'Run now'}
+            </button>
+          </div>
 
-      {/* Body — top fade for rows scrolling under the divider (scroll-mask pattern). */}
-      <div className="pointer-events-none h-4 -mb-4 bg-gradient-to-b from-surface-default to-transparent shrink-0 z-10" />
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-ha-5 px-ha-3 py-ha-4">
-        {/* Flow */}
-        <div>
-          {flowLoading ? (
-            <div className="flex h-24 items-center justify-center"><HALoader size="sm" /></div>
-          ) : flow && flow.length > 0 ? (
-            <AutomationFlowView nodes={flow} />
-          ) : (
-            <p className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-4 text-center text-sm text-text-tertiary">
-              Flow unavailable — this automation has no editable config.
-            </p>
-          )}
-        </div>
-
-        {/* Run history */}
-        <div>
-          <h3 className="mb-ha-2 px-ha-1 text-sm font-semibold text-text-primary">Recent runs</h3>
+          {/* The past — same panel, same fixed slot as a device's history. */}
           <RunHistory events={events} loading={historyLoading} />
-        </div>
 
-        {/* Related entities */}
-        {related.length > 0 && <RelatedEntities ids={related} />}
+          {/* What it actually does. */}
+          <div className="w-full">
+            <SectionLabel inset>What it does</SectionLabel>
+            <div className="mt-ha-2">
+              {flowLoading ? (
+                <div className="flex h-24 items-center justify-center"><HALoader size="sm" /></div>
+              ) : flow && flow.length > 0 ? (
+                <AutomationFlowView nodes={flow} />
+              ) : (
+                <p className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-4 text-center text-sm text-text-tertiary">
+                  No steps to show — this automation has no editable config.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Everything this automation touches — the counterpart of "On this
+          device": fixed shelf, its own scrollport, card stays put. */}
+      {related.length > 0 && (
+        <div className="relative z-[1] shrink-0 bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
+          <SectionLabel inset>Devices it uses</SectionLabel>
+          <div className="relative mt-ha-2">
+            <ListSection
+              bodyRef={attachListFades}
+              bodyClassName={clsx('overflow-y-auto scrollbar-hide', related.length >= 3 && 'h-[148px]')}
+            >
+              <RelatedRows ids={related} />
+            </ListSection>
+            <div className={clsx('pointer-events-none absolute inset-x-0 top-0 z-10 h-6 rounded-t-ha-2xl bg-gradient-to-b from-surface-default to-transparent transition-opacity', listTop ? 'opacity-100' : 'opacity-0')} />
+            <div className={clsx('pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 rounded-b-ha-2xl bg-gradient-to-t from-surface-default to-transparent transition-opacity', listBottom ? 'opacity-100' : 'opacity-0')} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

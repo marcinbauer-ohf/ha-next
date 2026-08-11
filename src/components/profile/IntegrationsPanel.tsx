@@ -361,7 +361,7 @@ export function IntegrationDetailView({ integration }: { integration: Integratio
 
       {/* Devices */}
       <div className="space-y-ha-3">
-        <SectionLabel className="px-ha-1">Devices</SectionLabel>
+        <SectionLabel inset>Devices</SectionLabel>
         {integration.devices.length === 0 ? (
           <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-5 text-center text-sm text-text-tertiary">
             This integration has no devices — it adds sensors and controls directly.
@@ -392,7 +392,7 @@ export function IntegrationDetailView({ integration }: { integration: Integratio
 
       {/* Configure (placeholder — production opens HA's config-entry page) */}
       <div className="space-y-ha-3">
-        <SectionLabel className="px-ha-1">Configuration</SectionLabel>
+        <SectionLabel inset>Configuration</SectionLabel>
         <div className="flex items-center gap-ha-2 px-ha-4 py-ha-3 bg-surface-low rounded-ha-2xl border border-surface-lower">
           <Icon path={mdiOpenInNew} size={15} className="text-text-tertiary flex-shrink-0" />
           <span className="text-xs text-text-secondary">

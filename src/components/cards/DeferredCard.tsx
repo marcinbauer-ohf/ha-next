@@ -6,11 +6,6 @@ interface DeferredCardProps {
   /** The full card to mount once near the viewport. */
   children: ReactNode;
   /**
-   * Reserved height (px) for the placeholder before the real card mounts, so
-   * masonry column heights stay roughly stable and the layout doesn't collapse.
-   */
-  minHeight?: number;
-  /**
    * Primary entity id of the deferred card. Mirrored onto the placeholder's
    * `data-entity-id` so features that locate offscreen cards by entity (e.g.
    * OffscreenChangeHints) still find them while the real card is unmounted.
@@ -30,7 +25,7 @@ interface DeferredCardProps {
  * cheap to keep alive and re-mounting would drop their local state / re-run
  * history fetches.
  */
-export function DeferredCard({ children, minHeight = 88, entityId }: DeferredCardProps) {
+export function DeferredCard({ children, entityId }: DeferredCardProps) {
   const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -63,5 +58,8 @@ export function DeferredCard({ children, minHeight = 88, entityId }: DeferredCar
   // view's own enter animation — harmless overlap.)
   if (mounted) return <div className="ha-card-in">{children}</div>;
 
-  return <div ref={ref} data-entity-id={entityId} aria-hidden style={{ minHeight }} />;
+  // Placeholder reserves exactly one card base (DeviceCardV2's min-h), so an
+  // unmounted card leaves the masonry sitting on the same 52px height rhythm as
+  // a mounted one — no reflow when it mounts.
+  return <div ref={ref} data-entity-id={entityId} aria-hidden className="min-h-[88px] md:min-h-[140px]" />;
 }

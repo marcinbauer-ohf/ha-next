@@ -19,8 +19,8 @@ import {
   mdiTree,
   mdiWashingMachine,
 } from '@mdi/js';
-import { uid, type OnbRoom, type StepProps } from '../types';
-import { PrimaryPill, Rise, StepSubtitle, StepTitle } from '../ui';
+import { floorNames, uid, type OnbRoom, type StepProps } from '../types';
+import { PrimaryPill, StepSubtitle, StepTitle } from '../ui';
 
 const PRESETS: Array<{ name: string; icon: string; haIcon: string }> = [
   { name: 'Living room', icon: mdiSofaOutline, haIcon: 'mdi:sofa-outline' },
@@ -37,88 +37,110 @@ const PRESETS: Array<{ name: string; icon: string; haIcon: string }> = [
   { name: 'Gym', icon: mdiDumbbell, haIcon: 'mdi:dumbbell' },
 ];
 
-export function RoomsStep({ state, update, next }: StepProps) {
+interface RoomsStepProps extends StepProps {
+  /** Which storey this step is asking about (0 = ground). */
+  floor: number;
+}
+
+/**
+ * Rooms on ONE storey — the flow repeats this step per floor, which is harder
+ * to walk past than a tab strip above the chips.
+ */
+export function RoomsStep({ state, update, next, floor: active }: RoomsStepProps) {
   const [custom, setCustom] = useState('');
 
-  const selectedNames = new Set(state.rooms.map((r) => r.name.toLowerCase()));
+  const count = state.floorCount;
+  const names = floorNames(count);
 
-  // Functional patches: rapid taps land within one React batch, so building the
-  // next list from render-time state would drop all but the last toggle.
+  /** Tapping a room puts it on the active floor — or takes it out if it's already there. */
   const toggle = (name: string, icon: string, haIcon?: string) => {
     haptic('select');
-    update((s) =>
-      s.rooms.some((r) => r.name.toLowerCase() === name.toLowerCase())
-        ? { rooms: s.rooms.filter((r) => r.name.toLowerCase() !== name.toLowerCase()) }
-        : { rooms: [...s.rooms, { id: uid('room'), name, icon, haIcon }] },
-    );
+    update((s) => {
+      const existing = s.rooms.find((r) => r.name.toLowerCase() === name.toLowerCase());
+      if (!existing) return { rooms: [...s.rooms, { id: uid('room'), name, icon, haIcon, floor: active }] };
+      if (existing.floor === active) return { rooms: s.rooms.filter((r) => r.id !== existing.id) };
+      // Already picked on another storey — move it here rather than duplicating.
+      return { rooms: s.rooms.map((r) => (r.id === existing.id ? { ...r, floor: active } : r)) };
+    });
   };
 
   const addCustom = (e: React.FormEvent) => {
     e.preventDefault();
     const name = custom.trim();
-    if (!name || selectedNames.has(name.toLowerCase())) {
-      setCustom('');
-      return;
-    }
+    setCustom('');
+    if (!name) return;
     haptic('select');
     update((s) =>
       s.rooms.some((r) => r.name.toLowerCase() === name.toLowerCase())
         ? {}
-        : { rooms: [...s.rooms, { id: uid('room'), name, icon: mdiDoorOpen }] },
+        : { rooms: [...s.rooms, { id: uid('room'), name, icon: mdiDoorOpen, floor: active }] },
     );
-    setCustom('');
   };
 
-  const count = state.rooms.length;
+  const onFloor = (r: OnbRoom) => r.floor === active;
+  // Only this floor's picks are shown — seeing other storeys' rooms greyed out
+  // read as clutter, so switching tabs now shows a clean slate.
+  const extras = state.rooms.filter(
+    (r) => onFloor(r) && !PRESETS.some((p) => p.name.toLowerCase() === r.name.toLowerCase()),
+  );
+  const here = state.rooms.filter(onFloor).length;
 
   return (
     <div className="flex flex-col items-center text-center gap-ha-6 w-full">
-      <Rise className="space-y-ha-3">
-        <StepTitle>Which rooms do you have?</StepTitle>
+      <div className="space-y-ha-3">
+        <StepTitle>
+          {count > 1
+            ? `Which rooms are on the ${names[active].toLowerCase()}?`
+            : 'Which rooms do you have?'}
+        </StepTitle>
         <StepSubtitle>
           {state.path === 'connect'
             ? 'Tap the ones in your home — we’ll set them up in Home Assistant for you.'
             : 'Tap the ones in your home. Nothing is final — you can change this anytime.'}
         </StepSubtitle>
-      </Rise>
+      </div>
 
-      <Rise delay={0.05} className="w-full flex flex-col items-center gap-ha-5">
-        <div className="flex flex-wrap justify-center gap-ha-2" role="group" aria-label="Rooms">
+      <div className="w-full flex flex-col items-center gap-ha-5">
+
+        <div
+          className="flex flex-wrap justify-center gap-ha-2"
+          role="group"
+          aria-label={count > 1 ? `Rooms on the ${names[active]}` : 'Rooms'}
+        >
           {PRESETS.map((p) => {
-            const selected = selectedNames.has(p.name.toLowerCase());
+            const room = state.rooms.find((r) => r.name.toLowerCase() === p.name.toLowerCase());
+            const here = room ? onFloor(room) : false;
             return (
               <button
                 key={p.name}
                 type="button"
-                aria-pressed={selected}
+                aria-pressed={here}
                 onClick={() => toggle(p.name, p.icon, p.haIcon)}
                 className={`inline-flex items-center gap-ha-2 h-11 pl-ha-3 pr-ha-4 rounded-ha-pill border text-sm font-medium transition-all active:scale-95 ${
-                  selected
+                  here
                     ? 'bg-ha-blue text-white border-ha-blue shadow-md shadow-ha-blue/20'
                     : 'bg-surface-low/70 backdrop-blur-sm border-surface-lower text-text-primary hover:bg-surface-low hover:border-fill-primary-normal'
                 }`}
               >
-                <Icon path={p.icon} size={17} className={selected ? 'text-white/90' : 'text-text-secondary'} />
+                <Icon path={p.icon} size={17} className={here ? 'text-white/90' : 'text-text-secondary'} />
                 {p.name}
               </button>
             );
           })}
 
           {/* Custom rooms the presets don't cover, shown in the same chip row. */}
-          {state.rooms
-            .filter((r) => !PRESETS.some((p) => p.name.toLowerCase() === r.name.toLowerCase()))
-            .map((r: OnbRoom) => (
-              <button
-                key={r.id}
-                type="button"
-                aria-pressed
-                onClick={() => update({ rooms: state.rooms.filter((x) => x.id !== r.id) })}
-                className="inline-flex items-center gap-ha-2 h-11 pl-ha-3 pr-ha-4 rounded-ha-pill border text-sm font-medium bg-ha-blue text-white border-ha-blue shadow-md shadow-ha-blue/20 transition-all active:scale-95"
-              >
-                <Icon path={mdiCheck} size={17} />
-                {r.name}
-              </button>
-            ))}
+          {extras.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              aria-pressed
+              onClick={() => update((s) => ({ rooms: s.rooms.filter((x) => x.id !== r.id) }))}
+              className="inline-flex items-center gap-ha-2 h-11 pl-ha-3 pr-ha-4 rounded-ha-pill border text-sm font-medium bg-ha-blue text-white border-ha-blue shadow-md shadow-ha-blue/20 transition-all active:scale-95"
+            >
+              <Icon path={mdiCheck} size={17} />
+              {r.name}
+            </button>
+          ))}
         </div>
 
         <form onSubmit={addCustom} className="flex items-center gap-ha-2 w-full max-w-[340px]">
@@ -128,7 +150,7 @@ export function RoomsStep({ state, update, next }: StepProps) {
             onChange={(e) => setCustom(e.target.value)}
             placeholder="Add your own room…"
             maxLength={24}
-            aria-label="Add your own room"
+            aria-label={count > 1 ? `Add your own room on the ${names[active]}` : 'Add your own room'}
             className="flex-1 h-11 px-ha-4 rounded-ha-pill bg-surface-low/70 backdrop-blur-sm border border-surface-lower text-sm text-text-primary placeholder:text-text-tertiary select-text focus:outline-none focus:ring-2 focus:ring-ha-blue/40 focus:border-ha-blue/60 transition-colors"
           />
           <button
@@ -142,19 +164,22 @@ export function RoomsStep({ state, update, next }: StepProps) {
         </form>
 
         <div className="flex flex-col items-center gap-ha-2">
-          {/* min-width keeps the pill from resizing/recentering as the label
-              flips between "Continue" and "Continue with N rooms". */}
+          {/* min-width keeps the pill from resizing/recentering as the label changes. */}
           <div className="min-w-[260px] flex justify-center">
             <PrimaryPill onClick={next}>
-              {count > 0 ? `Continue with ${count} ${count === 1 ? 'room' : 'rooms'}` : 'Continue'}
+              {here > 0 ? `Continue with ${here} ${here === 1 ? 'room' : 'rooms'}` : 'Continue'}
             </PrimaryPill>
           </div>
           {/* Reserved line so the hint appearing/disappearing never shifts the CTA. */}
-          <p className="text-[13px] text-text-tertiary min-h-[1.25rem]" aria-hidden={count > 0}>
-            {count === 0 ? 'Not sure yet? That’s fine — skip ahead and add rooms whenever.' : ''}
+          <p className="text-[13px] text-text-tertiary min-h-[1.25rem]" aria-hidden={here > 0}>
+            {here === 0
+              ? count > 1
+                ? 'Nothing on this floor? Just continue — you can add rooms whenever.'
+                : 'Not sure yet? That’s fine — continue and add rooms whenever.'
+              : ''}
           </p>
         </div>
-      </Rise>
+      </div>
     </div>
   );
 }

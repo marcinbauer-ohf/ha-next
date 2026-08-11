@@ -45,7 +45,9 @@ export const CARD_TUNER_PARAMS: CardTunerParam[] = [
   { id: 'stateGap', cssVar: '--dct-state-gap', label: 'Name → state gap', group: 'Type', min: 0, max: 12, step: 1, unit: 'px', defaultValue: 2 },
   { id: 'areaSize', cssVar: '--dct-area-size', label: 'Area size', group: 'Type', min: 9, max: 15, step: 0.5, unit: 'px', defaultValue: 12 },
   // ── Layout ──
-  { id: 'minH', cssVar: '--dct-min-h', label: 'Card height (desktop)', group: 'Layout', min: 96, max: 220, step: 4, unit: 'px', defaultValue: 136 },
+  // Masonry rhythm: card height + the 16px column gap should stay a multiple of
+  // `rowH` (88/140/192 at rowH 52) or cards stop lining up across columns.
+  { id: 'minH', cssVar: '--dct-min-h', label: 'Card height (desktop)', group: 'Layout', min: 96, max: 220, step: 4, unit: 'px', defaultValue: 140 },
   { id: 'pad', cssVar: '--dct-pad', label: 'Card padding', group: 'Layout', min: 6, max: 24, step: 1, unit: 'px', defaultValue: 12 },
   // ── Image & graph ──
   { id: 'thumbW', cssVar: '--dct-thumb-w', label: 'Image width', group: 'Image & graph', min: 20, max: 60, step: 1, unit: '%', defaultValue: 44 },

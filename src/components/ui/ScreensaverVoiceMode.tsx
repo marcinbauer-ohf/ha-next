@@ -324,8 +324,7 @@ export function ScreensaverVoiceMode({ onExit }: ScreensaverVoiceModeProps) {
 
         {/* Slim typed fallback — deliberately quieter than the orb */}
         <div
-          className="px-ha-6"
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
+          className="px-ha-6 pb-[calc(env(safe-area-inset-bottom)+3rem)] lg:pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
         >
           <form
             className="w-full max-w-lg mx-auto flex items-center gap-ha-2 h-12 px-ha-4 rounded-ha-pill bg-white/8 border border-white/12 backdrop-blur-md focus-within:bg-white/12 focus-within:border-white/20 transition-colors"

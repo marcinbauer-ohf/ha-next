@@ -18,7 +18,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useHomeCenterPrefs } from '@/hooks';
 import { HOME_CENTER_SECTION_MAP, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { Icon } from '../ui/Icon';
-import { mdiDragVertical, mdiLock } from '@mdi/js';
+import { mdiDragHorizontalVariant, mdiLock } from '@mdi/js';
 
 function SectionRow({ id }: { id: HomeCenterSectionId }) {
   const { isEnabled, toggle } = useHomeCenterPrefs();
@@ -52,7 +52,7 @@ function SectionRow({ id }: { id: HomeCenterSectionId }) {
         {...attributes}
         {...listeners}
       >
-        <Icon path={mdiDragVertical} size={22} />
+        <Icon path={mdiDragHorizontalVariant} size={22} />
       </button>
 
       <div className="flex h-9 w-9 items-center justify-center rounded-ha-xl bg-surface-mid text-text-secondary flex-shrink-0">

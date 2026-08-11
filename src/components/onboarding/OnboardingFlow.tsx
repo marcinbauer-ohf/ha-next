@@ -22,25 +22,35 @@ import { useHomeAssistant } from '@/hooks';
 import { completeOnboarding } from '@/lib/onboarding';
 import { haptic } from '@/lib/haptics';
 import { mdiArrowLeft } from '@mdi/js';
-import { INITIAL_STATE, type OnboardingPatch, type OnboardingState } from './types';
+import { floorNames, INITIAL_STATE, type OnboardingPatch, type OnboardingState } from './types';
 import { setHomeName } from '@/lib/homeName';
 import { EASE_OUT } from './ui';
 import { HelloStep } from './steps/HelloStep';
 import { PathStep } from './steps/PathStep';
 import { ConnectStep } from './steps/ConnectStep';
 import { NameStep } from './steps/NameStep';
+import { FloorsStep } from './steps/FloorsStep';
 import { RoomsStep } from './steps/RoomsStep';
 import { FinaleStep } from './steps/FinaleStep';
 
 const LS_LAYOUT = 'ha_onboarding_layout_v1';
-const SS_DRAFT = 'ha_onboarding_draft_v1';
+const SS_DRAFT = 'ha_onboarding_draft_v2';
 
-type StepId = 'hello' | 'path' | 'connect' | 'name' | 'rooms' | 'finale';
+/** Rooms get one step per storey — `rooms:0` is the ground floor. */
+type RoomsStepId = `rooms:${number}`;
+type StepId = 'hello' | 'path' | 'connect' | 'name' | 'floors' | RoomsStepId | 'finale';
 
-/** Steps that can be walked past without input (top-right "Skip"). */
-const SKIPPABLE: StepId[] = ['name', 'rooms'];
+const FIXED_STEP_IDS = ['hello', 'path', 'connect', 'name', 'floors', 'finale'] as const;
 
-const STEP_IDS: StepId[] = ['hello', 'path', 'connect', 'name', 'rooms', 'finale'];
+function isStepId(value: unknown): value is StepId {
+  return (
+    typeof value === 'string' &&
+    (FIXED_STEP_IDS.includes(value as (typeof FIXED_STEP_IDS)[number]) || /^rooms:\d+$/.test(value))
+  );
+}
+
+const roomsFloor = (stepId: StepId): number | null =>
+  stepId.startsWith('rooms:') ? Number(stepId.slice('rooms:'.length)) : null;
 
 /** In-progress answers survive a reload / accidental refresh (session only). */
 function readDraft(): { state: OnboardingState; stepId: StepId } | null {
@@ -49,7 +59,7 @@ function readDraft(): { state: OnboardingState; stepId: StepId } | null {
     const raw = sessionStorage.getItem(SS_DRAFT);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { state?: Partial<OnboardingState>; stepId?: string };
-    if (!parsed.state || !STEP_IDS.includes(parsed.stepId as StepId)) return null;
+    if (!parsed.state || !isStepId(parsed.stepId)) return null;
     return {
       state: { ...INITIAL_STATE, ...parsed.state },
       stepId: parsed.stepId as StepId,
@@ -67,7 +77,7 @@ interface OnboardingFlowProps {
 }
 
 export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
-  const { enableDemoMode, demoMode, connected, createArea } = useHomeAssistant();
+  const { enableDemoMode, demoMode, connected, createArea, createFloor } = useHomeAssistant();
   const reduce = useReducedMotion();
   const ringOrigin = useRingOrigin();
   const [draft] = useState(() => (resume ? readDraft() : null));
@@ -105,10 +115,12 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
       'path',
       ...(state.path === 'connect' ? (['connect'] as StepId[]) : []),
       'name',
-      ...(skipRooms ? [] : (['rooms'] as StepId[])),
+      'floors',
+      // One rooms step per storey — a tab strip was too easy to miss.
+      ...(skipRooms ? [] : floorNames(state.floorCount).map((_, i): StepId => `rooms:${i}`)),
       'finale',
     ],
-    [state.path, skipRooms],
+    [state.path, state.floorCount, skipRooms],
   );
   const index = sequence.indexOf(stepId);
 
@@ -131,7 +143,6 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
     if (index === -1) return go('path', -1);
     if (index > 0) go(sequence[index - 1], -1);
   };
-  const skip = () => next();
 
   /** Stash the collected layout so the dashboard (HomeHero etc.) can greet properly.
       Always called from event handlers, so `state` is the latest committed value. */
@@ -142,21 +153,44 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
       localStorage.setItem(
         LS_LAYOUT,
         JSON.stringify({
-          unitSystem: s.unitSystem,
-          floors: [],
-          areas: s.rooms.map((r) => ({ id: r.id, name: r.name, icon: r.icon, floorId: null })),
+          floors: floorNames(s.floorCount).map((name, level) => ({ name, level })),
+          areas: s.rooms.map((r) => ({ id: r.id, name: r.name, icon: r.icon, floorId: r.floor })),
           deviceAreas: {},
         }),
       );
     } catch {
       /* private mode / quota — the flow still completes */
     }
-    // A freshly connected home with no rooms yet: create the picked rooms as
-    // real areas, best-effort in the background while the finale plays.
-    if (s.path === 'connect' && connected && !demoMode && s.existingAreaCount === 0) {
-      s.rooms.forEach((room) => {
-        createArea({ name: room.name, icon: room.haIcon ?? null }).catch(() => {});
-      });
+    // A freshly connected home: create what was picked for real, best-effort in
+    // the background while the finale plays. Single-storey homes get no floors —
+    // HA treats "no floors" as the normal case and one would just be noise.
+    if (s.path === 'connect' && connected && !demoMode) {
+      void (async () => {
+        // level index → the created floor's HA id, so rooms land on their storey.
+        const floorIds: Array<string | null> = floorNames(s.floorCount).map(() => null);
+        if (s.existingFloorCount === 0 && s.floorCount > 1) {
+          await Promise.all(
+            floorNames(s.floorCount).map(async (name, level) => {
+              try {
+                floorIds[level] = (await createFloor({ name, level })).floor_id;
+              } catch {
+                /* one floor failing shouldn't strand the rooms */
+              }
+            }),
+          );
+        }
+        if (s.existingAreaCount === 0) {
+          await Promise.all(
+            s.rooms.map((room) =>
+              createArea({
+                name: room.name,
+                icon: room.haIcon ?? null,
+                floor_id: floorIds[room.floor] ?? null,
+              }).catch(() => {}),
+            ),
+          );
+        }
+      })();
     }
   };
 
@@ -168,13 +202,6 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
     }
     if (onDone) onDone();
     else completeOnboarding();
-  };
-
-  /** Hello-screen escape hatch: straight to the demo dashboard, no questions. */
-  const skipAll = () => {
-    if (!connected && !demoMode) enableDemoMode();
-    persistChoices();
-    finish();
   };
 
   /** Demo chosen (from path or connect step): make sure the sample home is live. */
@@ -191,17 +218,20 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
 
   // Middle steps get chrome (back, dots, skip); hello and finale stay bare.
   const middleSteps: StepId[] = sequence.filter((s) => s !== 'hello' && s !== 'finale');
+  const roomsStepFloor = roomsFloor(stepId);
   const middleIndex = middleSteps.indexOf(stepId);
   const showChrome = middleIndex !== -1;
 
   // Fast asymmetric cut: exits accelerate away (0.2s ease-in), entrances
   // decelerate in (0.35s ease-out) — responsive calm, not a slideshow.
+  // Sideways, matching the progress dots: forward comes in from the right and
+  // leaves to the left, back does the reverse.
   const variants = {
-    enter: (d: number) => ({ opacity: 0, y: reduce ? 0 : d * 22 }),
-    center: { opacity: 1, y: 0, transition: { duration: 0.35, ease: EASE_OUT } },
+    enter: (d: number) => ({ opacity: 0, x: reduce ? 0 : d * 40 }),
+    center: { opacity: 1, x: 0, transition: { duration: 0.35, ease: EASE_OUT } },
     exit: (d: number) => ({
       opacity: 0,
-      y: reduce ? 0 : d * -14,
+      x: reduce ? 0 : d * -26,
       transition: { duration: 0.2, ease: 'easeIn' as const },
     }),
   };
@@ -247,9 +277,9 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
       {/* The screensaver's ambient shader — immersive full-bleed, forced dark so
           it fills instead of blending over a light surface. */}
       <RingShaderBackground mode="warp" resolvedMode="dark" center={ringOrigin.center} reach={ringOrigin.reach} opaque />
-      {/* Flat 15% black backdrop over the shader — knocks every mode down
-          uniformly so the white text/chips read on top (matches screensaver). */}
-      <div className="absolute inset-0 bg-black/15" aria-hidden />
+      {/* Flat black scrim over the shader — heavier than the screensaver's 15%
+          because this flow puts small text and chips on top of the animation. */}
+      <div className="absolute inset-0 bg-black/55" aria-hidden />
 
       {/* ── Top chrome: back · progress dots · skip ─────────────────────── */}
       <div className="relative z-10 flex-shrink-0 h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] px-ha-4 grid grid-cols-[1fr_auto_1fr] items-center">
@@ -300,27 +330,15 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
           )}
         </AnimatePresence>
 
-        <div className="justify-self-end">
-          <AnimatePresence>
-            {SKIPPABLE.includes(stepId) && (
-              <motion.button
-                key="skip"
-                type="button"
-                onClick={skip}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="h-10 px-ha-4 rounded-ha-pill text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-low/70 transition-colors"
-              >
-                Skip
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </div>
+        {/* No skip affordance: setting the home up is the point of this flow,
+            and an escape hatch in the corner tells people it's optional. */}
+        <div className="justify-self-end" />
       </div>
 
       {/* ── Step body — centered, scrolls only when it must ─────────────── */}
-      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto">
+      {/* overflow-x-hidden: the sideways step transition would otherwise turn
+          this scroller's implied overflow-x:auto into a flashing scrollbar. */}
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         <div className="min-h-full flex flex-col">
           {/* Bottom padding includes the top-chrome height so content optically
               centers in the full viewport instead of sitting ~4% low. */}
@@ -337,9 +355,7 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
                   if (definition === 'center') settleFocus();
                 }}
               >
-                {stepId === 'hello' && (
-                  <HelloStep state={state} update={update} next={next} back={back} onSkipAll={skipAll} />
-                )}
+                {stepId === 'hello' && <HelloStep state={state} update={update} next={next} back={back} />}
                 {stepId === 'path' && (
                   <PathStep state={state} update={update} next={next} back={back} onConnect={chooseConnect} onDemo={chooseDemo} />
                 )}
@@ -347,8 +363,11 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
                   <ConnectStep state={state} update={update} next={next} back={back} onDemo={chooseDemo} />
                 )}
                 {stepId === 'name' && <NameStep state={state} update={update} next={next} back={back} />}
-                {stepId === 'rooms' && <RoomsStep state={state} update={update} next={next} back={back} />}
-                {stepId === 'finale' && <FinaleStep state={state} onFinish={finish} />}
+                {stepId === 'floors' && <FloorsStep state={state} update={update} next={next} back={back} />}
+                {roomsStepFloor !== null && (
+                  <RoomsStep state={state} update={update} next={next} back={back} floor={roomsStepFloor} />
+                )}
+                {stepId === 'finale' && <FinaleStep onFinish={finish} />}
               </motion.div>
             </AnimatePresence>
           </div>

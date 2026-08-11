@@ -30,6 +30,22 @@ function inWindow(status: { phase: string; endedAt: number | null }, sinceTs: nu
   return status.phase === 'active' || (status.endedAt !== null && status.endedAt >= sinceTs);
 }
 
+/**
+ * The phrases as one readable sentence — what the screensaver's talk pill (and
+ * the dock spinoff's ask pill) actually show. Caps at three, so the line stays
+ * a sentence rather than a list.
+ */
+export function summaryToSentence(phrases: string[]): string {
+  if (phrases.length === 0) {
+    return 'All quiet while you were away — nothing needed your attention, and everything is just as you left it.';
+  }
+  const parts = phrases.slice(0, 3);
+  const joined =
+    parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+  const rest = phrases.length - parts.length;
+  return `While you were away: ${joined}${rest > 0 ? `, plus ${rest} more thing${rest > 1 ? 's' : ''}` : ''}.`;
+}
+
 export function useHomeSummary(sinceTs: number): string[] {
   const { activities } = useActivities();
   const persons = useEntitiesByDomain('person');
