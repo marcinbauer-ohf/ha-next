@@ -110,10 +110,10 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, hov
   const stroke = `rgba(${r},${on ? 0.85 : 0.45})`;
   const fillTop = `rgba(${r},0.12)`;
 
-  function handleMouseMove(e: React.MouseEvent<SVGRectElement>) {
+  function scrubTo(clientX: number) {
     if (!svgRef.current || !onHover) return;
     const rect = svgRef.current.getBoundingClientRect();
-    const relX = ((e.clientX - rect.left) / rect.width) * W;
+    const relX = ((clientX - rect.left) / rect.width) * W;
     // Nearest point by x — works for both index- and time-spaced axes.
     let best = 0;
     let bestDist = Infinity;
@@ -125,7 +125,7 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, hov
     onHover(best);
   }
 
-  function handleMouseLeave() {
+  function endScrub() {
     setHoverIdx(null);
     onHover?.(null);
   }
@@ -161,10 +161,23 @@ export function Sparkline({ points, on, gradientId, small, stepped, onHover, hov
       )}
 
       {onHover && (
+        // Pointer events, not mouse events: a finger scrubs the chart the way a
+        // cursor does. `pan-y` leaves a vertical swipe to the panel's scroll
+        // while a horizontal drag reads the curve, and the pointer capture keeps
+        // it reading after the finger slides off the chart's own box.
         <rect x={0} y={0} width={W} height={H} fill="transparent"
-          style={{ cursor: 'crosshair' }}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
+          data-sheet-drag="none"
+          style={{ cursor: 'crosshair', touchAction: 'pan-y' }}
+          onPointerDown={(e) => {
+            try { (e.currentTarget as SVGRectElement).setPointerCapture(e.pointerId); } catch { /* stale pointer */ }
+            scrubTo(e.clientX);
+          }}
+          onPointerMove={(e) => {
+            if (e.pointerType === 'mouse' || e.buttons > 0) scrubTo(e.clientX);
+          }}
+          onPointerUp={(e) => { if (e.pointerType !== 'mouse') endScrub(); }}
+          onPointerCancel={endScrub}
+          onPointerLeave={(e) => { if (e.pointerType === 'mouse') endScrub(); }}
         />
       )}
     </svg>

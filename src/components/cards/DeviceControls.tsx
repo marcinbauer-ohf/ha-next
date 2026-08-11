@@ -429,6 +429,7 @@ export function ControlSlider({
       )}
       <div
         ref={trackRef}
+        data-sheet-drag="none"
         role="slider"
         tabIndex={0}
         aria-label={ariaLabel}

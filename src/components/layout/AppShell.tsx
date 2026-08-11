@@ -682,12 +682,14 @@ function AppShellContent({ children }: AppShellProps) {
           className={`h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] lg:h-16 lg:pt-0 bg-transparent lg:bg-transparent px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 pointer-events-auto ${desktopTopBarStateClass}`}
           style={mobileTopBarStyle}
         >
-            {/* Mobile backdrop — the bar's own gradient fades the content out:
-                solid surface tint at the top dissolving to transparent below,
-                extending past the bar so the readable backing spans lower with
-                no hard line between the bar and the surface. */}
+            {/* Mobile backdrop — solid behind the bar, then a short fade under
+                it. The old single gradient started dissolving at 45% of the
+                bar's own height, so cards passing under the title read as a
+                haze across the top of the screen rather than as content
+                sliding cleanly beneath a header. */}
+          <div className="lg:hidden absolute inset-0 pointer-events-none bg-surface-default" aria-hidden />
           <div
-            className="lg:hidden absolute top-0 inset-x-0 h-[125%] pointer-events-none bg-gradient-to-b from-surface-default from-45% via-surface-default/65 via-80% to-transparent"
+            className="lg:hidden absolute top-full inset-x-0 h-6 pointer-events-none bg-gradient-to-b from-surface-default to-transparent"
             aria-hidden
           />
           <div className="relative z-[1] h-full">

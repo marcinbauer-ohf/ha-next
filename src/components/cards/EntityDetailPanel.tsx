@@ -567,6 +567,30 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
     );
   };
 
+  // Span + aggregation, built once: they sit in the history header on a desktop
+  // and under the graph on a phone, where the header has no room beside the
+  // History/Log toggle.
+  const spanPickers = (
+    <>
+      <Dropdown
+        className="shrink-0"
+        options={TIME_SPANS.map(t => ({ value: t.value, label: t.label }))}
+        value={timeSpan}
+        onChange={v => setTimeSpan(v as TimeSpan)}
+      />
+      {/* Statistics spans are pre-bucketed by the recorder (hour/day) — the
+          aggregation picker only applies to raw history. */}
+      {pastTab === 'history' && isNumeric && hasChart && !statsActive && (
+        <Dropdown
+          className="shrink-0"
+          options={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
+          value={aggregation}
+          onChange={v => setAggregation(v as Aggregation)}
+        />
+      )}
+    </>
+  );
+
   // Whole hero is one tappable target wherever it can toggle.
   const tapProps = canToggle
     ? {
@@ -591,15 +615,10 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
         </div>
       )}
       <div className="flex flex-col items-center gap-ha-2 w-full">
-        {/* The device, as one card: its state on top and everything you can set
-            below it. The grey panel only appears when there *is* something more
-            than a switch — a lone on/off hero shouldn't grow a frame around
-            itself, so the ground is painted by `:has`, from the controls' own
-            emptiness, rather than by guessing per domain. */}
-        <div className={clsx(
-          'flex w-full flex-col gap-ha-2 rounded-ha-2xl transition-colors',
-          'has-[[data-controls]>*]:bg-surface-low has-[[data-controls]>*]:p-ha-2',
-        )}>
+        {/* The device, as one card: what it reads, what you can set, and what it
+            did — one surface, hairline-divided, so the dialog is a single object
+            rather than a stack of panels. */}
+        <div className="flex w-full flex-col gap-ha-2 rounded-ha-2xl bg-surface-low p-ha-2">
         {/* Tap-anywhere toggle card — thumb, name, switch and state grouped in one
             surface. Clicking anywhere toggles a controllable entity. */}
         {showHero && (heroLayout === 'surface' || heroLayout === 'plain') ? (
@@ -681,14 +700,14 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
           ) : (
             <Icon path={entity.icon} size={28} className="shrink-0 text-text-tertiary" />
           )}
-          {/* Value first, its label under it: the reading is what you came for,
-              the name and the timestamp are what qualify it. */}
+          {/* What it is, then what it says — the label reads first and the value
+              lands under it, the way a caption sits over its figure. */}
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            {renderReading({ scale: 'md', align: 'left' })}
             <span className="flex min-w-0 items-baseline gap-ha-2 text-xs text-text-tertiary">
               {!nameIsDuplicate && <span className="truncate font-medium">{entity.name}</span>}
               {stampNode('shrink-0')}
             </span>
+            {renderReading({ scale: 'md', align: 'left' })}
           </div>
           {renderControl('md')}
         </div>
@@ -752,7 +771,6 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
             <DomainControls entityId={entity.entityId} />
           </div>
         )}
-        </div>
 
         {/* Strip — every entity gets the same 24h band under its value, numeric
             or not, and tapping it opens the full history. Deliberately
@@ -796,13 +814,13 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
             min-height so numeric chart, timeline, loader and the empty case all
             reserve the same space (no jump when switching entities). */}
         {historyView === 'full' && (
-        // The past, on its own surface: chart and log are two readings of the
-        // same data, so one toggle swaps them in place. The panel's height is
-        // fixed either way — flipping between them must not move anything below.
-        <div {...controlGuard} className="flex w-full flex-col gap-ha-1 rounded-ha-2xl bg-surface-low p-ha-2">
-        {/* One header row: what you're reading on the left, what you're reading
-            it over on the right. Everything above the graph, so the graph is the
-            last thing in the box and nothing floats under it. */}
+        // The past shares the device's surface — a hairline separates "now" from
+        // "before" instead of a second panel. Chart and log are two readings of
+        // the same data, so one toggle swaps them in a fixed slot: flipping
+        // between them must not move anything below.
+        <div {...controlGuard} className="flex w-full flex-col gap-ha-1 border-t border-surface-mid pt-ha-2">
+        {/* Header row: what you're reading on the left, the way out to Home
+            Assistant on the right. */}
         <div className="flex w-full items-center gap-ha-2">
           <SegmentedControl
             segments={[{ value: 'history', label: 'History' }, { value: 'log', label: 'Log' }]}
@@ -817,23 +835,10 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
             <div className="ml-auto flex items-center gap-ha-2">
               {/* Span and aggregation are the same kind of question — "what am I
                   looking at" — so they're the same kind of control: two pills,
-                  not a five-button track competing with the chart. */}
-              <Dropdown
-                className="shrink-0"
-                options={TIME_SPANS.map(t => ({ value: t.value, label: t.label }))}
-                value={timeSpan}
-                onChange={v => setTimeSpan(v as TimeSpan)}
-              />
-              {/* Statistics spans are pre-bucketed by the recorder (hour/day) —
-                  the aggregation picker only applies to raw history. */}
-              {pastTab === 'history' && isNumeric && hasChart && !statsActive && (
-                <Dropdown
-                  className="shrink-0"
-                  options={AGGREGATIONS.map(a => ({ value: a.value, label: a.label }))}
-                  value={aggregation}
-                  onChange={v => setAggregation(v as Aggregation)}
-                />
-              )}
+                  not a five-button track competing with the chart. A phone has
+                  no room for them beside the toggle, so there they sit under the
+                  graph (see below) and only the chevron stays up here. */}
+              <div className="hidden md:flex items-center gap-ha-2">{spanPickers}</div>
               {/* Going further back than 30d lives in Home Assistant's own
                   history page (which can compare and export); hidden in demo,
                   where there's no instance to link to. */}
@@ -856,7 +861,7 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
             timeline (36px + labels + legend) — so there is no dead space under
             the graph. The log scrolls inside the same box, so swapping the two
             never moves anything. */}
-        <div className="flex h-[78px] lg:h-[118px] w-full flex-col overflow-hidden">
+        <div className="flex h-[132px] lg:h-[168px] w-full flex-col overflow-hidden">
         {pastTab === 'history' && <>
         <div className="w-full min-h-[78px] lg:min-h-[118px] flex flex-col justify-center">
         {isHistoryLoading ? (
@@ -940,8 +945,14 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
           </div>
         )}
         </div>
+        {/* Phone: the pickers live under the graph. Reserved height either way so
+            the surface is the same size whichever reading is on screen. */}
+        {!isHistoryLoading && (pastTab === 'log' || (isNumeric && hasChart) || showTimeline) && (
+          <div className="flex md:hidden w-full items-center gap-ha-2 pt-ha-1">{spanPickers}</div>
+        )}
         </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -1127,6 +1138,26 @@ export function EntityDetailPanel({
   useIdleMarquee(heroScrollRef, true);
   useIdleMarquee(listScrollRef, true);
 
+  // Picking another entity from the list must land you on *its* hero — the
+  // region is bottom-aligned and taller than its box, so without this you get
+  // whatever the last scroll position was (usually the device render).
+  useEffect(() => {
+    const el = heroScrollRef.current;
+    if (!el) return;
+    const toBottom = () => { el.scrollTop = el.scrollHeight; };
+    toBottom();
+    // History arrives a moment after the switch and grows the region, so one
+    // scroll isn't enough — follow the content until it settles, and let go the
+    // instant the user takes over.
+    const ro = new ResizeObserver(toBottom);
+    [...el.children].forEach(c => ro.observe(c));
+    const stop = () => { ro.disconnect(); el.removeEventListener('wheel', stop); el.removeEventListener('pointerdown', stop); };
+    el.addEventListener('wheel', stop, { passive: true });
+    el.addEventListener('pointerdown', stop);
+    const t = setTimeout(stop, 1200);
+    return () => { clearTimeout(t); stop(); };
+  }, [focusedEntityId]);
+
   const [backdrop, setBackdrop] = useState<{ src?: string | null; ok: boolean }>({ src: deviceMeta?.thumbnail, ok: true });
   if (backdrop.src !== deviceMeta?.thumbnail) setBackdrop({ src: deviceMeta?.thumbnail, ok: true });
   const showBackdrop = !!deviceMeta?.thumbnail && backdrop.ok && tab === 'main';
@@ -1198,7 +1229,7 @@ export function EntityDetailPanel({
     // hero (or the chart) takes whatever is left after the header, the device
     // list and the switcher, so opening a one-sensor plug and a twelve-entity
     // vacuum gives you the same dialog and the same place to change entity.
-    <div className="h-[min(78dvh,760px)] lg:h-[min(85vh,780px)] flex flex-col overflow-hidden">
+    <div className="h-[min(70dvh,760px)] lg:h-[min(85vh,780px)] flex flex-col overflow-hidden">
       {/* Header — close on the left (dialog pattern), area eyebrow over a large
           device name, options on the right */}
       <div className="flex items-start justify-between gap-2 px-ha-4 pt-ha-4 pb-ha-2 shrink-0">

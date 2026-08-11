@@ -108,6 +108,18 @@ export function StateTimeline({ segments, startTs, endTs, compact, onHover }: {
     return [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [segments]);
 
+  // Touch scrubbing: the cells only ever listened for mouseenter, so a finger
+  // read nothing. One handler on the bar maps x to a cell instead.
+  const scrubTo = (clientX: number) => {
+    const el = ref.current;
+    if (!el || !onHover) return;
+    const r = el.getBoundingClientRect();
+    const f = Math.min(0.999, Math.max(0, (clientX - r.left) / r.width));
+    const i = Math.floor(f * cellCount);
+    const state = cells[i];
+    onHover(state ? { state, ts: startTs + i * cellDur } : null);
+  };
+
   return (
     <div className="w-full">
       <div
@@ -115,6 +127,19 @@ export function StateTimeline({ segments, startTs, endTs, compact, onHover }: {
         // Both variants are 36px: compact is the dialog's 24h strip, which sits
         // in the 48px control row and should fill it, not float inside it.
         className="flex w-full gap-px rounded-ha-lg overflow-hidden h-9"
+        data-sheet-drag="none"
+        style={{ touchAction: 'pan-y' }}
+        onPointerDown={(e) => {
+          if (e.pointerType === 'mouse') return;
+          try { (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId); } catch { /* stale pointer */ }
+          scrubTo(e.clientX);
+        }}
+        onPointerMove={(e) => {
+          if (e.pointerType === 'mouse' || e.buttons === 0) return;
+          scrubTo(e.clientX);
+        }}
+        onPointerUp={() => onHover?.(null)}
+        onPointerCancel={() => onHover?.(null)}
         onMouseLeave={() => onHover?.(null)}
         role="img"
         aria-label="State history heatmap"

@@ -131,6 +131,11 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   // The whole primary block is the scrub surface — the graph is a 40px strip
   // along the bottom edge, far too small to aim at.
   const primaryRef = useRef<HTMLDivElement>(null);
+  // A long press means "arrange the dashboard" — the tap that ends it must not
+  // also count as a tap on the card (which opened the dialog on top of edit
+  // mode). Touch fires click after the press ends, so the click is swallowed at
+  // the card's own capture phase, before the hero, a switch or a row sees it.
+  const longPressFired = useRef(false);
 
   // Layout experiment (settings → Prototype & Debug → Developer flags). `hero`
   // is the current design (name top-left, image right, toggle bottom-left);
@@ -228,7 +233,11 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
 
   const handlePointerDown = useCallback(() => {
     if (!onLongPress) return;
-    longPressTimer.current = setTimeout(() => { onLongPress(); }, 500);
+    longPressFired.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      onLongPress();
+    }, 500);
   }, [onLongPress]);
 
   const cancelLongPress = useCallback(() => {
@@ -238,6 +247,12 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   return (
     <div
       data-entity-id={primary.entityId}
+      onClickCapture={(e) => {
+        if (!longPressFired.current) return;
+        longPressFired.current = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       onPointerDown={handlePointerDown}
       onPointerUp={cancelLongPress}
       onPointerLeave={cancelLongPress}
@@ -334,11 +349,19 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
               />
             )}
 
-            {/* Top: name-prominent text on the LEFT; icon/alert tucked top-right. */}
+            {/* Top: name-prominent text on the LEFT; icon/alert tucked top-right.
+                On the phone the switch comes up here too: a card is 140px tall
+                and half a thumb wide, so the control belongs where the thumb
+                already is rather than in the far bottom corner. */}
             <div className="relative z-[2] flex items-start justify-between gap-2">
               {renderNameState(true)}
+              {!isUnavailable && primary.toggleable && primary.onToggle && (
+                <div className="md:hidden shrink-0 -mt-0.5">
+                  <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
+                </div>
+              )}
               {!showThumb && !showFeed && !isUnavailable && (
-                <Icon path={primary.icon} size={20} className="text-text-tertiary shrink-0" />
+                <Icon path={primary.icon} size={20} className="hidden md:block text-text-tertiary shrink-0" />
               )}
               {isUnavailable && (
                 <Icon path={mdiAlertCircleOutline} size={20} className="text-amber-500 shrink-0" />
@@ -356,8 +379,9 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
               </div>
             )}
 
-            {/* Bottom: control anchored bottom-LEFT. Empty for read-only. */}
-            <div className="relative z-[2] flex items-center">
+            {/* Bottom: control anchored bottom-LEFT (desktop only — the phone
+                moved it up to the header row). Empty for read-only. */}
+            <div className="relative z-[2] hidden md:flex items-center">
               {!isUnavailable && primary.toggleable && primary.onToggle && (
                 <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
               )}
@@ -461,6 +485,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                     size={19}
                     className={clsx(
                       'flex-shrink-0',
+                      // A row with a graph carries icon + name + curve + value in
+                      // a phone-width card; the icon is the one part the graph
+                      // already implies, so it goes first.
+                      hasHistory(entity) && entity.chart !== false && !entity.toggleable && 'hidden md:block',
                       entityUnavailable ? 'text-text-disabled' : (entity.active && entity.toggleable) ? 'text-green-500' : 'text-text-tertiary',
                     )}
                   />

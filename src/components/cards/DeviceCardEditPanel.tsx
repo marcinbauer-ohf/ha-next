@@ -158,7 +158,7 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, h
         )}
 
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-text-tertiary truncate leading-none mb-0.5">Editing card</p>
+          <p className="text-sm text-text-tertiary truncate leading-none mb-0.5">Editing device</p>
           <h2 className="text-2xl font-bold text-text-primary truncate leading-tight">{device.name}</h2>
         </div>
 

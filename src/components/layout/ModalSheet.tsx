@@ -32,6 +32,10 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
   useCloseOnScreensaver(open, onClose);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const mobileScrollRef = useRef<HTMLDivElement | null>(null);
+  // Y where a touch started while the sheet's content was already scrolled to
+  // the top; null once the gesture is claimed (or was never a candidate).
+  const overscrollFrom = useRef<number | null>(null);
   const dragControls = useDragControls();
   const { attach: attachDesktopFades, showTop: desktopTop, showBottom: desktopBottom } = useScrollFades<HTMLDivElement>();
   const { attach: attachMobileFades, showTop: mobileTop, showBottom: mobileBottom } = useScrollFades<HTMLDivElement>();
@@ -176,7 +180,10 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
               if (info.offset.y > 120 || info.velocity.y > 800) onClose();
             }}
             className="lg:hidden relative w-full bg-surface-lower rounded-t-ha-3xl overflow-hidden"
-            style={{ maxHeight: '82dvh' }}
+            style={{
+              maxHeight: '82dvh',
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))',
+            }}
           >
             <div
               className="flex justify-center py-ha-2 touch-none cursor-grab active:cursor-grabbing"
@@ -184,17 +191,43 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             >
               <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
             </div>
+            {/* Overscroll hands the gesture to the sheet: keep pulling down once
+                the content is already at its top and the sheet comes with you,
+                so dismissing never means aiming for the little grabber. */}
             {/* Pad past the home-indicator / gesture bar, plus a little breathing
                 room so content never kisses the device's bottom edge. */}
             <div className="relative">
               <div className={clsx('absolute top-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', mobileTop ? 'opacity-100' : 'opacity-0')} />
               <div className={clsx('absolute bottom-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', mobileBottom ? 'opacity-100' : 'opacity-0')} />
               <div
-                ref={attachMobileFades}
-                className="overflow-y-auto scrollbar-hide"
+                ref={(el) => { attachMobileFades(el); mobileScrollRef.current = el; }}
+                onPointerDown={(e) => {
+                  if (e.pointerType === 'mouse') return;
+                  // Charts, timelines and sliders own their gesture — scrubbing
+                  // one must never turn into "close the sheet".
+                  if ((e.target as Element | null)?.closest?.('[data-sheet-drag="none"]')) {
+                    overscrollFrom.current = null;
+                    return;
+                  }
+                  overscrollFrom.current = (mobileScrollRef.current?.scrollTop ?? 0) <= 0 ? e.clientY : null;
+                }}
+                onPointerMove={(e) => {
+                  if (overscrollFrom.current === null) return;
+                  // Only a downward pull, and only while still pinned at the top.
+                  if ((mobileScrollRef.current?.scrollTop ?? 0) > 0) { overscrollFrom.current = null; return; }
+                  if (e.clientY - overscrollFrom.current < 12) return;
+                  overscrollFrom.current = null;
+                  dragControls.start(e);
+                }}
+                onPointerUp={() => { overscrollFrom.current = null; }}
+                onPointerCancel={() => { overscrollFrom.current = null; }}
+                className="overflow-y-auto scrollbar-hide overscroll-contain"
                 style={{
-                  maxHeight: 'calc(82dvh - 20px)',
-                  paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))',
+                  // The padding lives on the sheet, not in here: inside the
+                  // scrollport it counts toward scrollHeight, so a panel sized to
+                  // fill the sheet always overflowed by exactly the padding —
+                  // which is what pushed its header out of view on the phone.
+                  maxHeight: 'calc(82dvh - 20px - env(safe-area-inset-bottom, 0px) - var(--ha-space-4, 16px))',
                 }}
               >
                 {content}

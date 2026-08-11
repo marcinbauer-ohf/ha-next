@@ -250,7 +250,7 @@ export function AutomationDetailPanel({
   return (
     // Same frame as the device dialog: one height for every automation, a
     // scrolling middle, and a fixed shelf of what it touches at the bottom.
-    <div className="h-[min(78dvh,760px)] lg:h-[min(85vh,780px)] flex flex-col overflow-hidden">
+    <div className="h-[min(70dvh,760px)] lg:h-[min(85vh,780px)] flex flex-col overflow-hidden">
       {/* Header — close on the left, eyebrow over a large name, actions right. */}
       <div className="flex items-start justify-between gap-2 px-ha-4 pt-ha-4 pb-ha-2 shrink-0">
         <button

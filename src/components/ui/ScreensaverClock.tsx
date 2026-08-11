@@ -889,6 +889,17 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         </p>
       </div>
 
+      {/* Phone: the screen dismisses by dragging it away, which is invisible
+          without something to grab. A grabber at the bottom edge — the same pill
+          every bottom sheet uses — says "this whole screen pulls". */}
+      <div
+        aria-hidden
+        className="lg:hidden pointer-events-none absolute inset-x-0 flex justify-center"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
+      >
+        <div className="h-1 w-10 rounded-full bg-white/35" />
+      </div>
+
       </div>
 
       {/* Voice mode overlay — covers the shader with its own reactive scene */}
