@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Icon } from './Icon';
+import { motion, useReducedMotion } from 'framer-motion';
 import { HALogo } from './HALogo';
 import { RingShaderBackground, useRingOrigin } from './RingShaderBackground';
 import { useFeatureFlags, useWeatherParams } from '@/hooks';
-import { mdiCheckCircle } from '@mdi/js';
+import { DISPLAY_FONT } from '@/components/onboarding/ui';
 import type { SystemUpdateInstall } from '@/lib/homeassistant/selectors';
 
 /** Where the update flow is: installing → restarting (socket gone) → settling (back, confirming). */
@@ -23,21 +23,8 @@ interface SystemUpdateOverlayProps {
   onDismissPreview?: () => void;
 }
 
-function statusLine(phase: SystemUpdatePhase, install: SystemUpdateInstall | null): string {
-  const target = install?.targetVersion ? ` ${install.targetVersion}` : '';
-  switch (phase) {
-    case 'installing':
-      return install?.percentage != null
-        ? `Installing${target} — ${install.percentage}%`
-        : `Installing the update${target}…`;
-    case 'restarting':
-      return 'Restarting your home. Reconnecting…';
-    case 'settling':
-      return 'Finishing up…';
-  }
-}
-
 export function SystemUpdateOverlay({ visible, install, phase, onDismissPreview }: SystemUpdateOverlayProps) {
+  const reduce = useReducedMotion();
   // Warp shader background — same wallpaper as onboarding, so update/restart
   // reads as the same family of screens.
   const { wavyBackgroundEnabled } = useFeatureFlags();
@@ -67,7 +54,6 @@ export function SystemUpdateOverlay({ visible, install, phase, onDismissPreview 
   }, [visible]);
 
   const isImmersiveMode = true;
-  const showLabel = install?.label ?? 'Home Assistant';
   const percentage = install?.percentage ?? null;
   const settling = phase === 'settling';
   // Restart with no update entity behind it (e.g. Settings → System → Restart).
@@ -113,26 +99,31 @@ export function SystemUpdateOverlay({ visible, install, phase, onDismissPreview 
         />
       )}
 
-      <div className="relative flex flex-col items-center text-center max-w-md">
-        {/* Bare logo — no circle, matching the onboarding hero. Gently pulsing
-            while working; settles to a check when done. */}
-        <div className="relative mb-ha-6">
-          {settling ? (
-            <Icon path={mdiCheckCircle} size={64} className="text-green-500" />
-          ) : (
-            <HALogo size={64} className="animate-pulse" />
-          )}
-        </div>
+      {/* Onboarding grammar: breathing logo, one hero line, nothing else.
+          Progress is the only supporting element, and only while working. */}
+      <div className="relative flex flex-col items-center text-center gap-ha-6 max-w-lg">
+        <motion.div
+          animate={reduce || settling ? undefined : { scale: [1, 1.06, 1] }}
+          transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <HALogo size={64} />
+        </motion.div>
 
-        <h1 className="text-2xl md:text-3xl font-semibold text-text-primary leading-tight">
+        <h1
+          className="text-[2.6rem] leading-[1.08] md:text-6xl font-semibold tracking-tight text-text-primary text-balance"
+          style={DISPLAY_FONT}
+        >
           {heading}
         </h1>
-        <p className="mt-ha-2 text-base text-text-secondary">{showLabel}</p>
 
-        {/* Progress: determinate bar when a % is reported, animated shimmer when not */}
         {!settling && (
-          <div className="mt-ha-6 w-64 max-w-full">
-            <div className="h-1.5 w-full rounded-full bg-surface-lower overflow-hidden">
+          <div className="w-56 max-w-full">
+            <div
+              role="progressbar"
+              aria-label={heading}
+              aria-valuenow={percentage ?? undefined}
+              className="h-1 w-full rounded-full bg-surface-lower overflow-hidden"
+            >
               {percentage != null ? (
                 <div
                   className="h-full rounded-full bg-ha-blue transition-[width] duration-500 ease-out"
@@ -142,19 +133,11 @@ export function SystemUpdateOverlay({ visible, install, phase, onDismissPreview 
                 <div className="ha-indeterminate-bar h-full rounded-full bg-ha-blue" />
               )}
             </div>
-            <p className="mt-ha-3 text-sm text-text-secondary tabular-nums">
-              {statusLine(phase, install)}
-            </p>
           </div>
         )}
 
-        <p className="mt-ha-8 text-sm text-text-disabled leading-relaxed">
-          This can take a few minutes. Your devices keep running — the screen
-          returns on its own once your home is back.
-        </p>
-
         {onDismissPreview && (
-          <p className="mt-ha-6 text-xs font-medium uppercase tracking-wide text-text-disabled">
+          <p className="text-xs font-medium uppercase tracking-wide text-text-disabled">
             Preview · tap anywhere or press Esc to close
           </p>
         )}

@@ -6,7 +6,7 @@ import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { CONTENT_SHELL } from '@/lib/layout';
 import { SettingsNavPanel } from '@/components/profile';
 import { SettingsDetailPage } from '@/components/profile/SettingsDetailPage';
-import { useHeader } from '@/contexts';
+import { useHeader, useDebugFlags } from '@/contexts';
 import { type SettingsSlug, isSettingsSlug, isAdminOnlySlug, getDefaultSettingsSlug, getVisibleSettingsNavSections } from '@/components/profile/settingsNavigation';
 import { useHomeAssistant } from '@/hooks';
 import { subscribeSettingsReset } from '@/lib/settingsResetBus';
@@ -52,19 +52,23 @@ function SettingsWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAdmin } = useHomeAssistant();
+  const { hideHomeCenterEnabled } = useDebugFlags();
   // Honour a `?section=<slug>` deep-link (e.g. the clock pop-up's "Open Home
   // Center") so callers can open the two-column layout focused on a section.
   // Ignore it if it points at an admin-only section the current user can't see.
   const requestedSection = searchParams.get('section');
   const requestedSlugValid = requestedSection && isSettingsSlug(requestedSection) && (isAdmin || !isAdminOnlySlug(requestedSection));
   const [activeSlug, setActiveSlug] = useState<SettingsSlug>(
-    requestedSlugValid ? (requestedSection as SettingsSlug) : getDefaultSettingsSlug(isAdmin),
+    requestedSlugValid ? (requestedSection as SettingsSlug) : getDefaultSettingsSlug(isAdmin, hideHomeCenterEnabled),
   );
 
   // If the preview-as-non-admin toggle flips while an admin-only section is
   // open, render the default instead of the gated page — computed rather than
   // synced back into state via an effect, to avoid an extra render.
-  const effectiveActiveSlug = !isAdmin && isAdminOnlySlug(activeSlug) ? getDefaultSettingsSlug(isAdmin) : activeSlug;
+  // Same fallback covers the hide-Home-Center prototyping flag flipping on
+  // while Home Center is the open section.
+  const slugHidden = (!isAdmin && isAdminOnlySlug(activeSlug)) || (hideHomeCenterEnabled && activeSlug === 'home-center');
+  const effectiveActiveSlug = slugHidden ? getDefaultSettingsSlug(isAdmin, hideHomeCenterEnabled) : activeSlug;
   // True while a focused editor (automation editor) is open in column 2 — the
   // nav column slides away so the editor gets the full workspace width.
   const [editorFocus, setEditorFocus] = useState(false);
@@ -97,14 +101,14 @@ function SettingsWorkspace() {
   // Re-tapping the settings entry point while already here resets to the
   // default view (Home Center). Setting the section also clears any drill-down,
   // since SettingsDetailPage resets its detail when the active slug changes.
-  useEffect(() => subscribeSettingsReset(() => setActiveSlug(getDefaultSettingsSlug(isAdmin))), [isAdmin]);
+  useEffect(() => subscribeSettingsReset(() => setActiveSlug(getDefaultSettingsSlug(isAdmin, hideHomeCenterEnabled))), [isAdmin, hideHomeCenterEnabled]);
 
   // Keyboard shortcuts — [ / ] step through the sidebar sections, D jumps to
   // Prototype & Debug Tools. Single keys skip text fields (the nav search) and
   // open dialogs; paused while a focused editor owns the workspace.
   useEffect(() => {
     if (editorFocus) return;
-    const slugs = getVisibleSettingsNavSections(isAdmin).flatMap((section) => section.items.map((item) => item.slug));
+    const slugs = getVisibleSettingsNavSections(isAdmin, hideHomeCenterEnabled).flatMap((section) => section.items.map((item) => item.slug));
     const handler = (e: KeyboardEvent) => {
       if (!canFireBareShortcut(e)) return;
       if (matchShortcut(e, 'settings.debug')) {
@@ -125,7 +129,7 @@ function SettingsWorkspace() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [editorFocus, isDesktop, router, isAdmin]);
+  }, [editorFocus, isDesktop, router, isAdmin, hideHomeCenterEnabled]);
 
   return (
     <AppSurfacePage scrollClassName="xl:h-full">

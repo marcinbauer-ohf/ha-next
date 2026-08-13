@@ -6,6 +6,7 @@ import { Icon, SearchField, NavChevron } from '../ui';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useDeviceStructure } from '@/hooks';
 import { getHaVersion } from '@/lib/homeassistant';
+import { useDebugFlags } from '@/contexts';
 import { APP_BUILD } from '@/lib/version';
 import {
   arePrimaryPeopleEqual,
@@ -107,6 +108,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
   const { haUrl, connected, demoMode, callService, currentUser, isAdmin, previewAsNonAdmin, setPreviewAsNonAdmin } = useHomeAssistant();
   const { devices, services } = useDeviceStructure();
   const primaryPerson = useHomeAssistantSelector(selectPrimaryPerson, arePrimaryPeopleEqual);
+  const { hideHomeCenterEnabled } = useDebugFlags();
   const [searchQuery, setSearchQuery] = useState('');
   const haVersion = getHaVersion();
   const systemControlsEnabled = connected && !demoMode && isAdmin;
@@ -166,7 +168,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
   }, [autoScrollActiveIntoView, activeSlug]);
 
   const visibleSections = useMemo(() => {
-    const sections = getVisibleSettingsNavSections(isAdmin);
+    const sections = getVisibleSettingsNavSections(isAdmin, hideHomeCenterEnabled);
     const q = searchQuery.trim().toLowerCase();
     if (!q) return sections;
     return sections
@@ -179,7 +181,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
         ),
       }))
       .filter(section => section.items.length > 0);
-  }, [searchQuery, isAdmin]);
+  }, [searchQuery, isAdmin, hideHomeCenterEnabled]);
 
   // Developer Tools gets its own labeled card (like System), so split it out of
   // the unified categories card while keeping it in the search-filtered set.

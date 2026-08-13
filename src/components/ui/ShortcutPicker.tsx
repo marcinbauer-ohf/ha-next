@@ -168,7 +168,7 @@ export function ShortcutPicker({ open, onClose }: { open: boolean; onClose: () =
         </div>
 
         {/* Search */}
-        <div className="flex items-center gap-ha-2 h-11 px-ha-3 rounded-ha-xl bg-surface-low border border-surface-lower focus-within:border-ha-blue/50 transition-colors">
+        <div className="flex items-center gap-ha-2 h-11 px-ha-3 rounded-ha-xl bg-surface-low transition-colors">
           <Icon path={mdiMagnify} size={18} className="text-text-tertiary flex-shrink-0" />
           <input
             value={query}
@@ -226,14 +226,14 @@ export function ShortcutPicker({ open, onClose }: { open: boolean; onClose: () =
               value={linkLabel}
               onChange={(e) => setLinkLabel(e.target.value)}
               placeholder="Name"
-              className="w-full h-10 px-ha-3 rounded-ha-lg bg-surface-default border border-surface-lower outline-none focus:border-ha-blue/50 text-sm text-text-primary placeholder:text-text-tertiary transition-colors"
+              className="w-full h-10 px-ha-3 rounded-ha-lg bg-surface-default outline-none text-sm text-text-primary placeholder:text-text-tertiary transition-colors"
             />
             <input
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               placeholder="https://…"
               inputMode="url"
-              className="w-full h-10 px-ha-3 rounded-ha-lg bg-surface-default border border-surface-lower outline-none focus:border-ha-blue/50 text-sm text-text-primary placeholder:text-text-tertiary transition-colors"
+              className="w-full h-10 px-ha-3 rounded-ha-lg bg-surface-default outline-none text-sm text-text-primary placeholder:text-text-tertiary transition-colors"
             />
             <button
               type="button"

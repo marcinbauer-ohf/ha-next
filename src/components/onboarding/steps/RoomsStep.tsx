@@ -20,7 +20,7 @@ import {
   mdiWashingMachine,
 } from '@mdi/js';
 import { floorNames, uid, type OnbRoom, type StepProps } from '../types';
-import { PrimaryPill, StepSubtitle, StepTitle } from '../ui';
+import { PrimaryPill, StepActions, StepSubtitle, StepTitle } from '../ui';
 
 const PRESETS: Array<{ name: string; icon: string; haIcon: string }> = [
   { name: 'Living room', icon: mdiSofaOutline, haIcon: 'mdi:sofa-outline' },
@@ -151,7 +151,7 @@ export function RoomsStep({ state, update, next, floor: active }: RoomsStepProps
             placeholder="Add your own room…"
             maxLength={24}
             aria-label={count > 1 ? `Add your own room on the ${names[active]}` : 'Add your own room'}
-            className="flex-1 h-11 px-ha-4 rounded-ha-pill bg-surface-low/70 backdrop-blur-sm border border-surface-lower text-sm text-text-primary placeholder:text-text-tertiary select-text focus:outline-none focus:ring-2 focus:ring-ha-blue/40 focus:border-ha-blue/60 transition-colors"
+            className="flex-1 h-11 px-ha-4 rounded-ha-pill bg-surface-low/70 backdrop-blur-sm text-sm text-text-primary placeholder:text-text-tertiary select-text focus:outline-none transition-colors"
           />
           <button
             type="submit"
@@ -163,22 +163,23 @@ export function RoomsStep({ state, update, next, floor: active }: RoomsStepProps
           </button>
         </form>
 
-        <div className="flex flex-col items-center gap-ha-2">
+        {/* Hint above the pill: the stack is bottom-anchored, so the CTA stays
+            in the bottom-nav band whether or not the hint shows. */}
+        <StepActions>
+          {here === 0 && (
+            <p className="text-[13px] text-text-tertiary text-center">
+              {count > 1
+                ? 'Nothing on this floor? Just continue — you can add rooms whenever.'
+                : 'Not sure yet? That’s fine — continue and add rooms whenever.'}
+            </p>
+          )}
           {/* min-width keeps the pill from resizing/recentering as the label changes. */}
           <div className="min-w-[260px] flex justify-center">
             <PrimaryPill onClick={next}>
               {here > 0 ? `Continue with ${here} ${here === 1 ? 'room' : 'rooms'}` : 'Continue'}
             </PrimaryPill>
           </div>
-          {/* Reserved line so the hint appearing/disappearing never shifts the CTA. */}
-          <p className="text-[13px] text-text-tertiary min-h-[1.25rem]" aria-hidden={here > 0}>
-            {here === 0
-              ? count > 1
-                ? 'Nothing on this floor? Just continue — you can add rooms whenever.'
-                : 'Not sure yet? That’s fine — continue and add rooms whenever.'
-              : ''}
-          </p>
-        </div>
+        </StepActions>
       </div>
     </div>
   );

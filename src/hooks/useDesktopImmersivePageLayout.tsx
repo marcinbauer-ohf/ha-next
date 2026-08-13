@@ -2,9 +2,11 @@
 
 import { useMemo, type CSSProperties } from 'react';
 import { useImmersiveMode } from './useImmersiveMode';
+import { useDebugFlags } from '@/contexts';
 
 export function useDesktopImmersivePageLayout() {
   const { immersiveMode, immersivePhase } = useImmersiveMode();
+  const { hideHomeCenterEnabled } = useDebugFlags();
   const isImmersiveFixed = immersivePhase !== 'normal';
   // On mobile, immersive mode renders content edge-to-edge (full-bleed) just like
   // the dashboard does: the grey surface meets the screen edges (square corners,
@@ -23,7 +25,11 @@ export function useDesktopImmersivePageLayout() {
     // it: pt-ha-2 (--ha-space-2) + 48px content row + pb-6 (1.5rem). The footer
     // has no solid backing, so any under-count lets dashboard cards show through
     // around the activity chips (they appear to "float out" over the content).
-    const statusBarHeight = 'calc(var(--ha-space-2) + 48px + 1.5rem)';
+    // With the bottom bar hidden by the prototyping flag there is no chrome to
+    // clear — only the edge-padding spacer StatusBar leaves behind.
+    const statusBarHeight = hideHomeCenterEnabled
+      ? 'var(--ha-edge-padding)'
+      : 'calc(var(--ha-space-2) + 48px + 1.5rem)';
     const compensatingPadding = {
       paddingLeft: 'calc(2 * var(--ha-edge-padding) + 64px)',
       paddingTop: 'calc(var(--ha-edge-padding) + 64px)',
@@ -61,7 +67,7 @@ export function useDesktopImmersivePageLayout() {
               transition: 'padding 300ms ease-out',
             }),
     };
-  }, [immersivePhase, isImmersiveFixed]);
+  }, [immersivePhase, isImmersiveFixed, hideHomeCenterEnabled]);
 
   const contentPaddingClasses = isImmersiveFixed
     ? ''

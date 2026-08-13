@@ -276,6 +276,32 @@ export async function getCoreConfig(): Promise<HaCoreConfig | null> {
   }
 }
 
+/** The subset of core config onboarding writes (Settings → System → General). */
+export interface CoreConfigWriteFields {
+  latitude?: number;
+  longitude?: number;
+  elevation?: number;
+}
+
+export async function updateCoreConfig(fields: CoreConfigWriteFields): Promise<void> {
+  await requireConnection().sendMessagePromise({
+    type: 'config/core/update',
+    ...pruneUndefined(fields),
+  });
+}
+
+/** Home Assistant's analytics opt-ins — same four buckets its own onboarding offers. */
+export interface AnalyticsPreferences {
+  base: boolean;
+  diagnostics: boolean;
+  usage: boolean;
+  statistics: boolean;
+}
+
+export async function setAnalyticsPreferences(preferences: AnalyticsPreferences): Promise<void> {
+  await requireConnection().sendMessagePromise({ type: 'analytics/preferences', preferences });
+}
+
 export async function getIntegrationManifests(): Promise<IntegrationManifest[]> {
   const conn = connection ?? await waitForConnection();
   if (!conn) return [];
@@ -702,6 +728,50 @@ export async function getPanels(): Promise<Record<string, HaPanel>> {
     console.error('getPanels error:', err);
     throw err;
   }
+}
+
+/** One installed Supervisor add-on. `slug` is also its sidebar panel's key. */
+export interface HaAddon {
+  slug: string;
+  name: string;
+  /** 'started' | 'stopped' | 'error' | 'unknown' */
+  state: string;
+  update_available?: boolean;
+}
+
+/**
+ * Installed add-ons from the Supervisor. Throws on core-only installs (no
+ * Supervisor) and for non-admin users — callers should treat a rejection as
+ * "this instance has no add-ons to report" and stop asking.
+ */
+export async function getAddons(): Promise<HaAddon[]> {
+  const activeConnection = connection ?? await waitForConnection();
+
+  if (!activeConnection) {
+    throw new Error('Not connected to Home Assistant');
+  }
+
+  const result = await activeConnection.sendMessagePromise<{ addons?: HaAddon[] }>({
+    type: 'supervisor/api',
+    endpoint: '/addons',
+    method: 'get',
+  });
+  return result?.addons ?? [];
+}
+
+/** Uninstall an add-on. Irreversible — the caller owns the confirmation. */
+export async function uninstallAddon(slug: string): Promise<void> {
+  const activeConnection = connection ?? await waitForConnection();
+
+  if (!activeConnection) {
+    throw new Error('Not connected to Home Assistant');
+  }
+
+  await activeConnection.sendMessagePromise({
+    type: 'supervisor/api',
+    endpoint: `/addons/${slug}/uninstall`,
+    method: 'post',
+  });
 }
 
 export async function getDashboards(): Promise<HaDashboard[]> {

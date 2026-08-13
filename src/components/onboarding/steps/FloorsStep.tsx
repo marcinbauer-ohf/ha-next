@@ -4,7 +4,7 @@ import { Icon } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { mdiMinus, mdiPlus } from '@mdi/js';
 import { clampRoomsToFloors, floorNames, MAX_FLOORS, type StepProps } from '../types';
-import { DISPLAY_FONT, PrimaryPill, StepSubtitle, StepTitle } from '../ui';
+import { DISPLAY_FONT, PrimaryPill, StepActions, StepSubtitle, StepTitle } from '../ui';
 
 /** How many storeys the home has. The next step puts rooms on them. */
 export function FloorsStep({ state, update, next }: StepProps) {
@@ -45,7 +45,9 @@ export function FloorsStep({ state, update, next }: StepProps) {
 
         <p className="text-[13px] text-text-tertiary max-w-[420px]">{floorNames(count).join(' · ')}</p>
 
-        <PrimaryPill onClick={next}>Continue</PrimaryPill>
+        <StepActions>
+          <PrimaryPill onClick={next}>Continue</PrimaryPill>
+        </StepActions>
       </div>
     </div>
   );

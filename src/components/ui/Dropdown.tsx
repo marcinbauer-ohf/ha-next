@@ -125,7 +125,7 @@ export function Dropdown<T extends string>({
           aria-expanded={open}
           className="inline-flex items-center bg-surface-mid rounded-ha-xl p-[3px]"
         >
-          <span className="flex items-center gap-1 rounded-ha-lg bg-surface-default px-ha-3 py-1.5 text-sm font-medium text-text-primary shadow-sm">
+          <span className="flex items-center gap-1 rounded-ha-lg bg-surface-default px-ha-3 py-1.5 text-sm font-medium text-text-primary">
             {current?.label ?? ''}
             <Icon
               path={mdiChevronDown}

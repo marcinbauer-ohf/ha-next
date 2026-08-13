@@ -2,7 +2,7 @@
 
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { EditorToolbarShell } from '../layout/EditorToolbarShell';
+import { EditorToolbarShell, ToolbarPrimaryButton } from '../layout/EditorToolbarShell';
 import { Icon } from '../ui/Icon';
 import {
   mdiAutoFix,
@@ -41,12 +41,12 @@ function ViewToggle({ id, view, onChange }: { id: string; view: AreaView; onChan
             aria-pressed={active}
             aria-label={seg.label}
             title={seg.label}
-            className="relative flex h-9 flex-1 items-center justify-center gap-ha-2 rounded-ha-lg px-ha-3 lg:flex-none"
+            className="relative flex h-10 flex-1 items-center justify-center gap-ha-2 rounded-ha-lg px-ha-3 lg:flex-none"
           >
             {active && (
               <motion.span
                 layoutId={`${id}-area-view-indicator`}
-                className="absolute inset-0 rounded-ha-lg bg-surface-default shadow-sm"
+                className="absolute inset-0 rounded-ha-lg bg-surface-default"
                 transition={SEGMENT_SPRING}
               />
             )}
@@ -78,12 +78,12 @@ function MapSubToggle({ subMode, onChange }: { subMode: MapSubMode; onChange: (m
             aria-pressed={active}
             aria-label={seg.label}
             title={seg.label}
-            className="relative flex h-9 items-center gap-ha-2 rounded-ha-lg px-ha-3"
+            className="relative flex h-10 items-center gap-ha-2 rounded-ha-lg px-ha-3"
           >
             {active && (
               <motion.span
                 layoutId="area-submode-indicator"
-                className="absolute inset-0 rounded-ha-lg bg-surface-default shadow-sm"
+                className="absolute inset-0 rounded-ha-lg bg-surface-default"
                 transition={SEGMENT_SPRING}
               />
             )}
@@ -104,7 +104,7 @@ function StepButton({ icon, label, onClick, disabled }: { icon: string; label: s
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-9 w-9 items-center justify-center rounded-ha-lg transition-colors ${
+      className={`flex h-10 w-10 items-center justify-center rounded-ha-lg transition-colors ${
         disabled ? 'text-text-disabled opacity-40' : 'text-text-secondary hover:bg-surface-mid'
       }`}
     >
@@ -144,11 +144,11 @@ function DrawButton({ active, disabled, onClick }: { active: boolean; disabled?:
       title="Draw area"
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-9 items-center gap-ha-2 rounded-ha-xl px-ha-3 text-sm font-semibold transition-colors ${
+      className={`flex h-11 items-center gap-ha-2 rounded-ha-xl px-ha-3 text-sm font-semibold transition-colors ${
         disabled
           ? 'text-text-disabled opacity-40'
           : active
-            ? 'bg-ha-blue text-white'
+            ? 'bg-surface-mid text-text-primary'
             : 'bg-surface-low text-text-secondary hover:bg-surface-mid'
       }`}
     >
@@ -201,13 +201,7 @@ export function AreasEditorToolbar({
           <div className="flex items-center gap-ha-2">
             <ViewToggle id="m" view={view} onChange={onChangeView} />
             <div className="flex-1" />
-            <button
-              type="button"
-              onClick={onDone}
-              className="h-11 rounded-ha-pill bg-ha-blue px-6 text-sm font-semibold text-white transition-transform active:scale-95"
-            >
-              Done
-            </button>
+            <ToolbarPrimaryButton label="Done" onClick={onDone} />
           </div>
           {mapMode && (
             <div className="mt-ha-2 flex items-center gap-ha-2">
@@ -221,7 +215,7 @@ export function AreasEditorToolbar({
                   onClick={onGenerate}
                   aria-label={areasSub ? 'Generate test layout' : 'Randomly place devices'}
                   title={areasSub ? 'Generate test layout' : 'Randomly place devices'}
-                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-ha-xl bg-surface-low text-text-secondary transition-colors hover:bg-surface-mid"
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-ha-xl bg-surface-low text-text-secondary transition-colors hover:bg-surface-mid"
                 >
                   <Icon path={mdiAutoFix} size={18} />
                 </button>
@@ -246,20 +240,14 @@ export function AreasEditorToolbar({
                   onClick={onGenerate}
                   aria-label={areasSub ? 'Generate test layout' : 'Randomly place devices'}
                   title={areasSub ? 'Generate test layout' : 'Randomly place devices'}
-                  className="flex h-9 w-9 items-center justify-center rounded-ha-xl bg-surface-low text-text-secondary transition-colors hover:bg-surface-mid"
+                  className="flex h-11 w-11 items-center justify-center rounded-ha-xl bg-surface-low text-text-secondary transition-colors hover:bg-surface-mid"
                 >
                   <Icon path={mdiAutoFix} size={18} />
                 </button>
               )}
             </>
           )}
-          <button
-            type="button"
-            onClick={onDone}
-            className="ml-ha-1 h-11 rounded-ha-pill bg-ha-blue px-6 text-sm font-semibold text-white transition-all hover:bg-ha-blue/90 active:scale-95"
-          >
-            Done
-          </button>
+          <ToolbarPrimaryButton label="Done" onClick={onDone} className="ml-ha-1" />
         </>
       }
     />,

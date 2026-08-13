@@ -5,16 +5,20 @@ import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
 import { Avatar } from './Avatar';
 import { RollingDigit } from './RollingDigit';
+import { RollingNumericValue } from './RollingNumericValue';
 import { useHomeAssistant, useHomeAssistantSelector, useFeatureFlags, useHomeEventReactor, useHomePingPulse, useHomeCenterPrefs, useWeatherParams, useHomeSummary, summaryToSentence } from '@/hooks';
-import { useNotificationCenter } from '@/contexts';
+import { useActivities } from '@/hooks/useActivities';
+import { ALERT_WINDOW_MS, type ActivitiesSnapshot, type ActivityStatus, type ActivityType } from '@/lib/activities/types';
+import { useNotificationCenter, useDebugFlags } from '@/contexts';
 import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
 import {
   mdiDevices,
   mdiBell,
+  mdiCheckCircle,
+  mdiCloudUpload,
   mdiDoorbellVideo,
-  mdiPause,
   mdiPlay,
-  mdiTimerOutline,
+  mdiShieldAlert,
   mdiUpdate,
   mdiWeb,
   mdiWrench,
@@ -34,9 +38,7 @@ import { RingShaderBackground, useRingOrigin } from './RingShaderBackground';
 import { ScreensaverPulseLog } from './ScreensaverPulseLog';
 import { EnergyGlance } from '../glances';
 import {
-  areActivityDataEqual,
   areScreensaverDataEqual,
-  selectActivityData,
   selectScreensaverData,
 } from '@/lib/homeassistant/selectors';
 
@@ -66,212 +68,431 @@ function ActivityCountBadge({ count, variant = 'neutral' }: { count: number; var
   );
 }
 
-// Activity pills for the screensaver — identical styling to the main dashboard
-// StatusBar collapsed pills, but non-interactive (display only).
+// Formatting mirrors the dashboard StatusBar pills so both surfaces phrase the
+// same activity identically.
+function formatTimeRemaining(seconds: number): string {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hrs > 0) return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatRelativeAge(sinceIso: string, nowMs: number): string {
+  const since = Date.parse(sinceIso);
+  if (!Number.isFinite(since)) return '';
+  const seconds = Math.max(0, Math.floor((nowMs - since) / 1000));
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+}
+
+/** Never render a blank or zero countdown — show working intent instead. */
+function formatRemainingLabel(remaining: string | undefined): string {
+  if (!remaining || parseTimeToSeconds(remaining) <= 0) return 'Calculating…';
+  return remaining;
+}
+
+function formatProgressLabel(progress: number | null): string {
+  return progress === null ? 'Calculating…' : `${progress}%`;
+}
+
+function isAlerting(status: ActivityStatus, nowMs: number): boolean {
+  return status.alertAt !== null && nowMs - status.alertAt < ALERT_WINDOW_MS;
+}
+
+// Shared pill geometry: the same 48px pill, 28px leading glyph and two-line
+// label as the dashboard StatusBar pills. Only the palette differs — these sit
+// on the screensaver's dark backdrop, so surface/text tokens become white
+// alphas and the semantic colours lighten a step.
+const PILL = 'relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12';
+const PILL_TONE = {
+  neutral: TRANSLUCENT_CHIP_FILL,
+  good: 'bg-green-500/15 border border-green-500/30',
+  bad: 'bg-red-500/15 border border-red-500/30',
+  warn: 'bg-yellow-400/15 border border-yellow-400/30',
+} as const;
+const PILL_TEXT = 'flex flex-col min-w-0 max-lg:portrait:max-w-none max-lg:portrait:flex-1';
+const PILL_LABEL = 'text-sm font-semibold text-white truncate';
+const PILL_SUB = 'text-xs text-white/70 truncate';
+const PILL_UNIT = 'text-[13px] text-white/50 uppercase font-bold tracking-tighter';
+const PILL_SIDE = 'hidden xl:flex flex-col items-end ml-1 pl-2 border-l border-white/15';
+
+function pillClass(tone: keyof typeof PILL_TONE, status: ActivityStatus, nowMs: number, hide: string) {
+  return `${PILL} ${PILL_TONE[tone]} ${status.isStale ? 'opacity-70' : ''} ${isAlerting(status, nowMs) ? 'ha-status-pulse' : ''} ${hide}`;
+}
+
+/**
+ * Activity pills for the screensaver. Same ledger, same order, same content as
+ * the dashboard StatusBar dock (ended items linger with their final state,
+ * stale data dims, alerts flash) — but display-only: no click-through, no
+ * dismiss buttons, since the whole screensaver is a dismiss target.
+ */
 function ScreensaverActivityPills({
-  activityData,
+  activities,
   haUrl,
 }: {
-  activityData: ReturnType<typeof selectActivityData>;
+  activities: ActivitiesSnapshot;
   haUrl: string | undefined;
 }) {
+  // Countdowns, relative ages and the alert flash all need a client tick.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const picUrl = (picture?: string, fallback?: string) =>
     resolveEntityPictureUrl(haUrl, picture) ?? fallback;
 
-  const pills: React.ReactNode[] = [];
   // Phone portrait shows at most this many pills; the rest collapse into a "+N more" chip.
   const MOBILE_PILL_LIMIT = 3;
-  const mobileHide = () => (pills.length >= MOBILE_PILL_LIMIT ? 'max-md:portrait:hidden' : '');
 
-  if (activityData.activeReleaseNotes.length > 0) {
-    const note = activityData.activeReleaseNotes[0];
-    pills.push(
-      <div
-        key="release-notes"
-        className={`relative flex items-center gap-ha-3 ${TRANSLUCENT_CHIP_FILL} rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
-      >
-        <div className="relative">
-          <div className="w-8 h-8 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
-            <Icon path={mdiUpdate} size={16} className="text-green-600" />
-          </div>
-          <ActivityCountBadge count={activityData.activeReleaseNotes.length} variant="green" />
-        </div>
-        <div className="flex flex-col min-w-0 max-w-[180px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
-          <span className="text-sm font-medium text-white truncate">What&apos;s New</span>
-          <span className="text-xs text-white/70 truncate">{note.version}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (activityData.activePlayers.length > 0) {
-    const player = activityData.activePlayers[0];
-    const picture = picUrl(player.entityPicture);
-    pills.push(
-      <div
-        key="media"
-        className={`relative flex items-center gap-ha-3 ${TRANSLUCENT_CHIP_FILL} rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
-      >
-        <div className="relative">
-          {picture ? (
-            <img src={picture} alt="" className="w-8 h-8 rounded-full object-cover border border-surface-low" />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-fill-primary-normal flex items-center justify-center">
-              <Icon path={mdiPlay} size={16} className="text-ha-blue" />
+  const renderPill = (type: ActivityType, hide: string): React.ReactNode => {
+    switch (type) {
+      case 'release': {
+        const item = activities.releaseNotes[0];
+        if (!item) return null;
+        return (
+          <div key={type} className={pillClass('neutral', item.status, nowMs, hide)}>
+            <div className="relative">
+              <div className="w-7 h-7 rounded-full bg-green-500/15 border border-green-500/30 flex items-center justify-center">
+                <Icon path={mdiUpdate} size={14} className="text-green-400" />
+              </div>
+              <ActivityCountBadge count={activities.releaseNotes.length} variant="green" />
             </div>
-          )}
-          {player.state === 'playing' && (
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-ha-blue rounded-full border-2 border-surface-low flex items-center justify-center">
-              <span className="w-1 h-1 bg-white rounded-full animate-pulse" />
-            </span>
-          )}
-          <ActivityCountBadge count={activityData.activePlayers.length} />
-        </div>
-        <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
-          <span className="text-sm font-medium text-white truncate">
-            {player.mediaTitle || player.name}
-          </span>
-          <span className={`text-xs truncate ${player.state === 'paused' ? 'text-yellow-300' : 'text-white/70'}`}>
-            {player.mediaArtist || (player.state === 'playing' ? 'Playing' : 'Paused')}
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  if (activityData.activeTimers.length > 0) {
-    const timer = activityData.activeTimers[0];
-    const remainingSec = parseTimeToSeconds(timer.remaining);
-    const progress = timer.durationSec > 0 ? remainingSec / timer.durationSec : 0;
-    const isActive = timer.state === 'active';
-    pills.push(
-      <div
-        key="timer"
-        className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 ${TRANSLUCENT_CHIP_FILL} ${mobileHide()}`}
-      >
-        <div className="relative">
-          <ActivityCountBadge count={activityData.activeTimers.length} />
-          <CircularProgress
-            progress={progress}
-            size={32}
-            strokeWidth={2.5}
-            className={isActive ? 'text-ha-blue' : 'text-yellow-600'}
-            trackClassName={isActive ? 'text-fill-primary-quiet' : 'text-yellow-200'}
-          >
-            <Icon path={isActive ? mdiTimerOutline : mdiPause} size={14} className={isActive ? 'text-ha-blue' : 'text-yellow-600'} />
-          </CircularProgress>
-        </div>
-        <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
-          <span className="text-sm font-medium text-white truncate">{timer.remaining}</span>
-          <span className="text-xs text-white/70 truncate">{timer.name}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (activityData.activeCameras.length > 0) {
-    const camera = activityData.activeCameras[0];
-    pills.push(
-      <div
-        key="camera"
-        className={`relative flex items-center gap-ha-3 ${TRANSLUCENT_CHIP_FILL} rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
-      >
-        <div className="relative w-8 h-8 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
-          <img src={picUrl(camera.entityPicture, '/camera_doorbell.png')} alt="" className="w-full h-full object-cover animate-pulse" />
-          <div className="absolute inset-0 bg-red-500/10" />
-          <ActivityCountBadge count={activityData.activeCameras.length} />
-        </div>
-        <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
-          <span className="text-sm font-medium text-white truncate flex items-center gap-1">
-            <Icon path={mdiDoorbellVideo} size={14} className="text-red-400 shrink-0" />
-            {camera.name}
-          </span>
-          <span className="text-xs text-white/70 truncate">{camera.event}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (activityData.activePrinters.length > 0) {
-    const printer = activityData.activePrinters[0];
-    pills.push(
-      <div
-        key="printer"
-        className={`relative flex items-center gap-ha-3 ${TRANSLUCENT_CHIP_FILL} rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
-      >
-        <div className="relative">
-          <ActivityCountBadge count={activityData.activePrinters.length} />
-          <CircularProgress
-            progress={printer.progress / 100}
-            size={32}
-            strokeWidth={2.5}
-            className="text-ha-blue shrink-0"
-            trackClassName="text-fill-primary-quiet"
-          >
-            <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
-              <img src={picUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+            <div className={`${PILL_TEXT} max-w-[180px]`}>
+              <span className={PILL_LABEL}>What&apos;s New</span>
+              <span className={PILL_SUB}>{item.summary.version}</span>
             </div>
-          </CircularProgress>
-        </div>
-        <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
-          <div className="flex items-center gap-1">
-            <span className="text-sm font-medium text-white truncate font-mono">{printer.progress}%</span>
-            <span className="text-[13px] text-white/50 uppercase font-bold tracking-tighter">Printing</span>
           </div>
-          <span className="text-xs text-white/70 truncate">{printer.fileName}</span>
-        </div>
-      </div>
-    );
-  }
+        );
+      }
 
-  if (activityData.activeVacuums.length > 0) {
-    const vacuum = activityData.activeVacuums[0];
-    const status = vacuum.state === 'returning' ? 'Returning' : 'Cleaning';
-    pills.push(
-      <div
-        key="vacuum"
-        className={`relative flex items-center gap-ha-3 ${TRANSLUCENT_CHIP_FILL} rounded-ha-pill px-ha-3 h-12 ${mobileHide()}`}
-      >
-        <div className="relative">
-          <ActivityCountBadge count={activityData.activeVacuums.length} />
-          <CircularProgress
-            progress={vacuum.progress / 100}
-            size={32}
-            strokeWidth={2.5}
-            className="text-ha-blue shrink-0"
-            trackClassName="text-fill-primary-quiet"
-          >
-            <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-mid">
-              <img src={picUrl(vacuum.entityPicture, '/devices/robot_vacuum.png')} alt="" className="w-full h-full object-cover" />
+      case 'media': {
+        const item = activities.players[0];
+        if (!item) return null;
+        const player = item.summary;
+        const picture = picUrl(player.entityPicture);
+        return (
+          <div key={type} className={pillClass('neutral', item.status, nowMs, hide)}>
+            <div className="relative">
+              {picture ? (
+                <img src={picture} alt="" className="w-7 h-7 rounded-full object-cover border border-white/15" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-fill-primary-normal flex items-center justify-center">
+                  <Icon path={mdiPlay} size={14} className="text-ha-blue" />
+                </div>
+              )}
+              <ActivityCountBadge count={activities.players.length} />
             </div>
-          </CircularProgress>
-        </div>
-        <div className="flex flex-col min-w-0 max-w-[140px] max-lg:portrait:max-w-none max-lg:portrait:flex-1">
-          <div className="flex items-center gap-1">
-            <span className="text-sm font-medium text-white truncate font-mono">{vacuum.progress}%</span>
-            <span className="text-[13px] text-white/50 uppercase font-bold tracking-tighter flex items-center gap-0.5">
-              <Icon path={mdiRobotVacuum} size={13} className="text-ha-blue shrink-0" />
-              {status}
-            </span>
+            <div className={`${PILL_TEXT} max-w-[140px]`}>
+              <span className={PILL_LABEL}>{player.mediaTitle || player.name}</span>
+              <span className={`text-xs truncate ${player.state === 'paused' ? 'text-yellow-300' : 'text-white/70'}`}>
+                {player.mediaArtist || (player.state === 'playing' ? 'Playing' : 'Paused')}
+              </span>
+            </div>
           </div>
-          <span className="text-xs text-white/70 truncate">{vacuum.area || vacuum.name}</span>
+        );
+      }
+
+      case 'timer': {
+        const item = activities.timers[0];
+        if (!item) return null;
+        const { summary: timer, status } = item;
+        const ended = status.phase === 'ended';
+        const remainingSec = ended
+          ? 0
+          : timer.state === 'active' && timer.finishesAt
+            ? Math.max(0, Math.floor((Date.parse(timer.finishesAt) - nowMs) / 1000))
+            : parseTimeToSeconds(timer.remaining);
+        const progress = timer.durationSec > 0 ? remainingSec / timer.durationSec : 0;
+        const isActive = timer.state === 'active';
+        return (
+          <div key={type} className={pillClass(ended ? 'good' : 'neutral', status, nowMs, hide)}>
+            <div className="relative">
+              <ActivityCountBadge count={activities.timers.length} />
+              {ended ? (
+                <Icon path={mdiCheckCircle} size={26} className="text-green-400" />
+              ) : (
+                <CircularProgress
+                  progress={progress}
+                  size={28}
+                  strokeWidth={14}
+                  rounded={false}
+                  className={isActive ? 'text-ha-blue' : 'text-yellow-300'}
+                  trackClassName={isActive ? 'text-fill-primary-quiet' : 'text-yellow-200'}
+                />
+              )}
+            </div>
+            <div className={`${PILL_TEXT} max-w-[140px]`}>
+              {ended ? (
+                <span className="text-sm font-semibold text-green-400 truncate">{status.endLabel || 'Done'}</span>
+              ) : (
+                <RollingNumericValue value={formatTimeRemaining(remainingSec)} className="text-sm font-semibold text-white" />
+              )}
+              <span className={PILL_SUB}>{timer.name}</span>
+            </div>
+          </div>
+        );
+      }
+
+      case 'camera': {
+        const item = activities.cameras[0];
+        if (!item) return null;
+        const { summary: camera, status } = item;
+        const ended = status.phase === 'ended';
+        return (
+          <div key={type} className={pillClass(ended ? 'neutral' : 'bad', status, nowMs, hide)}>
+            <div className="relative w-7 h-7 rounded-full overflow-hidden bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/20">
+              <img
+                src={picUrl(camera.entityPicture, '/camera_doorbell.png')}
+                alt=""
+                className={`w-full h-full object-cover ${ended ? '' : 'animate-pulse'}`}
+              />
+              <div className="absolute inset-0 bg-red-500/10" />
+              <ActivityCountBadge count={activities.cameras.length} />
+            </div>
+            <div className={`${PILL_TEXT} max-w-[150px]`}>
+              <span className={`text-sm font-semibold truncate flex items-center gap-1 ${ended ? 'text-white' : 'text-red-400'}`}>
+                <Icon path={mdiDoorbellVideo} size={14} className="text-red-400 shrink-0" />
+                {camera.event}
+              </span>
+              <span className={PILL_SUB}>
+                {camera.name} • {formatRelativeAge(camera.since, nowMs)}
+              </span>
+            </div>
+          </div>
+        );
+      }
+
+      case 'printer': {
+        const item = activities.printers[0];
+        if (!item) return null;
+        const { summary: printer, status } = item;
+        const complete = status.phase === 'ended' && status.endLabel === 'Print complete';
+        return (
+          <div key={type} className={pillClass(complete ? 'good' : 'neutral', status, nowMs, hide)}>
+            <div className="relative">
+              <ActivityCountBadge count={activities.printers.length} />
+              {complete ? (
+                <Icon path={mdiCheckCircle} size={26} className="text-green-400" />
+              ) : (
+                <CircularProgress
+                  progress={printer.progress / 100}
+                  size={28}
+                  strokeWidth={2.5}
+                  className="text-ha-blue shrink-0"
+                  trackClassName="text-fill-primary-quiet"
+                >
+                  <div className="w-4 h-4 rounded-full overflow-hidden bg-surface-mid">
+                    <img src={picUrl(printer.entityPicture, '/printer_3d.png')} alt="" className="w-full h-full object-cover" />
+                  </div>
+                </CircularProgress>
+              )}
+            </div>
+            <div className={`${PILL_TEXT} max-w-[140px]`}>
+              {status.phase === 'ended' ? (
+                <span className={`text-sm font-semibold truncate ${complete ? 'text-green-400' : 'text-white'}`}>
+                  {status.endLabel}
+                </span>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <RollingNumericValue value={`${printer.progress}%`} className="text-sm font-semibold text-white font-mono" />
+                  <span className={PILL_UNIT}>Printing</span>
+                </div>
+              )}
+              <span className={PILL_SUB}>{printer.fileName || 'Unknown file'}</span>
+            </div>
+            {status.phase !== 'ended' && (
+              <div className={PILL_SIDE}>
+                <span className="text-[13px] text-white/50 font-bold leading-none mb-0.5 uppercase">Left</span>
+                <span className="text-xs font-mono text-white/70">{formatRemainingLabel(printer.remainingTime)}</span>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      case 'vacuum': {
+        const item = activities.vacuums[0];
+        if (!item) return null;
+        const { summary: vacuum, status } = item;
+        const ended = status.phase === 'ended';
+        const vacuumStatus = ended
+          ? (status.endLabel || 'Finished')
+          : vacuum.state === 'returning' ? 'Returning' : 'Cleaning';
+        return (
+          <div key={type} className={pillClass(ended ? 'good' : 'neutral', status, nowMs, hide)}>
+            <div className="relative">
+              <ActivityCountBadge count={activities.vacuums.length} />
+              {ended ? (
+                <Icon path={mdiCheckCircle} size={26} className="text-green-400" />
+              ) : (
+                <CircularProgress
+                  progress={vacuum.progress / 100}
+                  size={28}
+                  strokeWidth={2.5}
+                  className="text-ha-blue shrink-0"
+                  trackClassName="text-fill-primary-quiet"
+                >
+                  <div className="w-4 h-4 rounded-full overflow-hidden bg-surface-mid">
+                    <img src={picUrl(vacuum.entityPicture, '/devices/robot_vacuum.png')} alt="" className="w-full h-full object-cover" />
+                  </div>
+                </CircularProgress>
+              )}
+            </div>
+            <div className={`${PILL_TEXT} max-w-[140px]`}>
+              {ended ? (
+                <span className="text-sm font-semibold text-green-400 truncate">{vacuumStatus}</span>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <RollingNumericValue value={`${vacuum.progress}%`} className="text-sm font-semibold text-white font-mono" />
+                  <span className={`${PILL_UNIT} flex items-center gap-0.5`}>
+                    <Icon path={mdiRobotVacuum} size={13} className="text-ha-blue shrink-0" />
+                    {vacuumStatus}
+                  </span>
+                </div>
+              )}
+              <span className={PILL_SUB}>{vacuum.area || vacuum.name}</span>
+            </div>
+            {!ended && vacuum.battery !== undefined && (
+              <div className={PILL_SIDE}>
+                <span className="text-[13px] text-white/50 font-bold leading-none mb-0.5 uppercase">Batt</span>
+                <span className="text-xs font-mono text-white/70">{vacuum.battery}%</span>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      case 'update': {
+        const item = activities.updateInstalls[0];
+        if (!item) return null;
+        const { summary: update, status } = item;
+        const complete = status.phase === 'ended';
+        return (
+          <div key={type} className={pillClass(complete ? 'good' : 'neutral', status, nowMs, hide)}>
+            <div className="relative">
+              <ActivityCountBadge count={activities.updateInstalls.length} />
+              {complete ? (
+                <Icon path={mdiCheckCircle} size={26} className="text-green-400" />
+              ) : (
+                <CircularProgress
+                  progress={(update.percentage ?? 0) / 100}
+                  size={28}
+                  strokeWidth={2.5}
+                  className="text-ha-blue shrink-0"
+                  trackClassName="text-fill-primary-quiet"
+                />
+              )}
+            </div>
+            <div className={`${PILL_TEXT} max-w-[140px]`}>
+              {complete ? (
+                <span className="text-sm font-semibold text-green-400 truncate">{status.endLabel}</span>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <RollingNumericValue value={formatProgressLabel(update.percentage)} className="text-sm font-semibold text-white font-mono" />
+                  <span className={PILL_UNIT}>Update</span>
+                </div>
+              )}
+              <span className={PILL_SUB}>{update.name}</span>
+            </div>
+          </div>
+        );
+      }
+
+      case 'backup': {
+        const item = activities.backups[0];
+        if (!item) return null;
+        const { summary: backup, status } = item;
+        const complete = status.phase === 'ended';
+        const failed = status.endLabel === 'Backup failed';
+        return (
+          <div key={type} className={pillClass(complete ? (failed ? 'bad' : 'good') : 'neutral', status, nowMs, hide)}>
+            <div className="relative">
+              <ActivityCountBadge count={activities.backups.length} />
+              {complete ? (
+                <Icon path={mdiCheckCircle} size={26} className={failed ? 'text-red-400' : 'text-green-400'} />
+              ) : (
+                <CircularProgress
+                  progress={(backup.progress ?? 0) / 100}
+                  size={28}
+                  strokeWidth={2.5}
+                  className="text-ha-blue shrink-0"
+                  trackClassName="text-fill-primary-quiet"
+                >
+                  <Icon path={mdiCloudUpload} size={13} className="text-ha-blue" />
+                </CircularProgress>
+              )}
+            </div>
+            <div className={`${PILL_TEXT} max-w-[140px]`}>
+              {complete ? (
+                <span className={`text-sm font-semibold truncate ${failed ? 'text-red-400' : 'text-green-400'}`}>{status.endLabel}</span>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <RollingNumericValue value={formatProgressLabel(backup.progress)} className="text-sm font-semibold text-white font-mono" />
+                  <span className={PILL_UNIT}>Backup</span>
+                </div>
+              )}
+              <span className={PILL_SUB}>{backup.stage || backup.name}</span>
+            </div>
+          </div>
+        );
+      }
+
+      case 'alarm': {
+        const item = activities.alarms[0];
+        if (!item) return null;
+        const { summary: alarm, status } = item;
+        const complete = status.phase === 'ended';
+        const triggered = alarm.state === 'triggered';
+        const label = triggered ? 'Triggered' : alarm.state === 'arming' ? 'Arming' : 'Pending';
+        const tone = complete ? 'good' : triggered ? 'bad' : 'warn';
+        return (
+          <div key={type} className={pillClass(tone, status, nowMs, hide)}>
+            <div className="relative">
+              <ActivityCountBadge count={activities.alarms.length} />
+              <Icon
+                path={complete ? mdiCheckCircle : mdiShieldAlert}
+                size={22}
+                className={complete ? 'text-green-400' : triggered ? 'text-red-400' : 'text-yellow-300'}
+              />
+            </div>
+            <div className={`${PILL_TEXT} max-w-[140px]`}>
+              <span className={`text-sm font-semibold truncate ${complete ? 'text-green-400' : triggered ? 'text-red-400' : 'text-yellow-300'}`}>
+                {complete ? status.endLabel : label}
+              </span>
+              <span className={PILL_SUB}>{alarm.name}</span>
+            </div>
+          </div>
+        );
+      }
+
+      default:
+        return null;
+    }
+  };
+
+  // Ledger order — the dashboard dock and the mobile nav rank the same way.
+  const pills = activities.typeOrder
+    .map((type, index) => renderPill(type, index >= MOBILE_PILL_LIMIT ? 'max-md:portrait:hidden' : ''))
+    .filter(Boolean);
+
+  return (
+    <>
+      {pills}
+      {pills.length > MOBILE_PILL_LIMIT && (
+        <div
+          key="more"
+          className="hidden max-md:portrait:flex items-center justify-center self-center h-8 px-ha-4 rounded-ha-pill bg-black/40 border border-white/15 text-[13px] font-medium text-white/70"
+        >
+          +{pills.length - MOBILE_PILL_LIMIT} more
         </div>
-      </div>
-    );
-  }
-
-  if (pills.length > MOBILE_PILL_LIMIT) {
-    pills.push(
-      <div
-        key="more"
-        className="hidden max-md:portrait:flex items-center justify-center self-center h-8 px-ha-4 rounded-ha-pill bg-black/40 border border-white/15 text-[13px] font-medium text-white/70"
-      >
-        +{pills.length - MOBILE_PILL_LIMIT} more
-      </div>
-    );
-  }
-
-  return <>{pills}</>;
+      )}
+    </>
+  );
 }
 
 function systemPrefers24HourClock(): boolean {
@@ -290,7 +511,7 @@ function systemPrefers24HourClock(): boolean {
 export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) {
   const liveSummaryItems = useLiveSummaryItems();
   const { haUrl } = useHomeAssistant();
-  const { wavyBackgroundEnabled, reactiveBackgroundEnabled, reactiveTriggerConfig, reactiveIntensity, reactiveTriggerLabelsEnabled, pulseMode, setPulseMode } = useFeatureFlags();
+  const { wavyBackgroundEnabled, reactiveBackgroundEnabled, reactiveTriggerConfig, reactiveIntensity, reactiveTriggerLabelsEnabled, pulseMode, setPulseMode, assistVisualizationEnabled } = useFeatureFlags();
   const weatherParams = useWeatherParams();
   const ringOrigin = useRingOrigin();
   // Only watch for events while the screensaver is actually on screen.
@@ -343,7 +564,9 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const dragDistanceRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const screensaverData = useHomeAssistantSelector(selectScreensaverData, areScreensaverDataEqual);
-  const activityData = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
+  // Same ledger as the dashboard status bar and the mobile nav — ordering,
+  // ended cards and dismissals never diverge between surfaces.
+  const { data: activityData, activities } = useActivities();
   const { visibleSections } = useHomeCenterPrefs();
   const { notifications: centerNotifications } = useNotificationCenter();
   // Status-pill indicators derive from the full activity data so they can cover
@@ -356,13 +579,10 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
   const lowBatteryCount = activityData.lowBatteryDevices.length;
   const backupAge = formatBackupAge(activityData.lastBackup?.lastBackup ?? null);
   const isRemoteConnected = activityData.isRemoteConnected;
-  const hasActivities =
-    activityData.activeReleaseNotes.length > 0 ||
-    activityData.activePlayers.length > 0 ||
-    activityData.activeTimers.length > 0 ||
-    activityData.activeCameras.length > 0 ||
-    activityData.activePrinters.length > 0 ||
-    activityData.activeVacuums.length > 0;
+  // The prototyping flag strips the activity ledger and Home Center from the
+  // desktop chrome; the lock screen is the same surface family, so it goes too.
+  const { hideHomeCenterEnabled } = useDebugFlags();
+  const hasActivities = !hideHomeCenterEnabled && activities.typeOrder.length > 0;
   const userAvatar = useMemo(() => {
     if (!screensaverData.user) {
       return { picture: undefined, name: 'User', initials: 'U' };
@@ -806,12 +1026,13 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
           {/* Portrait phones: one pill per row, all equal width (flex-col stretch);
               everything else keeps the centered wrapping row. */}
           <div className="flex flex-wrap justify-center gap-ha-3 max-md:portrait:gap-ha-2 max-lg:portrait:flex-col max-lg:portrait:flex-nowrap max-lg:portrait:max-w-sm max-lg:portrait:mx-auto">
-            <ScreensaverActivityPills activityData={activityData} haUrl={haUrl} />
+            <ScreensaverActivityPills activities={activities} haUrl={haUrl} />
           </div>
         </div>
       )}
 
       {/* Status pill — clickable, opens Home Center settings */}
+      {!hideHomeCenterEnabled && (
       <div className={`relative ${hasActivities ? 'mt-4 md:mt-6' : 'mt-5 md:mt-8'}`}>
         <button
           type="button"
@@ -836,11 +1057,15 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
           {visibleSections.map(renderStatusIndicator)}
         </button>
       </div>
+      )}
 
       {/* Talk widget — docked exactly where the voice-mode input lands (same
           container padding, same max-w-lg pill, same bottom offset), so
           entering the mode keeps the bar in place while the scene changes
-          around it. Shows the one-line "while you were away" note. */}
+          around it. Shows the one-line "while you were away" note. The whole
+          thing (note, glow, pill) is the assistant visualization, so the
+          settings toggle drops it wholesale — the clock keeps its scene. */}
+      {assistVisualizationEnabled && (
       <div
         className="absolute bottom-0 left-0 right-0 px-ha-6 pb-[calc(env(safe-area-inset-bottom)+3rem)] lg:pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
       >
@@ -881,6 +1106,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
           <Icon path={mdiChevronRight} size={20} className="text-white/50 flex-shrink-0" />
         </button>
       </div>
+      )}
 
       {/* Desktop: Hint to dismiss */}
       <div className="hidden lg:flex flex-col items-center gap-ha-2 mt-12">

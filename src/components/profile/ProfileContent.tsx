@@ -14,7 +14,7 @@ import {
 import { getSettingsHref, getVisibleSettingsNavSections, type SettingsNavLink } from './settingsNavigation';
 import { mdiInformationOutline } from '@mdi/js';
 import { Tooltip } from '../ui/Tooltip';
-import { useScreensaver } from '@/contexts';
+import { useScreensaver, useDebugFlags } from '@/contexts';
 import { createSimulatedActivityEntity, simulationPrefixes, type SimulationType } from '@/lib/homeassistant/simulatedActivities';
 import type { ColorMode } from '@/hooks/useTheme';
 
@@ -115,7 +115,11 @@ export function ProfileContent({ onNavigate, onClose }: ProfileContentProps) {
 
   // Gated by the effective role, so previewing as non-admin actually hides
   // admin-only sections here too — mirrors real HA hiding Settings entirely.
-  const visibleSections = React.useMemo(() => getVisibleSettingsNavSections(isAdmin), [isAdmin]);
+  const { hideHomeCenterEnabled } = useDebugFlags();
+  const visibleSections = React.useMemo(
+    () => getVisibleSettingsNavSections(isAdmin, hideHomeCenterEnabled),
+    [isAdmin, hideHomeCenterEnabled],
+  );
 
   const getSimCount = useCallback((prefix: string) =>
     simulationEntities.filter((e) => e.id.startsWith(prefix)).length,

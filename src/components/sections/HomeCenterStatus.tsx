@@ -231,7 +231,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
             {activeNotifications.length > 0 ? (
               <div className="space-y-2">
                 {activeNotifications.map(notif => (
-                  <div key={notif.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
+                  <div key={notif.id} className="flex items-start gap-ha-3 p-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
                     <Icon path={mdiBell} size={18} className="text-yellow-500 shrink-0 mt-0.5" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-text-primary leading-tight">{notif.title}</p>
@@ -286,7 +286,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
             {repairCount > 0 ? (
               <div className="space-y-2">
                 {repairs.map(r => (
-                  <div key={r.id} className="flex items-start gap-ha-3 p-ha-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
+                  <div key={r.id} className="flex items-start gap-ha-3 p-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
                     <Icon path={mdiWrench} size={18} className={`${r.severity === 'critical' ? 'text-red-500' : 'text-orange-500'} shrink-0 mt-0.5`} />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-text-primary leading-tight">{r.title}</p>

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
-import { EditorToolbarShell } from '../layout/EditorToolbarShell';
+import { EditorToolbarShell, ToolbarPrimaryButton, TOOLBAR_SURFACE_RESET } from '../layout/EditorToolbarShell';
 import { ToggleSwitch, ConfirmDialog, Sidebar, HALoader } from '../ui';
 import {
   listAutomationTraces,
@@ -977,7 +977,10 @@ function ToolbarOverflowMenu({ onDelete }: { onDelete: () => void }) {
             className="fixed inset-0 z-40 cursor-default"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 bottom-full z-50 mb-ha-2 w-[224px] rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-1 shadow-[0_18px_42px_-20px_rgba(15,23,42,0.4)]">
+          <div
+            className="absolute right-0 bottom-full z-50 mb-ha-2 w-[224px] rounded-ha-2xl border border-surface-lower bg-surface-default p-ha-1 shadow-[0_18px_42px_-20px_rgba(15,23,42,0.4)]"
+            style={TOOLBAR_SURFACE_RESET}
+          >
             {renderItem(mdiContentDuplicate, 'Duplicate', () => {})}
             {renderItem(mdiPencilOutline, 'Rename', () => {})}
             {renderItem(mdiCancel, 'Disable', () => {})}
@@ -1040,13 +1043,7 @@ function AutomationEditorToolbar({
                 </motion.div>
               )}
             </AnimatePresence>
-            <button
-              type="button"
-              onClick={onDone}
-              className="h-11 px-6 rounded-ha-pill bg-ha-blue text-white font-semibold text-sm active:scale-95 transition-transform"
-            >
-              Done
-            </button>
+            <ToolbarPrimaryButton label="Done" onClick={onDone} />
           </div>
           <AnimatePresence initial={false}>
             {editing && (
@@ -1103,13 +1100,7 @@ function AutomationEditorToolbar({
             )}
           </AnimatePresence>
 
-          <button
-            type="button"
-            onClick={onDone}
-            className="h-11 px-6 rounded-ha-pill bg-ha-blue text-white font-semibold text-sm hover:bg-ha-blue/90 active:scale-95 transition-all ml-ha-1"
-          >
-            Done
-          </button>
+          <ToolbarPrimaryButton label="Done" onClick={onDone} className="ml-ha-1" />
         </>
       }
     />,

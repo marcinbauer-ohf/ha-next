@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { HALogo } from '@/components/ui';
 import type { StepProps } from '../types';
-import { DISPLAY_FONT, PrimaryPill, StepSubtitle } from '../ui';
+import { DISPLAY_FONT, PrimaryPill, StepActions, StepSubtitle } from '../ui';
 
 export function HelloStep({ next }: StepProps) {
   const reduce = useReducedMotion();
@@ -30,9 +30,9 @@ export function HelloStep({ next }: StepProps) {
         </StepSubtitle>
       </div>
 
-      <div className="flex flex-col items-center gap-ha-2 mt-ha-2">
+      <StepActions>
         <PrimaryPill onClick={next}>Let&apos;s begin</PrimaryPill>
-      </div>
+      </StepActions>
     </div>
   );
 }

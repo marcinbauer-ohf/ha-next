@@ -278,12 +278,12 @@ export function stateExtras(entity: HassEntity): StateExtras {
       const action = a.hvac_action as string | undefined;
       if (action && action !== 'off' && action !== entity.state) details.push(humanizeState(action));
       const target = a.temperature ?? a.target_temp_high;
-      if (target != null && Number.isFinite(Number(target))) details.push(`→ ${Math.round(Number(target))}°`);
+      if (target != null && Number.isFinite(Number(target))) details.push(`${Math.round(Number(target))}°`);
       break;
     }
     case 'humidifier': {
       const target = a.humidity;
-      if (target != null && Number.isFinite(Number(target))) details.push(`→ ${Math.round(Number(target))}%`);
+      if (target != null && Number.isFinite(Number(target))) details.push(`${Math.round(Number(target))}%`);
       const mode = a.mode as string | undefined;
       if (mode) details.push(humanizeState(mode));
       break;

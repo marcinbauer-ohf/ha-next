@@ -65,7 +65,8 @@
      (no bottom nav). Mirrors the dashboard scroller's bottom padding. */
   --app-bottomnav-clear: 0px;
 
-  /* HA Surface Colors */
+  /* HA Surface Colors (pure neutral grey; see the default-tinted theme for the
+     brand-hue variant) */
   --ha-color-surface-default: #ffffff;
   --ha-color-surface-low: #f3f3f3;
   --ha-color-surface-mid: #ebebeb;
@@ -146,7 +147,7 @@
 }
 
 /* Default Theme Typography */
-[data-theme="default"] {
+[data-theme^="default"] {
   --ha-font-family-base: var(--font-inter), "Inter", system-ui, sans-serif;
 }
 
@@ -164,10 +165,14 @@
   --ha-color-text-tertiary: #808080;
   --ha-color-text-disabled: #666666;
 
-  /* HA Fill Colors - Dark (slightly richer so primary/danger/success read as
-     intentional colour, not muddy grey-brown) */
-  --ha-color-fill-primary-normal: #15425a;
-  --ha-color-fill-primary-quiet: #102e3f;
+  /* HA Fill Colors - Dark. Rich enough that primary/danger/success read as
+     intentional colour rather than muddy grey-brown, but the primary pair is
+     pulled ~30% back toward the surface grey: these fills carry selection and
+     active state, and at full saturation the blue block competed with the
+     content sitting on it. Light mode's equivalents are neutralised outright
+     (see the "no hue" active-card rule further down). */
+  --ha-color-fill-primary-normal: #1c3b4c;
+  --ha-color-fill-primary-quiet: #182d39;
   --ha-color-fill-danger-normal: #582424;
   --ha-color-fill-success-normal: #1f4a22;
   --ha-color-yellow-95: #423a1e;
@@ -179,6 +184,41 @@
   /* Green colors for success states - Dark */
   --ha-color-green-500: #34c77b;
   --ha-color-green-600: #2aa361;
+}
+
+/* ── Default (tinted) ───────────────────────────────────────────────────────
+   The default theme with a hint of the brand blue bled into the surface ramp —
+   everything else (text, fills, radii, font) inherits from `default`, which the
+   [data-theme^="default"] selectors above cover.
+
+   Hue sits at ~215°, NOT the brand's own 195°: #18bcf2 is cyan-leaning, and at
+   this near-white chroma a cyan hue reads teal/green rather than blue (the eye
+   is far more sensitive to green than to blue, so the G channel dominates once
+   saturation drops this low). Rotating toward true blue keeps it recognisably
+   the same family while reading blue. So: B highest, G pulled down close to R
+   — roughly G = R + 0.4 × (B − R). The R↔B spread is the tint's only strength
+   dial: widen it to push further, keep the G ratio or it swings back to teal.
+   Spreads run 6→10 across the ramp (they were 10→16, which read as a colour
+   choice rather than a warmth); each step is a shade deeper than the last so
+   the tint arrives with the depth instead of sitting flat over everything. */
+[data-theme="default-tinted"] {
+  /* The top of the ramp stays pure white in light mode: it is the app's own
+     ground (the sheet the sidebar and top bar sit on) and every dashboard card,
+     and a tint there reads as a dirty white rather than a blue one. The tint
+     lives in the steps below, where it has something white to be measured
+     against. Dark mode keeps its tint at every step — there is no equivalent
+     "paper" expectation. */
+  --ha-color-surface-default: #ffffff;
+  --ha-color-surface-low: #eceef2;
+  --ha-color-surface-mid: #e4e7eb;
+  --ha-color-surface-lower: #dee1e6;
+}
+
+[data-theme="default-tinted"][data-mode="dark"] {
+  --ha-color-surface-default: #181a1e;
+  --ha-color-surface-low: #222529;
+  --ha-color-surface-mid: #2a2d32;
+  --ha-color-surface-lower: #2e3238;
 }
 
 /* Glass Theme - Dark Mode */
@@ -1003,9 +1043,9 @@
 }
 
 /* Non-Glass Themes - Background Image/Gradient applied to main dashboard container only */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
+:is([data-theme^="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"],
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
+:is([data-theme^="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"] {
   position: relative;
   /* Ensure we create a stacking context */
@@ -1015,7 +1055,7 @@
 }
 
 /* Image Layer - Bottom (z-index -2) */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
+:is([data-theme^="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
@@ -1032,7 +1072,7 @@
 }
 
 /* Gradient Layer - Bottom (z-index -2) */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
+:is([data-theme^="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"]::before {
   content: "";
   position: absolute;
@@ -1048,15 +1088,15 @@
 }
 
 /* None Background - Solid Grey */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="none"]
+:is([data-theme^="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="none"]
   [data-component="dashboard-surface"] {
   background-color: var(--ha-color-surface-lower) !important;
 }
 
 /* Scrim/Overlay Layer - Top (z-index -1) with 80% Opacity */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
+:is([data-theme^="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"]::after,
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
+:is([data-theme^="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"]::after {
   content: "";
   position: absolute;
@@ -1067,20 +1107,18 @@
   pointer-events: none;
 }
 
-/* Light Mode: White Scrim */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-mode="light"][data-background="image"]
+/* The scrim is the dashboard surface, just with an image showing through it, so
+   it takes the same colour the "none" background uses. It used to be hardcoded
+   #ffffff / #1a1a1a, which meant every themed dashboard reverted to a neutral
+   grey the moment you picked an image or gradient — fallout's khaki, teenage's
+   bone, cyberpunk's indigo and material-ha's blue all washed out, and even the
+   plain default shifted tone between "none" and "gradient" for no reason. One
+   token covers both modes: the ramp already knows which way round it is. */
+:is([data-theme^="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="image"]
   [data-component="dashboard-surface"]::after,
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-mode="light"][data-background="gradient"]
+:is([data-theme^="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-background="gradient"]
   [data-component="dashboard-surface"]::after {
-  background-color: #ffffff;
-}
-
-/* Dark Mode: Dark Scrim */
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-mode="dark"][data-background="image"]
-  [data-component="dashboard-surface"]::after,
-:is([data-theme="default"], [data-theme="teenage"], [data-theme="cyberpunk"], [data-theme^="material"], [data-theme="fallout"])[data-mode="dark"][data-background="gradient"]
-  [data-component="dashboard-surface"]::after {
-  background-color: #1a1a1a;
+  background-color: var(--ha-color-surface-lower);
 }
 
 /* Make AppShell transparent to show background in Glass Mode only */
@@ -1410,8 +1448,14 @@
   color: rgba(0, 0, 0, 0.7) !important;
 }
 
-/* Active Card Styles for Default Theme - No hue (White BG, Black Text) 
-   Matches Glass theme logic but with solid colors */
+/* Active Card Styles for Default Theme - No hue (White BG, Black Text)
+   Matches Glass theme logic but with solid colors.
+
+   Scoped to `default` alone, NOT `^="default"`. The tinted variant's ramp now
+   starts at pure white, so forcing an active card to #ffffff there left it the
+   same colour as an inactive one with only a shadow to tell them apart. The
+   tinted theme keeps the real fill tokens instead — it has a tinted ramp for
+   an active card to stand out against, which is the whole reason it exists. */
 [data-theme="default"][data-mode="light"] .bg-fill-primary-normal,
 [data-theme="default"][data-mode="light"] .bg-fill-danger-normal,
 [data-theme="default"][data-mode="light"] .bg-fill-success-normal,
@@ -1633,39 +1677,6 @@
 .ha-indeterminate-bar {
   width: 40%;
   animation: ha-indeterminate-slide 1.4s ease-in-out infinite;
-}
-
-/* Search-bar boot glow — one-shot radial tint descending from the very top
-   edge of the screen, reading as a light source behind the centered search
-   field. Same colour + opacity as the toast bottom glow (see ToastContext).
-   The element is full-width; the gradient is an absolute-sized blob offset to
-   sit under the field (50% + half the sidebar+gutter) so it fades to
-   transparent well inside the box on both sides — a fixed-width box clipped
-   the horizontal spread. Plays once when the preloader clears (.ha-app-booted
-   lands on the AppShell root). */
-.ha-search-boot-glow {
-  opacity: 0;
-  background: radial-gradient(
-    ellipse 34rem 11rem at calc(50% + 2.375rem) 0%,
-    rgba(24, 188, 242, 0.14) 0%,
-    rgba(24, 188, 242, 0.05) 55%,
-    transparent 75%
-  );
-  transform-origin: calc(50% + 2.375rem) 0;
-}
-.ha-app-booted .ha-search-boot-glow {
-  animation: ha-search-boot-glow 2.6s ease-out 0.9s 1 both;
-}
-@keyframes ha-search-boot-glow {
-  0% { opacity: 0; transform: scale(0.25); }
-  28% { opacity: 1; transform: scale(1); }
-  70% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ha-app-booted .ha-search-boot-glow {
-    animation: none;
-  }
 }
 
 /* Corner toast (bottom-right) — positioned relative to the dashboard <main>.
@@ -2149,6 +2160,22 @@ html {
   .ha-surface-enter { animation: none; }
 }
 
+/* Mobile bottom nav — rises into place the first time the dashboard shows
+   (mounted only once the preloader / first-run onboarding is out of the way, so
+   the mount animation IS the entrance). No fill-mode: once it ends the
+   transform must revert to a real `none`, or the nav stays a containing block
+   and the sheet's fixed backdrop would only cover the bar itself. */
+.ha-mobile-nav-in {
+  animation: ha-mobile-nav-in 620ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes ha-mobile-nav-in {
+  from { transform: translateY(calc(100% + var(--ha-edge-padding))); }
+  to   { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-mobile-nav-in { animation: none; }
+}
+
 /* Long-pressable tiles (mobile nav grid) — suppress the iOS Safari link
    preview / callout sheet so press-and-hold enters arrange mode instead.
    Pair with an onContextMenu preventDefault for Android's long-press menu. */
@@ -2205,6 +2232,20 @@ html {
   .ha-dropdown-in { animation: none; }
 }
 
+/* Scrubbed-moment stamp (device dialog hero) — the blue timestamp that appears
+   under the reading when the pointer lands on the history chart. It is mounted
+   only while scrubbing, so this runs once on arrival, not on every mousemove. */
+.ha-scrub-stamp-in {
+  animation: ha-scrub-stamp-in 140ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ha-scrub-stamp-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-scrub-stamp-in { animation: none; }
+}
+
 /* ── Sidebar arrange ("jiggle") mode ──────────────────────────────────────
    iOS-style wobble applied to a child wrapper so it never fights the
    dnd-kit drag transform that lives on the parent sortable node. Two phases
@@ -2239,10 +2280,32 @@ html {
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* App-icon status markers (AppStatusBadge). These sit on a `left-1/2` +
+   `-translate-x-1/2` anchor, so both animations drive the standalone `scale`
+   property rather than `transform` — animating transform would wipe out the
+   centring translate and shunt the badge sideways. */
+.ha-badge-in {
+  animation: ha-badge-in 0.18s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ha-badge-in {
+  from { opacity: 0; scale: 0.4; }
+  to   { opacity: 1; scale: 1; }
+}
+/* A command is in flight — breathing dot, same footprint as the badge it replaces. */
+.ha-badge-pulse {
+  animation: ha-badge-pulse 1.1s ease-in-out infinite;
+}
+@keyframes ha-badge-pulse {
+  0%, 100% { scale: 1; opacity: 1; }
+  50%      { scale: 0.72; opacity: 0.45; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* The wobble is the explicit signal that arrange mode is active, so it keeps
-     running here — just the one-shot badge pop is dropped. */
-  .ha-arrange-badge { animation: none; }
+     running here — just the one-shot badge pops are dropped. The busy pulse
+     stays: it's the only thing saying a command is still running. */
+  .ha-arrange-badge,
+  .ha-badge-in { animation: none; }
 }
 
 /* One-shot enter animation when the dashboard view re-keys (floor or grouping
@@ -2309,4 +2372,33 @@ html {
   background: var(--ha-color-blue);
   color: #fff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Accessibility preferences ─────────────────────────────────────────────
+   Set from the accessibility panel (see A11yPrefs in useTheme). Each pref is an
+   attribute on <html>; the OS-level `prefers-reduced-motion` rules above stay
+   independent, so someone who set it at the OS level needs nothing here. */
+
+/* Reduce motion, the blunt version: every CSS animation and transition becomes
+   an instant change. framer-motion is covered separately by the MotionConfig in
+   ThemeProvider. Kept at 1ms rather than 0 so animationend/transitionend
+   handlers still fire and nothing waits forever on a callback. */
+html[data-reduce-motion] *,
+html[data-reduce-motion] *::before,
+html[data-reduce-motion] *::after {
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Reduce transparency: drop the frosted-glass blur. Surfaces keep their own
+   background colour, so only the see-through effect goes. */
+html[data-reduce-transparency] *,
+html[data-reduce-transparency] *::before,
+html[data-reduce-transparency] *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }

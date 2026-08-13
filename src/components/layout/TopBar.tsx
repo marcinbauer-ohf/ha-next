@@ -8,7 +8,7 @@ import { AddMenu } from '../ui/AddMenu';
 import { Tooltip } from '../ui/Tooltip';
 import { shortcutHint, useIsMacPlatform } from '@/lib/keyboardShortcuts';
 import { CONTENT_MAX, CONTENT_GUTTER } from '@/lib/layout';
-import { useHeader, usePullToRevealContext, ENABLE_PULL_TO_REVEAL, useEditMode, useSearchContext } from '@/contexts';
+import { useHeader, usePullToRevealContext, ENABLE_PULL_TO_REVEAL, useEditMode, useSearchContext, useAssistantContext } from '@/contexts';
 import { useTheme, useImmersiveMode, useHomeAssistant } from '@/hooks';
 import {
   mdiPencil,
@@ -18,6 +18,7 @@ import {
   mdiClose,
   mdiArrowLeft,
   mdiMagnify,
+  mdiCreation,
 } from '@mdi/js';
 
 export function TopBar() {
@@ -26,6 +27,7 @@ export function TopBar() {
   const { isRevealed, toggle } = usePullToRevealContext();
   const { isEditing, toggleEditMode } = useEditMode();
   const { openSearch } = useSearchContext();
+  const { openAssistant } = useAssistantContext();
   const { immersiveMode } = useImmersiveMode();
   const { isAdmin } = useHomeAssistant();
   const router = useRouter();
@@ -114,7 +116,7 @@ export function TopBar() {
         text={title}
         direction={titleDirection}
         reverse={titleReverse}
-        className={`${subtitle ? 'text-base' : 'text-lg'} font-semibold text-text-primary capitalize`}
+        className={`${subtitle ? 'text-lg' : 'text-2xl'} font-semibold text-text-primary capitalize`}
       />
       {sectionCrumbLine}
     </div>
@@ -185,7 +187,7 @@ export function TopBar() {
       type="button"
       aria-label="Edit dashboard"
       onClick={toggleEditMode}
-      className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-tertiary transition-colors hover:bg-surface-low hover:text-text-primary"
+      className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-disabled transition-colors hover:bg-surface-low hover:text-text-primary"
     >
       <Icon path={pencilIcon} size={17} exact />
     </button>
@@ -198,22 +200,33 @@ export function TopBar() {
       <div className={`relative h-full flex items-center justify-between ${CONTENT_MAX} ${CONTENT_GUTTER}`}>
 
       {/* Desktop: merged search + ask entry — a big centered input-shaped
-          trigger that opens the command palette. */}
+          trigger that opens the command palette. Two controls in one pill, so
+          the outer shell is a div: search takes the whole field, Ask goes
+          straight to the assistant instead of the palette's "ask" row. */}
       {!isEditing && (
-        <button
-          type="button"
-          onClick={openSearch}
-          aria-label="Search or ask anything"
-          className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center gap-ha-3 h-11 w-[min(30rem,34vw)] px-ha-4 rounded-ha-pill bg-surface-low border border-surface-lower hover:bg-surface-mid/60 hover:border-surface-mid transition-colors group"
-        >
-          <Icon path={mdiMagnify} size={20} className="flex-shrink-0 text-text-secondary group-hover:text-text-primary transition-colors" />
-          <span className="flex-1 min-w-0 truncate text-left text-sm text-text-tertiary group-hover:text-text-secondary transition-colors">
-            Search or ask anything…
-          </span>
-          <kbd className="flex-shrink-0 flex items-center text-[13px] text-text-tertiary bg-surface-lower px-ha-1.5 py-0.5 rounded-ha-md font-medium">
-            {shortcutHint('global.search', isMac)}
-          </kbd>
-        </button>
+        <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center h-11 w-[min(30rem,34vw)] pl-ha-4 pr-ha-2 rounded-ha-pill bg-surface-low hover:bg-surface-mid/60 transition-colors group">
+          <button
+            type="button"
+            onClick={openSearch}
+            aria-label="Search"
+            title={`Search (${shortcutHint('global.search', isMac)})`}
+            className="flex flex-1 min-w-0 items-center gap-ha-3 h-full text-left"
+          >
+            <Icon path={mdiMagnify} size={20} className="flex-shrink-0 text-text-secondary group-hover:text-text-primary transition-colors" />
+            <span className="flex-1 min-w-0 truncate text-sm text-text-tertiary group-hover:text-text-secondary transition-colors">
+              Search or ask anything…
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => openAssistant()}
+            aria-label="Ask your home"
+            className="flex-shrink-0 flex h-7 items-center gap-ha-1 pl-ha-2 pr-ha-3 rounded-ha-lg bg-surface-lower text-text-secondary text-[13px] font-medium leading-none hover:bg-surface-mid hover:text-text-primary transition-colors"
+          >
+            <Icon path={mdiCreation} size={15} exact />
+            Ask
+          </button>
+        </div>
       )}
       {/* Mobile: Logo/Icon + Title with dropdown - Centered vertically on mobile */}
       <div className="flex items-center justify-between w-full lg:hidden h-full">
@@ -342,6 +355,7 @@ export function TopBar() {
         onClose={() => setAddMenuOpen(false)}
         anchorRef={desktopAddButtonRef}
       />
+
     </header>
   );
 }

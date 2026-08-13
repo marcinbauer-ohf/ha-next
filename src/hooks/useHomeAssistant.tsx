@@ -25,6 +25,8 @@ import {
   getLabelRegistry as getLabelRegistryAction,
   getConfigEntries as getConfigEntriesAction,
   getCoreConfig as getCoreConfigAction,
+  updateCoreConfig as updateCoreConfigAction,
+  setAnalyticsPreferences as setAnalyticsPreferencesAction,
   getIntegrationManifests as getIntegrationManifestsAction,
   getEntityHistory as getEntityHistoryAction,
   getStatistics as getStatisticsAction,
@@ -47,7 +49,7 @@ import {
   subscribeToRestartPending,
   isRestartPending,
 } from '@/lib/homeassistant';
-import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, StatisticValue, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields, HassUser, HaCoreConfig } from '@/lib/homeassistant';
+import type { CallServiceParams, EntityRegistryEntry, DeviceRegistryEntry, AreaRegistryEntry, FloorRegistryEntry, LabelRegistryEntry, HistoryPoint, StatisticValue, ConfigEntry, IntegrationManifest, LogbookEntry, AutomationConfig, AreaWriteFields, FloorWriteFields, LabelWriteFields, HassUser, HaCoreConfig, CoreConfigWriteFields, AnalyticsPreferences } from '@/lib/homeassistant';
 import type { HassEntities, HassEntity } from '@/types';
 import { createDemoEntities } from '@/lib/homeassistant/demoEntities';
 import { synthesizeHistory } from '@/lib/homeassistant/demoHistory';
@@ -98,6 +100,8 @@ interface HomeAssistantContextValue {
   deleteLabel: (labelId: string) => Promise<void>;
   getConfigEntries: () => Promise<ConfigEntry[]>;
   getCoreConfig: () => Promise<HaCoreConfig | null>;
+  updateCoreConfig: (fields: CoreConfigWriteFields) => Promise<void>;
+  setAnalyticsPreferences: (preferences: AnalyticsPreferences) => Promise<void>;
   getIntegrationManifests: () => Promise<IntegrationManifest[]>;
   getEntityHistory: (entityId: string, hoursBack?: number) => Promise<HistoryPoint[]>;
   getStatistics: (entityId: string, hoursBack: number, period: '5minute' | 'hour' | 'day') => Promise<StatisticValue[]>;
@@ -584,6 +588,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
 
   const getConfigEntries = useCallback(() => getConfigEntriesAction(), []);
   const getCoreConfig = useCallback(() => getCoreConfigAction(), []);
+  const updateCoreConfig = useCallback(async (fields: CoreConfigWriteFields) => { assertWritable(); return updateCoreConfigAction(fields); }, [assertWritable]);
+  const setAnalyticsPreferences = useCallback(async (preferences: AnalyticsPreferences) => { assertWritable(); return setAnalyticsPreferencesAction(preferences); }, [assertWritable]);
   const getIntegrationManifests = useCallback(() => getIntegrationManifestsAction(), []);
   // History for entities that can't have any on the wire (demo home, offline
   // session, staged mock entities) is synthesised here rather than in each
@@ -659,6 +665,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     deleteLabel,
     getConfigEntries,
     getCoreConfig,
+    updateCoreConfig,
+    setAnalyticsPreferences,
     getIntegrationManifests,
     getEntityHistory,
     getStatistics,
@@ -701,6 +709,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     deleteLabel,
     getConfigEntries,
     getCoreConfig,
+    updateCoreConfig,
+    setAnalyticsPreferences,
     getIntegrationManifests,
     getEntityHistory,
     getStatistics,

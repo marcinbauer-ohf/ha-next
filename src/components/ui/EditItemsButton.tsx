@@ -31,7 +31,7 @@ export function EditItemsButton({
         onClick={onClick}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
-        className="w-12 h-10 rounded-ha-xl transition-colors flex items-center justify-center text-text-tertiary hover:bg-surface-low hover:text-text-primary"
+        className="w-12 h-10 rounded-ha-xl transition-colors flex items-center justify-center text-text-disabled hover:bg-surface-low hover:text-text-primary"
       >
         <Icon path={mdiPencilOutline} size={17} exact />
       </button>

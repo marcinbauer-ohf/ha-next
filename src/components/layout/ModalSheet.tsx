@@ -153,7 +153,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             exit={{ opacity: 0, scale: 0.90, x: origin.dx, y: origin.dy }}
             transition={SPRING}
             className="hidden lg:flex relative w-full flex-col bg-surface-lower rounded-ha-3xl overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)]"
-            style={{ maxWidth, maxHeight: '85vh', transformOrigin: origin.transformOrigin }}
+            style={{ maxWidth, maxHeight: '90vh', transformOrigin: origin.transformOrigin }}
           >
             <div className="relative flex-1 flex flex-col min-h-0">
               <div className={clsx('absolute top-0 left-0 right-0 h-10 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', desktopTop ? 'opacity-100' : 'opacity-0')} />

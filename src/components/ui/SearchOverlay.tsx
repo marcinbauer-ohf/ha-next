@@ -435,7 +435,7 @@ export function SearchOverlay() {
           </span>
         )}
         {isSelected && (
-          <kbd className="hidden lg:flex items-center text-[13px] text-text-tertiary bg-surface-lower px-ha-1.5 py-0.5 rounded-ha-md">
+          <kbd className="hidden lg:flex items-center text-[13px] text-text-tertiary bg-surface-lower px-1.5 py-0.5 rounded-ha-md">
             <Icon path={mdiKeyboardReturn} size={12} />
           </kbd>
         )}
@@ -484,7 +484,7 @@ export function SearchOverlay() {
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-base text-text-primary placeholder-text-tertiary outline-none"
           />
-          <kbd className="hidden lg:flex items-center text-[13px] text-text-tertiary bg-surface-lower px-ha-1.5 py-0.5 rounded-ha-md font-medium">
+          <kbd className="hidden lg:flex items-center text-[13px] text-text-tertiary bg-surface-lower px-1.5 py-0.5 rounded-ha-md font-medium">
             ESC
           </kbd>
         </div>

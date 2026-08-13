@@ -577,10 +577,10 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
               type="button"
               onClick={() => setSheetOpen(true)}
               aria-label="Filters, sorting and view"
-              className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-ha-2xl border transition-colors md:hidden ${
+              className={`relative flex h-12 w-12 shrink-0 items-center justify-center rounded-ha-2xl transition-colors md:hidden ${
                 sheetOpen || activeFilterCount > 0
-                  ? 'border-ha-blue/40 bg-fill-primary-quiet text-ha-blue'
-                  : 'border-surface-lower bg-surface-low text-text-secondary'
+                  ? 'bg-ha-blue/10 text-ha-blue'
+                  : 'bg-surface-low text-text-secondary'
               }`}
             >
               <Icon path={mdiTune} size={20} />

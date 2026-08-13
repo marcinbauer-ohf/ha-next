@@ -142,7 +142,7 @@ export default function WelcomeExperimentPage() {
                     <span className="flex-1 text-sm text-text-tertiary text-left truncate">
                       Search Home Assistant…
                     </span>
-                    <kbd className="flex-shrink-0 flex items-center text-[13px] text-text-tertiary bg-surface-lower px-ha-1.5 py-0.5 rounded-ha-md font-medium">
+                    <kbd className="flex-shrink-0 flex items-center text-[13px] text-text-tertiary bg-surface-lower px-1.5 py-0.5 rounded-ha-md font-medium">
                       ⌘K
                     </kbd>
                   </motion.div>

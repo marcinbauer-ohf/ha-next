@@ -1,34 +1,113 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { motion } from 'framer-motion';
+import { useDebugFlags } from '@/contexts';
 
 const TOOLBAR_SPRING = { type: 'spring' as const, stiffness: 380, damping: 28, mass: 0.8 };
+
+/**
+ * The pill is painted in the accent blue and re-points the semantic colour
+ * tokens at white, so every control inside it (icons, segment indicators, hover
+ * fills) inverts without each toolbar restyling its own children. The tokens are
+ * aliased on the outer wrapper first — see TOOLBAR_SURFACE_RESET.
+ */
+const THEMED_TOKENS = [
+  'surface-default', 'surface-low', 'surface-mid', 'surface-lower',
+  'text-primary', 'text-secondary', 'text-tertiary', 'text-disabled',
+  'fill-primary-normal', 'blue',
+] as const;
+
+/** Page-palette copies, captured above the inversion so it can be undone below it. */
+const TOKEN_ALIASES = Object.fromEntries(
+  THEMED_TOKENS.map((t) => [`--tb-${t}`, `var(--ha-color-${t})`]),
+) as CSSProperties;
+
+/**
+ * Restores the page palette. Put it on anything rendered inside a toolbar that
+ * should NOT be blue — a popover that floats out over the page, say, where white
+ * text on a white-tinted panel would be unreadable.
+ */
+export const TOOLBAR_SURFACE_RESET = Object.fromEntries(
+  THEMED_TOKENS.map((t) => [`--ha-color-${t}`, `var(--tb-${t})`]),
+) as CSSProperties;
+
+/**
+ * The pill's blue, darkened. The raw accent (#18bcf2 in the default theme) is a
+ * light blue — white on it lands at 2.2:1, which fails AA and reads as glare.
+ * Mixing it 62% with black keeps the hue but takes white to ~4.9:1. Used for the
+ * pill's own fill and, inverted, for the Done button's label on white.
+ */
+const TOOLBAR_ACCENT = 'color-mix(in srgb, var(--tb-blue) 62%, #000)';
+
+const BLUE_PILL = {
+  backgroundColor: TOOLBAR_ACCENT,
+  '--ha-color-surface-default': 'rgba(255,255,255,0.22)',
+  '--ha-color-surface-low': 'rgba(255,255,255,0.14)',
+  '--ha-color-surface-mid': 'rgba(255,255,255,0.28)',
+  '--ha-color-surface-lower': 'rgba(255,255,255,0.10)',
+  '--ha-color-fill-primary-normal': 'rgba(255,255,255,0.22)',
+  '--ha-color-text-primary': '#fff',
+  '--ha-color-text-secondary': 'rgba(255,255,255,0.86)',
+  '--ha-color-text-tertiary': 'rgba(255,255,255,0.72)',
+  '--ha-color-text-disabled': 'rgba(255,255,255,0.5)',
+  // Accent-on-accent would vanish, so `text-ha-blue` (active segment labels)
+  // inverts to white too. The real blue stays reachable as --tb-blue.
+  '--ha-color-blue': '#fff',
+} as CSSProperties;
+
+/**
+ * The toolbar's primary action ("Done"), inverted against the blue pill: a white
+ * pill with blue text. Shared so the three editor toolbars can't drift.
+ */
+export function ToolbarPrimaryButton({ label, onClick, className = '' }: {
+  label: string;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`h-11 px-6 rounded-ha-pill bg-white font-semibold text-sm transition-all hover:bg-white/90 active:scale-95 ${className}`}
+      style={{ color: TOOLBAR_ACCENT }}
+    >
+      {label}
+    </button>
+  );
+}
 
 /**
  * Shared chrome for the floating bottom editor toolbars (dashboard edit,
  * automation editor, areas & floors). Mobile: a full-width pill matching
  * MobileNav — same gradient hairline, inner padding, and --ha-edge-padding
- * offset from the screen edges and bottom. Desktop: a centered floating pill.
+ * offset from the screen edges and bottom. Desktop: a centered floating pill,
+ * inset from the bottom by the same 1.5rem the corner toast uses.
  *
  * Renders a motion.div with enter/exit variants but no portal and no
  * AnimatePresence — callers own mount/unmount (and portal when they need to
  * escape a transformed ancestor).
  */
 export function EditorToolbarShell({ mobile, desktop }: { mobile: ReactNode; desktop: ReactNode }) {
+  // The desktop offset clears the status bar. With the bottom bar hidden by the
+  // prototyping flag there's nothing to clear, so the pill drops to the same
+  // --ha-edge-padding inset as the dashboard surface's own bottom margin — and
+  // the 1.5rem padding below keeps it off that edge either way.
+  const { hideHomeCenterEnabled } = useDebugFlags();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 28, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 28, scale: 0.96 }}
       transition={TOOLBAR_SPRING}
-      className="fixed z-[60] pointer-events-none inset-x-0 bottom-0 lg:left-[76px] lg:bottom-20 lg:right-0"
-      style={{ paddingBottom: 'var(--ha-edge-padding)' }}
+      className={`fixed z-[60] pointer-events-none inset-x-0 bottom-0 pb-edge lg:left-[76px] lg:right-0 lg:pb-6 ${hideHomeCenterEnabled ? 'lg:bottom-edge' : 'lg:bottom-20'}`}
+      style={TOKEN_ALIASES}
     >
       {/* Mobile: full-width pill matching MobileNav style */}
       <div className="lg:hidden px-edge pointer-events-auto">
         <div className="relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)]">
-          <div className="relative rounded-[calc(var(--ha-radius-3xl)-1px)] bg-surface-default/95 px-ha-2 py-ha-2">
+          <div className="relative rounded-[calc(var(--ha-radius-3xl)-1px)] px-ha-2 py-ha-2" style={BLUE_PILL}>
             {mobile}
           </div>
         </div>
@@ -36,7 +115,10 @@ export function EditorToolbarShell({ mobile, desktop }: { mobile: ReactNode; des
 
       {/* Desktop: centered floating pill */}
       <div className="hidden lg:flex justify-center pointer-events-auto">
-        <div className="px-ha-2 py-ha-2 rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50 flex items-center gap-ha-1">
+        <div
+          className="px-ha-2 py-ha-2 rounded-ha-3xl shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] flex items-center gap-ha-1"
+          style={BLUE_PILL}
+        >
           {desktop}
         </div>
       </div>

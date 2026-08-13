@@ -1,6 +1,6 @@
 export { PullToRevealProvider, usePullToRevealContext, ENABLE_PULL_TO_REVEAL } from './PullToRevealContext';
 export { SidebarItemsProvider, useSidebarItemsContext } from './SidebarItemsContext';
-export type { SidebarItem } from './SidebarItemsContext';
+export type { SidebarItem, AppStatus } from './SidebarItemsContext';
 export { SidebarArrangeProvider, useSidebarArrange, arrangeItems } from './SidebarArrangeContext';
 export { SearchProvider, useSearchContext } from './SearchContext';
 export { AssistantProvider, useAssistantContext } from './AssistantContext';

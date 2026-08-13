@@ -106,7 +106,7 @@ export function HudFlash() {
                 {formatKeycaps(keys, mac).map((cap, i) => (
                   <kbd
                     key={i}
-                    className="min-w-[1.75rem] px-ha-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[12px] leading-5 font-medium text-text-secondary text-center"
+                    className="min-w-[1.75rem] px-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[12px] leading-5 font-medium text-text-secondary text-center"
                   >
                     {cap}
                   </kbd>

@@ -39,7 +39,7 @@ function SectionRow({ id }: { id: HomeCenterSectionId }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-ha-3 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-3 py-ha-2.5 ${
+      className={`flex items-center gap-ha-3 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-3 py-2.5 ${
         enabled ? '' : 'opacity-60'
       } ${isDragging ? 'shadow-lg shadow-black/20 z-10 relative' : ''}`}
     >

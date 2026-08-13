@@ -1,7 +1,7 @@
 'use client';
 
 // A tiny pub/sub bus for the center-screen HUD flash — the brief pill that
-// confirms a keyboard shortcut fired (e.g. ⌘⇧T → "Cycle theme"). Module-level,
+// confirms a keyboard shortcut fired (e.g. ⌘⇧Y → "Cycle theme"). Module-level,
 // like statusPulseBus, so the scattered keydown handlers (AppShell, useTheme,
 // useFont, the dashboard) can trigger it without sharing a React tree or
 // threading a provider through everything. A single <HudFlash /> mounted in

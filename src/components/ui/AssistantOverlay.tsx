@@ -23,6 +23,23 @@ import {
   mdiStop,
 } from '@mdi/js';
 
+/**
+ * The app's resolved light/dark, read off the root element — `mode` from
+ * useTheme can be 'system', and the canvas scene needs the settled answer.
+ */
+function useIsDarkMode(): boolean {
+  const [dark, setDark] = useState(true);
+  useEffect(() => {
+    const root = document.documentElement;
+    const read = () => setDark(root.getAttribute('data-mode') === 'dark');
+    read();
+    const observer = new MutationObserver(read);
+    observer.observe(root, { attributes: true, attributeFilter: ['data-mode'] });
+    return () => observer.disconnect();
+  }, []);
+  return dark;
+}
+
 // ── Assistant overlay ─────────────────────────────────────────────────────────
 // The dashboard's ask sheet, restyled to the screensaver voice mode's family:
 // the same dot-wave scene, the same mic-orb face, the same glass chat bubbles
@@ -55,6 +72,7 @@ export function AssistantOverlay() {
   const pathname = usePathname();
   const { assistantOpen, initialQuery, closeAssistant } = useAssistantContext();
   const { connected, demoMode } = useHomeAssistant();
+  const dark = useIsDarkMode();
   useCloseOnScreensaver(assistantOpen, closeAssistant);
   const [query, setQuery] = useState('');
   const [mounted, setMounted] = useState(false);
@@ -287,20 +305,22 @@ export function AssistantOverlay() {
           mobile, the dashboard panel on desktop). Contained variant floats
           inset from the panel edges by the same margin as the corner toast
           (1.5rem / ha-6), instead of sitting flush against them. The surface
-          is the voice mode's dark scene regardless of theme. */}
+          follows the app's theme: the same dot-wave scene, painted on paper in
+          light mode instead of forcing the lock screen's night. */}
       <div
-        className={`relative mt-auto overflow-hidden bg-[#040a15] text-white transition-[transform,opacity] duration-300 ease-out ${
+        className={`relative mt-auto overflow-hidden bg-surface-default text-text-primary transition-[transform,opacity] duration-300 ease-out ${
           contained
-            ? 'mx-ha-6 mb-ha-6 rounded-ha-3xl border border-white/10 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.5),0_2px_8px_rgba(0,0,0,0.2)]'
+            ? 'mx-ha-6 mb-ha-6 rounded-ha-3xl border border-border-default shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.15)]'
             : 'w-full rounded-t-ha-3xl'
         } ${visible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
         style={{ maxHeight: contained ? 'calc(85% - var(--ha-space-6))' : '85dvh', ...sheetDrag.dragStyle }}
       >
         {/* The voice scene — same reactive dot wave as the screensaver's face */}
         <div className="absolute inset-0" aria-hidden>
-          <VoiceWaveBackground state={visualState} levelRef={levelRef} className="absolute inset-0" />
-          {/* Legibility scrim over the lower half, same as voice mode */}
-          <div className="absolute inset-x-0 bottom-0 h-[60%] bg-[linear-gradient(to_top,rgba(2,6,14,0.8),transparent)]" />
+          <VoiceWaveBackground state={visualState} levelRef={levelRef} light={!dark} className="absolute inset-0" />
+          {/* Legibility scrim over the lower half, same as voice mode — the
+              sheet's own surface colour, so it works either way up. */}
+          <div className="absolute inset-x-0 bottom-0 h-[60%] bg-[linear-gradient(to_top,var(--ha-color-surface-default),transparent)] opacity-80" />
         </div>
 
         <div className="relative flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -310,11 +330,11 @@ export function AssistantOverlay() {
             className={`flex items-center justify-between px-ha-4 pt-ha-3 pb-ha-1 ${isDesktop ? '' : 'touch-none cursor-grab active:cursor-grabbing'}`}
           >
             <div className="w-8" />
-            <div className="w-10 h-1 rounded-full bg-white/25" />
+            <div className="w-10 h-1 rounded-full bg-text-tertiary/50" />
             <button
               onClick={closeAssistant}
               aria-label="Close assistant"
-              className="w-8 h-8 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/80 hover:bg-white/15 hover:text-white transition-colors"
+              className="w-8 h-8 rounded-full bg-surface-low border border-border-default flex items-center justify-center text-text-secondary hover:bg-surface-mid hover:text-text-primary transition-colors"
             >
               <Icon path={mdiClose} size={18} />
             </button>
@@ -342,12 +362,20 @@ export function AssistantOverlay() {
                 />
                 <span
                   className={`absolute inset-[3px] rounded-full transition-colors duration-300 ${
-                    listening ? 'bg-ha-blue shadow-[0_0_50px_rgba(24,188,242,0.55)]' : 'bg-[#081422]/85 backdrop-blur-md'
+                    listening
+                      ? 'bg-ha-blue shadow-[0_0_50px_rgba(24,188,242,0.55)]'
+                      : dark
+                        ? 'bg-[#081422]/85 backdrop-blur-md'
+                        : 'bg-surface-default/85 backdrop-blur-md'
                   }`}
                   style={ORB_ROUND}
                   aria-hidden
                 />
-                <Icon path={listening ? mdiStop : mdiMicrophone} size={30} className="relative text-white" />
+                <Icon
+                  path={listening ? mdiStop : mdiMicrophone}
+                  size={30}
+                  className={`relative ${listening || dark ? 'text-white' : 'text-text-primary'}`}
+                />
                 {listening && (
                   <span
                     className="absolute -inset-2 rounded-full border-2 border-ha-blue/50 animate-ping motion-reduce:animate-none"
@@ -357,7 +385,7 @@ export function AssistantOverlay() {
                 )}
               </button>
             </div>
-            <p className="text-sm text-white/60 [text-shadow:0_1px_8px_rgba(0,0,0,0.4)]">{statusText}</p>
+            <p className="text-sm text-text-secondary">{statusText}</p>
           </div>
 
           {/* Conversation — same glass bubbles as the lock screen */}
@@ -368,7 +396,7 @@ export function AssistantOverlay() {
               className="w-full max-w-lg mx-auto max-h-[30dvh] overflow-y-auto flex flex-col gap-ha-2 pt-6 [scrollbar-width:none] [mask-image:linear-gradient(to_bottom,transparent,black_16%)]"
             >
               {messages.length === 0 && (
-                <div className="self-start max-w-[82%] px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-md border bg-[rgba(10,30,46,0.75)] border-ha-blue/30 backdrop-blur-md text-[15px] leading-snug animate-in fade-in slide-in-from-bottom-2 duration-400">
+                <div className="self-start max-w-[82%] px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-md border bg-surface-low/85 border-ha-blue/30 backdrop-blur-md text-[15px] leading-snug animate-in fade-in slide-in-from-bottom-2 duration-400">
                   Hi — ask me anything, or tell your <span className="capitalize font-medium">{contextName}</span> what to do.
                 </div>
               )}
@@ -377,10 +405,10 @@ export function AssistantOverlay() {
                 return (
                   <div
                     key={message.id}
-                    className={`animate-in fade-in slide-in-from-bottom-2 duration-400 max-w-[82%] px-ha-4 py-ha-3 rounded-ha-2xl border backdrop-blur-md text-[15px] leading-snug [text-shadow:0_1px_8px_rgba(0,0,0,0.35)] ${
+                    className={`animate-in fade-in slide-in-from-bottom-2 duration-400 max-w-[82%] px-ha-4 py-ha-3 rounded-ha-2xl border backdrop-blur-md text-[15px] leading-snug text-text-primary ${
                       message.role === 'home'
-                        ? `self-start bg-[rgba(10,30,46,0.75)] border-ha-blue/30 text-white ${lastOfGroup ? 'rounded-bl-md' : ''}`
-                        : `self-end bg-[rgba(38,44,54,0.7)] border-white/20 text-white ${lastOfGroup ? 'rounded-br-md' : ''}`
+                        ? `self-start bg-surface-low/85 border-ha-blue/30 ${lastOfGroup ? 'rounded-bl-md' : ''}`
+                        : `self-end bg-surface-mid/85 border-border-default ${lastOfGroup ? 'rounded-br-md' : ''}`
                     }`}
                   >
                     {message.text}
@@ -388,10 +416,10 @@ export function AssistantOverlay() {
                 );
               })}
               {busy && (
-                <div className="self-start flex items-center gap-1.5 px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-md bg-[rgba(10,30,46,0.75)] border border-ha-blue/30 backdrop-blur-md animate-in fade-in duration-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-bounce motion-reduce:animate-none [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-bounce motion-reduce:animate-none [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-bounce motion-reduce:animate-none [animation-delay:300ms]" />
+                <div className="self-start flex items-center gap-1.5 px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-md bg-surface-low/85 border border-ha-blue/30 backdrop-blur-md animate-in fade-in duration-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-text-secondary animate-bounce motion-reduce:animate-none [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-text-secondary animate-bounce motion-reduce:animate-none [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-text-secondary animate-bounce motion-reduce:animate-none [animation-delay:300ms]" />
                 </div>
               )}
             </div>
@@ -402,7 +430,7 @@ export function AssistantOverlay() {
             visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}>
             <form
-              className="w-full max-w-lg mx-auto flex items-center gap-ha-2 h-12 px-ha-4 rounded-ha-pill bg-white/8 border border-white/12 backdrop-blur-md focus-within:bg-white/12 focus-within:border-white/20 transition-colors"
+              className="w-full max-w-lg mx-auto flex items-center gap-ha-2 h-12 px-ha-4 rounded-ha-pill bg-surface-low/85 backdrop-blur-md focus-within:bg-surface-mid/85 transition-colors"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSend();
@@ -415,7 +443,7 @@ export function AssistantOverlay() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 // 16px on touch screens — smaller fonts make iOS zoom on focus.
-                className="flex-1 bg-transparent text-base lg:text-sm text-white placeholder-white/40 outline-none"
+                className="flex-1 bg-transparent text-base lg:text-sm text-text-primary placeholder-text-tertiary outline-none"
               />
               <button
                 type="submit"
@@ -435,7 +463,7 @@ export function AssistantOverlay() {
             visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}>
             <div className="w-full max-w-lg mx-auto">
-              <SectionLabel className="mb-ha-2 px-ha-1 text-white/50">Suggestions</SectionLabel>
+              <SectionLabel className="mb-ha-2 px-ha-1">Suggestions</SectionLabel>
               <div className="flex flex-wrap gap-ha-2">
                 {suggestions.map((s, i) => (
                   <button
@@ -444,11 +472,11 @@ export function AssistantOverlay() {
                       setQuery(s.label);
                       inputRef.current?.focus();
                     }}
-                    className="flex items-center gap-ha-2 bg-white/8 border border-white/12 backdrop-blur-md rounded-ha-xl px-ha-3 py-ha-2 transition-all duration-300 hover:bg-white/15 active:scale-95"
+                    className="flex items-center gap-ha-2 bg-surface-low/85 border border-border-default backdrop-blur-md rounded-ha-xl px-ha-3 py-ha-2 transition-all duration-300 hover:bg-surface-mid/85 active:scale-95"
                     style={{ transitionDelay: visible ? `${175 + i * 50}ms` : '0ms' }}
                   >
-                    <Icon path={s.icon} size={16} className="text-white/60" />
-                    <span className="text-sm text-white/90">{s.label}</span>
+                    <Icon path={s.icon} size={16} className="text-text-secondary" />
+                    <span className="text-sm text-text-primary">{s.label}</span>
                   </button>
                 ))}
               </div>

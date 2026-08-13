@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar, EditingToolbar } from '@/components/layout';
 import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useSidebarExpanded, useDesktopImmersivePageLayout, useTheme, useStandaloneMode, useVacuumSimulator, useDashboardThumbnailCapture } from '@/hooks';
 import { PulseWallpaper } from '@/components/layout/PulseWallpaper';
-import { useSearchContext, useHeader, useEditMode, useToast, useAssistantContext, useDebugFlags } from '@/contexts';
+import { useSearchContext, useHeader, useEditMode, useToast, useAssistantContext, useDebugFlags, useMobileToolbar } from '@/contexts';
 import { mdiConnection, mdiCheckCircle, mdiAlertCircle, mdiCellphoneArrowDown, mdiRoundedCorner } from '@mdi/js';
 import { friendlyConnectionError } from '@/lib/friendlyConnectionError';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
@@ -75,9 +75,13 @@ function AppShellContent({ children }: AppShellProps) {
   const { contentStyle: immersiveContentStyle, contentTransitionClasses, isImmersiveFixed } = useDesktopImmersivePageLayout();
   const { toggleSearch, openSearch } = useSearchContext();
   const { toggleAssistant } = useAssistantContext();
-  const { toggleDebugBadges } = useDebugFlags();
   const { title, subtitle } = useHeader();
   const { isEditing, toggleEditMode, previewViewport, previewOrientation } = useEditMode();
+  // Dashboard edit mode and the in-page editors (automation, areas & floors —
+  // both mount an EditorToolbarShell) share one focus treatment: chrome dimmed,
+  // accent border round the surface, glow rising from the toolbar.
+  const { toolbarActive } = useMobileToolbar();
+  const editorFocus = isEditing || toolbarActive;
   const { isToastVisible, showToast, dismissToast } = useToast();
   const { items: sidebarItems } = useSidebarItems();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useSidebarExpanded();
@@ -370,13 +374,6 @@ function AppShellContent({ children }: AppShellProps) {
         setShortcutsHelpOpen(true);
         return;
       }
-      // Debug toggles — safe (non-destructive) and useful mid-edit, so they run
-      // before the edit-mode gate below. Destructive resets stay palette-only.
-      if (matchShortcut(e, 'debug.badges')) {
-        e.preventDefault();
-        toggleDebugBadges();
-        return;
-      }
       if (matchShortcut(e, 'dashboard.edit') && isDashboardPath) {
         e.preventDefault();
         toggleEditMode();
@@ -408,7 +405,7 @@ function AppShellContent({ children }: AppShellProps) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleSearch, openSearch, toggleAssistant, toggleEditMode, toggleDebugBadges, toggleSidebar, isEditing, pathname, router, onboardingActive]);
+  }, [toggleSearch, openSearch, toggleAssistant, toggleEditMode, toggleSidebar, isEditing, pathname, router, onboardingActive]);
 
   // Reset preloader when user logs out so it shows again on next login
   useEffect(() => {
@@ -507,6 +504,16 @@ function AppShellContent({ children }: AppShellProps) {
     if (nextPathname && nextPathname !== pathname) {
       router.push(nextPathname);
     }
+  }, [pathname, router]);
+
+  // Settings entry, shared by the status bar avatar and — when the bottom bar
+  // is hidden by the debug flag — the sidebar's. Already on the two-column
+  // workspace → the URL won't change, so reset its active section via the bus.
+  // From a deep /settings/<slug> route (or anywhere else) a plain push lands on
+  // the workspace root, which picks its own default section.
+  const openSettings = useCallback(() => {
+    if (pathname === '/settings') emitSettingsReset();
+    else router.push('/settings');
   }, [pathname, router]);
 
   const sidebarNavigate = useCallback((href: string, options?: { openInSplit?: boolean }) => {
@@ -633,7 +640,7 @@ function AppShellContent({ children }: AppShellProps) {
 
   return (
     <div
-      className={`${isStandalone ? 'min-h-screen' : 'min-h-[100dvh]'} lg:min-h-screen bg-surface-default ${showPreloader ? '' : 'ha-app-booted'}`}
+      className={`${isStandalone ? 'min-h-screen' : 'min-h-[100dvh]'} lg:min-h-screen bg-surface-default`}
       data-component="AppShell"
     >
       {/* Pulse wallpaper — animated ring background painted behind the whole
@@ -666,13 +673,14 @@ function AppShellContent({ children }: AppShellProps) {
             itself animates between icon-only and expanded (labels) widths;
             the auto grid column follows it. */}
         <div className={`hidden lg:block lg:row-span-2 relative z-10 transition-opacity duration-300 ease-out ${
-          hideDesktopChrome ? 'opacity-0 pointer-events-none' : isEditing ? 'opacity-30 pointer-events-none' : 'opacity-100'
+          hideDesktopChrome ? 'opacity-0 pointer-events-none' : editorFocus ? 'opacity-30 pointer-events-none' : 'opacity-100'
         }`}>
           <Sidebar
             onNavigate={sidebarNavigate}
             splitNavigationEnabled={desktopSplitViewEnabled}
             expanded={sidebarExpanded}
             onToggleExpanded={toggleSidebar}
+            onProfileToggle={openSettings}
           />
         </div>
 
@@ -683,10 +691,10 @@ function AppShellContent({ children }: AppShellProps) {
           style={mobileTopBarStyle}
         >
             {/* Mobile backdrop — solid behind the bar, then a short fade under
-                it. The old single gradient started dissolving at 45% of the
-                bar's own height, so cards passing under the title read as a
-                haze across the top of the screen rather than as content
-                sliding cleanly beneath a header. */}
+                it. Both live inside this z-30 bar so the fade paints *over* the
+                scrolling cards: content dissolving as it slides under the title
+                is the point, and moving the fade below the content area lost
+                that haze entirely. */}
           <div className="lg:hidden absolute inset-0 pointer-events-none bg-surface-default" aria-hidden />
           <div
             className="lg:hidden absolute top-full inset-x-0 h-6 pointer-events-none bg-gradient-to-b from-surface-default to-transparent"
@@ -773,7 +781,7 @@ function AppShellContent({ children }: AppShellProps) {
               grey panel's edges + rounded bottom corners (.dashboard-bottom-glow) so it
               stays inside the surface instead of spilling into the side gutters. */}
           <AnimatePresence>
-            {isEditing && (
+            {editorFocus && (
               <motion.div
                 aria-hidden
                 className="dashboard-bottom-glow absolute bottom-0 pointer-events-none"
@@ -804,31 +812,10 @@ function AppShellContent({ children }: AppShellProps) {
         {/* Status bar row - Desktop only */}
         <StatusBar
           connectionStatus={connectionStatus}
-          editModeFade={isEditing}
-          onProfileToggle={() => {
-            // Already on the two-column workspace → the URL won't change, so
-            // reset its active section back to Home Center via the bus. From a
-            // deep /settings/<slug> route (or anywhere else) a plain push lands
-            // on the workspace root, which defaults to Home Center on its own.
-            if (pathname === '/settings') emitSettingsReset();
-            else router.push('/settings');
-          }}
+          editModeFade={editorFocus}
+          onProfileToggle={openSettings}
         />
       </div>
-
-      {/* One-shot boot glow for the desktop search bar — the toast/edit glow
-          language (radial tint rising from an edge), anchored to the very top
-          edge of the screen so it reads as a light source behind the centered
-          field. Fixed at shell root to escape the content area's overflow
-          clip; z-[9] keeps it above page content (z-0) but under the top bar
-          chrome (z-10). */}
-      {/* Full-width so the radial gradient fades to transparent within the box
-          on both sides (a fixed-width box clipped the horizontal spread). The
-          gradient itself is offset to sit under the field — see the CSS. */}
-      <div
-        aria-hidden
-        className="ha-search-boot-glow hidden lg:block fixed top-0 inset-x-0 h-48 pointer-events-none z-[9]"
-      />
 
       {/* Mobile navigation - hidden during preloader and first-run onboarding */}
       {!showPreloader && !onboardingActive && (
@@ -837,7 +824,6 @@ function AppShellContent({ children }: AppShellProps) {
           onNavAutoHiddenChange={handleMobileNavAutoHiddenChange}
           editModeFade={isEditing}
           freezeAutoHide={isToastVisible}
-          disableAutoHide
         />
       )}
 

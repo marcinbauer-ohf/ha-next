@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEditMode } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
-import { EditorToolbarShell } from './EditorToolbarShell';
+import { EditorToolbarShell, ToolbarPrimaryButton } from './EditorToolbarShell';
 import { ResetDashboardDialog } from './ResetDashboardDialog';
 import {
   mdiMonitor,
@@ -34,7 +34,11 @@ function ViewportButtons({ id, active, orientation, onChange, onToggleOrientatio
   onToggleOrientation: () => void;
 }) {
   return (
-    <div className="flex items-center">
+    // Grouped like the areas toolbar's List/Map switch — one recessed track
+    // holds all three, so they read as a single either/or control rather than
+    // three loose icon buttons. Same 40px segments + 2px track padding, which
+    // lands the group at the toolbar's 44px control height.
+    <div className="flex items-center rounded-ha-xl bg-surface-low p-0.5">
       {VIEWPORTS.map(({ key, icon, label, glyphOrientation }) => {
         const isActive = active === key;
         // Desktop has no orientation; tablet/mobile flip portrait/landscape
@@ -46,12 +50,12 @@ function ViewportButtons({ id, active, orientation, onChange, onToggleOrientatio
             key={key}
             aria-label={isActive && rotatable ? `${label} — rotate to ${orientation === 'portrait' ? 'landscape' : 'portrait'}` : label}
             onClick={() => (isActive && rotatable ? onToggleOrientation() : onChange(key))}
-            className="relative w-11 h-11 rounded-ha-xl flex items-center justify-center"
+            className="relative w-10 h-10 rounded-ha-lg flex items-center justify-center"
           >
             {isActive && (
               <motion.div
                 layoutId={`${id}-indicator`}
-                className="absolute inset-0 rounded-ha-xl bg-surface-mid"
+                className="absolute inset-0 rounded-ha-lg bg-surface-default"
                 transition={SPRING}
               />
             )}
@@ -95,12 +99,7 @@ export function EditingToolbar() {
 
               <div className="flex-1" />
 
-              <button
-                onClick={exitEditMode}
-                className="h-11 px-6 rounded-ha-pill bg-ha-blue text-white font-semibold text-sm active:scale-95 transition-transform"
-              >
-                Done
-              </button>
+              <ToolbarPrimaryButton label="Done" onClick={exitEditMode} />
             </div>
           }
           desktop={
@@ -129,12 +128,7 @@ export function EditingToolbar() {
                 <Icon path={mdiBackupRestore} size={20} />
               </button>
 
-              <button
-                onClick={exitEditMode}
-                className="h-11 px-6 rounded-ha-pill bg-ha-blue text-white font-semibold text-sm hover:bg-ha-blue/90 active:scale-95 transition-all ml-ha-1"
-              >
-                Done
-              </button>
+              <ToolbarPrimaryButton label="Done" onClick={exitEditMode} className="ml-ha-1" />
             </>
           }
         />

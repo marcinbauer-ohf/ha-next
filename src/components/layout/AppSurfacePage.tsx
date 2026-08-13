@@ -2,9 +2,10 @@
 
 import type { ReactNode } from 'react';
 import { PullToRevealPanel } from '@/components/sections';
-import { usePullToRevealContext } from '@/contexts';
+import { usePullToRevealContext, useMobileToolbar } from '@/contexts';
 import { useDesktopImmersivePageLayout } from '@/hooks';
 import { ApplicationViewNotice } from './ApplicationViewNotice';
+import { DashboardEditBorder } from './DashboardEditBorder';
 import { ImmersiveDogEar } from './ImmersiveDogEar';
 import { ScreensaverDogEar } from './ScreensaverDogEar';
 
@@ -15,6 +16,10 @@ interface AppSurfacePageProps {
 
 export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePageProps) {
   const { isRevealed } = usePullToRevealContext();
+  // An editor toolbar mounted on this surface (automation editor, areas & floors)
+  // gets the same focus treatment as dashboard edit mode: accent border here,
+  // dimmed shell chrome in AppShell.
+  const { toolbarActive } = useMobileToolbar();
   const { contentPaddingClasses, contentTransitionClasses, contentStyle, surfaceRoundingClass } = useDesktopImmersivePageLayout();
 
   return (
@@ -50,6 +55,11 @@ export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePag
                 <ApplicationViewNotice />
                 {children}
               </main>
+            </div>
+            {/* z-40 layer: the node-graph canvas portals into this root at z-30,
+                so the border would otherwise be painted over by it. */}
+            <div className="absolute inset-0 z-40 pointer-events-none">
+              <DashboardEditBorder active={toolbarActive} roundedClassName={surfaceRoundingClass} />
             </div>
           </div>
         </div>

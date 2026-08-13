@@ -8,8 +8,8 @@ import { Avatar } from '../ui/Avatar';
 import { Tooltip } from '../ui/Tooltip';
 import { CircularProgress } from '../ui/CircularProgress';
 import { RollingNumericValue } from '../ui/RollingNumericValue';
-import { useHomeAssistant, useHomeCenterPrefs } from '@/hooks';
-import { useAssistantContext, useHomeCenterContext } from '@/contexts';
+import { useHomeAssistant, useHomeCenterPrefs, useFeatureFlags } from '@/hooks';
+import { useAssistantContext, useHomeCenterContext, useDebugFlags } from '@/contexts';
 import { useActivities } from '@/hooks/useActivities';
 import { dismissActivity } from '@/lib/activities/dismissals';
 import { endedDismissKey } from '@/lib/activities/ledger';
@@ -299,6 +299,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const { callService, haUrl } = useHomeAssistant();
   const { toggleAssistant } = useAssistantContext();
   const { toggleHomeCenter } = useHomeCenterContext();
+  const { hideHomeCenterEnabled } = useDebugFlags();
+  const { assistVisualizationEnabled } = useFeatureFlags();
   const { data: activityData, activities } = useActivities();
   const { visibleSections } = useHomeCenterPrefs();
   const [currentTime, setCurrentTime] = useState({ hours: '', minutes: '' });
@@ -981,6 +983,17 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   }, [visibleReleaseNotes]);
 
 
+  // Prototyping flag: the whole bottom bar goes (ask-your-home, activities and
+  // the Home Center clock pill), and the settings avatar moves to the foot of
+  // the sidebar rail (see Sidebar). All that's left is an edge-padding spacer,
+  // so the dashboard's bottom margin matches its right one (lg:pr-edge) instead
+  // of the grid row collapsing the surface into the screen edge.
+  if (hideHomeCenterEnabled) {
+    // No data-component="StatusBar" here — themes hang chrome (teenage's
+    // border-top) off that attribute, which would draw a line above nothing.
+    return <div className="hidden lg:block col-span-full h-edge" aria-hidden />;
+  }
+
   return (
     <>
     <AnimatePresence>
@@ -1026,7 +1039,10 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
 
         {/* Ask your home — always-visible entry to the assistant overlay,
             styled as the same quiet field as the lock screen's talk widget:
-            flat pill, left-aligned text, trailing chevron, no mic chrome. */}
+            flat pill, left-aligned text, trailing chevron, no mic chrome.
+            Hidden with the lock screen's widget when the assistant
+            visualization is off; search / ⌘K still reach Assist. */}
+        {assistVisualizationEnabled && (
         <button
           type="button"
           onClick={() => toggleAssistant()}
@@ -1038,6 +1054,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
           </span>
           <Icon path={mdiChevronRight} size={20} className="text-text-tertiary flex-shrink-0" />
         </button>
+        )}
 
         {/* Scrollable Container for Activities */}
         <div className="flex-1 min-w-0 relative group">

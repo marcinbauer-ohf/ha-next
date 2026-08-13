@@ -9,6 +9,10 @@ export interface ContextMenuAction {
   label: string;
   icon?: string;
   danger?: boolean;
+  /** Draw a divider above this row — groups the rows that follow it. */
+  separator?: boolean;
+  /** Inert row: still says what's going on, but there's nothing to press. */
+  disabled?: boolean;
   onSelect: () => void;
 }
 
@@ -75,27 +79,42 @@ export function ContextMenu({
       onContextMenu={(e) => e.preventDefault()}
     >
       {actions.map((action, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => {
-            action.onSelect();
-            onClose();
-          }}
-          className={clsx(
-            'w-full flex items-center gap-ha-3 px-ha-3 py-ha-2 text-sm text-left transition-colors',
-            action.danger ? 'text-red-500 hover:bg-red-500/10' : 'text-text-primary hover:bg-surface-low'
+        <div key={i}>
+          {action.separator && i > 0 && (
+            <div className="my-ha-1 h-px bg-surface-lower" aria-hidden />
           )}
-        >
-          {action.icon && (
-            <Icon
-              path={action.icon}
-              size={18}
-              className={action.danger ? 'text-red-500' : 'text-text-secondary'}
-            />
-          )}
-          <span className="font-medium">{action.label}</span>
-        </button>
+          <button
+            type="button"
+            disabled={action.disabled}
+            onClick={() => {
+              action.onSelect();
+              onClose();
+            }}
+            className={clsx(
+              'w-full flex items-center gap-ha-3 px-ha-3 py-ha-2 text-sm text-left transition-colors',
+              action.disabled
+                ? 'text-text-tertiary cursor-default'
+                : action.danger
+                  ? 'text-red-500 hover:bg-red-500/10'
+                  : 'text-text-primary hover:bg-surface-low'
+            )}
+          >
+            {action.icon && (
+              <Icon
+                path={action.icon}
+                size={18}
+                className={
+                  action.disabled
+                    ? 'text-text-tertiary'
+                    : action.danger
+                      ? 'text-red-500'
+                      : 'text-text-secondary'
+                }
+              />
+            )}
+            <span className="font-medium">{action.label}</span>
+          </button>
+        </div>
       ))}
     </div>,
     document.body

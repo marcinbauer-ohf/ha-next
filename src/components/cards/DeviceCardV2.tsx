@@ -109,6 +109,11 @@ function ActionButton({ onPress }: { onPress: () => void }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editMode, onLongPress, className, areaName, feedImage }: DeviceCardV2Props) {
+  // Layout experiments (settings → Prototype & Debug → Developer flags). `hero`
+  // is the current design (name top-left, image right, toggle bottom-left);
+  // `classic` is the previous layout (image left, name/state + toggle bottom).
+  // `hideCardImages` drops the product render from either one.
+  const { heroCardLayoutEnabled, hideCardImagesEnabled } = useDebugFlags();
   const hasPicture = !!primary.entityPicture;
   const rawState = primary.state.toLowerCase();
   const isUnavailable = rawState === 'unavailable' || rawState === 'unknown';
@@ -123,7 +128,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   // during render (the React-sanctioned alternative to a setState-in-effect).
   const [thumb, setThumb] = useState<{ src?: string | null; ok: boolean }>({ src: primary.thumbnail, ok: true });
   if (thumb.src !== primary.thumbnail) setThumb({ src: primary.thumbnail, ok: true });
-  const showThumb = !!primary.thumbnail && thumb.ok && thumb.src === primary.thumbnail;
+  const showThumb = !hideCardImagesEnabled && !!primary.thumbnail && thumb.ok && thumb.src === primary.thumbnail;
 
   // Graph hover scrubbing (desktop) — show the hovered point + timestamp in
   // place of the live value, like the detail panel
@@ -136,11 +141,6 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   // mode). Touch fires click after the press ends, so the click is swallowed at
   // the card's own capture phase, before the hero, a switch or a row sees it.
   const longPressFired = useRef(false);
-
-  // Layout experiment (settings → Prototype & Debug → Developer flags). `hero`
-  // is the current design (name top-left, image right, toggle bottom-left);
-  // `classic` is the previous layout (image left, name/state + toggle bottom).
-  const { heroCardLayoutEnabled } = useDebugFlags();
 
   // Read-only text block (area eyebrow → prominent name → state / unavailable /
   // hover-scrubbed value). Shared by both layouts; `hero` only tweaks type sizes
@@ -197,8 +197,8 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         <p
           className={clsx('font-medium truncate ha-card-marquee', showFeed ? 'text-white/85' : 'text-text-secondary')}
           style={{
-            fontSize: hero ? 'var(--dct-state-size, 13px)' : 'var(--dct-state-size, 15px)',
-            marginTop: 'var(--dct-state-gap, 2px)',
+            fontSize: 'var(--dct-state-size, 13px)',
+            marginTop: 'var(--dct-state-gap, 1px)',
             fontFamily: 'var(--dct-state-font, var(--font-mono))',
           }}
         >
@@ -229,6 +229,24 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         </p>
       )}
     </div>
+  );
+
+  // Icon glyph to the LEFT of the name/state text, HA tile-card order — bare,
+  // no badge circle, just a state tint. It stands down for a product render or a
+  // camera feed (two images fight), but an offline alert always keeps the slot.
+  const iconBadge = (isUnavailable || (!showThumb && !showFeed)) && (
+    <Icon
+      path={isUnavailable ? mdiAlertCircleOutline : primary.icon}
+      size={22}
+      className={clsx(
+        'shrink-0',
+        isUnavailable
+          ? 'text-amber-500'
+          : primary.active && primary.toggleable
+            ? 'text-green-500'
+            : 'text-text-secondary',
+      )}
+    />
   );
 
   const handlePointerDown = useCallback(() => {
@@ -282,7 +300,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
       {/* Primary entity — unavailable keeps the same layout, tinted amber */}
       <div
         ref={primaryRef}
-        style={{ padding: 'var(--dct-pad, 12px)' }}
+        // Imageless: the icon is flush against the card edge with nothing to
+        // buffer it (no render, no scrim), so it needs more room than the
+        // picture layouts do.
+        style={{ padding: hideCardImagesEnabled ? 'var(--dct-pad, 14px)' : 'var(--dct-pad, 10px)' }}
         className={clsx(
           'flex flex-col justify-between relative overflow-hidden transition-colors',
           hasSecondary ? 'rounded-t-ha-2xl' : 'rounded-ha-2xl',
@@ -296,7 +317,16 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           // next lattice step down (88px) squashed the card and shrank the
           // product render with it — a card you glance at from across a room
           // needs the picture, and the picture needs the height.
-          'min-h-[140px] md:min-h-[var(--dct-min-h,140px)]',
+          // Desktop steps up a full row of that lattice — 192+16 = 4x52 — so a
+          // card has room for the render, a two-line name and the graph at once.
+          // Imageless (debug flag): one tile-card row — icon, name/state, control
+          // — so the card is only as tall as that row plus padding. It leaves the
+          // 52px lattice, which is fine because every imageless card shares the
+          // same base: the *differences* between neighbours are still whole
+          // secondary rows, so columns keep lining up.
+          hideCardImagesEnabled
+            ? 'min-h-[64px]'
+            : 'min-h-[140px] md:min-h-[var(--dct-min-h,192px)]',
           editMode
             ? 'bg-surface-default hover:bg-surface-low'
             : isUnavailable
@@ -319,7 +349,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
 
         {/* Non-feed entity_picture (person avatar, brand art) as a faint wash.
             Skipped when a product thumbnail renders — two images fight. */}
-        {hasPicture && !showFeed && !showThumb && (
+        {hasPicture && !showFeed && !showThumb && !hideCardImagesEnabled && (
           <img src={primary.entityPicture} alt="" aria-hidden
             className="absolute inset-0 w-full h-full object-cover opacity-20" />
         )}
@@ -349,23 +379,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
               />
             )}
 
-            {/* Top: name-prominent text on the LEFT; icon/alert tucked top-right.
-                On the phone the switch comes up here too: a card is 140px tall
-                and half a thumb wide, so the control belongs where the thumb
-                already is rather than in the far bottom corner. */}
-            <div className="relative z-[2] flex items-start justify-between gap-2">
+            {/* Top row, HA tile-card order: icon badge left, name/state beside it. */}
+            <div className="relative z-[2] flex items-center gap-3">
+              {iconBadge}
               {renderNameState(true)}
-              {!isUnavailable && primary.toggleable && primary.onToggle && (
-                <div className="md:hidden shrink-0 -mt-0.5">
-                  <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
-                </div>
-              )}
-              {!showThumb && !showFeed && !isUnavailable && (
-                <Icon path={primary.icon} size={20} className="hidden md:block text-text-tertiary shrink-0" />
-              )}
-              {isUnavailable && (
-                <Icon path={mdiAlertCircleOutline} size={20} className="text-amber-500 shrink-0" />
-              )}
             </div>
 
             {/* Sparkline — sensor entities only. Out of flow (see the card-height
@@ -379,9 +396,8 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
               </div>
             )}
 
-            {/* Bottom: control anchored bottom-LEFT (desktop only — the phone
-                moved it up to the header row). Empty for read-only. */}
-            <div className="relative z-[2] hidden md:flex items-center">
+            {/* Bottom: control anchored bottom-LEFT. Empty for read-only. */}
+            <div className="relative z-[2] flex items-center">
               {!isUnavailable && primary.toggleable && primary.onToggle && (
                 <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
               )}
@@ -420,22 +436,6 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
               </>
             )}
 
-            {/* Top row: icon (hidden when the product thumbnail is shown). Out of
-                flow like the sparkline — it's decoration pinned to the padding
-                box, so it can never push the card off the height rhythm (an area
-                eyebrow + an in-flow icon row used to overflow the 88px base). */}
-            <div className={clsx(
-              'absolute z-[2] flex items-center top-[var(--dct-pad,12px)] left-[var(--dct-pad,12px)] right-[var(--dct-pad,12px)]',
-              (showThumb || showFeed) ? 'justify-end' : 'justify-between',
-            )}>
-              {!showThumb && !showFeed && (
-                <Icon path={primary.icon} size={20} className={isUnavailable ? 'text-amber-500/70' : 'text-text-tertiary'} />
-              )}
-              {isUnavailable && (
-                <Icon path={mdiAlertCircleOutline} size={20} className="text-amber-500 shrink-0" />
-              )}
-            </div>
-
             {/* Sparkline — sensor entities only. Out of flow (see the card-height
                 rhythm note above), full-bleed along the bottom edge and behind
                 everything: z-0 keeps it under the name/state (z-[2]) and under
@@ -446,9 +446,14 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
               </div>
             )}
 
-            {/* Bottom: name + state on the left, the toggle on the right. The only
-                in-flow child now, so `mt-auto` does what justify-between used to. */}
-            <div className="relative z-[2] mt-auto flex items-center justify-between gap-3">
+            {/* One tile-card row: icon, name/state, control. The only in-flow
+                child, so the auto margin places it — centred on the compact
+                imageless card, still bottom-anchored under a product render. */}
+            <div className={clsx(
+              'relative z-[2] flex items-center gap-3',
+              hideCardImagesEnabled ? 'my-auto' : 'mt-auto',
+            )}>
+              {iconBadge}
               {renderNameState(false)}
               {!isUnavailable && primary.toggleable && primary.onToggle && (
                 <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
@@ -484,11 +489,11 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                     path={entity.icon}
                     size={19}
                     className={clsx(
-                      'flex-shrink-0',
-                      // A row with a graph carries icon + name + curve + value in
-                      // a phone-width card; the icon is the one part the graph
-                      // already implies, so it goes first.
-                      hasHistory(entity) && entity.chart !== false && !entity.toggleable && 'hidden md:block',
+                      // No row icons on a phone: a secondary row has to fit a
+                      // name, a graph and a value (or a switch) into a
+                      // half-screen card, and the icon is the part that carries
+                      // the least — the name already says what the row is.
+                      'hidden md:block flex-shrink-0',
                       entityUnavailable ? 'text-text-disabled' : (entity.active && entity.toggleable) ? 'text-green-500' : 'text-text-tertiary',
                     )}
                   />

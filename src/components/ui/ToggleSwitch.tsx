@@ -13,6 +13,10 @@ interface ToggleSwitchProps {
    * 'xl' = two-column hero, where the switch is the main control
    */
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  /** Dimmed and inert — used while the reading next to it is a scrubbed past one. */
+  disabled?: boolean;
+  /** Accessible name, for switches whose label isn't wired up by a <label>. */
+  label?: string;
 }
 
 // Deliberately bigger than Home Assistant's own switch. A dashboard card is
@@ -35,20 +39,22 @@ const GLYPH = { sm: 12, md: 15, lg: 17, xl: 24 } as const;
  * knob position AND the fill, rather than colour alone (which fails for the
  * ~8% of men with red/green colour blindness, and in a photo of the screen).
  */
-export function ToggleSwitch({ on, onToggle, size = 'md' }: ToggleSwitchProps) {
+export function ToggleSwitch({ on, onToggle, size = 'md', disabled, label }: ToggleSwitchProps) {
   return (
     <button
+      disabled={disabled}
       onClick={(e) => { e.stopPropagation(); haptic('toggle'); onToggle(); }}
       className={clsx(
-        'group/switch flex items-center shrink-0 rounded-full outline-none transition-[background-color,box-shadow,transform]',
+        'group/switch flex items-center shrink-0 rounded-full outline-none transition-[background-color,box-shadow,transform,opacity]',
         'focus-visible:ring-2 focus-visible:ring-ha-blue/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-default',
-        'active:scale-[0.97]',
+        'active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100',
         TRACK[size],
         on
           ? 'bg-green-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.12)]'
           : 'bg-surface-mid hover:bg-surface-lower shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)]',
       )}
       aria-checked={on}
+      aria-label={label}
       role="switch"
     >
       <div className={clsx(

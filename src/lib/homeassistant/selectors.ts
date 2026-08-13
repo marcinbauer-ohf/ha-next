@@ -642,6 +642,59 @@ export function areSystemUpdateInstallsEqual(
   );
 }
 
+/** What the `update.` entity of a Supervisor add-on says about that add-on. */
+export interface AddonUpdateState {
+  /** The update entity itself — `update.install` needs it to run the update. */
+  entityId: string;
+  installing: boolean;
+  /** 0-100 while installing, null when the Supervisor reports no percentage. */
+  percentage: number | null;
+  updateAvailable: boolean;
+}
+
+// Add-on update entities carry their Supervisor slug in `entity_picture`
+// (`/api/hassio/addons/<slug>/icon`) — an exact panel↔add-on join, which
+// matching on titles could never promise (two add-ons can share a name).
+const ADDON_ICON_PATTERN = /\/api\/hassio\/addons\/([^/]+)\/icon/;
+
+/** Add-on install/update state keyed by add-on slug. */
+export function selectAddonUpdates(entities: HassEntities): Record<string, AddonUpdateState> {
+  const bySlug: Record<string, AddonUpdateState> = {};
+  for (const [entityId, entity] of Object.entries(entities)) {
+    if (!entityId.startsWith('update.')) continue;
+    const slug = ADDON_ICON_PATTERN.exec(String(entity.attributes.entity_picture ?? ''))?.[1];
+    if (!slug) continue;
+    const rawPercentage = Number(entity.attributes.update_percentage);
+    bySlug[slug] = {
+      entityId,
+      installing:
+        entity.attributes.in_progress === true || typeof entity.attributes.in_progress === 'number',
+      percentage: Number.isFinite(rawPercentage) ? Math.max(0, Math.min(100, rawPercentage)) : null,
+      updateAvailable: entity.state === 'on',
+    };
+  }
+  return bySlug;
+}
+
+export function areAddonUpdatesEqual(
+  previous: Record<string, AddonUpdateState>,
+  next: Record<string, AddonUpdateState>
+): boolean {
+  const previousSlugs = Object.keys(previous);
+  if (previousSlugs.length !== Object.keys(next).length) return false;
+  return previousSlugs.every((slug) => {
+    const a = previous[slug];
+    const b = next[slug];
+    return (
+      !!b &&
+      a.entityId === b.entityId &&
+      a.installing === b.installing &&
+      a.percentage === b.percentage &&
+      a.updateAvailable === b.updateAvailable
+    );
+  });
+}
+
 export function selectActivityData(entities: HassEntities): ActivityData {
   const activeUpdates: UpdateSummary[] = [];
   const activeNotifications: NotificationSummary[] = [];

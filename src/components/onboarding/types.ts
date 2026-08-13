@@ -15,10 +15,27 @@ export interface OnbRoom {
   floor: number;
 }
 
+/** Where the home sits, as picked on the map step. */
+export interface OnbLocation {
+  lat: number;
+  lng: number;
+}
+
+/** Home Assistant's four analytics buckets — mirrors its own onboarding step. */
+export interface OnbAnalytics {
+  base: boolean;
+  diagnostics: boolean;
+  usage: boolean;
+  statistics: boolean;
+}
+
 export interface OnboardingState {
   /** How the user chose to start — connect their own home or look around the demo. */
   path: OnboardingPath;
   homeName: string;
+  /** Picked on the map step; null when skipped (the step is optional). */
+  location: OnbLocation | null;
+  analytics: OnbAnalytics;
   /** How many storeys the home has — 1 means "no floors worth naming". */
   floorCount: number;
   rooms: OnbRoom[];
@@ -81,6 +98,9 @@ export function uid(prefix: string): string {
 export const INITIAL_STATE: OnboardingState = {
   path: null,
   homeName: '',
+  location: null,
+  // Opted out by default — sharing is a choice the user makes on the step.
+  analytics: { base: false, diagnostics: false, usage: false, statistics: false },
   floorCount: 1,
   rooms: [],
   existingAreaCount: null,

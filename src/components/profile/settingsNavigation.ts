@@ -244,17 +244,24 @@ export function isHomeCenterSectionVisible(id: HomeCenterSectionId, isAdmin: boo
   return isAdmin || !isAdminOnlySlug(homeCenterSectionTarget[id]);
 }
 
-/** Settings sections + items visible to the current user; drops sections left empty after filtering. */
-export function getVisibleSettingsNavSections(isAdmin: boolean): SettingsNavSection[] {
-  if (isAdmin) return settingsNavSections;
+/**
+ * Settings sections + items visible to the current user; drops sections left
+ * empty after filtering. `hideHomeCenter` is the prototyping debug flag.
+ */
+export function getVisibleSettingsNavSections(isAdmin: boolean, hideHomeCenter = false): SettingsNavSection[] {
+  if (isAdmin && !hideHomeCenter) return settingsNavSections;
   return settingsNavSections
-    .map(section => ({ ...section, items: section.items.filter(item => !isAdminOnlySlug(item.slug)) }))
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item =>
+        (isAdmin || !isAdminOnlySlug(item.slug)) && !(hideHomeCenter && item.slug === 'home-center')),
+    }))
     .filter(section => section.items.length > 0);
 }
 
 /** Landing slug for the settings workspace — Home Center is admin-only, so a non-admin lands on Notifications instead. */
-export function getDefaultSettingsSlug(isAdmin: boolean): SettingsSlug {
-  return isAdmin ? 'home-center' : 'notifications';
+export function getDefaultSettingsSlug(isAdmin: boolean, hideHomeCenter = false): SettingsSlug {
+  return isAdmin && !hideHomeCenter ? 'home-center' : 'notifications';
 }
 
 // Items offered in the top-bar "+" (AddMenu), derived from the settings nav so

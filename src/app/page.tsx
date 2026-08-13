@@ -38,7 +38,7 @@ import { DashboardFilterBar } from '@/components/layout/DashboardFilterBar';
 import { PullToRevealPanel } from '@/components/sections';
 import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags, useFavorites, useFastScrollLabels, useIdleMarquee, useSectionCrumb, useScrollToEdges } from '@/hooks';
 import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
-import { usePullToRevealContext, useHeader, useEditMode, useToast } from '@/contexts';
+import { usePullToRevealContext, useHeader, useEditMode, useToast, useDebugFlags } from '@/contexts';
 import { NavChevron } from '@/components/ui';
 import { TipStack, type TipStackTip } from '@/components/ui/TipStack';
 import { SetupScreen } from '@/components/ui/SetupScreen';
@@ -266,6 +266,7 @@ export default function DashboardPage() {
   const { setHeader } = useHeader();
   const { toggleEntity, haUrl, demoMode, connecting, error: connectionError, saveCredentials, enableDemoMode } = useHomeAssistant();
   const { showToast } = useToast();
+  const { hideHomeCenterEnabled, dashboardFilterEnabled } = useDebugFlags();
 
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
@@ -456,7 +457,7 @@ export default function DashboardPage() {
         flashHud({ shortcutId: 'dashboard.map', value: next === 'map' ? 'Floor plan' : 'List', icon: next === 'map' ? mdiMapOutline : mdiViewListOutline });
         return;
       }
-      if (/^[0-9]$/.test(e.key) && !e.shiftKey && floors.length >= 2) {
+      if (/^[0-9]$/.test(e.key) && !e.shiftKey && dashboardFilterEnabled && floors.length >= 2) {
         if (e.key === '0') { e.preventDefault(); setActiveFloorId(null); return; }
         const floor = floors[Number(e.key) - 1];
         if (floor) { e.preventDefault(); setActiveFloorId(floor.floor_id); }
@@ -464,7 +465,7 @@ export default function DashboardPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [toggleImmersiveMode, isEditing, dashboardView, listMapView, groupBy, setGroupByPersisted, hasMap, setListMapViewPersisted, floors]);
+  }, [toggleImmersiveMode, isEditing, dashboardView, listMapView, groupBy, setGroupByPersisted, hasMap, setListMapViewPersisted, floors, dashboardFilterEnabled]);
 
   // Scroll gradients — re-measured on scroll, resize, and content-size changes
   useEffect(() => {
@@ -518,9 +519,11 @@ export default function DashboardPage() {
 
   // Devices on the active floor — applies in BOTH area and type modes
   const floorDevices = useMemo(() => {
-    if (!activeFloorId || floors.length < 2) return devices;
+    // With the filter pill switched off there's no way to see or clear a floor
+    // selection, so the filter goes with it rather than hiding devices silently.
+    if (!dashboardFilterEnabled || !activeFloorId || floors.length < 2) return devices;
     return devices.filter(d => areaFloorMap.get(d.areaId ?? '') === activeFloorId);
-  }, [devices, activeFloorId, floors, areaFloorMap]);
+  }, [devices, activeFloorId, floors, areaFloorMap, dashboardFilterEnabled]);
 
   // A card has nothing to show when every entity was moved to Hidden/Disabled
   // (and there's no camera/media feed to fall back on). Common for a single-
@@ -811,7 +814,11 @@ export default function DashboardPage() {
   // it: pt-ha-2 (--ha-space-2) + 48px content row + pb-6 (1.5rem). The footer
   // has no solid backing, so any under-count lets dashboard cards show through
   // around the activity chips (they appear to "float out" over the content).
-  const statusBarHeight = 'calc(var(--ha-space-2) + 48px + 1.5rem)';
+  // With the bottom bar hidden by the prototyping flag there is no chrome to
+  // clear — only the edge-padding spacer StatusBar leaves behind.
+  const statusBarHeight = hideHomeCenterEnabled
+    ? 'var(--ha-edge-padding)'
+    : 'calc(var(--ha-space-2) + 48px + 1.5rem)';
   const compensatingPadding = {
     paddingLeft: 'calc(2 * var(--ha-edge-padding) + 64px)',
     paddingTop: 'calc(var(--ha-edge-padding) + 64px)',
@@ -843,7 +850,7 @@ export default function DashboardPage() {
 
       {/* Floating filter/grouping controls — hidden in edit mode (EditingToolbar
           owns the bottom) and in 3D view. */}
-      {!isEditing && dashboardView === 'list' && (
+      {!isEditing && dashboardView === 'list' && dashboardFilterEnabled && (
         <DashboardFilterBar
           floors={floors}
           hasAreas={areas.size > 0}
@@ -958,7 +965,7 @@ export default function DashboardPage() {
                   // the symmetric mobile edge padding instead.
                   !previewingBelowLg && CONTENT_GUTTER,
                   // Clearance for the floating DashboardFilterBar pill on desktop.
-                  !isEditing && (floors.length >= 2 || areas.size > 0) && 'lg:pb-28',
+                  dashboardFilterEnabled && !isEditing && (floors.length >= 2 || areas.size > 0) && 'lg:pb-28',
                   // Reserve room for the scroll-index rail so its dots never
                   // sit on top of the cards, at any window width. (lg keeps
                   // the symmetric px-ha-8 gutter — the rail fits inside it.)
@@ -1138,7 +1145,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Entity detail / card edit — modal dialog */}
-          <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel} maxWidth={640} transitionKey={panelMode}>
+          <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel} maxWidth={760} transitionKey={panelMode}>
             {selectedDevice && panelMode === 'entity' && allPanelEntities.length > 0 && (
               <EntityDetailPanel
                 initialEntityId={selectedEntityId ?? allPanelEntities[0].entityId}

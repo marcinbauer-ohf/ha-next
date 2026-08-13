@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import type { StepProps } from '../types';
-import { BIG_FIELD_CLASS, DISPLAY_FONT, PrimaryPill, StepSubtitle, StepTitle } from '../ui';
+import { BIG_FIELD_CLASS, DISPLAY_FONT, PrimaryPill, StepActions, StepSubtitle, StepTitle } from '../ui';
 
 const SUGGESTIONS = ['Our place', 'The nest', 'Casa', 'Hygge house'];
 
@@ -62,7 +62,11 @@ export function NameStep({ state, update, next }: StepProps) {
             })}
           </div>
 
-          <PrimaryPill type="submit">Continue</PrimaryPill>
+          {/* Portalled out of the form, so it advances by hand — Enter in the
+              field still goes through onSubmit. */}
+          <StepActions>
+            <PrimaryPill onClick={next}>Continue</PrimaryPill>
+          </StepActions>
         </form>
       </div>
     </div>

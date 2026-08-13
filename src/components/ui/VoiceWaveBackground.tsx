@@ -15,18 +15,27 @@ interface VoiceWaveBackgroundProps {
   /** Live mic RMS (0–~0.5), written by the assist pipeline; read per frame. */
   levelRef: React.RefObject<number>;
   className?: string;
+  /**
+   * Draw the field on a pale ground instead of the night scene. The wave's
+   * depth cue is brightness, so light mode doesn't just swap the backdrop — it
+   * flips the ramp too: near rows go deep, far rows fade toward the paper.
+   */
+  light?: boolean;
 }
 
 // Palette anchors — the screensaver shader family (navy → HA blue → ice).
 const DIM: [number, number, number] = [26, 82, 128];
 const BLUE: [number, number, number] = [24, 188, 242];
 const ICE: [number, number, number] = [209, 240, 255];
+// Light-mode counterparts: haze → HA blue → deep navy.
+const HAZE: [number, number, number] = [170, 208, 232];
+const DEEP: [number, number, number] = [12, 74, 112];
 
 function mix(a: [number, number, number], b: [number, number, number], k: number): [number, number, number] {
   return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
 }
 
-export function VoiceWaveBackground({ state, levelRef, className = '' }: VoiceWaveBackgroundProps) {
+export function VoiceWaveBackground({ state, levelRef, className = '', light = false }: VoiceWaveBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<VoiceVisualState>(state);
 
@@ -80,15 +89,16 @@ export function VoiceWaveBackground({ state, levelRef, className = '' }: VoiceWa
       else if (visual === 'speaking') target = 0.55 + 0.35 * (0.5 + 0.5 * Math.sin(t * 7.3)) * (0.6 + 0.4 * Math.sin(t * 2.1));
       energy += (target - energy) * (target > energy ? 0.25 : 0.05);
 
-      // Ground: near-black navy with a center glow that swells with energy.
+      // Ground: near-black navy (or pale sky in light mode) with a center glow
+      // that swells with energy.
       const bg = ctx.createLinearGradient(0, 0, 0, h);
-      bg.addColorStop(0, '#050a15');
-      bg.addColorStop(1, '#02060e');
+      bg.addColorStop(0, light ? '#eef5fb' : '#050a15');
+      bg.addColorStop(1, light ? '#e2ebf4' : '#02060e');
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, w, h);
 
       const glow = ctx.createRadialGradient(w * 0.5, h * 0.58, 0, w * 0.5, h * 0.58, Math.max(w, h) * 0.55);
-      glow.addColorStop(0, `rgba(24, 188, 242, ${0.05 + energy * 0.11})`);
+      glow.addColorStop(0, `rgba(24, 188, 242, ${(light ? 0.04 : 0.05) + energy * (light ? 0.08 : 0.11)})`);
       glow.addColorStop(1, 'rgba(24, 188, 242, 0)');
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, w, h);
@@ -122,9 +132,15 @@ export function VoiceWaveBackground({ state, levelRef, className = '' }: VoiceWa
           const size = (0.8 + 2.4 * zz) * (1 + lift * 0.9);
 
           const b = Math.min(1, Math.max(0, 0.24 + 0.26 * zz + height * 0.5 + energy * 0.16));
-          const rgb = b < 0.6 ? mix(DIM, BLUE, b / 0.6) : mix(BLUE, ICE, (b - 0.6) / 0.4);
-          // Aggressive depth falloff dissolves the far rows into the dark
-          // instead of banding into a bright "static" line at the horizon.
+          const rgb = light
+            ? b < 0.6
+              ? mix(HAZE, BLUE, b / 0.6)
+              : mix(BLUE, DEEP, (b - 0.6) / 0.4)
+            : b < 0.6
+              ? mix(DIM, BLUE, b / 0.6)
+              : mix(BLUE, ICE, (b - 0.6) / 0.4);
+          // Aggressive depth falloff dissolves the far rows into the ground
+          // instead of banding into a hard "static" line at the horizon.
           const alpha = (0.08 + 0.7 * b) * (0.12 + 0.88 * zz);
 
           ctx.fillStyle = `rgba(${rgb[0] | 0}, ${rgb[1] | 0}, ${rgb[2] | 0}, ${alpha.toFixed(3)})`;
@@ -140,7 +156,7 @@ export function VoiceWaveBackground({ state, levelRef, className = '' }: VoiceWa
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [levelRef]);
+  }, [levelRef, light]);
 
   return <canvas ref={canvasRef} aria-hidden className={`block w-full h-full ${className}`} />;
 }

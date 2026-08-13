@@ -41,7 +41,7 @@ export function AliasInput({ value, onChange, placeholder = 'Add an alias…' }:
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-ha-2 rounded-ha-2xl border border-surface-lower bg-surface-low px-ha-3 py-ha-2 transition-colors focus-within:border-ha-blue/40 focus-within:ring-1 focus-within:ring-ha-blue/20">
+    <div className="flex flex-wrap items-center gap-ha-2 rounded-ha-2xl bg-surface-low px-ha-3 py-ha-2 transition-colors">
       {value.map((alias) => (
         <span
           key={alias}

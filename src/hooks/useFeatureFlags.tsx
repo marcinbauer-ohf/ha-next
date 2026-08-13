@@ -18,6 +18,7 @@ const LS_REACTIVE_TRIGGER_LABELS_KEY = 'ha-flag-reactive-trigger-labels';
 const LS_PULSE_MODE_KEY = 'ha-flag-pulse-mode';
 const LS_WEATHER_ENTITY_KEY = 'ha-flag-weather-entity';
 const LS_FAST_SCROLL_LABELS_KEY = 'ha-flag-fast-scroll-labels';
+const LS_ASSIST_VISUALIZATION_KEY = 'ha-flag-assist-visualization';
 
 const PULSE_INTENSITIES: PulseIntensity[] = ['subtle', 'bold'];
 
@@ -92,6 +93,12 @@ interface FeatureFlagsContextValue {
   fastScrollLabelsEnabled: boolean;
   setFastScrollLabelsEnabled: (value: boolean) => void;
   toggleFastScrollLabels: () => void;
+  /** The assistant's ambient treatment: the lock screen's home-summary widget
+   *  (with its glow halo) and the "Ask your home…" entries in the chrome.
+   *  Off strips all of them; Assist stays reachable via search / ⌘K. */
+  assistVisualizationEnabled: boolean;
+  setAssistVisualizationEnabled: (value: boolean) => void;
+  toggleAssistVisualization: () => void;
 }
 
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue | undefined>(undefined);
@@ -284,6 +291,21 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     setFastScrollLabelsEnabled(!fastScrollLabelsEnabled);
   }, [fastScrollLabelsEnabled, setFastScrollLabelsEnabled]);
 
+  // Ships on — opt-out flag, so only an explicit '0' hides the assistant chrome.
+  const [assistVisualizationEnabled, setAssistVisualizationEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(LS_ASSIST_VISUALIZATION_KEY) !== '0';
+  });
+
+  const setAssistVisualizationEnabled = useCallback((value: boolean) => {
+    setAssistVisualizationEnabledState(value);
+    localStorage.setItem(LS_ASSIST_VISUALIZATION_KEY, value ? '1' : '0');
+  }, []);
+
+  const toggleAssistVisualization = useCallback(() => {
+    setAssistVisualizationEnabled(!assistVisualizationEnabled);
+  }, [assistVisualizationEnabled, setAssistVisualizationEnabled]);
+
   return (
     <FeatureFlagsContext.Provider
       value={{
@@ -323,6 +345,9 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
         fastScrollLabelsEnabled,
         setFastScrollLabelsEnabled,
         toggleFastScrollLabels,
+        assistVisualizationEnabled,
+        setAssistVisualizationEnabled,
+        toggleAssistVisualization,
       }}
     >
       {children}

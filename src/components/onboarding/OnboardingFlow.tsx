@@ -24,13 +24,16 @@ import { haptic } from '@/lib/haptics';
 import { mdiArrowLeft } from '@mdi/js';
 import { floorNames, INITIAL_STATE, type OnboardingPatch, type OnboardingState } from './types';
 import { setHomeName } from '@/lib/homeName';
-import { EASE_OUT } from './ui';
+import { EASE_OUT, StepActionsHostContext } from './ui';
+import { AccessibilityMenu } from './AccessibilityMenu';
 import { HelloStep } from './steps/HelloStep';
 import { PathStep } from './steps/PathStep';
 import { ConnectStep } from './steps/ConnectStep';
 import { NameStep } from './steps/NameStep';
+import { LocationStep } from './steps/LocationStep';
 import { FloorsStep } from './steps/FloorsStep';
 import { RoomsStep } from './steps/RoomsStep';
+import { AnalyticsStep } from './steps/AnalyticsStep';
 import { FinaleStep } from './steps/FinaleStep';
 
 const LS_LAYOUT = 'ha_onboarding_layout_v1';
@@ -38,9 +41,18 @@ const SS_DRAFT = 'ha_onboarding_draft_v2';
 
 /** Rooms get one step per storey — `rooms:0` is the ground floor. */
 type RoomsStepId = `rooms:${number}`;
-type StepId = 'hello' | 'path' | 'connect' | 'name' | 'floors' | RoomsStepId | 'finale';
+type StepId =
+  | 'hello'
+  | 'path'
+  | 'connect'
+  | 'name'
+  | 'location'
+  | 'floors'
+  | RoomsStepId
+  | 'analytics'
+  | 'finale';
 
-const FIXED_STEP_IDS = ['hello', 'path', 'connect', 'name', 'floors', 'finale'] as const;
+const FIXED_STEP_IDS = ['hello', 'path', 'connect', 'name', 'location', 'floors', 'analytics', 'finale'] as const;
 
 function isStepId(value: unknown): value is StepId {
   return (
@@ -77,13 +89,23 @@ interface OnboardingFlowProps {
 }
 
 export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
-  const { enableDemoMode, demoMode, connected, createArea, createFloor } = useHomeAssistant();
+  const {
+    enableDemoMode,
+    demoMode,
+    connected,
+    createArea,
+    createFloor,
+    updateCoreConfig,
+    setAnalyticsPreferences,
+  } = useHomeAssistant();
   const reduce = useReducedMotion();
   const ringOrigin = useRingOrigin();
   const [draft] = useState(() => (resume ? readDraft() : null));
   const [state, setState] = useState<OnboardingState>(draft?.state ?? INITIAL_STATE);
   const [stepId, setStepId] = useState<StepId>(draft?.stepId ?? 'hello');
   const [dir, setDir] = useState(1);
+  // The footer slot every step's CTA portals into — see StepActions.
+  const [actionsHost, setActionsHost] = useState<HTMLDivElement | null>(null);
 
   // Keep the draft current; it is cleared when the flow finishes.
   useEffect(() => {
@@ -115,9 +137,12 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
       'path',
       ...(state.path === 'connect' ? (['connect'] as StepId[]) : []),
       'name',
+      'location',
       'floors',
       // One rooms step per storey — a tab strip was too easy to miss.
       ...(skipRooms ? [] : floorNames(state.floorCount).map((_, i): StepId => `rooms:${i}`)),
+      // Sharing is the last thing asked, once the home itself is set up.
+      'analytics',
       'finale',
     ],
     [state.path, state.floorCount, skipRooms],
@@ -156,6 +181,7 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
           floors: floorNames(s.floorCount).map((name, level) => ({ name, level })),
           areas: s.rooms.map((r) => ({ id: r.id, name: r.name, icon: r.icon, floorId: r.floor })),
           deviceAreas: {},
+          location: s.location,
         }),
       );
     } catch {
@@ -165,6 +191,12 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
     // the background while the finale plays. Single-storey homes get no floors —
     // HA treats "no floors" as the normal case and one would just be noise.
     if (s.path === 'connect' && connected && !demoMode) {
+      // Location + sharing are Home Assistant's own settings — write them where
+      // its Settings screens read from, so this flow isn't a parallel truth.
+      if (s.location) {
+        void updateCoreConfig({ latitude: s.location.lat, longitude: s.location.lng }).catch(() => {});
+      }
+      void setAnalyticsPreferences(s.analytics).catch(() => {});
       void (async () => {
         // level index → the created floor's HA id, so rooms land on their storey.
         const floorIds: Array<string | null> = floorNames(s.floorCount).map(() => null);
@@ -277,9 +309,11 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
       {/* The screensaver's ambient shader — immersive full-bleed, forced dark so
           it fills instead of blending over a light surface. */}
       <RingShaderBackground mode="warp" resolvedMode="dark" center={ringOrigin.center} reach={ringOrigin.reach} opaque />
-      {/* Flat black scrim over the shader — heavier than the screensaver's 15%
-          because this flow puts small text and chips on top of the animation. */}
-      <div className="absolute inset-0 bg-black/55" aria-hidden />
+      {/* Black scrim over the shader. Top-weighted, not flat: the warp field is
+          brightest along the top edge, which read as a haze band across the top
+          of the screen. Damping just that end keeps the shader visible lower
+          down without a flat 55% killing it everywhere. */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/22" aria-hidden />
 
       {/* ── Top chrome: back · progress dots · skip ─────────────────────── */}
       <div className="relative z-10 flex-shrink-0 h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] px-ha-4 grid grid-cols-[1fr_auto_1fr] items-center">
@@ -331,8 +365,12 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
         </AnimatePresence>
 
         {/* No skip affordance: setting the home up is the point of this flow,
-            and an escape hatch in the corner tells people it's optional. */}
-        <div className="justify-self-end" />
+            and an escape hatch in the corner tells people it's optional. The
+            corner holds the accessibility controls instead — available from the
+            very first screen, before any of the questions. */}
+        <div className="justify-self-end">
+          <AccessibilityMenu />
+        </div>
       </div>
 
       {/* ── Step body — centered, scrolls only when it must ─────────────── */}
@@ -340,9 +378,10 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
           this scroller's implied overflow-x:auto into a flashing scrollbar. */}
       <div className="relative z-10 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
         <div className="min-h-full flex flex-col">
-          {/* Bottom padding includes the top-chrome height so content optically
-              centers in the full viewport instead of sitting ~4% low. */}
-          <div className="m-auto w-full max-w-[520px] lg:max-w-[660px] px-ha-6 pt-ha-8 pb-[calc(max(env(safe-area-inset-bottom),var(--ha-space-8))+3.5rem)]">
+          {/* Centred in whatever height is left between the chrome and the CTA
+              row — both of which are real rows, so no padding guesswork and no
+              way for a tall step to end up underneath the buttons. */}
+          <div className="m-auto w-full max-w-[520px] lg:max-w-[660px] px-ha-6 py-ha-8">
             <AnimatePresence mode="wait" custom={dir}>
               <motion.div
                 key={stepId}
@@ -355,6 +394,7 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
                   if (definition === 'center') settleFocus();
                 }}
               >
+                <StepActionsHostContext.Provider value={actionsHost}>
                 {stepId === 'hello' && <HelloStep state={state} update={update} next={next} back={back} />}
                 {stepId === 'path' && (
                   <PathStep state={state} update={update} next={next} back={back} onConnect={chooseConnect} onDemo={chooseDemo} />
@@ -363,16 +403,35 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
                   <ConnectStep state={state} update={update} next={next} back={back} onDemo={chooseDemo} />
                 )}
                 {stepId === 'name' && <NameStep state={state} update={update} next={next} back={back} />}
+                {stepId === 'location' && <LocationStep state={state} update={update} next={next} back={back} />}
                 {stepId === 'floors' && <FloorsStep state={state} update={update} next={next} back={back} />}
                 {roomsStepFloor !== null && (
                   <RoomsStep state={state} update={update} next={next} back={back} floor={roomsStepFloor} />
                 )}
+                {stepId === 'analytics' && <AnalyticsStep state={state} update={update} next={next} back={back} />}
                 {stepId === 'finale' && <FinaleStep onFinish={finish} />}
+                </StepActionsHostContext.Provider>
               </motion.div>
             </AnimatePresence>
           </div>
         </div>
       </div>
+
+      {/* CTA slot — every step's Continue button portals in here (StepActions),
+          so it holds one position regardless of how tall the step is.
+          A real row in the column, NOT an overlay: the step body above is
+          flex-1, so it can only ever use the height this row leaves it, and a
+          tall step scrolls instead of sliding under the buttons.
+          Mobile: the row is just button + edge padding, i.e. the exact band the
+          app's bottom nav occupies, so ending the flow fades these buttons out
+          onto the nav. Desktop: min-height reserves everything below the old
+          anchor (18rem under centre, clamped for short windows) and the buttons
+          sit at the row's top edge — same position as before, now with the space
+          actually reserved. Stacks grow down from that edge. */}
+      <div
+        ref={setActionsHost}
+        className="pointer-events-none relative z-20 flex-shrink-0 flex flex-col items-center gap-ha-2 px-ha-6 pb-[calc(var(--ha-edge-padding)+var(--ha-space-2))] lg:pb-0 lg:min-h-[max(calc(var(--ha-space-8)+3.5rem),calc(50%_-_18rem_+_3.5rem))]"
+      />
     </motion.div>
   );
 }

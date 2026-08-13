@@ -58,7 +58,7 @@ function InfoCard({
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-ha-3 py-ha-2.5 border-b border-surface-lower last:border-0">
+    <div className="flex items-center justify-between gap-ha-3 py-2.5 border-b border-surface-lower last:border-0">
       <span className="text-sm text-text-secondary">{label}</span>
       <span className="text-sm font-medium text-text-primary text-right">{value}</span>
     </div>
@@ -124,7 +124,7 @@ export function HomeInformation() {
             if (e.key === 'Enter') e.currentTarget.blur();
           }}
           placeholder="Home"
-          className="w-full rounded-ha-2xl border border-surface-lower bg-surface-low px-ha-4 py-ha-3 text-sm font-medium text-text-primary outline-none transition-colors focus:border-ha-blue/60 focus:bg-surface-default"
+          className="w-full rounded-ha-2xl bg-surface-low px-ha-4 py-ha-3 text-sm font-medium text-text-primary outline-none transition-colors focus:bg-surface-default"
         />
       </InfoCard>
 

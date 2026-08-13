@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 /** One stretch of time the entity held a single state. `start`/`end` are unix seconds. */
 export interface StateSegment {
@@ -42,6 +42,18 @@ function fmtDur(sec: number): string {
   return mm ? `${h}h ${mm}m` : `${h}h`;
 }
 
+/** Paint one cell: solid when it held a single state, hard-stop gradient when it flapped. */
+function cellStyle(parts: { state: string; from: number; to: number }[]): CSSProperties | undefined {
+  if (parts.length === 0) return undefined;
+  if (parts.length === 1) return { backgroundColor: stateColor(parts[0].state) };
+  // Two stops per part (start + end at the same colour) so transitions are edges, not blends.
+  const stops = parts.flatMap(p => {
+    const c = stateColor(p.state);
+    return [`${c} ${(p.from * 100).toFixed(2)}%`, `${c} ${(p.to * 100).toFixed(2)}%`];
+  });
+  return { backgroundImage: `linear-gradient(to right, ${stops.join(',')})` };
+}
+
 const TARGET_CELL_PX = 7; // aim for ~7px cells; cell count adapts to width
 
 /**
@@ -51,12 +63,14 @@ const TARGET_CELL_PX = 7; // aim for ~7px cells; cell count adapts to width
  * collapses to sub-pixel slivers when an entity flaps), and a per-state legend
  * sums total time. The categorical analogue of the numeric sparkline.
  */
-export function StateTimeline({ segments, startTs, endTs, compact, onHover }: {
+export function StateTimeline({ segments, startTs, endTs, compact, fill, onHover }: {
   segments: StateSegment[];
   startTs: number;
   endTs: number;
   /** Strip variant — bar only, no hover readout or legend (used inline under a value). */
   compact?: boolean;
+  /** Stretch the bar to fill the height it's given instead of the fixed 36px. */
+  fill?: boolean;
   /**
    * The state under the cursor and when it held — lets the hero show what the
    * entity read at that moment instead of what it reads now.
@@ -80,23 +94,25 @@ export function StateTimeline({ segments, startTs, endTs, compact, onHover }: {
   const cellCount = Math.min(256, Math.max(16, Math.round((width || 320) / TARGET_CELL_PX)));
   const cellDur = span / cellCount;
 
-  // Dominant state per cell — the state with the most overlap in that bucket.
+  // Every state a cell contains, in time order — a cell that flapped is painted
+  // as a hard-stop gradient rather than collapsing to whichever state won it.
   const cells = useMemo(() => {
-    const out: (string | null)[] = [];
+    const sorted = [...segments].sort((a, b) => a.start - b.start);
+    const out: { state: string; from: number; to: number }[][] = [];
     for (let c = 0; c < cellCount; c++) {
       const cs = startTs + c * cellDur;
       const ce = cs + cellDur;
-      let best: string | null = null;
-      let bestDur = 0;
-      const acc = new Map<string, number>();
-      for (const seg of segments) {
-        const overlap = Math.min(ce, seg.end) - Math.max(cs, seg.start);
-        if (overlap <= 0) continue;
-        const d = (acc.get(seg.state) ?? 0) + overlap;
-        acc.set(seg.state, d);
-        if (d > bestDur) { bestDur = d; best = seg.state; }
+      const parts: { state: string; from: number; to: number }[] = [];
+      for (const seg of sorted) {
+        if (seg.end <= cs) continue;
+        if (seg.start >= ce) break;
+        const from = (Math.max(cs, seg.start) - cs) / cellDur;
+        const to = (Math.min(ce, seg.end) - cs) / cellDur;
+        const prev = parts[parts.length - 1];
+        if (prev && prev.state === seg.state) prev.to = to;   // merge touching repeats
+        else parts.push({ state: seg.state, from, to });
       }
-      out.push(best);
+      out.push(parts);
     }
     return out;
   }, [segments, startTs, cellDur, cellCount]);
@@ -109,24 +125,25 @@ export function StateTimeline({ segments, startTs, endTs, compact, onHover }: {
   }, [segments]);
 
   // Touch scrubbing: the cells only ever listened for mouseenter, so a finger
-  // read nothing. One handler on the bar maps x to a cell instead.
+  // read nothing. One handler on the bar maps x straight to a timestamp — and
+  // since cells are no longer single-state, the readout resolves by time, not cell.
   const scrubTo = (clientX: number) => {
     const el = ref.current;
     if (!el || !onHover) return;
     const r = el.getBoundingClientRect();
     const f = Math.min(0.999, Math.max(0, (clientX - r.left) / r.width));
-    const i = Math.floor(f * cellCount);
-    const state = cells[i];
-    onHover(state ? { state, ts: startTs + i * cellDur } : null);
+    const ts = startTs + f * span;
+    const seg = segments.find(s => ts >= s.start && ts < s.end);
+    onHover(seg ? { state: seg.state, ts } : null);
   };
 
   return (
-    <div className="w-full">
+    <div className={fill ? 'flex h-full w-full flex-col' : 'w-full'}>
       <div
         ref={ref}
         // Both variants are 36px: compact is the dialog's 24h strip, which sits
         // in the 48px control row and should fill it, not float inside it.
-        className="flex w-full gap-px rounded-ha-lg overflow-hidden h-9"
+        className={fill ? 'flex min-h-0 w-full flex-1 gap-px rounded-ha-lg overflow-hidden' : 'flex w-full gap-px rounded-ha-lg overflow-hidden h-9'}
         data-sheet-drag="none"
         style={{ touchAction: 'pan-y' }}
         onPointerDown={(e) => {
@@ -135,7 +152,7 @@ export function StateTimeline({ segments, startTs, endTs, compact, onHover }: {
           scrubTo(e.clientX);
         }}
         onPointerMove={(e) => {
-          if (e.pointerType === 'mouse' || e.buttons === 0) return;
+          if (e.pointerType !== 'mouse' && e.buttons === 0) return;
           scrubTo(e.clientX);
         }}
         onPointerUp={() => onHover?.(null)}
@@ -144,12 +161,11 @@ export function StateTimeline({ segments, startTs, endTs, compact, onHover }: {
         role="img"
         aria-label="State history heatmap"
       >
-        {cells.map((state, i) => (
+        {cells.map((parts, i) => (
           <div
             key={i}
             className="h-full flex-1 bg-surface-low transition-[filter] hover:brightness-125"
-            style={state ? { backgroundColor: stateColor(state) } : undefined}
-            onMouseEnter={() => onHover?.(state ? { state, ts: startTs + i * cellDur } : null)}
+            style={cellStyle(parts)}
           />
         ))}
       </div>

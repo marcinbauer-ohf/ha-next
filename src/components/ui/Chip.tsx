@@ -23,10 +23,10 @@ export function Chip({
       type="button"
       aria-pressed={!!active}
       onClick={onClick}
-      className={`${fullWidth ? 'flex w-full' : 'inline-flex'} h-10 items-center gap-ha-2 rounded-ha-xl border px-ha-3 text-sm font-semibold transition-colors ${
+      className={`${fullWidth ? 'flex w-full' : 'inline-flex'} h-10 items-center gap-ha-2 rounded-ha-xl px-ha-3 text-sm font-semibold transition-colors ${
         active
-          ? 'border-ha-blue/40 bg-fill-primary-normal text-ha-blue'
-          : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low'
+          ? 'bg-ha-blue/10 text-ha-blue'
+          : 'bg-surface-low text-text-secondary hover:bg-surface-lower'
       }`}
     >
       {children}

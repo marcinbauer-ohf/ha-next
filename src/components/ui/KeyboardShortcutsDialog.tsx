@@ -26,6 +26,7 @@ function dispatchKeys(keys: ShortcutKeys) {
       metaKey: !!keys.mod && mac,
       ctrlKey: !!keys.mod && !mac,
       shiftKey: !!keys.shift,
+      altKey: !!keys.alt,
       bubbles: true,
       cancelable: true,
     }),
@@ -42,7 +43,7 @@ function dispatchKeys(keys: ShortcutKeys) {
 function runShortcut(def: ShortcutDef, close: () => void) {
   const keys = def.palette ? PALETTE_KEYS : def.keys.find((k) => !k.hidden) ?? def.keys[0];
   if (!keys) return;
-  if (keys.mod || keys.shift) {
+  if (keys.mod || keys.shift || keys.alt) {
     dispatchKeys(keys);
     close();
     return;
@@ -66,7 +67,7 @@ export function ShortcutKeycaps({ keys, mac }: { keys: ShortcutKeys; mac: boolea
       {formatKeycaps(keys, mac).map((cap, i) => (
         <kbd
           key={i}
-          className="min-w-[1.75rem] px-ha-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[12px] leading-5 font-medium text-text-secondary text-center"
+          className="min-w-[1.75rem] px-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[12px] leading-5 font-medium text-text-secondary text-center"
         >
           {cap}
         </kbd>
@@ -101,7 +102,7 @@ export function ShortcutList({
               const caps = (
                 <span className="flex items-center gap-ha-2 flex-shrink-0">
                   {shortcut.palette ? (
-                    <span className="flex items-center gap-ha-1.5 text-xs text-text-tertiary">
+                    <span className="flex items-center gap-1.5 text-xs text-text-tertiary">
                       <ShortcutKeycaps keys={PALETTE_KEYS} mac={mac} />
                       <span>then search</span>
                     </span>

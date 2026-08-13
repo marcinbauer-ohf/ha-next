@@ -152,7 +152,7 @@ export function Tooltip({ content, shortcut, children, delay = 300, hideDelay = 
             {content}
           </span>
           {shortcut && (
-            <kbd className="px-ha-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[11px] leading-4 font-medium text-text-secondary whitespace-nowrap">
+            <kbd className="px-1.5 py-0.5 rounded-ha-md bg-surface-low border border-surface-lower text-[11px] leading-4 font-medium text-text-secondary whitespace-nowrap">
               {shortcut}
             </kbd>
           )}

@@ -26,7 +26,9 @@ import { SearchField } from '../ui/SearchField';
 import { Avatar } from '../ui/Avatar';
 import { HALogo } from '../ui/HALogo';
 import { MdiIcon } from '../ui/MdiIcon';
+import { AppStatusBadge, appStatusDimmed } from '../ui/AppStatusBadge';
 import { CircularProgress } from '../ui/CircularProgress';
+import { clsx } from 'clsx';
 import { useHomeAssistant, useHomeAssistantSelector, useSidebarItems, useLongPress, useHomeCenterPrefs, useRunShortcut } from '@/hooks';
 import { removeShortcut } from '@/lib/sidebarShortcuts';
 import { ShortcutPicker } from '../ui/ShortcutPicker';
@@ -39,7 +41,7 @@ import { HomeCenterPillIndicators, HomeCenterStatusSections, HomeModeCard, OpenH
 import { HomeCenterBento } from '../ui/HomeCenterOverlay';
 import { SettingsNavPanel } from '@/components/profile';
 import { isSettingsSlug, type SettingsSlug } from '@/components/profile/settingsNavigation';
-import { usePullToRevealContext, useSearchContext, useAssistantContext, useHomeCenterContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, useMobileToolbar, type SidebarItem } from '@/contexts';
+import { usePullToRevealContext, useSearchContext, useAssistantContext, useHomeCenterContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, useMobileToolbar, useDebugFlags, type SidebarItem } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import { subscribeStatusPulse } from '@/lib/statusPulseBus';
 import { isNavAutoHideFrozen, subscribeNavAutoHideFrozen } from '@/lib/navAutoHideBus';
@@ -69,7 +71,6 @@ import {
   mdiViewDashboardOutline,
   mdiHomeVariant,
   mdiStarFourPoints,
-  mdiArrowTopRight,
   mdiMenu,
   mdiMinus,
   mdiPlus,
@@ -226,20 +227,28 @@ function MobileDashboardCard({
                 <MdiIcon
                   icon={item.icon || (item.isApp ? 'mdi:application' : 'mdi:arrow-top-right')}
                   size={28}
-                  className={
+                  className={clsx(
                     item.isApp && palette
                       ? `${palette.text} ha-app-icon-glyph`
                       : isActive
                         ? 'text-ha-blue'
-                        : 'text-text-secondary'
-                  }
+                        : 'text-text-secondary',
+                    appStatusDimmed(item.appStatus) && 'opacity-40 saturate-0'
+                  )}
                 />
+                {item.appStatus && (
+                  <AppStatusBadge status={item.appStatus} ringClass="ring-surface-lower" />
+                )}
+                {/* Turned-down corner, same fold as the sidebar rail's. */}
                 {item.isShortcut && (
                   <span
-                    className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-surface-mid text-text-secondary ring-2 ring-surface-lower flex items-center justify-center"
                     aria-hidden
+                    className="pointer-events-none absolute inset-0 overflow-hidden rounded-ha-xl"
                   >
-                    <Icon path={mdiArrowTopRight} size={13} exact />
+                    <span
+                      className="absolute top-0 right-0 h-[18px] w-[18px] bg-gradient-to-bl from-text-tertiary/40 via-text-tertiary/15 to-transparent"
+                      style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%)' }}
+                    />
                   </span>
                 )}
               </div>
@@ -287,7 +296,6 @@ interface SearchResultItem {
 }
 
 interface MobileNavProps {
-  disableAutoHide?: boolean;
   /** Hold the nav at its current shown/hidden state (e.g. while a toast is up). */
   freezeAutoHide?: boolean;
   connectionStatus?: ConnectionStatusType;
@@ -323,7 +331,7 @@ function isNavItemActive(currentPath: string, itemPath: string): boolean {
   );
 }
 
-export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, connectionStatus, onNavAutoHiddenChange, editModeFade }: MobileNavProps) {
+export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoHiddenChange, editModeFade }: MobileNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { haUrl, callService } = useHomeAssistant();
@@ -332,6 +340,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
   const { searchOpen, closeSearch } = useSearchContext();
   const { openAssistant } = useAssistantContext();
   const { openHomeCenter } = useHomeCenterContext();
+  const { hideHomeCenterEnabled, mobileNavAutoHideEnabled } = useDebugFlags();
+  // Scroll/idle auto-hide is off unless the prototype flag turns it on.
+  const disableAutoHide = !mobileNavAutoHideEnabled;
   const { arranging, enterArrange, exitArrange, order, hiddenIds, hideItem, restoreItem, reorderVisible } =
     useSidebarArrange();
   const { toolbarActive } = useMobileToolbar();
@@ -1935,7 +1946,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
     <>
     <nav
       ref={navRef}
-      className={`lg:hidden fixed inset-x-0 bottom-0 z-50 ${editModeFade || toolbarActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+      className={`lg:hidden fixed inset-x-0 bottom-0 z-50 ha-mobile-nav-in ${editModeFade || toolbarActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
       style={{ paddingBottom: 'var(--ha-edge-padding)' }}
       data-component="MobileNav"
       data-connection-status={connectionStatus ?? 'unknown'}
@@ -1960,10 +1971,13 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         } bg-black/70`}
         style={{ opacity: isSheetVisible ? 1 : 0 }}
       />
-      <div className="relative z-10 px-edge">
+      <div className="relative z-10 px-edge flex justify-center">
         <div
           ref={navPillRef}
-          className="mobile-nav-pill relative rounded-[var(--mobile-nav-radius)] bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden"
+          // Closed, the pill hugs the tab strip; the drawer needs the full width.
+          className={`mobile-nav-pill relative rounded-[var(--mobile-nav-radius)] bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden ${
+            isSheetVisible ? 'w-full' : 'w-auto'
+          }`}
           // Collapsed, the whole bar is the drag-up affordance; expanded, touch
           // handling goes back to the browser so the sheet content can scroll.
           style={{ touchAction: statusExpanded ? 'auto' : 'none' }}
@@ -1991,7 +2005,9 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                 </button>
               </div>
               <div
-                className={`overflow-hidden flex flex-col ${isSheetVisible ? 'mb-ha-1' : 'mb-0 pointer-events-none'}`}
+                // w-0 while closed so the sheet's content can't widen the
+                // now-shrink-to-fit pill.
+                className={`overflow-hidden flex flex-col ${isSheetVisible ? 'mb-ha-1' : 'mb-0 w-0 pointer-events-none'}`}
                 style={{
                   height: `calc(${sheetOpenProgress} * (100svh - ${SHEET_TOP_INSET_REM}rem))`,
                   opacity: Math.max(0, Math.min(1, sheetOpenProgress * 1.5)),
@@ -2511,7 +2527,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
         >
           {/* Concentric rounding: outer pill is --mobile-nav-radius with ha-2 (8px)
               side padding, so this inner strip is that radius minus 8px. */}
-          <div className="mobile-nav-tabs flex items-center justify-around rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-4 h-14">
+          <div className="mobile-nav-tabs flex items-center justify-center gap-ha-7 rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-8 h-14">
             <button
               type="button"
               onClick={handleDashboardsTap}
@@ -2526,7 +2542,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                 path={mdiChevronUp}
                 size={16}
                 exact
-                className={`absolute top-1 left-1/2 -translate-x-1/2 text-text-tertiary transition-opacity ${
+                className={`absolute top-0 left-1/2 -translate-x-1/2 text-text-tertiary transition-opacity ${
                   pathname === '/' && !statusExpanded ? 'opacity-100' : 'opacity-0'
                 }`}
               />
@@ -2548,12 +2564,14 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
               <span className="relative inline-flex">
                 <Icon path={mdiMagnify} size={28} />
                 {/* AI spark — signifies the search also answers with the assistant */}
-                <Icon path={mdiStarFourPoints} size={16} exact className="absolute -top-1 -right-1 text-ha-blue" />
+                <Icon path={mdiStarFourPoints} size={11} exact className="absolute -top-0.5 -right-0.5" />
               </span>
               <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
                 isSearchActive ? 'opacity-100' : 'opacity-0'
               }`} />
             </button>
+            {/* Prototyping flag hides the Home Center tab (see DebugFlagsContext). */}
+            {!hideHomeCenterEnabled && (
             <button
               type="button"
               onClick={() => openExpandedSurface('homecenter')}
@@ -2567,6 +2585,7 @@ export function MobileNav({ disableAutoHide = false, freezeAutoHide = false, con
                 isHomeCenterSurfaceVisible ? 'opacity-100' : 'opacity-0'
               }`} />
             </button>
+            )}
             <button
               type="button"
               onClick={handleSettingsTap}

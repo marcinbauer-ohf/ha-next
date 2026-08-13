@@ -15,10 +15,15 @@ const bundledIcons: Record<string, string> = {
 };
 
 interface MdiIconProps {
-  icon: string; // e.g., "mdi:view-dashboard" or just "view-dashboard"
+  icon: string; // "mdi:view-dashboard", "view-dashboard", or an image URL
   size?: number;
   className?: string;
 }
+
+// Some things have a real logo rather than a glyph — add-ons and integrations
+// carry one (brands.home-assistant.io, /api/hassio/addons/<slug>/icon). Handled
+// here so every caller that already renders an icon gets logos for free.
+const isImageIcon = (icon: string) => /^(https?:\/\/|\/|data:image\/)/.test(icon);
 
 export const MdiIcon = memo(function MdiIcon({ icon, size = 24, className }: MdiIconProps) {
   const iconName = icon.replace(/^mdi:/, '').trim();
@@ -27,6 +32,8 @@ export const MdiIcon = memo(function MdiIcon({ icon, size = 24, className }: Mdi
   );
 
   useEffect(() => {
+    if (isImageIcon(iconName)) return;
+
     // Check bundled icons first
     if (bundledIcons[iconName]) {
       setPath(bundledIcons[iconName]);
@@ -62,6 +69,20 @@ export const MdiIcon = memo(function MdiIcon({ icon, size = 24, className }: Mdi
 
     loadIcon();
   }, [iconName]);
+
+  if (isImageIcon(iconName)) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- remote logo, no loader
+      <img
+        src={iconName}
+        alt=""
+        width={size}
+        height={size}
+        style={{ width: size, height: size }}
+        className={`object-contain ${className ?? ''}`}
+      />
+    );
+  }
 
   if (!path) {
     // Placeholder while loading

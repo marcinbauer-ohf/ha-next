@@ -235,7 +235,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
       <div className={clsx(
         'flex items-center rounded-ha-pill whitespace-nowrap flex-shrink-0 transition-all',
         translucent ? TRANSLUCENT_CHIP_FILL : 'bg-surface-low',
-        isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-ha-2.5' : 'gap-ha-2 px-ha-2 py-ha-1'
+        isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-2.5' : 'gap-ha-2 px-ha-2 py-ha-1'
       )}>
         <div className={clsx(
           'flex flex-shrink-0',

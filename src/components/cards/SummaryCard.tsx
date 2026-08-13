@@ -47,7 +47,7 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
         className={clsx(
           'flex items-center transition-all',
           isLg ? 'gap-ha-3 px-ha-5 py-ha-3 rounded-ha-2xl' :
-          isMd ? 'gap-ha-2 px-ha-4 py-ha-2.5 rounded-ha-xl' :
+          isMd ? 'gap-ha-2 px-ha-4 py-2.5 rounded-ha-xl' :
           'gap-ha-2 px-ha-3 py-ha-2 rounded-ha-pill',
           'whitespace-nowrap',
           interactive,

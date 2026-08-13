@@ -1,9 +1,33 @@
 'use client';
 
+import { createContext, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@/components/ui';
 import { mdiArrowRight } from '@mdi/js';
 
 export const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+
+/** The footer slot OnboardingFlow reserves for step CTAs (see StepActions). */
+export const StepActionsHostContext = createContext<HTMLElement | null>(null);
+
+/**
+ * Step CTAs render here, portalled out of the step body into the flow's footer
+ * slot — so they hold one fixed position no matter how tall the step is. On
+ * mobile that slot is exactly where the app's bottom nav sits, so finishing the
+ * flow fades these out onto the nav; on desktop it's anchored below the page
+ * centre. Buttons stack upward from the anchor.
+ *
+ * Deliberately unanimated: consecutive steps render the same Continue pill in
+ * the same place, so any mount fade reads as a flash on every step change.
+ */
+export function StepActions({ children }: { children: React.ReactNode }) {
+  const host = useContext(StepActionsHostContext);
+  if (!host) return null;
+  return createPortal(
+    <div className="pointer-events-auto flex flex-col items-center gap-ha-2">{children}</div>,
+    host,
+  );
+}
 
 /** Poppins display stack — the screensaver clock's face, reused for hero copy. */
 export const DISPLAY_FONT: React.CSSProperties = {
@@ -47,24 +71,24 @@ export function PrimaryPill({
   disabled,
   busy,
   withArrow = true,
-  type = 'button',
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   busy?: boolean;
   withArrow?: boolean;
-  type?: 'button' | 'submit';
 }) {
   return (
     // While busy the button stays enabled-but-guarded (aria-disabled) so
     // keyboard focus isn't ejected to <body> mid-request.
+    // Always type="button": these portal into the flow's footer, out of any form.
     <button
-      type={type}
+      type="button"
       onClick={busy ? undefined : onClick}
       disabled={disabled}
       aria-disabled={busy || disabled}
-      className="group inline-flex items-center justify-center gap-ha-2 h-13 min-h-[52px] px-8 rounded-ha-pill bg-ha-blue text-white text-base font-semibold shadow-md shadow-ha-blue/20 transition-all hover:brightness-110 active:scale-[0.97] disabled:bg-surface-low disabled:text-text-disabled disabled:shadow-none disabled:cursor-not-allowed aria-disabled:cursor-wait"
+      // 56px tall so it fills the same band as the app's bottom-nav tab strip.
+      className="group inline-flex items-center justify-center gap-ha-2 h-14 min-h-[56px] px-8 rounded-ha-pill bg-ha-blue text-white text-base font-semibold shadow-md shadow-ha-blue/20 transition-all hover:brightness-110 active:scale-[0.97] disabled:bg-surface-low disabled:text-text-disabled disabled:shadow-none disabled:cursor-not-allowed aria-disabled:cursor-wait"
     >
       {children}
       {withArrow && !busy && (

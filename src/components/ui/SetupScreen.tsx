@@ -19,7 +19,7 @@ interface SetupScreenProps {
 }
 
 const INPUT_CLASS =
-  'w-full px-4 py-3 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-ha-blue/50 focus:border-ha-blue transition-colors disabled:opacity-50';
+  'w-full px-4 py-3 rounded-ha-xl bg-surface-default text-text-primary placeholder:text-text-secondary/50 focus:outline-none transition-colors disabled:opacity-50';
 
 export function SetupScreen({ onSave, onUseDemo, error, connecting, onClose, open = true }: SetupScreenProps) {
   const [url, setUrl] = useState('');

@@ -65,7 +65,7 @@ export function HomeModeSettings() {
           )}
         </div>
       ) : (
-        <p className="rounded-ha-2xl bg-surface-low px-ha-3 py-ha-2.5 text-xs text-text-secondary">
+        <p className="rounded-ha-2xl bg-surface-low px-ha-3 py-2.5 text-xs text-text-secondary">
           No dropdown helpers found. Create one in Home Assistant (Settings → Devices &amp; Services →
           Helpers → Dropdown) to use it here.
         </p>

@@ -44,3 +44,4 @@ export { KeyboardShortcutsDialog, ShortcutList, ShortcutKeycaps } from './Keyboa
 export type { ContextMenuAction } from './ContextMenu';
 export { IconPicker, iconPathFor } from './IconPicker';
 export { AliasInput } from './AliasInput';
+export { AppStatusBadge, appStatusDimmed } from './AppStatusBadge';

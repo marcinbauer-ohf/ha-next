@@ -9,7 +9,7 @@ import { mdiCheck, mdiChevronDown } from '@mdi/js';
 import { friendlyConnectionError } from '@/lib/friendlyConnectionError';
 import { normalizeHaUrl } from '@/lib/normalizeHaUrl';
 import { MAX_FLOORS, type StepProps } from '../types';
-import { EASE_OUT, FIELD_CLASS, PrimaryPill, QuietButton, StepSubtitle, StepTitle } from '../ui';
+import { EASE_OUT, FIELD_CLASS, PrimaryPill, QuietButton, StepActions, StepSubtitle, StepTitle } from '../ui';
 
 interface ConnectStepProps extends StepProps {
   /** "Use the demo instead" — the sample home is already loaded. */
@@ -65,8 +65,9 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
   }, []);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Also called straight from the portalled CTA, which lives outside the form.
+  const submit = (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (connecting || succeeded || !url.trim() || !token.trim()) return;
     setAttempted(true);
     // The hook reports progress through `connecting` / `connected` / `error`.
@@ -86,7 +87,7 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
 
       <div className="w-full max-w-[520px] mx-auto">
         <form onSubmit={submit} noValidate className="w-full space-y-ha-4 text-left">
-          <div className="space-y-ha-1.5">
+          <div className="space-y-1.5">
             <label htmlFor="onb-url" className="block text-sm font-medium text-text-secondary px-ha-4">
               Web address
             </label>
@@ -111,7 +112,7 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
             </p>
           </div>
 
-          <div className="space-y-ha-1.5">
+          <div className="space-y-1.5">
             <label htmlFor="onb-token" className="block text-sm font-medium text-text-secondary px-ha-4">
               Access key
             </label>
@@ -177,7 +178,9 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
             )}
           </AnimatePresence>
 
-          <div className="flex flex-col items-center gap-ha-2 pt-ha-1">
+          {/* Secondary first: the stack is bottom-anchored, so the primary
+              action ends up in the bottom-nav band. */}
+          <StepActions>
             {succeeded ? (
               <>
                 <motion.div
@@ -185,7 +188,7 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
                   initial={{ scale: reduce ? 1 : 0.7, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.4, ease: EASE_OUT }}
-                  className="inline-flex items-center gap-ha-2 h-13 min-h-[52px] px-8 rounded-ha-pill bg-green-600 text-white text-base font-semibold"
+                  className="inline-flex items-center gap-ha-2 h-14 min-h-[56px] px-8 rounded-ha-pill bg-green-600 text-white text-base font-semibold"
                 >
                   <Icon path={mdiCheck} size={20} />
                   You&apos;re connected
@@ -193,21 +196,21 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
                 {!attempted && <QuietButton onClick={next}>Continue</QuietButton>}
               </>
             ) : (
-              <PrimaryPill
-                type="submit"
-                disabled={!url.trim() || !token.trim()}
-                busy={connecting}
-                withArrow={!connecting}
-              >
-                {connecting ? 'Connecting…' : 'Connect'}
-              </PrimaryPill>
+              <>
+                <QuietButton onClick={onDemo} disabled={connecting}>
+                  Use the demo home instead
+                </QuietButton>
+                <PrimaryPill
+                  onClick={() => submit()}
+                  disabled={!url.trim() || !token.trim()}
+                  busy={connecting}
+                  withArrow={!connecting}
+                >
+                  {connecting ? 'Connecting…' : 'Connect'}
+                </PrimaryPill>
+              </>
             )}
-            {!succeeded && (
-              <QuietButton onClick={onDemo} disabled={connecting}>
-                Use the demo home instead
-              </QuietButton>
-            )}
-          </div>
+          </StepActions>
         </form>
       </div>
     </div>

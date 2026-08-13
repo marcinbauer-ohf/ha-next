@@ -35,7 +35,9 @@ export function SearchField({
   return (
     <div
       className={clsx(
-        'flex items-center gap-ha-3 px-ha-4 h-12 rounded-ha-2xl border border-surface-lower bg-surface-low transition-colors focus-within:border-ha-blue/40 focus-within:ring-1 focus-within:ring-ha-blue/20',
+        // Inset ring: an outset one gets clipped by sticky headers / scroll fades
+        // the field sits under. Colour matches the editor toolbar's blue pill.
+        'flex items-center gap-ha-3 px-ha-4 h-12 rounded-ha-2xl bg-surface-low transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-[color-mix(in_srgb,var(--ha-color-blue)_62%,#000)]',
         className,
       )}
     >

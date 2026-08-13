@@ -40,6 +40,13 @@ import {
   clearUpdatePreview,
   UPDATE_PREVIEW_STEPS,
 } from '@/lib/systemUpdatePreview';
+import {
+  subscribeToAppStatusPreview,
+  getAppStatusPreviewIndex,
+  setAppStatusPreviewIndex,
+  clearAppStatusPreview,
+  APP_STATUS_PREVIEW_STEPS,
+} from '@/lib/appStatusPreview';
 import { type SettingsSlug, allSettingsLinks, isAdminOnlySlug, homeCenterSectionTarget } from './settingsNavigation';
 import {
   mdiAlphaDBox,
@@ -443,9 +450,9 @@ function ActionButton({
   disabled?: boolean;
 }) {
   const toneClassNames = {
-    default: 'border-surface-lower bg-surface-default text-text-primary hover:bg-surface-low',
-    primary: 'border-ha-blue/20 bg-fill-primary-normal text-ha-blue hover:bg-fill-primary-quiet',
-    danger: 'border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500/15',
+    default: 'bg-surface-low text-text-primary hover:bg-surface-lower',
+    primary: 'bg-ha-blue/10 text-ha-blue hover:bg-ha-blue/15',
+    danger: 'bg-red-500/10 text-red-500 hover:bg-red-500/15',
   } as const;
 
   return (
@@ -453,7 +460,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-ha-xl border px-ha-3 py-ha-2 text-sm font-medium transition-colors ${toneClassNames[tone]} ${
+      className={`rounded-ha-xl px-ha-3 py-ha-2 text-sm font-medium transition-colors ${toneClassNames[tone]} ${
         disabled ? 'cursor-not-allowed opacity-45' : ''
       }`}
     >
@@ -525,6 +532,7 @@ function formatLabel(value: string): string {
 
 const themeLabels: Record<Theme, string> = {
   default: 'Default',
+  'default-tinted': 'Default Tinted',
   glass: 'Glass',
   teenage: 'Teenage Engineering',
   cyberpunk: 'Cyberpunk',
@@ -535,6 +543,7 @@ const themeLabels: Record<Theme, string> = {
 };
 
 const themeCaptions: Partial<Record<Theme, string>> = {
+  'default-tinted': 'Default, with a hint of HA blue in the surfaces',
   glass: 'Layered and airy',
   'material-ha': 'Material Design in HA blue, rounded buttons',
   eink: 'Paper-like contrast',
@@ -655,7 +664,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setContextSlug(slug);
     return () => setContextSlug(null);
   }, [slug, setContextSlug]);
-  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerKinds, toggleReactiveTriggerKind, reactiveTriggerDomains, toggleReactiveTriggerDomain, setReactiveTriggerDomains, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive, pulseMode, setPulseMode, weatherEntityId, setWeatherEntityId, fastScrollLabelsEnabled, toggleFastScrollLabels } = useFeatureFlags();
+  const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerKinds, toggleReactiveTriggerKind, reactiveTriggerDomains, toggleReactiveTriggerDomain, setReactiveTriggerDomains, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive, pulseMode, setPulseMode, weatherEntityId, setWeatherEntityId, fastScrollLabelsEnabled, toggleFastScrollLabels, assistVisualizationEnabled, toggleAssistVisualization } = useFeatureFlags();
   const { theme, mode, background, squircle, setTheme, setMode, setBackground, toggleSquircle } = useTheme();
   const iconSet = useIconSet();
   const { font, fonts, setFont } = useFont();
@@ -809,7 +818,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setTimeout(() => setConfigureStatus('idle'), 2500);
   }, [devices, setConfig]);
 
-  const { debugBadgesEnabled, toggleDebugBadges, heroCardLayoutEnabled, toggleHeroCardLayout } = useDebugFlags();
+  const { heroCardLayoutEnabled, toggleHeroCardLayout, hideHomeCenterEnabled, toggleHideHomeCenter, hideCardImagesEnabled, toggleHideCardImages, sidebarPreviewsEnabled, toggleSidebarPreviews, dashboardFilterEnabled, toggleDashboardFilter, mobileNavAutoHideEnabled, toggleMobileNavAutoHide } = useDebugFlags();
   const [connectionSetupOpen, setConnectionSetupOpen] = useState(false);
 
   const allNavItems = allSettingsLinks;
@@ -1240,6 +1249,12 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
             onToggle={screensaverActive ? dismissScreensaver : activateScreensaver}
           />
           <ToggleRow
+            label="Advanced Assist visualization"
+            description="Show the summary of your home on the lock screen, and the “Ask your home” field in the bottom bar. Turn it off for a plain clock — you can still ask your home from search."
+            checked={assistVisualizationEnabled}
+            onToggle={toggleAssistVisualization}
+          />
+          <ToggleRow
             label="Wavy background"
             description="Use squiggly rippling rings instead of perfect concentric circles."
             checked={wavyBackgroundEnabled}
@@ -1421,6 +1436,44 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     </SettingsCard>
   );
 
+  // Paints the app-icon status markers onto every app in the sidebar and mobile
+  // nav. Real states come from the Supervisor (an add-on has to actually be
+  // stopped or updating), so this is the only way to see them on demand.
+  const appStatusPreviewIndex = useSyncExternalStore(
+    subscribeToAppStatusPreview,
+    getAppStatusPreviewIndex,
+    () => 0,
+  );
+  const renderAppStatusCard = (opts: SettingsCardOptions = {}) => (
+    <SettingsCard
+      title="App icon states"
+      description="Show the status markers on the app icons in the sidebar — installing, stopped, not running, update available."
+      {...opts}
+    >
+      <RowGroup>
+        {APP_STATUS_PREVIEW_STEPS.slice(1).map((step, i) => {
+          const index = i + 1;
+          const active = appStatusPreviewIndex === index;
+          return (
+            <div key={step.label} className="flex flex-col gap-ha-3 px-ha-4 py-ha-3 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-text-primary">{step.label}</div>
+                <div className="mt-0.5 text-xs text-text-secondary">{step.description}</div>
+              </div>
+              <div className="shrink-0">
+                <ActionButton
+                  label={active ? 'Hide' : 'Show'}
+                  onClick={() => (active ? clearAppStatusPreview() : setAppStatusPreviewIndex(index))}
+                  tone={active ? 'danger' : 'primary'}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </RowGroup>
+    </SettingsCard>
+  );
+
   const renderSimulatedActivityCard = (opts: SettingsCardOptions = {}) => (
     <SettingsCard title="Simulated activity" description="Inject mock task-bar activity to preview the activity surface." {...opts}>
       <RowGroup>
@@ -1518,10 +1571,34 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           onToggle={toggleHeroCardLayout}
         />
         <ToggleRow
-          label="Debug badges"
-          description="Expose small diagnostic hints on cards and settings rows."
-          checked={debugBadgesEnabled}
-          onToggle={toggleDebugBadges}
+          label="Sidebar hover previews"
+          description="Hovering a dashboard or app in the sidebar shows a snapshot of the view. Off falls back to the plain label pill."
+          checked={sidebarPreviewsEnabled}
+          onToggle={toggleSidebarPreviews}
+        />
+        <ToggleRow
+          label="Dashboard filter pill"
+          description="The floating floor / grouping control on the home dashboard. Off hides it and drops any floor filter with it, so nothing is filtered out invisibly."
+          checked={dashboardFilterEnabled}
+          onToggle={toggleDashboardFilter}
+        />
+        <ToggleRow
+          label="Mobile nav auto-hide"
+          description="The bottom nav slides away as you scroll down and after 10s of no input, and comes back on the next scroll. Off pins it in place."
+          checked={mobileNavAutoHideEnabled}
+          onToggle={toggleMobileNavAutoHide}
+        />
+        <ToggleRow
+          label="Hide device card images"
+          description="Drop the product render from device cards and show the entity icon beside the name and state instead, like a tile card. Cards shrink to the next height step."
+          checked={hideCardImagesEnabled}
+          onToggle={toggleHideCardImages}
+        />
+        <ToggleRow
+          label="Hide Home Center"
+          description="Desktop drops the whole bottom bar (Ask your home, activities and the clock pill); mobile drops the Home Center tab. Its settings entry is hidden on both."
+          checked={hideHomeCenterEnabled}
+          onToggle={toggleHideHomeCenter}
         />
         <ActionRow
           label="Device card tuner"
@@ -1825,7 +1902,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
         case 'behavior':
           return (<>{renderBehaviorCard({ flush: true, hideTitle: true })}{renderScreensaverCard({ flush: true })}</>);
         case 'prototyping':
-          return (<>{renderSimulatedActivityCard({ flush: true })}{renderScreenPreviewCard({ flush: true })}{renderResetsCard({ flush: true })}{renderDeveloperFlagsCard({ flush: true })}</>);
+          return (<>{renderSimulatedActivityCard({ flush: true })}{renderAppStatusCard({ flush: true })}{renderScreenPreviewCard({ flush: true })}{renderResetsCard({ flush: true })}{renderDeveloperFlagsCard({ flush: true })}</>);
         case 'keyboard':
           return renderShortcutsCard({ flush: true, hideTitle: true });
         default:

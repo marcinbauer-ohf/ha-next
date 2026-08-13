@@ -13,7 +13,6 @@ import {
   mdiRobotExcited,
   mdiWeatherNight,
   mdiViewSplitVertical,
-  mdiBug,
   mdiFlask,
   mdiWaves,
   mdiShimmer,
@@ -30,6 +29,15 @@ import {
   mdiRobotOutline,
   mdiKeyboardOutline,
   mdiTune,
+  mdiCardBulletedOutline,
+  mdiImageOffOutline,
+  mdiHomeSoundOut,
+  mdiImageSearchOutline,
+  mdiFilterVariant,
+  mdiDockBottom,
+  mdiTagTextOutline,
+  mdiFormatLetterCase,
+  mdiWaveform,
 } from '@mdi/js';
 import { useTheme } from './useTheme';
 import { useFont } from './useFont';
@@ -91,8 +99,8 @@ export function useCommands(): CommandItem[] {
   const screensaver = useScreensaver();
   const editMode = useEditMode();
   const assistant = useAssistantContext();
-  const debug = useDebugFlags();
   const { showToast } = useToast();
+  const debugFlags = useDebugFlags();
 
   const fontLabel = font.fonts.find((f) => f.key === font.font)?.label ?? font.font;
 
@@ -215,16 +223,6 @@ export function useCommands(): CommandItem[] {
 
       // ── Debug / prototype ───────────────────────────────────────
       {
-        id: 'dbg.badges',
-        group: 'debug',
-        icon: mdiBug,
-        label: 'Debug badges',
-        keywords: ['diagnostic', 'hints'],
-        state: onOff(debug.debugBadgesEnabled),
-        active: debug.debugBadgesEnabled,
-        run: debug.toggleDebugBadges,
-      },
-      {
         id: 'dbg.card-tuner',
         group: 'debug',
         icon: mdiTune,
@@ -305,6 +303,99 @@ export function useCommands(): CommandItem[] {
         active: flags.scrollIndexEnabled,
         run: flags.toggleScrollIndex,
       },
+      {
+        id: 'dbg.fast-scroll-labels',
+        group: 'debug',
+        icon: mdiTagTextOutline,
+        label: 'Fast scroll labels',
+        keywords: ['scroll', 'label', 'section', 'overlay'],
+        state: onOff(flags.fastScrollLabelsEnabled),
+        active: flags.fastScrollLabelsEnabled,
+        run: flags.toggleFastScrollLabels,
+      },
+      {
+        id: 'dbg.assist-visualization',
+        group: 'debug',
+        icon: mdiWaveform,
+        label: 'Assist visualization',
+        keywords: ['assistant', 'voice', 'waveform', 'overlay'],
+        state: onOff(flags.assistVisualizationEnabled),
+        active: flags.assistVisualizationEnabled,
+        run: flags.toggleAssistVisualization,
+      },
+      {
+        id: 'dbg.reactive-trigger-labels',
+        group: 'debug',
+        icon: mdiFormatLetterCase,
+        label: 'Reactive trigger labels',
+        keywords: ['screensaver', 'background', 'debug', 'label'],
+        state: onOff(flags.reactiveTriggerLabelsEnabled),
+        active: flags.reactiveTriggerLabelsEnabled,
+        run: flags.toggleReactiveTriggerLabels,
+      },
+
+      // Prototype flags from the settings "Developer flags" card.
+      {
+        id: 'dbg.hero-card-layout',
+        group: 'debug',
+        icon: mdiCardBulletedOutline,
+        label: 'New device card layout',
+        keywords: ['hero', 'card', 'layout', 'tile'],
+        state: onOff(debugFlags.heroCardLayoutEnabled),
+        active: debugFlags.heroCardLayoutEnabled,
+        run: debugFlags.toggleHeroCardLayout,
+      },
+      {
+        id: 'dbg.hide-card-images',
+        group: 'debug',
+        icon: mdiImageOffOutline,
+        label: 'Hide device card images',
+        keywords: ['render', 'product', 'photo', 'card', 'icon'],
+        state: onOff(debugFlags.hideCardImagesEnabled),
+        active: debugFlags.hideCardImagesEnabled,
+        run: debugFlags.toggleHideCardImages,
+      },
+      {
+        id: 'dbg.hide-home-center',
+        group: 'debug',
+        icon: mdiHomeSoundOut,
+        label: 'Hide Home Center',
+        keywords: ['bottom bar', 'status', 'tab', 'chrome'],
+        state: onOff(debugFlags.hideHomeCenterEnabled),
+        active: debugFlags.hideHomeCenterEnabled,
+        run: debugFlags.toggleHideHomeCenter,
+      },
+      {
+        id: 'dbg.sidebar-previews',
+        group: 'debug',
+        icon: mdiImageSearchOutline,
+        label: 'Sidebar hover previews',
+        keywords: ['thumbnail', 'snapshot', 'tooltip', 'sidebar'],
+        state: onOff(debugFlags.sidebarPreviewsEnabled),
+        active: debugFlags.sidebarPreviewsEnabled,
+        run: debugFlags.toggleSidebarPreviews,
+      },
+      {
+        id: 'dbg.dashboard-filter',
+        group: 'debug',
+        icon: mdiFilterVariant,
+        label: 'Dashboard filter pill',
+        keywords: ['floor', 'grouping', 'fab', 'filter'],
+        state: onOff(debugFlags.dashboardFilterEnabled),
+        active: debugFlags.dashboardFilterEnabled,
+        run: debugFlags.toggleDashboardFilter,
+      },
+      {
+        id: 'dbg.mobile-nav-autohide',
+        group: 'debug',
+        icon: mdiDockBottom,
+        label: 'Mobile nav auto-hide',
+        keywords: ['bottom nav', 'hide', 'scroll', 'idle', 'mobile'],
+        state: onOff(debugFlags.mobileNavAutoHideEnabled),
+        active: debugFlags.mobileNavAutoHideEnabled,
+        run: debugFlags.toggleMobileNavAutoHide,
+      },
+
       {
         id: 'dbg.discover',
         group: 'debug',
@@ -402,13 +493,13 @@ export function useCommands(): CommandItem[] {
     font,
     fontLabel,
     flags,
+    debugFlags,
     immersive,
     ha,
     homeCenter,
     screensaver,
     editMode,
     assistant,
-    debug,
     showToast,
   ]);
 }

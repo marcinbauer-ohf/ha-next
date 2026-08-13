@@ -23,6 +23,8 @@ export interface ShortcutKeys {
   /** Platform command modifier — ⌘ on macOS, Ctrl elsewhere. */
   mod?: boolean;
   shift?: boolean;
+  /** ⌥ on macOS, Alt elsewhere. */
+  alt?: boolean;
   /** Key-cap display override (e.g. 'Esc', '1–9'). */
   display?: string;
   /** Matched but not shown in the help dialog (legacy aliases). */
@@ -54,7 +56,8 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: 'global.sidebar', group: 'Global', label: 'Toggle sidebar', keys: [{ key: 'b', mod: true }] },
   { id: 'global.help', group: 'Global', label: 'Show keyboard shortcuts', keys: [{ key: '?' }] },
   { id: 'global.color-mode', group: 'Global', label: 'Toggle light / dark mode', keys: [{ key: 'd', mod: true, shift: true }], displayOnly: true },
-  { id: 'global.theme', group: 'Global', label: 'Cycle theme', keys: [{ key: 't', mod: true, shift: true }], displayOnly: true },
+  { id: 'global.theme', group: 'Global', label: 'Cycle theme', keys: [{ key: 'y', mod: true, shift: true }], displayOnly: true },
+  { id: 'global.theme-prev', group: 'Global', label: 'Cycle theme backwards', keys: [{ key: 'y', mod: true, shift: true, alt: true }], displayOnly: true },
   { id: 'global.font', group: 'Global', label: 'Cycle typeface', keys: [{ key: 'f', mod: true, shift: true }], displayOnly: true },
   { id: 'global.squircle', group: 'Global', label: 'Toggle squircle corners', keys: [{ key: 'u', mod: true, shift: true }], displayOnly: true },
   { id: 'global.screensaver', group: 'Global', label: 'Toggle screensaver', keys: [{ key: 's', mod: true, shift: true }], displayOnly: true },
@@ -76,7 +79,6 @@ export const SHORTCUTS: ShortcutDef[] = [
   // ── Debug ───────────────────────────────────────────────────────
   // Safe toggles get real keys; destructive resets stay behind the command
   // palette (palette: true) so a stray keypress can't wipe customisations.
-  { id: 'debug.badges', group: 'Debug', label: 'Toggle debug badges', keys: [{ key: 'b' }] },
   { id: 'debug.card-tuner', group: 'Debug', label: 'Toggle device card tuner', keys: [{ key: 'x', mod: true, shift: true }] },
   { id: 'debug.reset', group: 'Debug', label: 'Prototype reset (wipe & reload)', keys: [], palette: true },
   { id: 'debug.more', group: 'Debug', label: 'More toggles & resets (Settings › Prototype & Debug Tools)', keys: [], palette: true },
@@ -125,6 +127,7 @@ function keyCap(keys: ShortcutKeys): string {
 export function formatKeycaps(keys: ShortcutKeys, mac: boolean): string[] {
   const caps: string[] = [];
   if (keys.mod) caps.push(mac ? '⌘' : 'Ctrl');
+  if (keys.alt) caps.push(mac ? '⌥' : 'Alt');
   if (keys.shift) caps.push(mac ? '⇧' : 'Shift');
   caps.push(keyCap(keys));
   return caps;
@@ -143,7 +146,7 @@ export function shortcutHint(id: string, mac: boolean): string {
 const SHIFT_AGNOSTIC = new Set(['?']);
 
 export function eventMatchesKeys(e: KeyboardEvent, keys: ShortcutKeys): boolean {
-  if (e.altKey) return false;
+  if (e.altKey !== !!keys.alt) return false;
   if ((e.metaKey || e.ctrlKey) !== !!keys.mod) return false;
   if (!SHIFT_AGNOSTIC.has(keys.key) && e.shiftKey !== !!keys.shift) return false;
   return e.key.toLowerCase() === keys.key;

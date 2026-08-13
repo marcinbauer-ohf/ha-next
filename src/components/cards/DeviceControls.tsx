@@ -418,10 +418,10 @@ export function ControlSlider({
   };
 
   return (
-    // Inset by 4px so the row lines up with the surfaces above it: the icon's
-    // 28px box centres where the hero's icon does, and the value's right edge
-    // lands under the hero's control instead of 4px further out.
-    <div className="flex items-center gap-ha-3 w-full px-ha-1">
+    // Inset to the hero's *content*, not to its tile: the band above is a white
+    // card inside the group's 8px padding with 12px of its own, so its glyph
+    // starts 20px in. A bare row needs all 12 of that here to line up.
+    <div className="flex items-center gap-ha-3 w-full px-ha-3">
       {icon && (
         <span className="flex w-7 shrink-0 items-center justify-center">
           <Icon path={icon} size={18} className="text-text-secondary" />

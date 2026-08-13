@@ -430,7 +430,7 @@ export function PullToRevealPanel() {
                   {/* Applications section */}
                   <div className="p-ha-3">
                     <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
-                    <div className="grid grid-cols-5 gap-x-ha-2 gap-y-ha-1.5">
+                    <div className="grid grid-cols-5 gap-x-ha-2 gap-y-1.5">
                       {apps.map((app) => {
                         const isActive = pathname === app.urlPath ||
                           (app.urlPath !== '/' && pathname.startsWith(app.urlPath));
@@ -440,7 +440,7 @@ export function PullToRevealPanel() {
                           <Link
                             key={app.id}
                             href={app.urlPath}
-                            className="w-full rounded-ha-xl hover:bg-surface-low transition-colors flex flex-col items-center gap-1 p-ha-1.5 min-w-0"
+                            className="w-full rounded-ha-xl hover:bg-surface-low transition-colors flex flex-col items-center gap-1 p-1.5 min-w-0"
                             title={app.title}
                           >
                             {/* App-style icon with rounded background */}

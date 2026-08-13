@@ -28,5 +28,11 @@ export function useSidebarItems() {
     () => [...ctx.items, ...shortcuts.map(shortcutToItem)],
     [ctx.items, shortcuts]
   );
-  return { items, loading: ctx.loading, error: ctx.error };
+  return {
+    items,
+    loading: ctx.loading,
+    error: ctx.error,
+    refreshAppStatuses: ctx.refreshAppStatuses,
+    setAppStatusOverride: ctx.setAppStatusOverride,
+  };
 }
