@@ -308,12 +308,16 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           // lands on the same 52px lattice in every column — a card with N extra
           // rows sits exactly N rows lower than its neighbour instead of drifting
           // by some arbitrary offset. 140+16 = 3×52.
-          // Phone and desktop now share that 140px step. Desktop used to take a
-          // full extra row (192+16 = 4x52) back when it ran three wide; at four
-          // columns the card is ~320px instead of ~434px, and the extra row read
-          // as dead space above the render rather than room for it. The next
-          // step down (88px) is too short — it squashes the product render, and
-          // a card you glance at from across a room needs the picture.
+          // Phone keeps the 140px step. Desktop used to take a full extra row
+          // (192+16 = 4x52) back when it ran three wide; at four columns the card
+          // is ~320px instead of ~434px, and the extra row read as dead space
+          // above the render rather than room for it.
+          // Desktop is tighter again: 116px on a 44px row lattice (116+16 = 3x44),
+          // which is why the secondary rows shrink to 44 there too — the lattice
+          // only holds while (base + 16) is a whole multiple of the row height.
+          // Staying on 52 would have meant the next step down, 88px, and that is
+          // too short: it squashes the product render, and a card you glance at
+          // from across a room needs the picture.
           // Imageless (debug flag): one tile-card row — icon, name/state, control
           // — so the card is only as tall as that row plus padding. It leaves the
           // 52px lattice, which is fine because every imageless card shares the
@@ -321,7 +325,16 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           // secondary rows, so columns keep lining up.
           hideCardImagesEnabled
             ? 'min-h-[64px]'
-            : 'min-h-[var(--dct-min-h,140px)]',
+            // Desktop pins the height rather than flooring it. A product render
+            // is square and sized by width, and `h-full` inside an indefinite row
+            // measures from its own aspect — so at four columns the *image* was
+            // setting the card's height and the floor never came into it. A
+            // definite height turns that around: the box is the height it says,
+            // and the render fits the room that leaves.
+            // `lg:min-h-0` clears both the phone floor and the automatic minimum
+            // a flex item gets from its content — either one would out-vote the
+            // height and hand the card back to the render.
+            : 'min-h-[var(--dct-min-h,140px)] lg:min-h-0 lg:h-[var(--dct-min-h,116px)]',
           editMode
             ? 'bg-surface-default hover:bg-surface-low'
             : isUnavailable
@@ -394,8 +407,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
               className={clsx(
                 // Its own cell now, so no left-edge mask: nothing is behind it
                 // to keep legible. Shrinks with the row rather than overflowing
-                // a short card.
-                'pointer-events-none select-none h-full max-h-full w-[var(--dct-thumb-w,44%)] shrink-0 object-contain object-right-bottom',
+                // a short card. Narrower on desktop, where the card is shorter
+                // and four to a row — the render doesn't need to reach as far
+                // across, and the name gets the width back.
+                'pointer-events-none select-none h-full max-h-full w-[var(--dct-thumb-w,44%)] lg:w-[var(--dct-thumb-w,34%)] shrink-0 object-contain object-right-bottom',
                 isUnavailable && 'grayscale',
               )}
               style={{
@@ -414,9 +429,12 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             return (
               <div
                 key={entity.entityId}
-                style={{ minHeight: 'var(--dct-row-h, 52px)' }}
                 className={clsx(
-                  'flex items-center gap-3 px-3 border-t border-surface-lower transition-colors',
+                  // A class, not an inline style, so the desktop step can differ:
+                  // 44px there to match the shorter card's lattice (see the
+                  // card-height note above). The tuner's `--dct-row-h` still
+                  // overrides both.
+                  'flex min-h-[var(--dct-row-h,52px)] items-center gap-3 px-3 border-t border-surface-lower transition-colors lg:min-h-[var(--dct-row-h,44px)]',
                   entityUnavailable
                     ? 'opacity-50 cursor-default'
                     : editMode

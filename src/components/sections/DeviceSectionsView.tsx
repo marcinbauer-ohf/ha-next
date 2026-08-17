@@ -222,7 +222,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
         })}
       </div>
 
-      <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel} maxWidth={760} transitionKey={panelMode}>
+      <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel} maxWidth={620} transitionKey={panelMode}>
         {selectedDevice && panelMode === 'entity' && allPanelEntities.length > 0 && (
           <EntityDetailPanel
             initialEntityId={selectedEntityId ?? allPanelEntities[0].entityId}

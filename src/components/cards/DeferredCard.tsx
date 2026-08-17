@@ -59,9 +59,9 @@ export function DeferredCard({ children, entityId }: DeferredCardProps) {
   if (mounted) return <div className="ha-card-in">{children}</div>;
 
   // Placeholder reserves exactly one card base — the same `--dct-min-h` token
-  // DeviceCardV2 sizes itself with, so an unmounted card leaves the masonry on
-  // the same 52px height rhythm as a mounted one and nothing reflows when it
-  // mounts. Reading the token rather than repeating the number keeps the two
-  // from drifting apart the way they had.
-  return <div ref={ref} data-entity-id={entityId} aria-hidden className="min-h-[var(--dct-min-h,140px)]" />;
+  // DeviceCardV2 sizes itself with, at both its breakpoints, so an unmounted card
+  // leaves the masonry on the same height rhythm as a mounted one and nothing
+  // reflows when it mounts. Reading the token rather than repeating the number
+  // keeps the two from drifting apart the way they had.
+  return <div ref={ref} data-entity-id={entityId} aria-hidden className="min-h-[var(--dct-min-h,140px)] lg:min-h-[var(--dct-min-h,116px)]" />;
 }

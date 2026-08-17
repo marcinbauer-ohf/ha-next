@@ -13,7 +13,6 @@ import { DomainControls } from './DeviceControls';
 import { DeviceThumbnailPicker, type DeviceThumbnailPickerProps } from './DeviceThumbnailPicker';
 import { useEntity, useHomeAssistant, peekEntities } from '@/hooks/useHomeAssistant';
 import { useDeviceInfo } from '@/hooks/useDevices';
-import { useScrollFades } from '@/hooks/useScrollFades';
 import { useIdleMarquee } from '@/hooks/useIdleMarquee';
 import { stateParts } from '@/lib/homeassistant/entityHelpers';
 import type { HistoryPoint, StatisticValue } from '@/lib/homeassistant/types';
@@ -735,8 +734,12 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
             {/* The scrubbed moment fades in centred under the reading, out of
                 flow, so it can't nudge the value off centre while you scrub.
                 `inset-x-0 text-center` rather than a translate — the animation
-                owns `transform`. */}
-            <span className="relative flex min-w-0 items-baseline">
+                owns `transform`.
+                `w-full`, not shrink-to-fit: a text reading is drawn in a
+                `.ha-card-marquee` box, which is an inline-size *container* and
+                so contributes nothing to its parent's intrinsic width — a
+                content-sized wrapper collapses to zero and the state vanishes. */}
+            <span className="relative flex w-full min-w-0 items-baseline justify-center">
               {renderReading({ scale: 'md', align: 'center' })}
               {stampNode('absolute inset-x-0 top-full pt-0.5 text-center')}
             </span>
@@ -756,7 +759,9 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
               <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{entity.name}</span>
             )}
             <span className="flex min-w-0 items-baseline gap-ha-2">
-              <span className="flex min-w-0 items-baseline gap-ha-2 text-4xl [&_*]:text-inherit">
+              {/* flex-1, not content-sized — see the band hero above: a marquee
+                  box has no intrinsic width to size a wrapper from. */}
+              <span className="flex min-w-0 flex-1 items-baseline gap-ha-2 text-4xl [&_*]:text-inherit">
                 {renderReading({ scale: 'lg', align: 'left' })}
               </span>
               {stampNode()}
@@ -1165,6 +1170,21 @@ const PANEL_TABS = [
   { id: 'info' as const, label: 'Info', icon: mdiInformationOutline, iconOn: mdiInformation },
 ];
 
+/**
+ * Height of the closed "On this device" shelf — its 8px top padding, the 24px
+ * heading row and the 16px padding under it. The hero is sized to the frame
+ * minus this, so with the shelf shut the heading lands exactly on the panel's
+ * bottom edge: nothing to scroll, nothing sliced, and the chevron is what says
+ * there's more.
+ */
+const SHELF_PEEK = 48;
+
+/** Where the panel sits when the hero is "landed": hero fully shown, shelf shut under it. */
+function heroLanding(el: HTMLElement, hero: HTMLElement | null): number {
+  if (!hero) return 0;
+  return Math.max(0, hero.offsetTop + hero.offsetHeight + SHELF_PEEK - el.clientHeight);
+}
+
 export function EntityDetailPanel({
   initialEntityId,
   entities,
@@ -1186,50 +1206,81 @@ export function EntityDetailPanel({
   // Overflow menu anchor (null = closed). Placeholder actions for now — each
   // just confirms itself with a toast so nothing is silently inert.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+  // "On this device" is an accordion: shut, it's one heading row on the panel's
+  // bottom edge and the hero has the whole frame. Open, the full list is there to
+  // scroll. Every device opens shut — the hero is what you came for.
+  const [shelfOpen, setShelfOpen] = useState(false);
   const { showToast } = useToast();
 
   // Focus the clicked entity (and reset tab) whenever a new card is opened
   useEffect(() => {
     setTab('main');
     setFocusedEntityId(initialEntityId);
+    setShelfOpen(false);
   }, [initialEntityId]);
 
   const focusedEntity = entities.find(e => e.entityId === focusedEntityId) ?? entities[0];
 
-  // Product render used as the dialog's backdrop. Same render-adjust pattern as
-  // the card: a hand-placed PNG that 404s drops out instead of leaving a broken
-  // image behind the content.
-  // The device list is its own scrollport now, so it carries the app's standard
-  // top/bottom gradient fades.
-  const { attach: attachListFades, showTop: listTop, showBottom: listBottom } = useScrollFades<HTMLDivElement>();
-
   // Long labels and text states slide their tails into view while the panel is
-  // idle — the dashboard's marquee, driven from the panel's own scrollports.
+  // idle — the dashboard's marquee, driven from the panel's own scrollport (the
+  // device rows live inside it, so one container covers hero and shelf).
   const heroScrollRef = useRef<HTMLDivElement>(null);
-  const listScrollRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const shelfRef = useRef<HTMLDivElement>(null);
   useIdleMarquee(heroScrollRef, true);
-  useIdleMarquee(listScrollRef, true);
 
-  // Picking another entity from the list must land you on *its* hero — the
-  // region is bottom-aligned and taller than its box, so without this you get
-  // whatever the last scroll position was (usually the device render).
+  // Releases the landing pin below — the title's "jump to the list" must not be
+  // yanked back by a late resize.
+  const releasePin = useRef<() => void>(() => {});
+
+  // Opening a device lands you on its hero, with the shut shelf's heading on the
+  // bottom edge — the region is bottom-aligned and taller than its box, so
+  // without this you get whatever the last scroll position was (usually the
+  // device render). Landing is the *bottom of the hero*, never the bottom of the
+  // scrollport: the shelf below can be a full-length list.
+  //
+  // Keyed on the *opened* entity, not the focused one: picking a row from the
+  // shelf swaps the hero above but leaves you where you were reading, so the
+  // list doesn't scroll out from under the thing you just tapped.
   useEffect(() => {
     const el = heroScrollRef.current;
     if (!el) return;
-    const toBottom = () => { el.scrollTop = el.scrollHeight; };
-    toBottom();
+    const toHero = () => { el.scrollTop = heroLanding(el, heroRef.current); };
+    toHero();
     // History arrives a moment after the switch and grows the region, so one
     // scroll isn't enough — follow the content until it settles, and let go the
     // instant the user takes over.
-    const ro = new ResizeObserver(toBottom);
+    const ro = new ResizeObserver(toHero);
     [...el.children].forEach(c => ro.observe(c));
     const stop = () => { ro.disconnect(); el.removeEventListener('wheel', stop); el.removeEventListener('pointerdown', stop); };
     el.addEventListener('wheel', stop, { passive: true });
     el.addEventListener('pointerdown', stop);
+    releasePin.current = stop;
     const t = setTimeout(stop, 1200);
     return () => { clearTimeout(t); stop(); };
-  }, [focusedEntityId]);
+  }, [initialEntityId]);
 
+  // Open the shelf and ride up to it. The list mounts in the same commit as the
+  // state change, so the scroll waits a frame for it to have a height to scroll
+  // to. Closing goes the other way — back onto the hero.
+  const setShelf = (open: boolean) => {
+    setShelfOpen(open);
+    releasePin.current();
+    requestAnimationFrame(() => {
+      const el = heroScrollRef.current;
+      if (!el) return;
+      const top = open ? (shelfRef.current?.offsetTop ?? 0) : heroLanding(el, heroRef.current);
+      el.scrollTo({ top, behavior: 'smooth' });
+    });
+  };
+
+  // Picking a row never scrolls: it swaps the hero above and leaves you where you
+  // were in the list, so you can run down it changing focus without the panel
+  // moving under your finger. The chevron (or the title) is how you go back up.
+
+  // Product render used as the dialog's backdrop. Same render-adjust pattern as
+  // the card: a hand-placed PNG that 404s drops out instead of leaving a broken
+  // image behind the content.
   const [backdrop, setBackdrop] = useState<{ src?: string | null; ok: boolean }>({ src: deviceMeta?.thumbnail, ok: true });
   if (backdrop.src !== deviceMeta?.thumbnail) setBackdrop({ src: deviceMeta?.thumbnail, ok: true });
   const showBackdrop = !!deviceMeta?.thumbnail && backdrop.ok && tab === 'main';
@@ -1306,7 +1357,7 @@ export function EntityDetailPanel({
     // sized to the frame minus this, so the shelf always announces itself.
     <div
       className="h-[min(70dvh,760px)] lg:h-[min(88vh,900px)] flex flex-col overflow-hidden"
-      style={{ '--panel-shelf-peek': '56px' } as CSSProperties}
+      style={{ '--panel-shelf-peek': `${SHELF_PEEK}px` } as CSSProperties}
     >
       {/* Header — close on the left (dialog pattern), name over its area → device
           trail, options on the right. The frame's inset is the same 16px on the
@@ -1338,10 +1389,18 @@ export function EntityDetailPanel({
               {deviceName && <span className="truncate">{deviceName}</span>}
             </p>
           )}
+          {/* Tapping the title jumps to "On this device" — the title says which
+              entity you're on, so it's the natural handle for "show me the
+              others". */}
           {(focusedEntity?.name || deviceName) && (
-            <p className="truncate text-xl font-bold leading-tight text-text-primary">
+            <button
+              type="button"
+              onClick={() => setShelf(true)}
+              title="Show everything on this device"
+              className="block max-w-full truncate text-left text-xl font-bold leading-tight text-text-primary"
+            >
               {focusedEntity?.name ?? deviceName}
-            </p>
+            </button>
           )}
         </div>
         {/* Favorite and pencil sit bare; everything rarer (settings included)
@@ -1442,14 +1501,13 @@ export function EntityDetailPanel({
 
           {/* Big preview — the focused entity (clicked card / row). */}
           {focusedEntity && (
-            <div className={clsx(
+            <div ref={heroRef} className={clsx(
               // Phone: a short hero sits at the *bottom* of its region, next to
               // the list and inside thumb reach, with the device render filling
               // the space above it. Desktop has no reach problem, so it centres.
-              // Short of the full height by SHELF_PEEK: that gap is what leaves
-              // the device list's heading and the top edge of its first row
-              // showing under the hero, so the shelf reads as "there's more
-              // here, scroll" instead of being invisible until you find it.
+              // Short of the full height by SHELF_PEEK: that gap is exactly the
+              // shut shelf, so its heading and chevron sit on the panel's bottom
+              // edge instead of being invisible until you find them.
               'relative z-[1] flex min-h-[calc(100%-var(--panel-shelf-peek))] flex-col justify-end',
               showBackdrop && 'pt-[116px]',
             )}>
@@ -1477,53 +1535,55 @@ export function EntityDetailPanel({
 
           {/* Every entity on the device, focused one marked — this is what makes
               the card's "one device, many entities" model visible, and it anchors
-              what the cog (entity scope) is configuring. Fixed height, its own
-              scrollport: whichever entity you're looking at, the switch to
-              another one is always in the same place and the same size. It also
-              paints the panel's ground so the sticky headings can inherit it
-              (`bg-inherit`) instead of guessing at a surface token.
+              what the cog (entity scope) is configuring. It also paints the
+              panel's ground so the sticky headings can inherit it (`bg-inherit`)
+              instead of guessing at a surface token.
 
-              It lives *inside* the hero's scrollport, below the fold — see the
-              hero's min-height above. Always rendered, never gated on a count:
-              the shelf being in the same place on every device is the point, and
-              it holds everything the device still has (hidden entities included
-              — only disabling one takes it out, see panelEntitiesForDevice). */}
-          <div className="relative z-[1] bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
-              {/* Not "entities" — the list is everything this device can show or
-                  do, in the words someone who owns the device would use. The
-                  heading sits outside the card so the card itself never moves:
-                  it keeps its corners and its place while the rows scroll in it. */}
-              <SectionLabel inset>On this device</SectionLabel>
-              <div className="relative mt-ha-2">
-                {/* Three rows is where the shelf earns its keep; a device with
-                    one or two spare entities shouldn't reserve space it can't
-                    fill — the hero takes the difference. */}
-                <ListSection
-                  bodyRef={(el) => { attachListFades(el); listScrollRef.current = el; }}
-                  bodyClassName={clsx(
-                    'overflow-y-auto scrollbar-hide',
-                    // Three rows exactly (45px each): enough to show the device
-                    // is more than its hero and to scroll for the rest, without
-                    // the shelf eating room the hero and the graph want.
-                    mainEntities.length + diagnosticEntities.length >= 3 && 'h-[136px]',
-                  )}
-                >
-                  {mainEntities.map(renderEntityRow)}
-                  {/* Registry diagnostics (signal, battery, firmware…) keep their
-                      own heading, now a row inside the card — one scrollport, so
-                      the card can be the thing that stays still. */}
-                  {diagnosticEntities.length > 0 && (
-                    <div className="sticky top-0 z-[1] bg-surface-low px-ha-4 py-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-                      Diagnostics
-                    </div>
-                  )}
-                  {diagnosticEntities.map(renderEntityRow)}
-                </ListSection>
-                {/* Fades ride over the card, and take its colour — the content
-                    now scrolls inside it, not past it. */}
-                <div className={clsx('pointer-events-none absolute inset-x-0 top-0 z-10 h-6 rounded-t-ha-2xl bg-gradient-to-b from-surface-default to-transparent transition-opacity', listTop ? 'opacity-100' : 'opacity-0')} />
-                <div className={clsx('pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 rounded-b-ha-2xl bg-gradient-to-t from-surface-default to-transparent transition-opacity', listBottom ? 'opacity-100' : 'opacity-0')} />
-              </div>
+              An accordion, shut on open: the heading rides the panel's bottom
+              edge (see SHELF_PEEK) and the hero keeps the whole frame. Always
+              rendered, never gated on a count: the shelf being in the same place
+              on every device is the point, and it holds everything the device
+              still has (hidden entities included — only disabling one takes it
+              out, see panelEntitiesForDevice). */}
+          <div ref={shelfRef} className="relative z-[1] bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
+              {/* The heading is the handle — a 24px row (SHELF_PEEK is measured
+                  from it), with the chevron turning down as it opens. Not
+                  "entities": the list is everything this device can show or do,
+                  in the words someone who owns the device would use. */}
+              <button
+                type="button"
+                onClick={() => setShelf(!shelfOpen)}
+                aria-expanded={shelfOpen}
+                className="flex h-6 w-full items-center gap-ha-2 px-ha-4 text-text-tertiary transition-colors hover:text-text-secondary"
+              >
+                <SectionLabel>On this device</SectionLabel>
+                <span className="text-xs font-medium tabular-nums text-text-disabled">
+                  {mainEntities.length + diagnosticEntities.length}
+                </span>
+                <Icon
+                  path={mdiChevronRight}
+                  size={16}
+                  className={clsx('ml-auto transition-transform duration-200', shelfOpen && 'rotate-90')}
+                />
+              </button>
+              {/* The whole list, however long: no inner scrollport and no row cap,
+                  so scrolling the panel reviews every entity the device has. */}
+              {shelfOpen && (
+                <div className="mt-ha-2">
+                  <ListSection>
+                    {mainEntities.map(renderEntityRow)}
+                    {/* Registry diagnostics (signal, battery, firmware…) keep their
+                        own heading, as a row inside the card — it sticks to the top
+                        of the panel's scrollport as you pass it. */}
+                    {diagnosticEntities.length > 0 && (
+                      <div className="sticky top-0 z-[1] bg-surface-low px-ha-4 py-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
+                        Diagnostics
+                      </div>
+                    )}
+                    {diagnosticEntities.map(renderEntityRow)}
+                  </ListSection>
+                </div>
+              )}
           </div>
 
           </div>
