@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   mdiLightbulb,
@@ -23,6 +23,7 @@ import { Icon } from '@/components/ui/Icon';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { useHomeAssistantEntities } from '@/hooks/useHomeAssistant';
 import { useEnergyMetrics } from '@/hooks/useEnergyMetrics';
+import { useEdgeFade } from '@/hooks/useEdgeFade';
 import type { HassDevice } from '@/hooks/useDevices';
 import {
   SPIN_CATEGORIES,
@@ -51,24 +52,6 @@ const DOMAIN_ICONS: Record<string, string> = {
 
 function domainIcon(entity: HassEntity): string {
   return DOMAIN_ICONS[entity.entity_id.split('.')[0]] ?? mdiPowerPlug;
-}
-
-/** Scroll-edge gradient fade, per the app-wide scrollable-list pattern. */
-function useEdgeFade() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [edges, setEdges] = useState({ left: false, right: true });
-  const onScroll = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    setEdges({ left: el.scrollLeft > 8, right: el.scrollLeft < max - 8 });
-  }, []);
-  const mask = useMemo(() => {
-    const from = edges.left ? 'transparent 0, black 48px' : 'black 0';
-    const to = edges.right ? 'black calc(100% - 48px), transparent 100%' : 'black 100%';
-    return `linear-gradient(to right, ${from}, ${to})`;
-  }, [edges]);
-  return { ref, onScroll, style: { WebkitMaskImage: mask, maskImage: mask } as const };
 }
 
 interface SummaryValue {

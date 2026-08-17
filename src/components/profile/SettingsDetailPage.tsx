@@ -818,7 +818,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setTimeout(() => setConfigureStatus('idle'), 2500);
   }, [devices, setConfig]);
 
-  const { heroCardLayoutEnabled, toggleHeroCardLayout, hideHomeCenterEnabled, toggleHideHomeCenter, hideCardImagesEnabled, toggleHideCardImages, sidebarPreviewsEnabled, toggleSidebarPreviews, dashboardFilterEnabled, toggleDashboardFilter, mobileNavAutoHideEnabled, toggleMobileNavAutoHide } = useDebugFlags();
+  const { hideHomeCenterEnabled, toggleHideHomeCenter, hideCardImagesEnabled, toggleHideCardImages, sidebarPreviewsEnabled, toggleSidebarPreviews, dashboardFilterEnabled, toggleDashboardFilter, mobileNavAutoHideEnabled, toggleMobileNavAutoHide } = useDebugFlags();
   const [connectionSetupOpen, setConnectionSetupOpen] = useState(false);
 
   const allNavItems = allSettingsLinks;
@@ -1564,12 +1564,6 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
   const renderDeveloperFlagsCard = (opts: SettingsCardOptions = {}) => (
     <SettingsCard title="Developer flags" description="Diagnostic overlays and simulated conditions." {...opts}>
       <RowGroup>
-        <ToggleRow
-          label="New device card layout"
-          description="Hero layout — name top-left, product image on the right, toggle bottom-left. Off restores the previous layout (image left, controls along the bottom)."
-          checked={heroCardLayoutEnabled}
-          onToggle={toggleHeroCardLayout}
-        />
         <ToggleRow
           label="Sidebar hover previews"
           description="Hovering a dashboard or app in the sidebar shows a snapshot of the view. Off falls back to the plain label pill."

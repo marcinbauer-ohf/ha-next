@@ -47,12 +47,10 @@ export const CARD_TUNER_PARAMS: CardTunerParam[] = [
   // ── Layout ──
   // Masonry rhythm: card height + the 16px column gap should stay a multiple of
   // `rowH` (88/140/192 at rowH 52) or cards stop lining up across columns.
-  { id: 'minH', cssVar: '--dct-min-h', label: 'Card height (desktop)', group: 'Layout', min: 96, max: 220, step: 4, unit: 'px', defaultValue: 192 },
+  { id: 'minH', cssVar: '--dct-min-h', label: 'Card height', group: 'Layout', min: 96, max: 220, step: 4, unit: 'px', defaultValue: 140 },
   { id: 'pad', cssVar: '--dct-pad', label: 'Card padding', group: 'Layout', min: 6, max: 24, step: 1, unit: 'px', defaultValue: 10 },
   // ── Image & graph ──
   { id: 'thumbW', cssVar: '--dct-thumb-w', label: 'Image width', group: 'Image & graph', min: 20, max: 60, step: 1, unit: '%', defaultValue: 44 },
-  { id: 'thumbH', cssVar: '--dct-thumb-h', label: 'Image height', group: 'Image & graph', min: 30, max: 100, step: 2, unit: '%', defaultValue: 64 },
-  { id: 'thumbFade', cssVar: '--dct-thumb-fade', label: 'Image edge fade', group: 'Image & graph', min: 0, max: 60, step: 2, unit: '%', defaultValue: 28 },
   { id: 'thumbAlpha', cssVar: '--dct-thumb-alpha', label: 'Image opacity', group: 'Image & graph', min: 0.2, max: 1, step: 0.05, unit: '', defaultValue: 1 },
   { id: 'sparkAlpha', cssVar: '--dct-spark-alpha', label: 'Sparkline opacity', group: 'Image & graph', min: 0, max: 1, step: 0.05, unit: '', defaultValue: 1 },
   // ── Secondary rows ──

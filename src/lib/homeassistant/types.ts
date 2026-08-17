@@ -70,6 +70,18 @@ export interface DeviceRegistryEntry {
   model: string | null;
   area_id: string | null;
   entry_type: string | null;
+  /* The rest is what HA's own device page prints in its "Device info" card.
+     All optional: `config/device_registry/list` has always sent them, but a
+     device only fills in what its integration knows. */
+  model_id?: string | null;
+  sw_version?: string | null;
+  hw_version?: string | null;
+  serial_number?: string | null;
+  /** The hub/bridge this device talks through ("Connected via"). */
+  via_device_id?: string | null;
+  /** The device's own web UI, if it has one ("Visit device"). */
+  configuration_url?: string | null;
+  disabled_by?: string | null;
 }
 
 /**

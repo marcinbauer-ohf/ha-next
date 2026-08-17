@@ -40,7 +40,7 @@ export interface EntityCardProps {
  * energy) are interactive and open detail in place. This id is the shared
  * vocabulary so new glances can be added in one obvious place.
  */
-export type GlanceId = 'people' | 'lights' | 'climate' | 'security' | 'weather' | 'energy' | 'automations' | 'mode';
+export type GlanceId = 'people' | 'lights' | 'climate' | 'security' | 'weather' | 'energy' | 'automations' | 'mode' | 'battery';
 
 export interface SummaryCardProps {
   icon: string;

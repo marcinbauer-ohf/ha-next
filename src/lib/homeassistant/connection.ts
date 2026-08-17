@@ -568,6 +568,26 @@ export async function getLogbook(entityId: string | string[], hoursBack = 168): 
 }
 
 /**
+ * What else in the config references this registry item — the source HA's own
+ * device page uses for "Automations/Scenes/Scripts using this device". Keys are
+ * item types ('automation', 'scene', 'script', 'area', 'config_entry'…), values
+ * are ids (entity ids for the automation/scene/script keys).
+ */
+export async function getRelated(itemType: string, itemId: string): Promise<Record<string, string[]>> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return {};
+  try {
+    return await conn.sendMessagePromise<Record<string, string[]>>({
+      type: 'search/related',
+      item_type: itemType,
+      item_id: itemId,
+    }) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/**
  * An automation's stored config (triggers / conditions / actions). There is no
  * WS command for this, so it goes through the REST config endpoint using the
  * credentials captured on connect. Returns null when unavailable (YAML-only

@@ -15,6 +15,7 @@ import {
 import { Tooltip } from '../ui/Tooltip';
 import { useMobileToolbar } from '@/contexts';
 import { formatLastTriggered, type AutomationSummary } from '@/hooks/useAutomations';
+import { recede, useSheetStack } from '@/hooks/useSheetStack';
 import {
   mdiAlertCircleOutline,
   mdiCancel,
@@ -1151,6 +1152,10 @@ export function AutomationEditor({
     [nodes, selectedId],
   );
 
+  // The phone sheet joins the dialog stack: when a confirm opens over it, it
+  // sits back and keeps its top edge showing instead of going dark.
+  const { above: sheetAbove } = useSheetStack(!!selected || infoOpen);
+
   const addNode = (kind: NodeKind, def: NodeTypeDef) => {
     const id = `${kind}-${nextNodeId.current++}`;
     setNodes((prev) => [...prev, { id, kind, type: def.type, enabled: true, data: { ...def.defaults } }]);
@@ -1323,11 +1328,11 @@ export function AutomationEditor({
               <motion.div
                 key="sheet"
                 initial={{ y: '100%' }}
-                animate={{ y: 0 }}
+                animate={recede(sheetAbove)}
                 exit={{ y: '100%' }}
                 transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                 className="lg:hidden fixed inset-x-0 bottom-0 z-[100] px-ha-2"
-                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
+                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)', transformOrigin: 'top center' }}
               >
                 <div className="flex justify-center pb-ha-2">
                   <div className="h-1.5 w-9 rounded-full bg-white/40" />

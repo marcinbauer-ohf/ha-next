@@ -12,6 +12,7 @@ import { EntityDetailPanel, type PanelEntity } from '../cards/EntityDetailPanel'
 import type { DeviceSummary, HassDevice } from '@/hooks';
 import { DEVICE_CATEGORY_LABEL, useDevices, useCopyToClipboard } from '@/hooks';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
+import { recede, useSheetStack } from '@/hooks/useSheetStack';
 import {
   entityLabel,
   stateLabel,
@@ -238,6 +239,7 @@ export function DevicesTable({
         // only physical devices or only service entries.
         id: 'kind',
         mode: 'facet',
+        label: 'Show',
         chips: [
           { id: 'devices', label: 'Devices', predicate: (d) => !d.isService, defaultActive: true },
           { id: 'services', label: 'Services', predicate: (d) => d.isService, defaultActive: true },
@@ -246,6 +248,7 @@ export function DevicesTable({
       {
         id: 'availability',
         mode: 'facet',
+        label: 'Availability',
         chips: [
           { id: 'available', label: 'Available', predicate: (d) => d.available, defaultActive: true },
           { id: 'unavailable', label: 'Unavailable', predicate: (d) => !d.available },
@@ -285,6 +288,7 @@ export function DevicesTable({
       },
     ],
     onRowClick: (d) => onSelect(d.id),
+    storageId: 'devices',
     fillHeight: true,
     defaultLayout: 'list',
     emptyLabel: 'No devices match these filters.',
@@ -567,6 +571,8 @@ export function DeviceDetailView({
   // Clicking an entity row opens its more-info dialog — the same EntityDetailPanel
   // the dashboard device cards use, in the shared ModalSheet.
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  // …so this sheet sits back under that dialog rather than vanishing behind it.
+  const { above: sheetAbove } = useSheetStack(infoOpen);
   const panelEntities = useMemo<PanelEntity[]>(() => entities.map((e) => {
     const dom = e.entity_id.split('.')[0];
     const isToggleable = TOGGLEABLE.has(dom);
@@ -683,11 +689,11 @@ export function DeviceDetailView({
               <motion.div
                 key="device-sheet"
                 initial={{ y: '100%' }}
-                animate={{ y: 0 }}
+                animate={recede(sheetAbove)}
                 exit={{ y: '100%' }}
                 transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                 className="lg:hidden fixed inset-x-0 bottom-0 z-[100] px-ha-2"
-                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
+                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)', transformOrigin: 'top center' }}
               >
                 <div className="flex justify-center pb-ha-2">
                   <div className="h-1.5 w-9 rounded-full bg-white/40" />

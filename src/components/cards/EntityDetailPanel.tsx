@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { mdiClose, mdiPencilOutline, mdiPower, mdiStar, mdiStarOutline, mdiCogOutline, mdiChevronRight, mdiDotsVertical, mdiDevices, mdiMapMarkerOutline, mdiAccountVoice, mdiRobotOutline, mdiEyeOffOutline, mdiTuneVariant, mdiChartLine, mdiInformation, mdiInformationOutline } from '@mdi/js';
+import { mdiClose, mdiPencilOutline, mdiPower, mdiStar, mdiStarOutline, mdiCogOutline, mdiChevronRight, mdiDotsVertical, mdiDevices, mdiMapMarkerOutline, mdiAccountVoice, mdiRobotOutline, mdiEyeOffOutline, mdiTuneVariant, mdiChartLine, mdiInformation, mdiInformationOutline, mdiOpenInNew } from '@mdi/js';
 import { clsx } from 'clsx';
 import { CircularProgress, Icon, ListSection, RollingNumericValue, SectionLabel, SegmentedControl, Dropdown, HALoader, ToggleSwitch } from '../ui';
 import { ContextMenu } from '../ui/ContextMenu';
@@ -11,7 +11,8 @@ import { StateTimeline, type StateSegment } from '../ui/StateTimeline';
 import { Sparkline } from '../ui/Sparkline';
 import { DomainControls } from './DeviceControls';
 import { DeviceThumbnailPicker, type DeviceThumbnailPickerProps } from './DeviceThumbnailPicker';
-import { useEntity, useHomeAssistant } from '@/hooks/useHomeAssistant';
+import { useEntity, useHomeAssistant, peekEntities } from '@/hooks/useHomeAssistant';
+import { useDeviceInfo } from '@/hooks/useDevices';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { useIdleMarquee } from '@/hooks/useIdleMarquee';
 import { stateParts } from '@/lib/homeassistant/entityHelpers';
@@ -240,7 +241,7 @@ export const HERO_LAYOUTS = [
 ] as const;
 export type HeroLayout = typeof HERO_LAYOUTS[number]['value'];
 
-export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 'full', showControls = true, showHero = true, heroLayout = 'band', onOpenHistory }: {
+export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 'full', showControls = true, showHero = true, heroLayout = 'band', pastTab: pastTabProp, onPastTabChange }: {
   entity: PanelEntity;
   thumbnail?: string | null;
   /**
@@ -249,11 +250,11 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
    */
   headerName?: string;
   /**
-   * 'full'  — chart / state timeline with span + aggregation pickers (history view)
-   * 'strip' — one compact, non-interactive 24h band that opens the full view
-   * 'none'  — no history at all (skips the fetch)
+   * 'full' — chart / state timeline with span + aggregation pickers (history view)
+   * 'none' — no history at all (skips the fetch). What the controls view uses:
+   *          the past lives behind the History tab, never on the first screen.
    */
-  historyView?: 'full' | 'strip' | 'none';
+  historyView?: 'full' | 'none';
   /** Domain controls (brightness, setpoint, transport…) — off in the history view */
   showControls?: boolean;
   /**
@@ -263,8 +264,9 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
   showHero?: boolean;
   /** Which hero arrangement to draw — see `HERO_LAYOUTS`. */
   heroLayout?: HeroLayout;
-  /** Tapping the strip calls this (the panel switches to its history view). */
-  onOpenHistory?: () => void;
+  /** Chart-or-log, when the owner drives it; uncontrolled if omitted. */
+  pastTab?: 'history' | 'log';
+  onPastTabChange?: (view: 'history' | 'log') => void;
 }) {
   const { getEntityHistory, getStatistics, connected, demoMode, haUrl } = useHomeAssistant();
   // Product-render thumbnail, shown inside the tappable hero card. Hidden if the
@@ -293,8 +295,12 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
   // `hoveredIndex` on the chart) — both feed the hero, so scrubbing the past
   // shows what the entity read then, not what it reads now.
   const [hoveredSeg, setHoveredSeg] = useState<{ state: string; ts: number } | null>(null);
-  // Chart or log — the two ways to read the same past, toggled in place.
-  const [pastTab, setPastTab] = useState<'history' | 'log'>('history');
+  // Chart or log — the two ways to read the same past, toggled in place. The
+  // owner can drive it instead (the dialog keeps the choice across tab
+  // switches); uncontrolled everywhere else.
+  const [ownPastTab, setOwnPastTab] = useState<'history' | 'log'>('history');
+  const pastTab = pastTabProp ?? ownPastTab;
+  const setPastTab = onPastTabChange ?? setOwnPastTab;
   // The hero is one giant tap-to-toggle target sitting right above the sliders,
   // swatches and the graph. While the pointer is on one of those — and for a
   // beat after it leaves, so a drag released over the hero doesn't count — the
@@ -800,44 +806,6 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
           </div>
         )}
 
-        {/* Strip — every entity gets the same 24h band under its value, numeric
-            or not, and tapping it opens the full history. Deliberately
-            non-interactive (no scrubbing): it reads as a summary, not a chart.
-            Sized to the 48px bento control row (sliders, mode pills) so the
-            band sits in the same rhythm instead of looking like a stray line. */}
-        {historyView === 'strip' && (
-          <button
-            type="button"
-            onClick={onOpenHistory}
-            disabled={!onOpenHistory}
-            aria-label="Open history"
-            className="w-full h-12 rounded-ha-xl bg-surface-low/60 px-ha-3 flex items-center gap-ha-3 transition-colors enabled:hover:bg-surface-low disabled:cursor-default"
-          >
-            <span className="pointer-events-none min-w-0 flex-1 h-9 flex items-center">
-              {isHistoryLoading ? (
-                <span className="w-full h-1 rounded-full bg-surface-low" />
-              ) : isNumeric && hasChart ? (
-                <span className="block w-full h-9 opacity-80">
-                  <Sparkline
-                    points={numericPoints}
-                    on={entity.active ?? false}
-                    gradientId={`${sparklineId}-strip`}
-                    stepped={isBoolean}
-                    xFractions={xFractions}
-                    fillHeight
-                  />
-                </span>
-              ) : showTimeline ? (
-                <StateTimeline segments={timeline.segs} startTs={timeline.startTs} endTs={timeline.endTs} compact />
-              ) : (
-                <span className="text-xs text-text-tertiary">No history yet</span>
-              )}
-            </span>
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">24h</span>
-            <Icon path={mdiChevronRight} size={16} className="shrink-0 text-text-tertiary" />
-          </button>
-        )}
-
         {/* History — numeric line/area, else a state-duration timeline. Fixed
             min-height so numeric chart, timeline, loader and the empty case all
             reserve the same space (no jump when switching entities). */}
@@ -1034,8 +1002,36 @@ function EntitySettingsTab({ entity, deviceName, deviceMeta, thumbnailPicker, on
   onNavigate: () => void;
 }) {
   const router = useRouter();
-  const { isAdmin } = useHomeAssistant();
+  const { isAdmin, connected, getRelated } = useHomeAssistant();
   const stored = useEntity(entity?.entityId ?? '');
+  // The device's registry record — firmware, serial, the hub it talks through:
+  // everything HA's own device page prints that the card never needed.
+  const { entry: device, integrationName, viaDeviceName } = useDeviceInfo(deviceMeta?.deviceId);
+
+  // What else in the config points at this device, the way HA's device page
+  // lists it. One WS round-trip per device, resolved to names on arrival (the
+  // response is entity ids), so the list can't re-render on state ticks.
+  const [related, setRelated] = useState<{ label: string; names: string[] }[]>([]);
+  useEffect(() => {
+    const deviceId = deviceMeta?.deviceId;
+    if (!deviceId || !connected) return;
+    let cancelled = false;
+    (async () => {
+      const res = await getRelated('device', deviceId);
+      if (cancelled) return;
+      const all = peekEntities();
+      const nameOf = (id: string) => (all[id]?.attributes.friendly_name as string | undefined) ?? id;
+      setRelated(
+        ([['automation', 'Automations'], ['scene', 'Scenes'], ['script', 'Scripts']] as const)
+          .map(([key, label]) => ({ label, names: (res[key] ?? []).map(nameOf) }))
+          .filter(g => g.names.length > 0),
+      );
+    })();
+    // Clearing on the way out (rather than at the top of the effect) keeps one
+    // device's automations off the next device's sheet without a render-phase
+    // state write.
+    return () => { cancelled = true; setRelated([]); };
+  }, [deviceMeta?.deviceId, connected, getRelated]);
 
   const entityRows: { label: string; value: string }[] = [];
   if (entity) {
@@ -1057,10 +1053,22 @@ function EntitySettingsTab({ entity, deviceName, deviceMeta, thumbnailPicker, on
         .filter((row): row is { label: string; value: string } => row !== null)
     : [];
 
+  // Device section — the same fields HA's device page lists, in its order, from
+  // the registry record (with the card's own meta as the fallback for the two
+  // fields it carries). Only what the integration actually filled in shows.
   const deviceRows: { label: string; value: string }[] = [];
   if (deviceName) deviceRows.push({ label: 'Name', value: deviceName });
-  if (deviceMeta?.manufacturer) deviceRows.push({ label: 'Manufacturer', value: deviceMeta.manufacturer });
-  if (deviceMeta?.model) deviceRows.push({ label: 'Model', value: deviceMeta.model });
+  const manufacturer = deviceMeta?.manufacturer ?? device?.manufacturer;
+  const model = deviceMeta?.model ?? device?.model;
+  if (manufacturer) deviceRows.push({ label: 'Manufacturer', value: manufacturer });
+  if (model) deviceRows.push({ label: 'Model', value: model });
+  if (device?.model_id && device.model_id !== model) deviceRows.push({ label: 'Model number', value: device.model_id });
+  if (integrationName) deviceRows.push({ label: 'Integration', value: integrationName });
+  if (viaDeviceName) deviceRows.push({ label: 'Connected via', value: viaDeviceName });
+  if (device?.sw_version) deviceRows.push({ label: 'Firmware', value: device.sw_version });
+  if (device?.hw_version) deviceRows.push({ label: 'Hardware', value: device.hw_version });
+  if (device?.serial_number) deviceRows.push({ label: 'Serial number', value: device.serial_number });
+  if (device?.disabled_by) deviceRows.push({ label: 'Status', value: 'Turned off in Home Assistant' });
   if (isAdmin && deviceMeta?.deviceId) deviceRows.push({ label: 'Device ID', value: deviceMeta.deviceId });
 
   return (
@@ -1080,12 +1088,40 @@ function EntitySettingsTab({ entity, deviceName, deviceMeta, thumbnailPicker, on
         </div>
       )}
       {deviceRows.length > 0 && (
-        <div className="px-ha-4 mb-ha-2">
+        <div className="px-ha-4 mb-ha-4">
           <ListSection title="Device">
             {deviceRows.map(r => <InfoRow key={r.label} label={r.label} value={r.value} />)}
+            {/* Devices with their own web interface (a printer, a router, a
+                bridge) link to it — HA's "Visit device". */}
+            {device?.configuration_url && (
+              <a
+                href={device.configuration_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-ha-3 px-ha-4 py-ha-3 transition-colors hover:bg-surface-mid"
+              >
+                <span className="flex-1 text-sm font-medium text-text-primary">Open this device&apos;s own page</span>
+                <Icon path={mdiOpenInNew} size={16} className="shrink-0 text-text-tertiary" />
+              </a>
+            )}
           </ListSection>
         </div>
       )}
+      {/* Automations, scenes and scripts that use this device — named, not
+          linked: this is the info sheet, and each one has its own place in
+          Settings to be edited from. */}
+      {related.map(group => (
+        <div key={group.label} className="px-ha-4 mb-ha-4">
+          <ListSection title={group.label}>
+            {group.names.map((name, i) => (
+              <div key={`${name}-${i}`} className="flex items-center gap-ha-3 px-ha-4 py-ha-3">
+                <Icon path={mdiRobotOutline} size={18} className="shrink-0 text-text-tertiary" />
+                <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{name}</span>
+              </div>
+            ))}
+          </ListSection>
+        </div>
+      ))}
       {/* Product image for the card — device-scoped, so it sits with the device. */}
       {thumbnailPicker && (
         <div className="px-ha-4 mb-ha-4">
@@ -1144,6 +1180,8 @@ export function EntityDetailPanel({
   // 'main' = hero, controls and the 24h band; 'history' = the full chart and its
   // log; 'info' = entity/device details and settings. See PANEL_TABS.
   const [tab, setTab] = useState<(typeof PANEL_TABS)[number]['id']>('main');
+  // Which reading the History tab opens on — set by the summary tile you tapped.
+  const [pastTab, setPastTab] = useState<'history' | 'log'>('history');
   const [focusedEntityId, setFocusedEntityId] = useState(initialEntityId);
   // Overflow menu anchor (null = closed). Placeholder actions for now — each
   // just confirms itself with a toast so nothing is silently inert.
@@ -1263,7 +1301,13 @@ export function EntityDetailPanel({
     // hero (or the chart) takes whatever is left after the header, the device
     // list and the switcher, so opening a one-sensor plug and a twelve-entity
     // vacuum gives you the same dialog and the same place to change entity.
-    <div className="h-[min(70dvh,760px)] lg:h-[min(88vh,900px)] flex flex-col overflow-hidden">
+    // --panel-shelf-peek: how much of the "On this device" shelf shows without
+    // scrolling — its heading plus the top edge of the first row. The hero is
+    // sized to the frame minus this, so the shelf always announces itself.
+    <div
+      className="h-[min(70dvh,760px)] lg:h-[min(88vh,900px)] flex flex-col overflow-hidden"
+      style={{ '--panel-shelf-peek': '56px' } as CSSProperties}
+    >
       {/* Header — close on the left (dialog pattern), name over its area → device
           trail, options on the right. The frame's inset is the same 16px on the
           top as on the sides (only the bottom is tighter — the hero is next, not
@@ -1402,7 +1446,11 @@ export function EntityDetailPanel({
               // Phone: a short hero sits at the *bottom* of its region, next to
               // the list and inside thumb reach, with the device render filling
               // the space above it. Desktop has no reach problem, so it centres.
-              'relative z-[1] flex min-h-full flex-col justify-end',
+              // Short of the full height by SHELF_PEEK: that gap is what leaves
+              // the device list's heading and the top edge of its first row
+              // showing under the hero, so the shelf reads as "there's more
+              // here, scroll" instead of being invisible until you find it.
+              'relative z-[1] flex min-h-[calc(100%-var(--panel-shelf-peek))] flex-col justify-end',
               showBackdrop && 'pt-[116px]',
             )}>
               <EntityDetailBody
@@ -1413,19 +1461,19 @@ export function EntityDetailPanel({
                 // The header now titles itself with the focused entity, so the
                 // hero drops its own name line rather than saying it twice.
                 headerName={focusedEntity.name}
-                // Controls-first: opening a device shows what you can *do* with
-                // it, with the 24h band as the teaser that leads to the chart.
-                // The History tab keeps the same hero — scrubbing still moves the
-                // reading — and gives the chart and its log the room instead.
-                historyView={tab === 'history' ? 'full' : 'strip'}
+                // Controls-first: opening a device shows only what you can *do*
+                // with it — no graph, no log, not even a teaser band. The past
+                // is one place, the History tab, which keeps the same hero
+                // (scrubbing still moves the reading) and gives the chart and
+                // its log all the room the controls were using.
+                historyView={tab === 'history' ? 'full' : 'none'}
                 showControls={tab !== 'history'}
-                onOpenHistory={() => setTab('history')}
+                pastTab={pastTab}
+                onPastTabChange={setPastTab}
                 heroLayout={heroLayout}
               />
             </div>
           )}
-
-          </div>
 
           {/* Every entity on the device, focused one marked — this is what makes
               the card's "one device, many entities" model visible, and it anchors
@@ -1433,9 +1481,14 @@ export function EntityDetailPanel({
               scrollport: whichever entity you're looking at, the switch to
               another one is always in the same place and the same size. It also
               paints the panel's ground so the sticky headings can inherit it
-              (`bg-inherit`) instead of guessing at a surface token. */}
-          {entities.length > 1 && (
-            <div className="relative z-[1] shrink-0 bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
+              (`bg-inherit`) instead of guessing at a surface token.
+
+              It lives *inside* the hero's scrollport, below the fold — see the
+              hero's min-height above. Always rendered, never gated on a count:
+              the shelf being in the same place on every device is the point, and
+              it holds everything the device still has (hidden entities included
+              — only disabling one takes it out, see panelEntitiesForDevice). */}
+          <div className="relative z-[1] bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
               {/* Not "entities" — the list is everything this device can show or
                   do, in the words someone who owns the device would use. The
                   heading sits outside the card so the card itself never moves:
@@ -1471,33 +1524,45 @@ export function EntityDetailPanel({
                 <div className={clsx('pointer-events-none absolute inset-x-0 top-0 z-10 h-6 rounded-t-ha-2xl bg-gradient-to-b from-surface-default to-transparent transition-opacity', listTop ? 'opacity-100' : 'opacity-0')} />
                 <div className={clsx('pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 rounded-b-ha-2xl bg-gradient-to-t from-surface-default to-transparent transition-opacity', listBottom ? 'opacity-100' : 'opacity-0')} />
               </div>
-            </div>
-          )}
+          </div>
+
+          </div>
         </>
       )}
 
       {/* Bottom nav — the dialog's three places, in the same order every device
-          shows them, so "where is the graph" has one answer. Sits on the frame's
-          bottom edge like the app's own bar; the current view is the accent. */}
-      <div className="relative z-[2] flex shrink-0 items-stretch gap-ha-1 border-t border-surface-mid bg-surface-lower px-ha-2 pb-ha-2 pt-ha-1">
-        {PANEL_TABS.map(t => {
-          const on = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              aria-pressed={on}
-              className={clsx(
-                'flex flex-1 flex-col items-center gap-0.5 rounded-ha-xl py-ha-2 text-[11px] font-semibold transition-colors',
-                on ? 'bg-ha-blue/10 text-ha-blue' : 'text-text-tertiary hover:bg-surface-low hover:text-text-secondary',
-              )}
-            >
-              <Icon path={on ? (t.iconOn ?? t.icon) : t.icon} size={20} />
-              {t.label}
-            </button>
-          );
-        })}
+          shows them, so "where is the graph" has one answer. Built like the
+          app's mobile nav: the same pill (1px gradient edge over a
+          surface-default ground, device-matched radius) carrying bare 28px
+          glyphs, the current one in the accent with a short underline. */}
+      <div className="relative z-[2] shrink-0 bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
+        <div className="rounded-[var(--mobile-nav-radius)] bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden">
+          <div className="flex h-14 items-center justify-center gap-ha-7 rounded-[calc(var(--mobile-nav-radius)_-_1px)] bg-surface-default/95 px-ha-8">
+            {PANEL_TABS.map(t => {
+              const on = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTab(t.id)}
+                  aria-pressed={on}
+                  title={t.label}
+                  aria-label={t.label}
+                  className={clsx(
+                    'relative flex h-full items-center justify-center px-ha-2 transition-colors',
+                    on ? 'text-ha-blue' : 'text-text-secondary hover:text-text-primary',
+                  )}
+                >
+                  <Icon path={on ? (t.iconOn ?? t.icon) : t.icon} size={28} />
+                  <span className={clsx(
+                    'absolute bottom-1 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-ha-blue transition-opacity',
+                    on ? 'opacity-100' : 'opacity-0',
+                  )} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

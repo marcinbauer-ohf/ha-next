@@ -368,6 +368,8 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
 
   const [timerProgress, setTimerProgress] = useState<number>(0);
   const [scrollHideProgress, setScrollHideProgress] = useState(0);
+  // Whether the latest hide-progress change was a step rather than finger-tracking.
+  const [hideProgressJumped, setHideProgressJumped] = useState(false);
   const [hideFromInactivity, setHideFromInactivity] = useState(false);
   // Held by transient interactions (e.g. scrubbing the scroll-index rail) that
   // scroll the dashboard programmatically — see navAutoHideBus.
@@ -493,6 +495,10 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
       : scrollHideProgress;
   const bottomRowVisibleRatio = 1 - effectiveHideProgress;
   const isBottomRowHidden = bottomRowVisibleRatio <= 0.02;
+  // Scroll-driven hiding arrives as a per-event ratio, so it only needs a hair of
+  // smoothing. Everything else moves the row in one step (see setClampedHideProgress)
+  // and gets a real eased expansion instead of a 120ms snap.
+  const bottomRowEased = hideProgressJumped || isRevealed || isBottomSurfaceEngaged;
   const getEntityPictureUrl = useCallback(
     (picture?: string, fallback?: string) => resolveEntityPictureUrl(haUrl, picture) ?? fallback,
     [haUrl]
@@ -500,6 +506,10 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
 
   const setClampedHideProgress = useCallback((nextProgress: number) => {
     const clamped = Math.max(0, Math.min(1, nextProgress));
+    // Big step = a jump, not finger-tracking: reveal at scroll-top, reveal on a
+    // fresh gesture, the midpoint snap, the inactivity hide. Those get a real
+    // eased expansion; the per-event scroll deltas stay glued to the finger.
+    setHideProgressJumped(Math.abs(clamped - scrollHideProgressRef.current) > 0.2);
     scrollHideProgressRef.current = clamped;
     setScrollHideProgress((prev) => (Math.abs(prev - clamped) < 0.001 ? prev : clamped));
   }, []);
@@ -1956,9 +1966,12 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
       }}
     >
       <div
-        className={`pointer-events-none absolute inset-x-0 bottom-0 h-[calc(9rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-black/45 via-black/18 to-transparent transition-opacity duration-300 ${
-          showBottomEdgeGradient ? 'opacity-80' : 'opacity-55'
-        }`}
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[calc(9rem+env(safe-area-inset-bottom,0px))] bg-gradient-to-t from-black/45 via-black/18 to-transparent transition-opacity duration-300"
+        // Nothing left to darken behind once the bar tucks away, so the scrim
+        // fades back with it rather than sitting there as a dark smudge.
+        style={{
+          opacity: (showBottomEdgeGradient ? 0.8 : 0.55) * (1 - 0.6 * effectiveHideProgress),
+        }}
       />
       <button
         type="button"
@@ -1980,10 +1993,26 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
           }`}
           // Collapsed, the whole bar is the drag-up affordance; expanded, touch
           // handling goes back to the browser so the sheet content can scroll.
-          style={{ touchAction: statusExpanded ? 'auto' : 'none' }}
+          style={{
+            touchAction: statusExpanded ? 'auto' : 'none',
+            // Auto-hidden with nothing live to show, the leftover sliver keeps the
+            // full tab-strip width — squeeze it down to a small nub instead. The
+            // cap is inert until the last stretch of the hide (natural width is
+            // ~290px), so it reads as a tuck-away rather than a width animation.
+            // With activities up top the row still needs its real width.
+            maxWidth: isTopRowHidden && !isSheetVisible
+              ? `${104 + 456 * (1 - effectiveHideProgress)}px`
+              : undefined,
+            transition: 'max-width 0.42s cubic-bezier(0.22,1,0.36,1)',
+          }}
         >
           <div className="relative rounded-[calc(var(--mobile-nav-radius)_-_1px)] bg-surface-default/95">
-            <div className="flex flex-col px-ha-2 pt-0 pb-ha-2">
+            <div
+              className="flex flex-col px-ha-2 pt-0 transition-[padding] duration-300 ease-out"
+              // The residual bottom padding is all that's left once the rows
+              // collapse — halve it so the hidden nub is a thin bar, not a slab.
+              style={{ paddingBottom: `${isBottomRowHidden && isTopRowHidden ? 4 : 8}px` }}
+            >
               <div className="flex justify-center py-0 mb-0 shrink-0">
                 {/* Generous, mostly-invisible grab zone so a swipe that starts
                     anywhere near the pill's top edge reliably opens/closes the
@@ -2512,8 +2541,11 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
 
         {/* Bottom row: Navigation pill */}
         <div
-          className="overflow-hidden transition-[max-height,margin-top,opacity,transform] duration-120 ease-out shrink-0"
+          className="overflow-hidden shrink-0"
           style={{
+            transition: bottomRowEased
+              ? 'max-height 0.42s cubic-bezier(0.22,1,0.36,1), margin-top 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.32s ease-out, transform 0.42s cubic-bezier(0.22,1,0.36,1)'
+              : 'max-height 0.12s ease-out, margin-top 0.12s ease-out, opacity 0.12s ease-out, transform 0.12s ease-out',
             maxHeight: `${56 * bottomRowVisibleRatio}px`,
             // The tab strip sits an even 8px in from the pill on all sides. When
             // the drag handle shows (non-settings) its band already fills that 8px

@@ -46,8 +46,10 @@ export function ScreensaverPulseLog() {
 
   return (
     <div
-      className="absolute left-1/2 -translate-x-1/2 bottom-0 flex flex-col-reverse items-center gap-ha-1 px-ha-6 pointer-events-none max-w-[90vw]"
-      style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + 5rem)` }}
+      // Sits clear of the talk widget, which docks at the same bottom edge: its
+      // pill would blur the labels into its backdrop and its glow layer (h-52)
+      // paints over them, so stack above (z-10) and clear the pill's height.
+      className="absolute left-1/2 -translate-x-1/2 bottom-0 z-10 flex flex-col-reverse items-center gap-ha-1 px-ha-6 pointer-events-none max-w-[90vw] pb-[calc(env(safe-area-inset-bottom)+8.5rem)] lg:pb-[calc(env(safe-area-inset-bottom)+6rem)]"
       aria-hidden
     >
       {entries.map((e) => {
@@ -55,7 +57,10 @@ export function ScreensaverPulseLog() {
         return (
           <div
             key={e.id}
-            className="flex items-center gap-ha-2 rounded-ha-pill bg-black/55 border border-white/15 pl-ha-2 pr-ha-3 py-ha-1 animate-in fade-in slide-in-from-bottom-2 duration-300"
+            // ha-surface-enter (fade + rise) — the tailwindcss-animate classes
+            // this used (`animate-in fade-in …`) were never generated: the
+            // plugin isn't installed, so they were dead classes.
+            className="ha-surface-enter flex items-center gap-ha-2 rounded-ha-pill bg-black/55 border border-white/15 pl-ha-2 pr-ha-3 py-ha-1"
           >
             <span
               className="w-2 h-2 rounded-full shrink-0 animate-pulse"

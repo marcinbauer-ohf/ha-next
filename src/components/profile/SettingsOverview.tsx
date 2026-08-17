@@ -7,7 +7,7 @@ import { SetupScreen } from '../ui/SetupScreen';
 import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { useLiveSummaryItems, PeopleBadge } from '@/components/sections/SummariesPanel';
-import { SummaryCard } from '@/components/cards/SummaryCard';
+import { SummaryGlance } from '@/components/glances';
 import { SystemStatusPanel } from '@/components/ui/SystemStatusPanel';
 import {
   mdiCctv,
@@ -182,15 +182,7 @@ export function SettingsOverview() {
         <div className="flex flex-wrap gap-ha-2">
           <PeopleBadge compact variant="compact" />
           {liveSummaryItems.map((item) => (
-            <SummaryCard
-              key={item.title}
-              icon={item.icon}
-              title={item.title}
-              state={item.state}
-              color={item.color}
-              compact
-              variant="outlined"
-            />
+            <SummaryGlance key={item.title} item={item} compact variant="outlined" />
           ))}
         </div>
       </Card>

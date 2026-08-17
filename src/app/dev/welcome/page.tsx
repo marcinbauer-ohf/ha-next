@@ -223,13 +223,7 @@ export default function WelcomeExperimentPage() {
             tick, so framer morphs it from center to the title slot. */}
         {!morphed && at(PHASES.welcome) && (
           <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-ha-4 px-ha-6 text-center pointer-events-none">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, ease: EASE_OUT }}
-            >
-              <Avatar src={avatarSrc} initials={avatarInitials} size="xl" />
-            </motion.div>
+            <Avatar src={avatarSrc} initials={avatarInitials} size="xl" />
             <motion.span
               className="text-lg lg:text-xl text-text-secondary"
               initial={{ opacity: 0, y: 12 }}

@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { clsx } from 'clsx';
 import { mdiCheck, mdiClose, mdiHistory, mdiPlay, mdiRobot, mdiPencil } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { ToggleSwitch, ListSection, HALoader, SectionLabel, SegmentedControl } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
-import { useScrollFades } from '@/hooks/useScrollFades';
 import {
   useHomeAssistant,
   useEntities,
@@ -66,9 +65,10 @@ function metaLine(automation: AutomationSummary): string {
 }
 
 /**
- * The past, on its own surface — the automation's counterpart of the device
- * dialog's History/Log panel: same header row, same fixed slot, so flipping
- * between the shape of the week and the individual runs moves nothing.
+ * The past — the automation's counterpart of the device dialog's History/Log
+ * block: a hairline off the state above it (not a second panel), one header row,
+ * and one fixed slot the same height the device chart gets, so flipping between
+ * the shape of the week and the individual runs moves nothing.
  */
 function RunHistory({ events, loading }: { events: LogbookEntry[]; loading: boolean }) {
   const [tab, setTab] = useState<'chart' | 'log'>('chart');
@@ -78,7 +78,7 @@ function RunHistory({ events, loading }: { events: LogbookEntry[]; loading: bool
   const rows = useMemo(() => [...events].sort((a, b) => b.when - a.when).slice(0, 12), [events]);
 
   return (
-    <div className="flex w-full flex-col gap-ha-1 rounded-ha-2xl bg-surface-low p-ha-2">
+    <div className="flex w-full flex-col gap-ha-1 border-t border-surface-mid pt-ha-2">
       <div className="flex w-full items-center gap-ha-2">
         <SegmentedControl
           segments={[{ value: 'chart', label: 'Runs' }, { value: 'log', label: 'Log' }]}
@@ -88,7 +88,7 @@ function RunHistory({ events, loading }: { events: LogbookEntry[]; loading: bool
         />
         <span className="ml-auto text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">7 days</span>
       </div>
-      <div className="flex h-[124px] w-full flex-col overflow-hidden">
+      <div className="flex h-[132px] lg:h-[168px] w-full flex-col overflow-hidden">
         {loading ? (
           <div className="flex h-full items-center justify-center"><HALoader size="sm" /></div>
         ) : events.length === 0 ? (
@@ -98,11 +98,13 @@ function RunHistory({ events, loading }: { events: LogbookEntry[]; loading: bool
         ) : tab === 'chart' ? (
           <div className="flex h-full w-full flex-col justify-center gap-1">
             {hasChart ? (
-              <div className="h-16 w-full opacity-80">
+              // Fills the slot like the device dialog's chart does — a short
+              // reading in a tall box left a band of dead grey underneath.
+              <div className="min-h-0 w-full flex-1 opacity-80">
                 <Sparkline points={counts} on gradientId="automation-runs" fillHeight />
               </div>
             ) : (
-              <p className="text-center text-2xl font-bold font-mono text-text-primary">
+              <p className="flex-1 content-center text-center text-3xl font-bold font-mono text-text-primary">
                 {events.length}
                 <span className="ml-2 font-sans text-sm font-medium text-text-secondary">runs</span>
               </p>
@@ -242,14 +244,11 @@ export function AutomationDetailPanel({
     return () => clearTimeout(t);
   }, [ran]);
 
-  const { attach: attachListFades, showTop: listTop, showBottom: listBottom } = useScrollFades<HTMLDivElement>();
-  const bodyRef = useRef<HTMLDivElement>(null);
-
   const stateWord = !enabled ? 'Off' : automation.running ? 'Running' : 'On';
 
   return (
-    // Same frame as the device dialog: one height for every automation, a
-    // scrolling middle, and a fixed shelf of what it touches at the bottom.
+    // Same frame as the device dialog: one height for every automation, and a
+    // scrolling middle under a fixed header.
     <div className="h-[min(70dvh,760px)] lg:h-[min(85vh,780px)] flex flex-col overflow-hidden">
       {/* Header — close on the left, eyebrow over a large name, actions right. */}
       <div className="flex items-start justify-between gap-2 px-ha-4 pt-ha-4 pb-ha-2 shrink-0">
@@ -281,10 +280,11 @@ export function AutomationDetailPanel({
       </div>
 
       {/* Body — takes whatever the frame has left. */}
-      <div ref={bodyRef} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-6 py-3">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-6 py-3">
         <div className="flex w-full flex-col gap-ha-2">
-          {/* State and what you can do about it, as one card — the device
-              dialog's hero band plus its grouped controls. */}
+          {/* The automation as one object, exactly like the device dialog: what
+              it reads, what you can set, and what it did — one surface,
+              hairline-divided, instead of a stack of panels. */}
           <div className="flex w-full flex-col gap-ha-2 rounded-ha-2xl bg-surface-low p-ha-2">
             <div className={clsx(
               'flex w-full items-center gap-ha-3 rounded-ha-2xl px-ha-3 py-ha-2 transition-colors',
@@ -308,46 +308,40 @@ export function AutomationDetailPanel({
               <Icon path={ran ? mdiCheck : mdiPlay} size={18} className={ran ? 'text-green-500' : 'text-ha-blue'} />
               {ran ? 'Triggered' : 'Run now'}
             </button>
+
+            {/* The past — inside the same surface, off a hairline. */}
+            <RunHistory events={events} loading={historyLoading} />
           </div>
 
-          {/* The past — same panel, same fixed slot as a device's history. */}
-          <RunHistory events={events} loading={historyLoading} />
-
-          {/* What it actually does. */}
+          {/* What it actually does. The flow labels its own When / And if /
+              Then, so there's no outer heading over the top of them. */}
           <div className="w-full">
-            <SectionLabel inset>What it does</SectionLabel>
-            <div className="mt-ha-2">
-              {flowLoading ? (
-                <div className="flex h-24 items-center justify-center"><HALoader size="sm" /></div>
-              ) : flow && flow.length > 0 ? (
-                <AutomationFlowView nodes={flow} />
-              ) : (
-                <p className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-4 text-center text-sm text-text-tertiary">
-                  No steps to show — this automation has no editable config.
-                </p>
-              )}
-            </div>
+            {flowLoading ? (
+              <div className="flex h-24 items-center justify-center"><HALoader size="sm" /></div>
+            ) : flow && flow.length > 0 ? (
+              <AutomationFlowView nodes={flow} />
+            ) : (
+              <p className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-4 text-center text-sm text-text-tertiary">
+                No steps to show — this automation has no editable config.
+              </p>
+            )}
           </div>
+
+          {/* Everything this automation touches. Rides the body's own scroll —
+              a fixed shelf with a second scrollport inside it was one scrollbar
+              too many for a list that's usually three rows long. */}
+          {related.length > 0 && (
+            <div className="w-full">
+              <SectionLabel inset>Devices it uses</SectionLabel>
+              <div className="mt-ha-2">
+                <ListSection>
+                  <RelatedRows ids={related} />
+                </ListSection>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Everything this automation touches — the counterpart of "On this
-          device": fixed shelf, its own scrollport, card stays put. */}
-      {related.length > 0 && (
-        <div className="relative z-[1] shrink-0 bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
-          <SectionLabel inset>Devices it uses</SectionLabel>
-          <div className="relative mt-ha-2">
-            <ListSection
-              bodyRef={attachListFades}
-              bodyClassName={clsx('overflow-y-auto scrollbar-hide', related.length >= 3 && 'h-[148px]')}
-            >
-              <RelatedRows ids={related} />
-            </ListSection>
-            <div className={clsx('pointer-events-none absolute inset-x-0 top-0 z-10 h-6 rounded-t-ha-2xl bg-gradient-to-b from-surface-default to-transparent transition-opacity', listTop ? 'opacity-100' : 'opacity-0')} />
-            <div className={clsx('pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6 rounded-b-ha-2xl bg-gradient-to-t from-surface-default to-transparent transition-opacity', listBottom ? 'opacity-100' : 'opacity-0')} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

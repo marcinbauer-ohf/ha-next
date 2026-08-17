@@ -9,10 +9,10 @@ import { DeferredCard } from '@/components/cards/DeferredCard';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { NavChevron } from '@/components/ui';
-import { useDevices, useHomeAssistant, useDeviceCardConfig } from '@/hooks';
+import { useDevices, useHomeAssistant, useDeviceCardConfig, useMasonryCols } from '@/hooks';
 import {
   entityDomain, entityLabel, stateLabel, stateExtras, isOn, TOGGLEABLE, primaryCornerBadge, domainIcon, deviceFeedEntity, deviceThumbnail,
-  PRESSABLE,
+  PRESSABLE, panelEntitiesForDevice,
 } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -46,17 +46,6 @@ function SectionHeader({ title, href }: { title: string; href?: string }) {
   );
 }
 
-function useMasonryCols() {
-  const [cols, setCols] = useState(2);
-  useEffect(() => {
-    const update = () => setCols(window.innerWidth >= 1024 ? 3 : 2);
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
-  return cols;
-}
-
 export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
   const masonryCols = useMasonryCols();
   const { devices, areas } = useDevices();
@@ -76,37 +65,12 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
     [devices, selectedDeviceId],
   );
 
-  const allPanelEntities = useMemo(() => {
-    if (!selectedDevice) return [];
-    const config = getConfig(selectedDevice.id);
-    const baseIds = config.slots.length === 0
-      ? selectedDevice.entities.slice(0, 1).map(e => e.entity_id)
-      : config.slots.filter(s => s.section === 'primary' || s.section === 'secondary').map(s => s.entity_id);
-    const feed = deviceFeedEntity(selectedDevice.entities);
-    const visibleIds = feed && !baseIds.includes(feed.entity_id)
-      ? [feed.entity_id, ...baseIds]
-      : baseIds;
-    return visibleIds.flatMap(eid => {
-      const e = selectedDevice.entities.find(ent => ent.entity_id === eid);
-      if (!e) return [];
-      const dom = entityDomain(e);
-      const isToggleable = TOGGLEABLE.has(dom);
-      const isPressable = PRESSABLE.has(dom);
-      const p = e.attributes.entity_picture as string | undefined;
-      return [{
-        entityId: e.entity_id,
-        icon: domainIcon(e),
-        name: entityLabel(e, selectedDevice.name),
-        state: stateLabel(e),
-        active: isOn(e),
-        toggleable: isToggleable,
-        pressable: isPressable,
-        unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
-        entityPicture: p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined,
-        onToggle: (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
-      }];
-    });
-  }, [selectedDevice, getConfig, toggleEntity, haUrl]);
+  const allPanelEntities = useMemo(
+    () => selectedDevice
+      ? panelEntitiesForDevice(selectedDevice, getConfig(selectedDevice.id), toggleEntity, haUrl)
+      : [],
+    [selectedDevice, getConfig, toggleEntity, haUrl],
+  );
 
   function selectEntity(deviceId: string, entityId: string) {
     setSelectedDeviceId(deviceId);

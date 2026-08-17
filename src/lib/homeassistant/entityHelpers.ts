@@ -376,6 +376,65 @@ export function deviceFeedEntity(entities: HassEntity[]): HassEntity | undefined
   return entities.find(e => entityDomain(e) === 'media_player' && !!e.attributes.entity_picture);
 }
 
+/**
+ * The entity list the more-info dialog runs on: the hero plus everything else
+ * the device still offers, in stable order.
+ *
+ * Section, not visibility, is the filter. `hidden` only means "keep it off the
+ * dashboard card" — those entities are still part of the device, so they belong
+ * in the dialog's "On this device" shelf. Only `disabled` takes an entity out
+ * of the device entirely, and only that empties the shelf. A device with no
+ * saved config lists everything it has; the first entity stays the hero either
+ * way, so opening a card lands on the same thing it always did.
+ *
+ * Shared by every surface that opens the dialog (dashboard, sections view) so
+ * the rule lives in one place instead of drifting between copies.
+ */
+export function panelEntitiesForDevice(
+  device: { name: string; entities: HassEntity[] },
+  config: { slots: { entity_id: string; section: string }[] },
+  toggleEntity: (entityId: string, state: string) => void,
+  haUrl?: string,
+) {
+  // Slots are one flat array with `section` as a field, so a hidden entity can
+  // sit earlier in it than the primary. Rank by section before mapping — the
+  // panel takes entities[0] as its hero, and a hidden entity must never win
+  // that. Sort is stable, so hand-ordering within a section survives.
+  const RANK: Record<string, number> = { primary: 0, secondary: 1, hidden: 2 };
+  const baseIds = config.slots.length === 0
+    ? device.entities.map(e => e.entity_id)
+    : config.slots
+        .filter(s => s.section !== 'disabled')
+        .slice()
+        .sort((a, b) => (RANK[a.section] ?? 3) - (RANK[b.section] ?? 3))
+        .map(s => s.entity_id);
+  // Always include the camera/media feed entity (and put it first) so opening
+  // the device shows its feed even if that entity isn't a configured slot.
+  const feed = deviceFeedEntity(device.entities);
+  const ids = feed && !baseIds.includes(feed.entity_id) ? [feed.entity_id, ...baseIds] : baseIds;
+
+  return ids.flatMap(id => {
+    const e = device.entities.find(ent => ent.entity_id === id);
+    if (!e) return [];
+    const dom = entityDomain(e);
+    const toggleable = TOGGLEABLE.has(dom);
+    const pressable = PRESSABLE.has(dom);
+    const picture = e.attributes.entity_picture as string | undefined;
+    return [{
+      entityId: e.entity_id,
+      icon: domainIcon(e),
+      name: entityLabel(e, device.name),
+      state: stateLabel(e),
+      active: isOn(e),
+      toggleable,
+      pressable,
+      unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
+      entityPicture: picture ? (picture.startsWith('http') ? picture : `${haUrl ?? ''}${picture}`) : undefined,
+      onToggle: (toggleable || pressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
+    }];
+  });
+}
+
 export function domainIcon(entity: HassEntity): string {
   const domain = entityDomain(entity);
   const on = isOn(entity);

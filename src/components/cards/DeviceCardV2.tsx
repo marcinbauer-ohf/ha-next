@@ -113,7 +113,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   // is the current design (name top-left, image right, toggle bottom-left);
   // `classic` is the previous layout (image left, name/state + toggle bottom).
   // `hideCardImages` drops the product render from either one.
-  const { heroCardLayoutEnabled, hideCardImagesEnabled } = useDebugFlags();
+  const { hideCardImagesEnabled } = useDebugFlags();
   const hasPicture = !!primary.entityPicture;
   const rawState = primary.state.toLowerCase();
   const isUnavailable = rawState === 'unavailable' || rawState === 'unknown';
@@ -143,43 +143,34 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   const longPressFired = useRef(false);
 
   // Read-only text block (area eyebrow → prominent name → state / unavailable /
-  // hover-scrubbed value). Shared by both layouts; `hero` only tweaks type sizes
-  // and reserves right padding to clear the right-anchored thumbnail.
+  // hover-scrubbed value). Takes the card's full width — the product render has
+  // its own cell in the bottom row, so there is nothing to reserve space for.
   // Type sizes read `--dct-*` vars (set by the developer card-tuner panel) with
   // the production value as fallback, so live tuning repaints without renders.
-  const renderNameState = (hero: boolean) => (
+  const renderNameState = () => (
     <div className={clsx(
       'flex-1 min-w-0',
-      hero && showThumb && !showFeed && 'pr-[38%] md:pr-[calc(var(--dct-thumb-w,44%)_-_2%)]',
       showFeed && '[text-shadow:0_1px_3px_rgba(0,0,0,0.7)]',
     )}>
       {areaName && (
         <p
-          className={clsx('font-medium leading-none truncate ha-card-marquee', hero ? 'mb-1' : 'mb-0.5', showFeed ? 'text-white/75' : 'text-text-tertiary')}
+          className={clsx('font-medium leading-none truncate ha-card-marquee mb-1', showFeed ? 'text-white/75' : 'text-text-tertiary')}
           style={{
-            fontSize: hero ? 'var(--dct-area-size, 12px)' : 'var(--dct-area-size, 13px)',
+            fontSize: 'var(--dct-area-size, 12px)',
             textTransform: 'var(--dct-area-transform, none)' as 'none',
             letterSpacing: 'var(--dct-area-tracking, normal)',
           }}
         ><span data-marquee>{areaName}</span></p>
       )}
-      {/* Hero: the name may take two lines before it truncates — device names
-          run long ("Living room ceiling spotlights") and the hero has the room
-          for a second line. The classic layout stays one line with the marquee,
-          which needs `nowrap` to slide. */}
-      {hero ? (
-        <p
-          className={clsx('leading-tight line-clamp-2', showFeed ? 'text-white' : 'text-text-primary')}
-          style={{ fontSize: 'var(--dct-name-size, 15px)', fontWeight: 'var(--dct-name-weight, 600)' }}
-        >{primary.name}</p>
-      ) : (
-        <p
-          className={clsx('leading-tight truncate ha-card-marquee', showFeed ? 'text-white' : 'text-text-primary')}
-          style={{ fontSize: 'var(--dct-name-size, 15px)', fontWeight: 'var(--dct-name-weight, 600)' }}
-        ><span data-marquee>{primary.name}</span></p>
-      )}
+      {/* The name may take two lines before it truncates — device names run long
+          ("Living room ceiling spotlights") and the card has room for a second
+          line, so this one wraps rather than marqueeing. */}
+      <p
+        className={clsx('leading-tight line-clamp-2', showFeed ? 'text-white' : 'text-text-primary')}
+        style={{ fontSize: 'var(--dct-name-size, 15px)', fontWeight: 'var(--dct-name-weight, 600)' }}
+      >{primary.name}</p>
       {isUnavailable ? (
-        <div className={clsx('flex items-baseline gap-1.5', hero ? 'mt-1' : 'mt-0.5')}>
+        <div className="flex items-baseline gap-1.5 mt-1">
           <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-amber-500/90">Offline</span>
           {formatUnavailableDuration(primary.lastChanged) && (
             <span className="text-[12px] font-medium font-mono text-amber-500/60">
@@ -292,8 +283,12 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         />
       )}
       {editMode && (
-        <div className="absolute top-2 right-2 z-20 w-6 h-6 rounded-full bg-ha-blue flex items-center justify-center shadow-md pointer-events-none opacity-0 group-hover/card:opacity-100 transition-opacity duration-150">
-          <Icon path={mdiPencil} size={12} className="text-white" />
+        // A plain pencil button in the corner — the same round icon button the
+        // dialogs use. Shown the whole time editing, not on hover: hover is the
+        // one state a touch user never has. The card itself takes the click, so
+        // this stays inert and never steals the drag.
+        <div className="absolute top-2 right-2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-surface-mid text-text-secondary pointer-events-none transition-colors group-hover/card:bg-surface-lower group-hover/card:text-text-primary">
+          <Icon path={mdiPencil} size={15} />
         </div>
       )}
 
@@ -313,12 +308,12 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           // lands on the same 52px lattice in every column — a card with N extra
           // rows sits exactly N rows lower than its neighbour instead of drifting
           // by some arbitrary offset. 140+16 = 3×52.
-          // The phone gets the same 140px as the desktop: dropping it to the
-          // next lattice step down (88px) squashed the card and shrank the
-          // product render with it — a card you glance at from across a room
-          // needs the picture, and the picture needs the height.
-          // Desktop steps up a full row of that lattice — 192+16 = 4x52 — so a
-          // card has room for the render, a two-line name and the graph at once.
+          // Phone and desktop now share that 140px step. Desktop used to take a
+          // full extra row (192+16 = 4x52) back when it ran three wide; at four
+          // columns the card is ~320px instead of ~434px, and the extra row read
+          // as dead space above the render rather than room for it. The next
+          // step down (88px) is too short — it squashes the product render, and
+          // a card you glance at from across a room needs the picture.
           // Imageless (debug flag): one tile-card row — icon, name/state, control
           // — so the card is only as tall as that row plus padding. It leaves the
           // 52px lattice, which is fine because every imageless card shares the
@@ -326,7 +321,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           // secondary rows, so columns keep lining up.
           hideCardImagesEnabled
             ? 'min-h-[64px]'
-            : 'min-h-[140px] md:min-h-[var(--dct-min-h,192px)]',
+            : 'min-h-[var(--dct-min-h,140px)]',
           editMode
             ? 'bg-surface-default hover:bg-surface-low'
             : isUnavailable
@@ -354,113 +349,61 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             className="absolute inset-0 w-full h-full object-cover opacity-20" />
         )}
 
-        {heroCardLayoutEnabled ? (
-          /* ── HERO layout ── screenshot-style: text top-left, product image
-             right-centered, control bottom-left. */
-          <>
-            {/* Thumbnail — right-anchored, vertically centered, sitting BEHIND the
-                text. Left edge masked to transparent so name/state stay legible. */}
-            {showThumb && !showFeed && (
-              <img
-                src={primary.thumbnail!}
-                alt=""
-                aria-hidden
-                onError={() => setThumb((t) => ({ ...t, ok: false }))}
-                className={clsx(
-                  'pointer-events-none select-none absolute right-1 top-1/2 -translate-y-1/2 z-[2] object-contain object-right',
-                  'h-[var(--dct-thumb-h,64%)] w-[var(--dct-thumb-w,44%)]',
-                  isUnavailable && 'grayscale',
-                )}
-                style={{
-                  opacity: isUnavailable ? 'calc(var(--dct-thumb-alpha, 1) * 0.5)' : 'var(--dct-thumb-alpha, 1)',
-                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, #000 var(--dct-thumb-fade, 28%))',
-                  maskImage: 'linear-gradient(to right, transparent 0%, #000 var(--dct-thumb-fade, 28%))',
-                }}
-              />
-            )}
+        {/* Two stacked blocks, no overlap between them:
+              row 1 — icon + name/state, across the CARD's full width
+              row 2 — control on the left, product render on the right
+            The render used to be an absolute layer centred on the right edge, so
+            the text block had to reserve ~44% of its width to clear it. On a
+            phone that leaves a two-column card with barely half a line for the
+            name. Giving the render its own cell in the bottom row hands the
+            whole width back to the name and the reading. */}
 
-            {/* Top row, HA tile-card order: icon badge left, name/state beside it. */}
-            <div className="relative z-[2] flex items-center gap-3">
-              {iconBadge}
-              {renderNameState(true)}
-            </div>
+        {/* Top row, HA tile-card order: icon badge left, name/state beside it. */}
+        <div className="relative z-[2] flex items-center gap-3">
+          {iconBadge}
+          {renderNameState()}
+        </div>
 
-            {/* Sparkline — sensor entities only. Out of flow (see the card-height
-                rhythm note above): full-bleed along the bottom edge, painted
-                BEHIND the text and the thumbnail (z-[1] < z-[2]) so the line
-                disappears exactly where the device pixels begin — the graph
-                "ends" at the image no matter how big the thumbnail is. */}
-            {primaryHasHistory && !isUnavailable && (
-              <div className="absolute inset-x-0 bottom-0 z-[1]" style={{ opacity: 'var(--dct-spark-alpha, 1)' }}>
-                <EntityMiniSparkline entityId={primary.entityId} onHover={setHoverPoint} hoverTarget={primaryRef} />
-              </div>
-            )}
-
-            {/* Bottom: control anchored bottom-LEFT. Empty for read-only. */}
-            <div className="relative z-[2] flex items-center">
-              {!isUnavailable && primary.toggleable && primary.onToggle && (
-                <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
-              )}
-            </div>
-          </>
-        ) : (
-          /* ── CLASSIC layout (previous) ── product image left, name/state + toggle
-             along the bottom row. Kept behind the toggle for comparison. */
-          <>
-            {/* Product thumbnail — left-anchored background graphic BEHIND the
-                name/state, faded toward the bottom so text stays legible. */}
-            {showThumb && !showFeed && (
-              <>
-                {/* Fade the sparkline out left-to-right so the thumbnail sits on a
-                    calm backdrop — only needed when a graph renders under it */}
-                {primaryHasHistory && !isUnavailable && (
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-y-0 left-0 w-3/5 z-[1] bg-gradient-to-r from-surface-default to-transparent"
-                  />
-                )}
-                <img
-                  src={primary.thumbnail!}
-                  alt=""
-                  aria-hidden
-                  onError={() => setThumb((t) => ({ ...t, ok: false }))}
-                  className={clsx(
-                    'pointer-events-none select-none absolute left-2 top-2 z-[1] h-[52%] w-auto object-contain object-left',
-                    isUnavailable && 'opacity-50 grayscale',
-                  )}
-                  style={{
-                    WebkitMaskImage: 'linear-gradient(to bottom, #000 0%, #000 42%, transparent 92%)',
-                    maskImage: 'linear-gradient(to bottom, #000 0%, #000 42%, transparent 92%)',
-                  }}
-                />
-              </>
-            )}
-
-            {/* Sparkline — sensor entities only. Out of flow (see the card-height
-                rhythm note above), full-bleed along the bottom edge and behind
-                everything: z-0 keeps it under the name/state (z-[2]) and under
-                the thumbnail's gradient wash (z-[1]). */}
-            {primaryHasHistory && !isUnavailable && (
-              <div className="absolute inset-x-0 bottom-0 z-0" style={{ opacity: 'var(--dct-spark-alpha, 1)' }}>
-                <EntityMiniSparkline entityId={primary.entityId} onHover={setHoverPoint} hoverTarget={primaryRef} />
-              </div>
-            )}
-
-            {/* One tile-card row: icon, name/state, control. The only in-flow
-                child, so the auto margin places it — centred on the compact
-                imageless card, still bottom-anchored under a product render. */}
-            <div className={clsx(
-              'relative z-[2] flex items-center gap-3',
-              hideCardImagesEnabled ? 'my-auto' : 'mt-auto',
-            )}>
-              {iconBadge}
-              {renderNameState(false)}
-              {!isUnavailable && primary.toggleable && primary.onToggle && (
-                <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
-              )}
-            </div>
-          </>
+        {/* Sparkline — sensor entities only. Out of flow (see the card-height
+            rhythm note above): full-bleed along the bottom edge, painted
+            BEHIND the text and the thumbnail (z-[1] < z-[2]) so the line
+            disappears exactly where the device pixels begin — the graph
+            "ends" at the image no matter how big the thumbnail is. */}
+        {primaryHasHistory && !isUnavailable && (
+          <div className="absolute inset-x-0 bottom-0 z-[1]" style={{ opacity: 'var(--dct-spark-alpha, 1)' }}>
+            <EntityMiniSparkline entityId={primary.entityId} onHover={setHoverPoint} hoverTarget={primaryRef} />
+          </div>
         )}
+
+        {/* Bottom row: control left, render right. Takes the slack the top row
+            leaves, so the render is as tall as the card allows and both cells
+            sit on the card's bottom edge. Either cell may be empty — a
+            read-only device has no control, a camera has no render. */}
+        <div className="relative z-[2] mt-auto flex flex-1 min-h-0 items-end justify-between gap-ha-2">
+          <div className="flex items-center">
+            {!isUnavailable && primary.toggleable && primary.onToggle && (
+              <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
+            )}
+          </div>
+          {showThumb && !showFeed && (
+            <img
+              src={primary.thumbnail!}
+              alt=""
+              aria-hidden
+              onError={() => setThumb((t) => ({ ...t, ok: false }))}
+              className={clsx(
+                // Its own cell now, so no left-edge mask: nothing is behind it
+                // to keep legible. Shrinks with the row rather than overflowing
+                // a short card.
+                'pointer-events-none select-none h-full max-h-full w-[var(--dct-thumb-w,44%)] shrink-0 object-contain object-right-bottom',
+                isUnavailable && 'grayscale',
+              )}
+              style={{
+                opacity: isUnavailable ? 'calc(var(--dct-thumb-alpha, 1) * 0.5)' : 'var(--dct-thumb-alpha, 1)',
+              }}
+            />
+          )}
+        </div>
       </div>
 
       {/* Secondary entity rows */}

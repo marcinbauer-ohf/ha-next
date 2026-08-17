@@ -6,7 +6,6 @@ import { motion, useDragControls } from 'framer-motion';
 import { mdiClose, mdiContentCopy, mdiRestore, mdiTune, mdiCheck } from '@mdi/js';
 import { Icon } from './Icon';
 import { ToggleSwitch } from './ToggleSwitch';
-import { useDebugFlags } from '@/contexts';
 import {
   CARD_TUNER_GROUPS,
   CARD_TUNER_PARAMS,
@@ -31,7 +30,6 @@ import {
 export function DeviceCardTunerPanel() {
   const open = useCardTunerOpen();
   const { overrides, toggles } = useCardTunerState();
-  const { heroCardLayoutEnabled, toggleHeroCardLayout } = useDebugFlags();
   const dragControls = useDragControls();
   const [copied, setCopied] = useState(false);
 
@@ -96,12 +94,6 @@ export function DeviceCardTunerPanel() {
           maskImage: 'linear-gradient(to bottom, #000 calc(100% - 24px), transparent)',
         }}
       >
-        {/* Layout A/B switch, so hero vs classic compares live from here too */}
-        <div className="flex items-center justify-between gap-3 pt-3 pb-1">
-          <span className="text-xs font-medium text-text-secondary">Hero layout</span>
-          <ToggleSwitch on={heroCardLayoutEnabled} onToggle={toggleHeroCardLayout} />
-        </div>
-
         {CARD_TUNER_GROUPS.map((group) => {
           const params = CARD_TUNER_PARAMS.filter((p) => p.group === group);
           const groupToggles = CARD_TUNER_TOGGLES.filter((t) => t.group === group);

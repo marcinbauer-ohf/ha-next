@@ -1,6 +1,7 @@
 'use client';
 
 import { Icon } from '../ui/Icon';
+import { ListSection } from '../ui/ListSection';
 import type { AutomationConfig } from '@/lib/homeassistant';
 import {
   mdiClockOutline,
@@ -469,33 +470,27 @@ function ReadOnlyNodeRow({ node }: { node: AutomationNode }) {
 /**
  * Read-only When / And-if / Then rendering of a node list. Shared by the
  * more-info panel; the editor renders its own interactive variant.
+ *
+ * Headings only — the editor's per-section hints ("Triggers that start this
+ * automation") teach how to build one, which is nothing a reader of the finished
+ * automation needs, and three paragraphs was most of the dialog's noise.
  */
 export function AutomationFlowView({ nodes }: { nodes: AutomationNode[] }) {
   return (
-    <div className="space-y-ha-5">
+    <div className="space-y-ha-3">
       {SECTIONS.map((section) => {
         const sectionNodes = nodes.filter((n) => n.kind === section.kind);
         if (sectionNodes.length === 0 && !section.emptyLabel) return null;
+        // The app's grouped-list card, not a bespoke one — same surface, border
+        // and dividers as every other list in the dialog.
         return (
-          <div key={section.kind} className="space-y-ha-2">
-            <div className="px-ha-1">
-              <h3 className="text-sm font-semibold text-text-primary">{section.title}</h3>
-              <p className="text-[13px] text-text-secondary">{section.hint}</p>
-            </div>
+          <ListSection key={section.kind} title={section.title}>
             {sectionNodes.length === 0 ? (
-              <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-4 text-center text-sm text-text-tertiary">
-                {section.emptyLabel}
-              </div>
+              <p className="px-ha-4 py-ha-4 text-center text-sm text-text-tertiary">{section.emptyLabel}</p>
             ) : (
-              <div className="overflow-hidden rounded-ha-2xl border border-surface-lower bg-surface-default shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)]">
-                {sectionNodes.map((node) => (
-                  <div key={node.id} className="border-b border-surface-low/40 last:border-0">
-                    <ReadOnlyNodeRow node={node} />
-                  </div>
-                ))}
-              </div>
+              sectionNodes.map((node) => <ReadOnlyNodeRow key={node.id} node={node} />)
             )}
-          </div>
+          </ListSection>
         );
       })}
     </div>

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import {
   mdiArrowDownBoldBoxOutline,
-  mdiArrowLeft,
   mdiArrowUpBoldBox,
   mdiArrowUpBoldBoxOutline,
   mdiCancel,
@@ -27,9 +26,8 @@ interface DeviceCardEditPanelProps {
   device: HassDevice;
   config: DeviceCardConfig;
   onSave: (config: DeviceCardConfig) => void;
-  onBack: () => void;   // return to entity detail
+  onBack: () => void;   // what Done does — back to entity detail, or close
   onClose: () => void;  // close the whole panel
-  hideBack?: boolean;   // hide back arrow (dialog mode — Done is enough)
 }
 
 // `icon` matches the row button that moves an entity into this section (eye /
@@ -65,7 +63,7 @@ function entityMeta(entity: HassEntity): string {
   return humanize(deviceClass ?? entityDomain(entity));
 }
 
-export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, hideBack }: DeviceCardEditPanelProps) {
+export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose }: DeviceCardEditPanelProps) {
   // Initialise slots — if empty, put first entity as primary, rest as hidden
   const [slots, setSlots] = useState<EntitySlot[]>(() => {
     if (config.slots.length > 0) return config.slots;
@@ -133,33 +131,25 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose, h
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header — deliberately the same shape as EntityDetailPanel's: close in
-          the same spot at the same size, eyebrow over a big device name, actions
-          right. The dialog crossfades between the two panels, so anything that
-          moves here reads as the whole dialog lurching. */}
-      <div className="flex items-start gap-ha-2 px-ha-4 pt-ha-4 pb-ha-2 shrink-0">
+      {/* Header — the same row as EntityDetailPanel's, glyph for glyph: 20px
+          close at the same 16px inset, 13px eyebrow over an `text-xl` title,
+          everything centred on one line. The dialog crossfades between the two
+          panels, so a taller row or a bigger title reads as the whole dialog
+          lurching. No back arrow: Done already returns where you came from, and
+          a third "leave" control only squeezed the name. */}
+      <div className="flex items-center justify-between gap-ha-2 p-ha-4 pb-ha-2 shrink-0">
         <button
           onClick={onClose}
-          className="p-2.5 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors shrink-0"
+          className="p-2 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors shrink-0"
           title="Close"
           aria-label="Close"
         >
-          <Icon path={mdiClose} size={24} />
+          <Icon path={mdiClose} size={20} />
         </button>
 
-        {!hideBack && (
-          <button
-            onClick={onBack}
-            className="p-2.5 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors shrink-0"
-            title="Back"
-          >
-            <Icon path={mdiArrowLeft} size={24} />
-          </button>
-        )}
-
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-text-tertiary truncate leading-none mb-0.5">Editing device</p>
-          <h2 className="text-2xl font-bold text-text-primary truncate leading-tight">{device.name}</h2>
+          <p className="truncate text-[13px] leading-none text-text-tertiary">Editing card</p>
+          <p className="truncate text-xl font-bold leading-tight text-text-primary">{device.name}</p>
         </div>
 
         <button

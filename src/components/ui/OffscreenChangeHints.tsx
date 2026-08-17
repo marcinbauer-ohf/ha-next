@@ -7,7 +7,7 @@ import { entityDomain, isOn, TOGGLEABLE } from '@/lib/homeassistant/entityHelper
 import type { HassEntity } from '@/types';
 
 // ── Tuning ──────────────────────────────────────────────────────────────────
-const HINT_LIFETIME_MS = 3000;     // matches the CSS fade animation
+const SCROLL_SETTLE_MS = 900;      // fallback when `scrollend` never fires (no scroll needed)
 const MAX_HINTS = 12;              // cap simultaneous bars to avoid edge clutter
 const OFFSCREEN_MARGIN = 8;        // px a card must be past the edge to count as offscreen
 const NUMERIC_JUMP_RATIO = 0.15;   // relative change needed for a numeric sensor to be "meaningful"
@@ -81,7 +81,6 @@ interface OffscreenChangeHintsProps {
 export function OffscreenChangeHints({ scrollRef, enabled }: OffscreenChangeHintsProps) {
   const entities = useHomeAssistantEntities();
   const prevRef = useRef<Map<string, HassEntity> | null>(null);
-  const timersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const [hints, setHints] = useState<Hint[]>([]);
 
   useEffect(() => {
@@ -136,28 +135,13 @@ export function OffscreenChangeHints({ scrollRef, enabled }: OffscreenChangeHint
       for (const h of fresh) byId.set(h.id, h);
       return Array.from(byId.values()).slice(-MAX_HINTS);
     });
-
-    for (const h of fresh) {
-      const t = setTimeout(() => {
-        timersRef.current.delete(t);
-        setHints(curr => curr.filter(x => x.id !== h.id));
-      }, HINT_LIFETIME_MS);
-      timersRef.current.add(t);
-    }
   }, [entities, enabled, scrollRef]);
 
   // Clear everything when disabled (entering edit / 3D view).
   useEffect(() => {
     if (enabled) return;
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current.clear();
     setHints([]);
   }, [enabled]);
-
-  useEffect(() => () => {
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current.clear();
-  }, []);
 
   const color: Record<HintKind, string> = {
     on: 'rgb(34, 197, 94)',     // emerald — turned on / active
@@ -166,16 +150,33 @@ export function OffscreenChangeHints({ scrollRef, enabled }: OffscreenChangeHint
   };
 
   const scrollToCard = (entityId: string, kind: HintKind) => {
-    const card = scrollRef.current?.querySelector<HTMLElement>(`[data-entity-id="${CSS.escape(entityId)}"]`);
-    if (!card) return;
+    const scroller = scrollRef.current;
+    const card = scroller?.querySelector<HTMLElement>(`[data-entity-id="${CSS.escape(entityId)}"]`);
+    if (!scroller || !card) return;
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    // Flash a ring once the scroll settles, in the hint's colour.
-    card.style.setProperty('--flash-color', color[kind]);
-    card.classList.remove('ha-card-flash');
-    void card.offsetWidth; // force reflow so the animation can re-trigger
-    card.classList.add('ha-card-flash');
-    const clear = () => { card.classList.remove('ha-card-flash'); card.removeEventListener('animationend', clear); };
-    card.addEventListener('animationend', clear);
+
+    // Flash the ring only once the smooth scroll has settled — otherwise it
+    // burns out while the card is still travelling and you arrive to nothing.
+    // `scrollend` never fires when the card needed no scrolling, so a timer
+    // backs it up; whichever lands first wins.
+    let flashed = false;
+    const flash = () => {
+      if (flashed) return;
+      flashed = true;
+      scroller.removeEventListener('scrollend', flash);
+      card.style.setProperty('--flash-color', color[kind]);
+      card.classList.remove('ha-card-flash');
+      void card.offsetWidth; // force reflow so the animation can re-trigger
+      card.classList.add('ha-card-flash');
+      const clear = (e: AnimationEvent) => {
+        if (e.target !== card) return; // ignore animations bubbling up from inside the card
+        card.classList.remove('ha-card-flash');
+        card.removeEventListener('animationend', clear);
+      };
+      card.addEventListener('animationend', clear);
+    };
+    scroller.addEventListener('scrollend', flash);
+    setTimeout(flash, SCROLL_SETTLE_MS);
   };
 
   if (hints.length === 0) return null;
@@ -186,7 +187,10 @@ export function OffscreenChangeHints({ scrollRef, enabled }: OffscreenChangeHint
         <button
           key={h.id}
           type="button"
-          onClick={() => scrollToCard(h.entityId, h.kind)}
+          onClick={() => {
+            scrollToCard(h.entityId, h.kind);
+            setHints(curr => curr.filter(x => x.id !== h.id)); // consumed
+          }}
           aria-label="Scroll to the device that changed"
           className={clsx(
             'ha-edge-hint-hit pointer-events-auto',
@@ -197,6 +201,9 @@ export function OffscreenChangeHints({ scrollRef, enabled }: OffscreenChangeHint
           <span
             className={h.edge === 'top' ? 'ha-edge-hint ha-edge-hint--top' : 'ha-edge-hint ha-edge-hint--bottom'}
             style={{ ['--hint-color' as string]: color[h.kind] }}
+            // The fade animation *is* the lifetime: hovering pauses it (CSS), so
+            // a hint under the cursor never times out — it fades on mouse-out.
+            onAnimationEnd={() => setHints(curr => curr.filter(x => x.id !== h.id))}
           />
         </button>
       ))}

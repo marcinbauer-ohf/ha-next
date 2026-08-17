@@ -1,19 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { mdiFlash, mdiClose } from '@mdi/js';
-import { Icon } from '../ui/Icon';
+import { mdiFlash } from '@mdi/js';
 import { SummaryCard } from '../cards/SummaryCard';
 import { ModalSheet } from '../layout/ModalSheet';
-import { PowerAttributionChart } from '../sections/PowerAttributionChart';
-import { useEnergyMetrics } from '@/hooks';
+import { EnergyDetailPanel } from '../cards/EnergyDetailPanel';
+import { useEnergyMetrics, useEntities } from '@/hooks';
+import { isEnergyConfigured, sumKwh, sumWatts, useEnergyConfig } from '@/lib/energyConfig';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Energy glance — a member of the Glance family (see SummaryCardProps docs).
 // Looks like the other summary chips (lights, people…) but is interactive: it
-// shows live whole-home draw and opens the full power-attribution detail in a
-// modal, in place, rather than navigating to the energy page. Self-hides when
-// the instance exposes no power sensor.
+// shows the live draw of the sensors the user picked and opens the energy dialog
+// in place, rather than navigating to the energy page. Until those sensors are
+// picked it reads "Set up" and opens the dialog's setup step — it never shows a
+// guessed figure, because a guess in a house full of smart plugs is whatever
+// appliance happens to be running. Self-hides when the home measures no power.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function fmtPower(w: number | null): string {
@@ -29,12 +31,27 @@ interface EnergyGlanceProps {
 }
 
 export function EnergyGlance({ compact, variant, size, translucent }: EnergyGlanceProps) {
-  const { meter, watts, kwhToday } = useEnergyMetrics();
+  const config = useEnergyConfig();
+  const configured = isEnergyConfigured(config);
+  const powerEntities = useEntities(config.power);
+  const todayEntities = useEntities(config.today);
+  // Only used to decide whether this home measures power at all.
+  const { powerSensors } = useEnergyMetrics();
   const [open, setOpen] = useState(false);
 
-  if (!meter) return null;
+  if (!configured && powerSensors.length === 0) return null;
 
-  const power = fmtPower(watts);
+  const watts = sumWatts(powerEntities);
+  const kwhToday = sumKwh(todayEntities);
+  // Live draw when there's a power sensor, today's total when the user only
+  // picked a daily meter, and the invitation to set it up before either.
+  const power = !configured
+    ? 'Set up'
+    : watts !== null
+      ? fmtPower(watts)
+      : kwhToday !== null
+        ? `${kwhToday.toFixed(1)} kWh`
+        : '—';
 
   return (
     <>
@@ -52,33 +69,9 @@ export function EnergyGlance({ compact, variant, size, translucent }: EnergyGlan
         onClick={(e) => { e.stopPropagation(); setOpen(true); }}
       />
 
-      <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={760}>
-        <div className="p-ha-4 lg:p-ha-5 space-y-ha-4">
-          <header className="flex items-start gap-ha-3">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-ha-lg text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-              aria-label="Close"
-            >
-              <Icon path={mdiClose} size={20} />
-            </button>
-            <div className="flex items-center gap-ha-3 min-w-0">
-              <span className="flex h-10 w-10 items-center justify-center rounded-ha-xl bg-amber-500/15 text-amber-500 shrink-0">
-                <Icon path={mdiFlash} size={20} />
-              </span>
-              <div className="min-w-0">
-                <h2 className="text-lg font-semibold text-text-primary leading-tight">Energy</h2>
-                <p className="text-[13px] text-text-secondary leading-tight">
-                  <span className="tabular-nums">{power}</span> now
-                  {kwhToday != null && <span className="tabular-nums"> · {kwhToday.toFixed(1)} kWh today</span>}
-                </p>
-              </div>
-            </div>
-          </header>
-
-          <PowerAttributionChart />
-        </div>
+      {/* Same frame as the device and automation dialogs. */}
+      <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={640}>
+        <EnergyDetailPanel onClose={() => setOpen(false)} />
       </ModalSheet>
     </>
   );

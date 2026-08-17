@@ -498,7 +498,28 @@
   border-radius: var(--ha-radius-pill);
 }
 
-/* E-Ink Theme - Light Mode */
+/* ── E-Ink ──────────────────────────────────────────────────────────────────
+   Two rules keep this theme coherent, and breaking either is what made it look
+   broken before:
+
+   1. INK vs PAPER. Tokens that name a *fill* (fill-*, yellow-95) are paper
+      tones; tokens that name *ink* (text-*, blue, yellow/green-500) are ink.
+      When a fill token holds ink, anything painted on it — `text-white` on a
+      `bg-ha-blue` button, a `text-text-secondary` label on an active card —
+      lands ink-on-ink and disappears. Solid-ink surfaces are opt-in instead,
+      via the inverted-fill rule further down, which repaints their contents.
+   2. A GREY RAMP, not 1-bit. E-paper renders 16 grey levels, so the text ramp
+      and the hairline rules use them. The old ramp ran #000/#222/#444, which
+      collapsed the whole hierarchy into "bold black" and put a near-black
+      1px box around every surface on screen.
+   ─────────────────────────────────────────────────────────────────────────── */
+/* Light-mode defaults, so the hairline and knock-out colours resolve on the
+   first paint too — data-mode is only set once the theme effect runs. */
+[data-theme="eink"] {
+  --ha-eink-rule: #c8c8c8;
+  --ha-eink-invert: #ffffff;
+}
+
 [data-theme="eink"][data-mode="light"] {
   --ha-color-surface-default: #ffffff;
   --ha-color-surface-low: #f7f7f7;
@@ -506,15 +527,20 @@
   --ha-color-surface-lower: #e2e2e2;
 
   --ha-color-text-primary: #000000;
-  --ha-color-text-secondary: #222222;
-  --ha-color-text-tertiary: #444444;
-  --ha-color-text-disabled: #6b6b6b;
+  --ha-color-text-secondary: #3d3d3d;
+  --ha-color-text-tertiary: #6b6b6b;
+  --ha-color-text-disabled: #949494;
+
+  /* Printed hairline (card edges) and the paper colour that contents flip to
+     on an inked surface. */
+  --ha-eink-rule: #c8c8c8;
+  --ha-eink-invert: #ffffff;
 
   --ha-color-fill-primary-normal: #000000;
-  --ha-color-fill-primary-quiet: #e8e8e8;
+  --ha-color-fill-primary-quiet: #ebebeb;
   --ha-color-fill-danger-normal: #000000;
   --ha-color-fill-success-normal: #000000;
-  --ha-color-yellow-95: #d9d9d9;
+  --ha-color-yellow-95: #dedede;
 
   --ha-color-blue: #000000;
   --ha-color-blue-dark: #000000;
@@ -540,9 +566,12 @@
   --ha-color-surface-lower: #242424;
 
   --ha-color-text-primary: #ffffff;
-  --ha-color-text-secondary: #e5e5e5;
-  --ha-color-text-tertiary: #cccccc;
-  --ha-color-text-disabled: #aaaaaa;
+  --ha-color-text-secondary: #c9c9c9;
+  --ha-color-text-tertiary: #949494;
+  --ha-color-text-disabled: #6b6b6b;
+
+  --ha-eink-rule: #3a3a3a;
+  --ha-eink-invert: #000000;
 
   --ha-color-fill-primary-normal: #ffffff;
   --ha-color-fill-primary-quiet: #1f1f1f;
@@ -1171,13 +1200,24 @@
   background-color: var(--ha-color-surface-low) !important;
 }
 
+/* Every surface is a printed panel: no blur, no shadow, one hairline edge.
+   The edge is a light grey rule, not near-black text ink — this selector hits
+   every element carrying a surface class, chips and icon buttons included, and
+   at #222 that boxed the entire screen in hard black lines (and doubled up
+   wherever surfaces nest). */
 [data-theme="eink"] .bg-surface-default,
 [data-theme="eink"] .bg-surface-low,
 [data-theme="eink"] .bg-surface-lower {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   box-shadow: none !important;
-  border: 1px solid var(--ha-color-text-secondary) !important;
+  border: 1px solid var(--ha-eink-rule) !important;
+}
+
+/* Photos, camera feeds and product renders are the last colour left in a
+   monochrome theme — print them in grey like the rest of the page. */
+[data-theme="eink"] :is(img, video, canvas) {
+  filter: grayscale(1) contrast(1.04);
 }
 
 [data-theme="eink"] [data-component="Sidebar"],
@@ -1317,7 +1357,7 @@
     background-color: var(--ha-color-surface-default) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    border-bottom: 1px solid var(--ha-color-text-secondary) !important;
+    border-bottom: 1px solid var(--ha-eink-rule) !important;
     box-shadow: none !important;
   }
 }
@@ -1333,19 +1373,27 @@
   box-shadow: none !important;
 }
 
-/* E-Ink app icons: force monochrome, high-contrast glyphs */
+/* E-Ink app icons: monochrome tiles, active ones knocked out in ink.
+   The glyph was painted in surface-default — white ink on a near-white tile
+   (and black on near-black in dark mode), so app icons were invisible in both
+   modes. It follows the tile it sits on now: ink on paper, paper on ink. The
+   tile-wide opacity is gone too; it greyed the status badge along with the
+   glyph, and the low/ink tile pair already says active louder. */
 [data-theme="eink"] .ha-app-icon-shell {
   background-color: var(--ha-color-surface-low) !important;
-  opacity: 0.82;
 }
 
 [data-theme="eink"] .ha-app-icon-shell.ha-app-icon-shell-active {
-  background-color: var(--ha-color-surface-mid) !important;
-  opacity: 1;
+  background-color: var(--ha-color-text-primary) !important;
+  border-color: var(--ha-color-text-primary) !important;
 }
 
 [data-theme="eink"] .ha-app-icon-glyph {
-  color: var(--ha-color-surface-default) !important;
+  color: var(--ha-color-text-primary) !important;
+}
+
+[data-theme="eink"] .ha-app-icon-shell-active .ha-app-icon-glyph {
+  color: var(--ha-eink-invert) !important;
 }
 
 [data-theme="eink"] [data-component="dashboard-surface"] {
@@ -1358,63 +1406,76 @@
   -webkit-backdrop-filter: none !important;
 }
 
-[data-theme="eink"] .bg-fill-primary-normal,
-[data-theme="eink"] .bg-fill-danger-normal,
-[data-theme="eink"] .bg-fill-success-normal,
-[data-theme="eink"] .bg-yellow-95,
-[data-theme="eink"] .bg-fill-primary-quiet {
+/* ── E-Ink: inverted (inked) surfaces ───────────────────────────────────────
+   The e-paper idiom for "this one is on/selected/primary" is a block of solid
+   ink with the content knocked out of it, and these are the classes that mean
+   exactly that: the strong fills, and the accent backgrounds (`bg-ha-blue`,
+   `bg-yellow-500`, …) that carry primary buttons and count badges.
+
+   Contents are repainted wholesale via the descendant `*`, not by listing the
+   text utilities that were expected to appear inside. The old rules named
+   `.text-text-primary` / `.text-text-secondary` / four icon classes, so every
+   `text-white` primary button label, `text-text-tertiary` caption and inherited
+   run of text stayed ink-on-ink and vanished — a `bg-ha-blue text-white` button
+   (dialog confirm, send, badges, ~20 call sites) rendered completely blank.
+   The `/15`-style translucent variants are separate class names and are not
+   matched here, so quiet accent tints keep normal ink text. */
+[data-theme="eink"] :is(
+    .bg-fill-primary-normal,
+    .bg-fill-danger-normal,
+    .bg-fill-success-normal,
+    .bg-ha-blue,
+    .bg-ha-blue-dark,
+    .bg-yellow-500,
+    .bg-green-500,
+    .bg-red-500
+  ) {
+  background-color: var(--ha-color-text-primary) !important;
+  border-color: var(--ha-color-text-primary) !important;
   box-shadow: none !important;
-  border: 2px solid currentColor !important;
 }
 
-[data-theme="eink"][data-mode="light"] .bg-fill-primary-normal,
-[data-theme="eink"][data-mode="light"] .bg-fill-danger-normal,
-[data-theme="eink"][data-mode="light"] .bg-fill-success-normal,
-[data-theme="eink"][data-mode="light"] .bg-yellow-95,
-[data-theme="eink"][data-mode="light"] .bg-fill-primary-quiet {
-  background-color: #000000 !important;
+[data-theme="eink"] :is(
+    .bg-fill-primary-normal,
+    .bg-fill-danger-normal,
+    .bg-fill-success-normal,
+    .bg-ha-blue,
+    .bg-ha-blue-dark,
+    .bg-yellow-500,
+    .bg-green-500,
+    .bg-red-500
+  ),
+[data-theme="eink"] :is(
+    .bg-fill-primary-normal,
+    .bg-fill-danger-normal,
+    .bg-fill-success-normal,
+    .bg-ha-blue,
+    .bg-ha-blue-dark,
+    .bg-yellow-500,
+    .bg-green-500,
+    .bg-red-500
+  ) * {
+  color: var(--ha-eink-invert) !important;
 }
 
-[data-theme="eink"][data-mode="light"] .bg-fill-primary-normal .text-text-primary,
-[data-theme="eink"][data-mode="light"] .bg-fill-danger-normal .text-text-primary,
-[data-theme="eink"][data-mode="light"] .bg-fill-success-normal .text-text-primary,
-[data-theme="eink"][data-mode="light"] .bg-yellow-95 .text-text-primary,
-[data-theme="eink"][data-mode="light"] .bg-fill-primary-quiet .text-text-primary,
-[data-theme="eink"][data-mode="light"] .bg-fill-primary-normal .text-text-secondary,
-[data-theme="eink"][data-mode="light"] .bg-fill-danger-normal .text-text-secondary,
-[data-theme="eink"][data-mode="light"] .bg-fill-success-normal .text-text-secondary,
-[data-theme="eink"][data-mode="light"] .bg-yellow-95 .text-text-secondary,
-[data-theme="eink"][data-mode="light"] .bg-fill-primary-quiet .text-text-secondary {
-  color: #ffffff !important;
+/* Quiet fills stay quiet. They used to be forced to the same solid black as
+   the strong fills, which turned every soft highlight — a hint band, a "new"
+   marker, a hovered row — into a heavy black slab, and was most of what read
+   as blotchy. They keep their paper tone from the token ramp and get the
+   printed hairline for definition instead. */
+[data-theme="eink"] :is(.bg-fill-primary-quiet, .bg-yellow-95) {
+  box-shadow: none !important;
+  border: 1px solid var(--ha-eink-rule) !important;
 }
 
-[data-theme="eink"][data-mode="light"] :is(.bg-fill-primary-normal, .bg-fill-danger-normal, .bg-fill-success-normal, .bg-yellow-95, .bg-fill-primary-quiet) :is(.ha-icon, .text-ha-blue, .text-red-600, .text-green-600, .text-yellow-600) {
-  color: #ffffff !important;
-}
-
-[data-theme="eink"][data-mode="dark"] .bg-fill-primary-normal,
-[data-theme="eink"][data-mode="dark"] .bg-fill-danger-normal,
-[data-theme="eink"][data-mode="dark"] .bg-fill-success-normal,
-[data-theme="eink"][data-mode="dark"] .bg-yellow-95,
-[data-theme="eink"][data-mode="dark"] .bg-fill-primary-quiet {
-  background-color: #ffffff !important;
-}
-
-[data-theme="eink"][data-mode="dark"] .bg-fill-primary-normal .text-text-primary,
-[data-theme="eink"][data-mode="dark"] .bg-fill-danger-normal .text-text-primary,
-[data-theme="eink"][data-mode="dark"] .bg-fill-success-normal .text-text-primary,
-[data-theme="eink"][data-mode="dark"] .bg-yellow-95 .text-text-primary,
-[data-theme="eink"][data-mode="dark"] .bg-fill-primary-quiet .text-text-primary,
-[data-theme="eink"][data-mode="dark"] .bg-fill-primary-normal .text-text-secondary,
-[data-theme="eink"][data-mode="dark"] .bg-fill-danger-normal .text-text-secondary,
-[data-theme="eink"][data-mode="dark"] .bg-fill-success-normal .text-text-secondary,
-[data-theme="eink"][data-mode="dark"] .bg-yellow-95 .text-text-secondary,
-[data-theme="eink"][data-mode="dark"] .bg-fill-primary-quiet .text-text-secondary {
-  color: #000000 !important;
-}
-
-[data-theme="eink"][data-mode="dark"] :is(.bg-fill-primary-normal, .bg-fill-danger-normal, .bg-fill-success-normal, .bg-yellow-95, .bg-fill-primary-quiet) :is(.ha-icon, .text-ha-blue, .text-red-600, .text-green-600, .text-yellow-600) {
-  color: #000000 !important;
+/* A translucent primary fill (`bg-fill-primary-normal/45`, `/70`) is written
+   where a soft tinted panel is wanted — the preview-notice banner, the settings
+   overview panels. Elsewhere alpha weakens a pale blue; here it weakens solid
+   ink, so those panels came out as 45–70% black slabs with black body copy on
+   them. Any alpha of the token lands on the quiet paper tone instead. */
+[data-theme="eink"] [class*="bg-fill-primary-normal/"] {
+  background-color: var(--ha-color-fill-primary-quiet) !important;
+  box-shadow: none !important;
 }
 
 /* Active Card Styles for Glass Theme - White background, Black text -> 
@@ -1679,25 +1740,21 @@
   animation: ha-indeterminate-slide 1.4s ease-in-out infinite;
 }
 
-/* Corner toast (bottom-right) — positioned relative to the dashboard <main>.
-   Mobile: always sits just above the nav's current height. The nav's auto-hide
-   only collapses its bottom tab row — the status/activities top row stays — and
-   --mobile-nav-height (offsetHeight, includes the safe-area inset) shrinks to
-   match, so anchoring to it keeps the toast above the bar in either state
-   instead of slipping under the still-visible top row. Desktop: inset from the
-   corner of the main content area. */
+/* Toast position.
+   Mobile: an iOS-style banner fixed to the top of the viewport, just below the
+   device safe area — it overlays the app's top bar and the content beneath it
+   rather than sitting inside the dashboard surface.
+   Desktop: inset from the bottom-right corner of the main content area. */
 .corner-toast {
-  /* Mobile: stretch from the left edge to the right edge, but leave room on the
-     left for the dashboard filter FAB when present (--corner-toast-left-inset,
-     set/cleared by DashboardFilterBar). Desktop: fixed compact width. */
-  left: calc(var(--spacing-edge, 12px) + var(--corner-toast-left-inset, 0px));
+  left: var(--spacing-edge, 12px);
   right: var(--spacing-edge, 12px);
   width: auto;
-  bottom: calc(var(--mobile-nav-height, 6rem) + var(--ha-space-2, 0.5rem));
+  top: calc(env(safe-area-inset-top, 0px) + var(--ha-space-2, 0.5rem));
 }
 @media (min-width: 1024px) {
   .corner-toast {
     left: auto;
+    top: auto;
     right: 1.5rem;
     bottom: 1.5rem;
     width: 24rem;
@@ -1858,13 +1915,34 @@ html[data-theme="fallout"] label {
   vector-effect: non-scaling-stroke;
 }
 
-/* Theme transition for all elements */
+/* Theme transition for all elements.
+   Radius is in the list because themes disagree about it more than they do
+   about colour — default's 20px card corners against e-ink's 6px and
+   material-ha's pills — so without it every switch snapped the geometry while
+   the colours faded, which is the part that read as a jump. Border-width
+   likewise: e-ink adds a hairline to every surface. */
 [data-theme-transition] * {
   transition:
     background-color 0.3s ease,
     color 0.3s ease,
     border-color 0.3s ease,
+    border-width 0.3s ease,
+    border-radius 0.3s ease,
+    box-shadow 0.3s ease,
     fill 0.3s ease !important;
+}
+
+/* …but not while the user has asked for less motion: a full-screen crossfade
+   of every colour is exactly the kind of sweep that setting exists to stop. */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme-transition] * {
+    transition: none !important;
+  }
+}
+
+/* Both attributes live on <html>, so this is one element, not a descendant. */
+[data-theme-transition][data-reduce-motion] * {
+  transition: none !important;
 }
 
 html {

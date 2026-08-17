@@ -764,6 +764,52 @@ export function useDeviceStructure(): { devices: HassDevice[]; services: HassDev
   };
 }
 
+// ── One device's registry record ─────────────────────────────────────────────
+
+export interface DeviceInfo {
+  entry?: DeviceRegistryEntry;
+  areaName?: string;
+  /** Label of the integration that owns the device ("Philips Hue"). */
+  integrationName?: string;
+  /** Name of the hub/bridge it talks through, resolved from `via_device_id`. */
+  viaDeviceName?: string;
+}
+
+const EMPTY_DEVICE_INFO: DeviceInfo = {};
+
+/**
+ * The raw registry record for one device, plus the labels HA's own device page
+ * prints beside it. Separate from HassDevice on purpose: the dashboard's device
+ * shape is trimmed to what cards need, while firmware/serial/hub fields are only
+ * ever read by the more-info dialog's Info tab.
+ */
+export function useDeviceInfo(deviceId?: string): DeviceInfo {
+  const { connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry } = useHomeAssistant();
+  const { entityReg, deviceReg, areaReg } = useSyncExternalStore(
+    subscribeToRegistry,
+    getRegistrySnapshot,
+    getServerRegistrySnapshot,
+  );
+
+  useEffect(() => {
+    if (!connected) return;
+    loadRegistry({ getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry });
+  }, [connected, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry]);
+
+  return useMemo<DeviceInfo>(() => {
+    const entry = deviceId ? deviceReg.find((d) => d.id === deviceId) : undefined;
+    if (!entry) return EMPTY_DEVICE_INFO;
+    const platform = entityReg.find((e) => e.device_id === entry.id && e.platform)?.platform;
+    const via = entry.via_device_id ? deviceReg.find((d) => d.id === entry.via_device_id) : undefined;
+    return {
+      entry,
+      areaName: entry.area_id ? areaReg.find((a) => a.area_id === entry.area_id)?.name : undefined,
+      integrationName: platform ? integrationLabel(platform) : undefined,
+      viaDeviceName: (via?.name_by_user ?? via?.name) ?? undefined,
+    };
+  }, [deviceId, deviceReg, entityReg, areaReg]);
+}
+
 // ── Devices list (settings master-detail) ───────────────────────────────────
 // Flat per-device summary for the Devices settings table — mirrors the
 // IntegrationSummary shape so the generic DataListView powers search / sort /

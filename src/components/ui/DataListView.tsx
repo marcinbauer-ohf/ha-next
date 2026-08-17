@@ -9,7 +9,7 @@ import { SearchField } from './SearchField';
 import { SectionLabel } from './SectionLabel';
 import { NavChevron } from './NavChevron';
 import { SelectChip } from './SelectChip';
-import { mdiSortVariant, mdiViewAgendaOutline, mdiCheck, mdiFormatListBulleted, mdiViewGridOutline, mdiTableLarge, mdiTune, mdiClose, mdiArrowUp, mdiArrowDown } from '@mdi/js';
+import { mdiSortVariant, mdiViewAgendaOutline, mdiCheck, mdiFormatListBulleted, mdiViewGridOutline, mdiTableLarge, mdiTune, mdiClose, mdiArrowUp, mdiArrowDown, mdiViewColumnOutline, mdiFilterVariant } from '@mdi/js';
 
 export type DataListLayout = 'list' | 'grid' | 'table';
 
@@ -52,6 +52,8 @@ export interface DataListFilterChip<T> {
 export interface DataListFilterGroup<T> {
   id: string;
   mode: 'facet' | 'predicate';
+  /** Dropdown prefix on desktop / heading in the mobile sheet. Default "Filter". */
+  label?: string;
   chips: DataListFilterChip<T>[];
 }
 
@@ -65,7 +67,11 @@ export interface DataListColumn<T> {
   /** Extra classes on both the <th> and <td> (width, alignment, etc.). */
   className?: string;
   align?: 'left' | 'right' | 'center';
-  /** Hide this column below the given breakpoint — keeps tables usable on mobile. */
+  /**
+   * Drop this column from the table below the given breakpoint — keeps tables
+   * usable on mobile. The value isn't lost: it stacks under the first column's
+   * cell for exactly the widths where the column itself is gone.
+   */
   hideBelow?: 'sm' | 'md' | 'lg';
   /**
    * When set, the column header becomes a sort toggle (asc ⇄ desc). The accessor
@@ -121,6 +127,11 @@ export interface DataListConfig<T> {
    * shows which item you came back from.
    */
   highlightKey?: string;
+  /**
+   * When set, the table's column visibility is remembered under this key. The
+   * first column is always shown (it carries the identity + stacked values).
+   */
+  storageId?: string;
 }
 
 interface Bucket<T> {
@@ -142,6 +153,15 @@ const HIDE_BELOW_CLASS: Record<NonNullable<DataListColumn<unknown>['hideBelow']>
   md: 'hidden md:table-cell',
   lg: 'hidden lg:table-cell',
 };
+
+/** The exact inverse of HIDE_BELOW_CLASS — visible only where the column isn't. */
+const SHOW_BELOW_CLASS: Record<NonNullable<DataListColumn<unknown>['hideBelow']>, string> = {
+  sm: 'sm:hidden',
+  md: 'md:hidden',
+  lg: 'lg:hidden',
+};
+
+const BREAKPOINT_ORDER = ['sm', 'md', 'lg'] as const;
 
 /** Shared th/td classes for a column (alignment, responsive hiding, custom). */
 function colClass<T>(col: DataListColumn<T>): string {
@@ -210,6 +230,7 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
     fillHeight = false,
     bg = 'surface-default',
     highlightKey,
+    storageId,
   } = config;
 
   const [query, setQuery] = useState('');
@@ -221,6 +242,18 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
   const [columnSort, setColumnSort] = useState<{ id: string; dir: 'asc' | 'desc' } | null>(null);
   // Mobile: filters live in a bottom sheet instead of the inline row.
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Table-only: columns the user switched off. Stored (rather than the visible
+  // set) so a column added later shows up by default.
+  const colsKey = storageId ? `ha_datalist_cols_${storageId}` : null;
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined' || !colsKey) return new Set();
+    try {
+      return new Set<string>(JSON.parse(localStorage.getItem(colsKey) ?? '[]'));
+    } catch {
+      return new Set();
+    }
+  });
 
   const toggleColumnSort = (id: string) =>
     setColumnSort((prev) => (prev && prev.id === id ? { id, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { id, dir: 'asc' }));
@@ -260,8 +293,8 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
   for (const k of enabled) if (!defaultEnabled.has(k)) activeFilterCount++;
   for (const k of defaultEnabled) if (!enabled.has(k)) activeFilterCount++;
 
-  // Filter chips — shared by the desktop row and the mobile sheet.
-  const filterChips = filterGroups.flatMap((group) =>
+  /** A group's chips as toggles — used inside the mobile sheet. */
+  const groupChips = (group: DataListFilterGroup<T>) =>
     group.chips.map((chip) => {
       const key = `${group.id}:${chip.id}`;
       const active = enabled.has(key);
@@ -271,11 +304,38 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
           {chip.label}
         </Chip>
       );
-    }),
-  );
+    });
+
+  /** "All" / the picked labels / a count once the list would get long. */
+  const summarize = (picked: string[], total: number) =>
+    picked.length === total ? 'All' : picked.length === 0 ? 'None' : picked.length <= 2 ? picked.join(', ') : `${picked.length} of ${total}`;
 
   const hasTable = !!columns && columns.length > 0;
-  const tableColSpan = (columns?.length ?? 0) + (onRowClick ? 1 : 0);
+
+  // The first column is the item's identity, so it's never hideable — that also
+  // guarantees the table can't be emptied out.
+  const optionalCols = columns?.slice(1) ?? [];
+  const visibleColumns = useMemo(
+    () => columns?.filter((c) => !hiddenCols.has(c.id)) ?? [],
+    [columns, hiddenCols],
+  );
+  // Hidden-below-a-breakpoint columns whose values stack under the first cell.
+  const stackedCols = visibleColumns.filter((c) => c.hideBelow);
+  const stackReveal =
+    SHOW_BELOW_CLASS[
+      BREAKPOINT_ORDER.filter((bp) => stackedCols.some((c) => c.hideBelow === bp)).pop() ?? 'sm'
+    ];
+
+  const toggleCol = (colId: string) => {
+    const next = new Set(hiddenCols);
+    if (next.has(colId)) next.delete(colId);
+    else next.add(colId);
+    setHiddenCols(next);
+    if (columnSort?.id === colId) setColumnSort(null);
+    if (colsKey) localStorage.setItem(colsKey, JSON.stringify([...next]));
+  };
+
+  const tableColSpan = visibleColumns.length + (onRowClick ? 1 : 0);
   // The modes the layout toggle offers — list is always available.
   const availableLayouts: DataListLayout[] = [
     'list',
@@ -399,7 +459,7 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
         <table className="w-full border-separate border-spacing-0 text-left">
           <thead>
             <tr>
-              {columns!.map((col) => {
+              {visibleColumns.map((col) => {
                 const sortable = !!col.sortAccessor;
                 const active = columnSort?.id === col.id;
                 return (
@@ -465,12 +525,34 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
                         onRowClick ? ' cursor-pointer hover:bg-surface-mid/50 active:bg-surface-mid' : ''
                       }${hl ? ' ha-last-opened' : ''}`}
                     >
-                      {columns!.map((col) => (
+                      {visibleColumns.map((col, i) => (
                         <td
                           key={col.id}
                           className={`px-ha-4 py-ha-3 text-[13px] text-text-secondary align-middle border-b border-surface-low/40 ${colClass(col)}`}
                         >
-                          {col.cell(item)}
+                          {/* Narrow screens drop columns, so the first cell picks
+                              their values up as a subline — each label appears at
+                              exactly the widths where its column doesn't. */}
+                          {i === 0 && stackedCols.length > 0 ? (
+                            <div className="flex flex-col gap-ha-1">
+                              {col.cell(item)}
+                              <div
+                                className={`flex flex-wrap items-center gap-x-ha-3 gap-y-0.5 text-[12px] text-text-tertiary ${stackReveal}`}
+                              >
+                                {stackedCols.map((sc) => (
+                                  <span
+                                    key={sc.id}
+                                    className={`inline-flex items-center gap-ha-1 ${SHOW_BELOW_CLASS[sc.hideBelow!]}`}
+                                  >
+                                    <span className="text-text-disabled">{sc.header}</span>
+                                    {sc.cell(item)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            col.cell(item)
+                          )}
                         </td>
                       ))}
                       {onRowClick && (
@@ -619,8 +701,34 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
             {filterGroups.length > 0 && (
               <>
                 <span className="mx-ha-1 h-6 w-px bg-surface-lower" aria-hidden />
-                {filterChips}
+                {filterGroups.map((group) => {
+                  const picked = group.chips.filter((c) => enabled.has(`${group.id}:${c.id}`));
+                  return (
+                    <SelectChip
+                      key={group.id}
+                      icon={mdiFilterVariant}
+                      prefix={group.label ?? 'Filter'}
+                      valueLabel={summarize(picked.map((c) => c.label), group.chips.length)}
+                      options={group.chips.map((c) => ({ id: c.id, label: c.label }))}
+                      selectedId={picked.map((c) => c.id)}
+                      onSelect={(chipId) => toggleChip(`${group.id}:${chipId}`)}
+                    />
+                  );
+                })}
               </>
+            )}
+            {layout === 'table' && optionalCols.length > 0 && (
+              <SelectChip
+                icon={mdiViewColumnOutline}
+                prefix="Columns"
+                valueLabel={summarize(
+                  optionalCols.filter((c) => !hiddenCols.has(c.id)).map((c) => c.header),
+                  optionalCols.length,
+                )}
+                options={optionalCols.map((c) => ({ id: c.id, label: c.header }))}
+                selectedId={optionalCols.filter((c) => !hiddenCols.has(c.id)).map((c) => c.id)}
+                onSelect={toggleCol}
+              />
             )}
             {showLayoutToggle && <LayoutToggle layout={layout} onChange={setLayout} available={availableLayouts} />}
           </div>
@@ -689,17 +797,34 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
                   </div>
                 </div>
               )}
-              {filterGroups.length > 0 && (
-                <div>
-                  <SectionLabel>Filter</SectionLabel>
-                  <div className="mt-ha-2 flex flex-wrap gap-ha-2">{filterChips}</div>
+              {filterGroups.map((group) => (
+                <div key={group.id}>
+                  <SectionLabel>{group.label ?? 'Filter'}</SectionLabel>
+                  <div className="mt-ha-2 flex flex-wrap gap-ha-2">{groupChips(group)}</div>
                 </div>
-              )}
+              ))}
               {showLayoutToggle && (
                 <div>
                   <SectionLabel>View</SectionLabel>
                   <div className="mt-ha-2">
                     <LayoutToggle layout={layout} onChange={setLayout} available={availableLayouts} />
+                  </div>
+                </div>
+              )}
+              {/* Plain chips, not SelectChip — a popover would z-fight the sheet. */}
+              {layout === 'table' && optionalCols.length > 0 && (
+                <div>
+                  <SectionLabel>Columns</SectionLabel>
+                  <div className="mt-ha-2 flex flex-wrap gap-ha-2">
+                    {optionalCols.map((c) => {
+                      const on = !hiddenCols.has(c.id);
+                      return (
+                        <Chip key={c.id} active={on} onClick={() => toggleCol(c.id)}>
+                          {on && <Icon path={mdiCheck} size={13} />}
+                          {c.header}
+                        </Chip>
+                      );
+                    })}
                   </div>
                 </div>
               )}

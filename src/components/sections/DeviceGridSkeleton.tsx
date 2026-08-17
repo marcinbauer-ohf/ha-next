@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMasonryCols } from '@/hooks';
 
 /**
  * Loading masonry shared by every device-grid page (dashboard, room, category,
@@ -8,13 +8,7 @@ import { useEffect, useState } from 'react';
  * the same column layout the real cards use, instead of a lone spinner.
  */
 export function DeviceGridSkeleton({ heights = [140, 88, 88, 88, 140, 88] }: { heights?: number[] }) {
-  const [cols, setCols] = useState(2);
-  useEffect(() => {
-    const update = () => setCols(window.innerWidth >= 1024 ? 3 : 2);
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
+  const cols = useMasonryCols();
   const colArrays: number[][] = Array.from({ length: cols }, () => []);
   heights.forEach((h, i) => colArrays[i % cols].push(h));
   return (

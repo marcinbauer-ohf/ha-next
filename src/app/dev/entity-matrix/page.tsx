@@ -7,7 +7,6 @@ import { DeviceCardV2, type DeviceCardV2Entity } from '@/components/cards/Device
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { EntityDetailBody, EntityDetailPanel, HERO_LAYOUTS, type HeroLayout, type PanelEntity } from '@/components/cards/EntityDetailPanel';
 import { SegmentedControl } from '@/components/ui';
-import { useDebugFlags } from '@/contexts';
 import { injectMockEntities, useHomeAssistant, useHomeAssistantEntities } from '@/hooks/useHomeAssistant';
 import { PRESSABLE, TOGGLEABLE, deviceThumbnail, domainIcon, entityDomain, entityLabel, isOn, primaryCornerBadge, stateExtras, stateLabel } from '@/lib/homeassistant/entityHelpers';
 import { BENCHMARK_DEVICE, benchmarkEntities, createBenchmarkEntries, type BenchmarkKind } from '@/lib/homeassistant/benchmarkDevice';
@@ -74,16 +73,15 @@ export default function EntityMatrixPage() {
   const [selectedId, setSelectedId] = useState(entries[0].entity.entity_id);
   const [view, setView] = useState<'focus' | 'gallery'>('focus');
   const [kind, setKind] = useState<BenchmarkKind | 'all'>('all');
-  // Gallery only: 'strip' is the dialog's default 24h band, 'full' the history
-  // view, 'none' skips the fetch (fastest when only the hero matters).
-  const [historyView, setHistoryView] = useState<'strip' | 'full' | 'none'>('strip');
+  // Gallery only: 'none' is what the dialog's controls view uses (no history at
+  // all, so no fetch), 'full' is its History tab.
+  const [historyView, setHistoryView] = useState<'full' | 'none'>('none');
   const [chrome, setChrome] = useState<Set<Chrome>>(new Set(['thumbnail', 'favorite']));
   const [panelMode, setPanelMode] = useState<'entity' | 'edit'>('entity');
   // Hero arrangement under review — see HERO_LAYOUTS in EntityDetailPanel.
   const [heroLayout, setHeroLayout] = useState<HeroLayout>('band');
   const [cardConfig, setCardConfig] = useState<DeviceCardConfig>({ slots: [] });
   const { toggleEntity } = useHomeAssistant();
-  const { heroCardLayoutEnabled, toggleHeroCardLayout } = useDebugFlags();
   const store = useHomeAssistantEntities();
 
   const on = (key: Chrome) => chrome.has(key);
@@ -190,7 +188,6 @@ export default function EntityMatrixPage() {
           {view === 'gallery' && (
             <SegmentedControl
               segments={[
-                { value: 'strip', label: '24h strip' },
                 { value: 'full', label: 'History' },
                 { value: 'none', label: 'No history' },
               ]}
@@ -198,19 +195,6 @@ export default function EntityMatrixPage() {
               onChange={v => setHistoryView(v as typeof historyView)}
             />
           )}
-          {/* The card's layout flag lives in settings → Prototype & Debug; the rig
-              needs it here so both layouts can be checked against the matrix. */}
-          <button
-            type="button"
-            aria-pressed={heroCardLayoutEnabled}
-            onClick={toggleHeroCardLayout}
-            className={clsx(
-              'rounded-full px-ha-3 py-1 text-xs font-medium transition-colors',
-              heroCardLayoutEnabled ? 'bg-ha-blue/15 text-ha-blue' : 'bg-surface-default text-text-secondary hover:bg-surface-low',
-            )}
-          >
-            {heroCardLayoutEnabled ? 'Hero layout' : 'Classic layout'}
-          </button>
           {/* Hero arrangement — the block carrying the reading and the control.
               Four candidates while the design is being settled. */}
           <SegmentedControl
@@ -326,10 +310,6 @@ export default function EntityMatrixPage() {
                   onSave={setCardConfig}
                   onBack={() => setPanelMode('entity')}
                   onClose={() => setPanelMode('entity')}
-                  // Mirror the dialog: the back arrow only exists while the
-                  // dashboard itself is in edit mode, so the rig must not show a
-                  // control the app never renders here.
-                  hideBack
                 />
               ) : (
                 <EntityDetailPanel

@@ -1,193 +1,198 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
-import { SectionLabel } from './SectionLabel';
+import { NavChevron } from './NavChevron';
 import { Avatar } from './Avatar';
+import { ActivityFeed } from './ActivityFeed';
 import { ScrollFadeEdge } from './ScrollFadeEdge';
 import { useHomeCenterContext } from '@/contexts/HomeCenterContext';
-import { useCloseOnScreensaver } from '@/contexts';
+import { useCloseOnScreensaver, useNotificationCenter } from '@/contexts';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { useSheetDrag } from '@/hooks/useSheetDrag';
-import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks';
-import { HomeCenterStatusSections } from '@/components/sections/HomeCenterStatus';
+import { useHomeAssistant, useHomeAssistantSelector, useHomeCenterPrefs } from '@/hooks';
+import { useActivities } from '@/hooks/useActivities';
+import { buildActivityFeed } from '@/lib/activities/feed';
+import { isHomeCenterSectionVisible } from '@/components/profile/settingsNavigation';
 import { useLiveSummaryItems } from '@/components/sections/SummariesPanel';
-import { SummaryCard } from '@/components/cards/SummaryCard';
-import { EnergyGlance, AutomationsGlance } from '@/components/glances';
+import { EnergyGlance, AutomationsGlance, SummaryGlance } from '@/components/glances';
 import {
   arePeoplePresenceEqual,
   selectPeoplePresence,
   areActivityDataEqual,
   selectActivityData,
 } from '@/lib/homeassistant/selectors';
+import { formatBackupAge, HOME_CENTER_SECTION_MAP, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { resolveEntityPictureUrl } from '@/lib/utils';
-import {
-  mdiClose,
-  mdiCog,
-  mdiHomeVariant,
-  mdiAccountGroup,
-  mdiPlayCircle,
-  mdiTimerSand,
-  mdiDownloadCircleOutline,
-  mdiBackupRestore,
-  mdiRobotVacuum,
-  mdiPrinter3d,
-  mdiShieldAlert,
-  mdiCctv,
-  mdiPulse,
-} from '@mdi/js';
+import { mdiClose, mdiCheckCircleOutline, mdiCog, mdiHomeVariant } from '@mdi/js';
 
-interface HappeningItem {
-  key: string;
-  icon: string;
-  color: string;
-  label: string;
-  detail: string;
-  urgent?: boolean;
+/** One thing asking for attention, folded up from a Home Center section. */
+interface AttentionGroup {
+  id: HomeCenterSectionId;
+  count: number;
+  /** The things themselves, so the row says what, not just how many. */
+  names: string[];
+  path: string;
 }
 
 /**
  * The live bento content. Split out from the shell so its entity selectors and
  * ledger subscriptions only run while the surface is open (the shell stays
  * mounted at all times to drive the open/close animation).
+ *
+ * One question first — is anything asking for me? — then what's running, then
+ * the quiet facts. The eight status cards live on in the clock pop-up and the
+ * mobile nav; here they're folded into a single list, because a wall of badged
+ * cards answers that question slower than a sentence does.
  */
 export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => void }) {
-  const { haUrl } = useHomeAssistant();
+  const { haUrl, demoMode, connected, connecting, isAdmin } = useHomeAssistant();
   const presence = useHomeAssistantSelector(selectPeoplePresence, arePeoplePresenceEqual);
   const activity = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
+  const { notifications: appNotifications } = useNotificationCenter();
+  const { activities } = useActivities();
+  const { visibleSections } = useHomeCenterPrefs();
   const glanceItems = useLiveSummaryItems();
 
   const pic = (picture?: string) => resolveEntityPictureUrl(haUrl, picture);
 
   const peopleHome = presence.peopleHome;
   const peopleAway = presence.peopleAway;
-  const hasPeople = peopleHome.length + peopleAway.length > 0;
 
-  // Everything live in the home, flattened into one "happening now" list.
-  const happening = useMemo<HappeningItem[]>(() => {
-    const items: HappeningItem[] = [];
-    for (const a of activity.activeAlarms) {
-      items.push({ key: `alarm-${a.entityId}`, icon: mdiShieldAlert, color: 'text-red-500', label: a.name, detail: a.state, urgent: true });
-    }
-    for (const u of activity.activeUpdateInstalls) {
-      items.push({ key: `install-${u.entityId}`, icon: mdiDownloadCircleOutline, color: 'text-ha-blue', label: u.name, detail: u.percentage != null ? `Installing ${u.percentage}%` : 'Installing…' });
-    }
-    for (const b of activity.activeBackups) {
-      items.push({ key: `backup-${b.entityId}`, icon: mdiBackupRestore, color: 'text-green-500', label: b.name, detail: b.stage ?? (b.progress != null ? `${b.progress}%` : 'Backing up…') });
-    }
-    for (const m of activity.activePlayers) {
-      items.push({ key: `media-${m.entityId}`, icon: mdiPlayCircle, color: 'text-violet-500', label: m.mediaTitle ?? m.name, detail: m.mediaArtist ?? m.name });
-    }
-    for (const t of activity.activeTimers) {
-      items.push({ key: `timer-${t.entityId}`, icon: mdiTimerSand, color: 'text-amber-500', label: t.name, detail: t.remaining });
-    }
-    for (const v of activity.activeVacuums) {
-      items.push({ key: `vac-${v.entityId}`, icon: mdiRobotVacuum, color: 'text-ha-blue', label: v.name, detail: v.area ?? v.state });
-    }
-    for (const p of activity.activePrinters) {
-      items.push({ key: `print-${p.entityId}`, icon: mdiPrinter3d, color: 'text-ha-blue', label: p.name, detail: p.remainingTime ?? `${p.progress}%` });
-    }
-    for (const c of activity.activeCameras) {
-      items.push({ key: `cam-${c.entityId}`, icon: mdiCctv, color: 'text-text-secondary', label: c.name, detail: c.event ?? 'Motion' });
-    }
-    return items;
-  }, [activity]);
+  const feed = buildActivityFeed(activities);
+  const running = feed.filter((a) => a.phase === 'active').length;
+
+  // Same set, same order and same admin gating as every other Home Center
+  // surface — only folded into one list instead of one card each.
+  const shown = visibleSections.filter((id) => isHomeCenterSectionVisible(id, isAdmin));
+  const groups = ([
+    { id: 'notifications', count: appNotifications.length + activity.activeNotifications.length, names: [...appNotifications.map((n) => n.title), ...activity.activeNotifications.map((n) => n.title)], path: '/settings?section=notifications' },
+    { id: 'updates', count: activity.activeUpdates.length, names: activity.activeUpdates.map((u) => u.name), path: '/settings?section=updates' },
+    { id: 'repairs', count: activity.repairs.length, names: activity.repairs.map((r) => r.title), path: '/settings?section=repairs' },
+    { id: 'issues', count: activity.offlineDevices.length, names: activity.offlineDevices.map((d) => d.name), path: '/settings?section=repairs' },
+    { id: 'battery', count: activity.lowBatteryDevices.length, names: activity.lowBatteryDevices.map((b) => `${b.name} ${b.level}%`), path: '/settings?section=home-center' },
+  ] as AttentionGroup[]).filter((g) => g.count > 0 && shown.includes(g.id));
+
+  const attention = groups.reduce((sum, g) => sum + g.count, 0);
+  const backup = formatBackupAge(activity.lastBackup?.lastBackup ?? null);
+
+  const headline = attention === 0
+    ? 'Nothing needs you'
+    : attention === 1
+      ? 'One thing needs you'
+      : `${attention} things need you`;
+
+  const facts: { label: string; value: string }[] = [
+    { label: 'Home Assistant', value: demoMode ? 'Demo' : connecting ? 'Connecting' : connected ? 'Connected' : 'Offline' },
+    { label: 'Remote access', value: activity.isRemoteConnected ? 'On' : 'Off' },
+    ...(shown.includes('backups') ? [{ label: 'Backup', value: backup.label.replace('Backed up ', '') }] : []),
+  ];
 
   return (
     <>
-      {/* ── At a glance ─────────────────────────────────────────── */}
-      <section>
-        <SectionLabel className="mb-ha-2 px-ha-1">At a glance</SectionLabel>
+      {/* ── The answer, then the chips ──────────────────────────── */}
+      <section className="rounded-ha-2xl bg-surface-low p-ha-4">
+        <div className="flex items-start gap-ha-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-2xl font-bold leading-tight text-text-primary">{headline}</h3>
+            <p className="mt-1 truncate text-sm text-text-secondary">
+              {[
+                running > 0 ? `${running} running` : 'All quiet',
+                peopleHome.length + peopleAway.length > 0 ? `${peopleHome.length} of ${peopleHome.length + peopleAway.length} home` : null,
+              ].filter(Boolean).join(' ・ ')}
+            </p>
+          </div>
+          {/* Who's home, as faces rather than a card of its own. */}
+          {peopleHome.length + peopleAway.length > 0 && (
+            <div className="flex shrink-0 -space-x-2">
+              {[...peopleHome, ...peopleAway].slice(0, 5).map((p) => (
+                <Avatar
+                  key={p.id}
+                  src={pic(p.picture)}
+                  initials={p.initials}
+                  alt={p.name}
+                  size="sm"
+                  className={peopleHome.includes(p) ? 'ring-2 ring-surface-low' : 'opacity-50 grayscale ring-2 ring-surface-low'}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
-        {/* Compact glance chips — the same small widgets as the home dashboard
-            summary row, so the preview reads at dashboard scale. */}
-        <div className="flex flex-wrap items-center gap-ha-2 mb-ha-3 px-ha-1">
+        {/* The same chips as the dashboard summary row — every one opens its
+            own dialog, so the detail nobody folded away is a tap in. */}
+        <div className="mt-ha-3 flex flex-wrap items-center gap-ha-2">
           <EnergyGlance compact />
           <AutomationsGlance compact />
           {glanceItems.map((item) => (
-            <SummaryCard
-              key={item.title}
-              id={item.id}
-              icon={item.icon}
-              title={item.title}
-              state={item.state}
-              color={item.color}
-              compact
-            />
+            <SummaryGlance key={item.title} item={item} compact />
           ))}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-ha-3">
-          {/* People */}
-          <div className="rounded-ha-2xl bg-surface-low p-ha-4 flex flex-col">
-            <div className="flex items-center gap-ha-2 mb-ha-3">
-              <Icon path={mdiAccountGroup} size={18} className="text-ha-blue" />
-              <span className="text-xs font-bold uppercase tracking-wider text-text-secondary">Who&apos;s home</span>
-              <span className="ml-auto text-sm font-semibold text-text-primary tabular-nums">
-                {hasPeople ? `${peopleHome.length} home` : '—'}
-              </span>
-            </div>
-            {hasPeople ? (
-              <div className="flex flex-wrap gap-ha-3">
-                {peopleHome.map((p) => (
-                  <div key={p.id} className="flex items-center gap-ha-2">
-                    <div className="relative">
-                      <Avatar src={pic(p.picture)} initials={p.initials} alt={p.name} size="sm" />
-                      <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-surface-low" />
-                    </div>
-                    <span className="text-sm font-medium text-text-primary">{p.name}</span>
-                  </div>
-                ))}
-                {peopleAway.map((p) => (
-                  <div key={p.id} className="flex items-center gap-ha-2 opacity-60">
-                    <Avatar src={pic(p.picture)} initials={p.initials} alt={p.name} size="sm" className="grayscale" />
-                    <span className="text-sm font-medium text-text-secondary">{p.name}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-text-tertiary">No people are being tracked.</p>
-            )}
-          </div>
-
-          {/* Happening now */}
-          <div className="rounded-ha-2xl bg-surface-low p-ha-4 flex flex-col">
-            <div className="flex items-center gap-ha-2 mb-ha-3">
-              <Icon path={mdiPulse} size={18} className="text-ha-blue" />
-              <span className="text-xs font-bold uppercase tracking-wider text-text-secondary">Happening now</span>
-              {happening.length > 0 && (
-                <span className="ml-auto text-xs font-bold text-white bg-ha-blue px-1.5 py-0.5 rounded-md tabular-nums">{happening.length}</span>
-              )}
-            </div>
-            {happening.length > 0 ? (
-              <div className="space-y-ha-2">
-                {happening.slice(0, 5).map((h) => (
-                  <div key={h.key} className={`flex items-center gap-ha-3 rounded-xl p-ha-2 ${h.urgent ? 'bg-red-500/10' : 'bg-surface-mid/30'}`}>
-                    <Icon path={h.icon} size={18} className={`${h.color} shrink-0`} />
-                    <span className="text-sm font-medium text-text-primary truncate flex-1 min-w-0">{h.label}</span>
-                    <span className="text-xs text-text-secondary shrink-0 truncate max-w-[45%]">{h.detail}</span>
-                  </div>
-                ))}
-                {happening.length > 5 && (
-                  <p className="text-xs text-text-tertiary px-ha-1">+{happening.length - 5} more</p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-text-tertiary">All quiet — nothing running right now.</p>
-            )}
-          </div>
         </div>
       </section>
 
-      {/* ── Home Center status sections (masonry) ───────────────── */}
-      <section>
-        <SectionLabel className="mb-ha-2 px-ha-1">Home Center</SectionLabel>
-        <div className="gap-ha-3 columns-1 sm:columns-2 lg:columns-3 [&>*]:mb-ha-3 [&>*]:break-inside-avoid">
-          <HomeCenterStatusSections onNavigate={onNavigate} />
+      {/* ── Needs you / Happening now ───────────────────────────── */}
+      <section className="grid grid-cols-1 gap-ha-3 lg:grid-cols-2">
+        <div className="rounded-ha-2xl bg-surface-low p-ha-2">
+          <h4 className="px-ha-2 pb-ha-2 pt-ha-1 text-xs font-bold uppercase tracking-wider text-text-secondary">Needs you</h4>
+          {groups.length === 0 ? (
+            <p className="flex items-center gap-ha-2 px-ha-2 pb-ha-2 text-sm text-text-tertiary">
+              <Icon path={mdiCheckCircleOutline} size={18} className="shrink-0" />
+              Nothing to fix, install or replace.
+            </p>
+          ) : (
+            <div className="flex flex-col">
+              {groups.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => onNavigate(g.path)}
+                  className="group flex items-center gap-ha-3 rounded-ha-xl px-ha-2 py-ha-2 text-left transition-colors hover:bg-surface-mid/40"
+                >
+                  <Icon path={HOME_CENTER_SECTION_MAP[g.id].icon} size={20} className="shrink-0 text-text-tertiary" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-text-primary">
+                      {HOME_CENTER_SECTION_MAP[g.id].label}
+                    </span>
+                    <span className="block truncate text-xs text-text-tertiary">{g.names.join(', ')}</span>
+                  </span>
+                  <span className="shrink-0 font-mono text-sm tabular-nums text-text-secondary">{g.count}</span>
+                  <NavChevron size={16} className="shrink-0 text-text-disabled group-hover:text-text-secondary" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+
+        <div className="rounded-ha-2xl bg-surface-low p-ha-2">
+          <button
+            type="button"
+            onClick={() => onNavigate('/settings?section=activity')}
+            className="group flex w-full items-center gap-ha-2 px-ha-2 pb-ha-2 pt-ha-1"
+          >
+            <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary group-hover:text-text-primary">Happening now</h4>
+            <NavChevron size={16} className="ml-auto text-text-disabled group-hover:text-text-secondary" />
+          </button>
+          {feed.length > 0 ? (
+            <div className="overflow-hidden rounded-ha-xl bg-surface-mid/30">
+              <ActivityFeed items={feed} />
+            </div>
+          ) : (
+            <p className="px-ha-2 pb-ha-2 text-sm text-text-tertiary">Nothing is running right now.</p>
+          )}
+        </div>
+      </section>
+
+      {/* ── The quiet facts ─────────────────────────────────────── */}
+      <section className="flex flex-wrap gap-ha-3 rounded-ha-2xl bg-surface-low px-ha-4 py-ha-3">
+        {facts.map((fact) => (
+          <div key={fact.label} className="min-w-0 flex-1">
+            <p className="truncate text-xs uppercase tracking-wider text-text-tertiary">{fact.label}</p>
+            <p className="truncate text-sm font-semibold text-text-primary">{fact.value}</p>
+          </div>
+        ))}
       </section>
     </>
   );

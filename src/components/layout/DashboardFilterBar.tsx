@@ -156,10 +156,8 @@ const CATEGORY_OPTIONS: { value: DeviceCategory | 'all'; label: string }[] = [
  *
  * - Desktop: a centered floating pill near the bottom (Floor + Group by
  *   segmented controls), offset past the nav rail like EditingToolbar.
- * - Mobile: a compact FAB pinned bottom-left, sharing the row with the corner
- *   toast (which sits to its right — see --corner-toast-left-inset). Tapping it
- *   opens a popover above the button with the full set of grouping/floor
- *   options.
+ * - Mobile: a compact FAB pinned bottom-left. Tapping it opens a popover above
+ *   the button with the full set of grouping/floor options.
  */
 export function DashboardFilterBar({
   floors,
@@ -208,26 +206,6 @@ export function DashboardFilterBar({
   // The map can only show one floor at a time (floors share the same grid
   // space), so it drops the "All" option and defaults to the first floor.
   const effectiveFloor = mapView ? (activeFloorId ?? floors[0]?.floor_id ?? null) : activeFloorId;
-
-  // Reserve the FAB's footprint on the left so the corner toast slides in to
-  // its right instead of overlapping. Cleared on unmount so other routes keep
-  // a full-width toast.
-  useEffect(() => {
-    if (!hasFilters) return;
-    const el = fabRef.current;
-    if (!el) return;
-    const root = document.documentElement;
-    const apply = () => {
-      root.style.setProperty('--corner-toast-left-inset', `${el.offsetWidth + 8}px`);
-    };
-    apply();
-    const ro = new ResizeObserver(apply);
-    ro.observe(el);
-    return () => {
-      ro.disconnect();
-      root.style.removeProperty('--corner-toast-left-inset');
-    };
-  }, [hasFilters]);
 
   // Dismiss the popover on outside tap / Escape.
   useEffect(() => {

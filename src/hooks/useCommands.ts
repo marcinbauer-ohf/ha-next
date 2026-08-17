@@ -26,10 +26,8 @@ import {
   mdiPaletteSwatch,
   mdiCardBulleted,
   mdiAccessPointNetwork,
-  mdiRobotOutline,
   mdiKeyboardOutline,
   mdiTune,
-  mdiCardBulletedOutline,
   mdiImageOffOutline,
   mdiHomeSoundOut,
   mdiImageSearchOutline,
@@ -58,7 +56,6 @@ import {
   type SettingsNavLink,
 } from '@/components/profile/settingsNavigation';
 import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
-import { announceAutomationNotification, pickAutomationNotification } from '@/lib/automationNotify';
 import { openShortcutsHelp } from '@/lib/keyboardShortcuts';
 import { toggleCardTunerPanel } from '@/lib/cardTuner';
 
@@ -336,16 +333,6 @@ export function useCommands(): CommandItem[] {
 
       // Prototype flags from the settings "Developer flags" card.
       {
-        id: 'dbg.hero-card-layout',
-        group: 'debug',
-        icon: mdiCardBulletedOutline,
-        label: 'New device card layout',
-        keywords: ['hero', 'card', 'layout', 'tile'],
-        state: onOff(debugFlags.heroCardLayoutEnabled),
-        active: debugFlags.heroCardLayoutEnabled,
-        run: debugFlags.toggleHeroCardLayout,
-      },
-      {
         id: 'dbg.hide-card-images',
         group: 'debug',
         icon: mdiImageOffOutline,
@@ -404,15 +391,6 @@ export function useCommands(): CommandItem[] {
         keywords: ['new device', 'detected', 'onboarding', 'toast', 'pairing'],
         closeOnRun: true,
         run: () => announceDiscovery(showToast, pickDiscoveries(1)[0]),
-      },
-      {
-        id: 'dbg.automation-notify',
-        group: 'debug',
-        icon: mdiRobotOutline,
-        label: 'Simulate automation notification',
-        keywords: ['automation', 'notify', 'push', 'front door', 'alert', 'toast'],
-        closeOnRun: true,
-        run: () => announceAutomationNotification(showToast, pickAutomationNotification()),
       },
       {
         id: 'dbg.reset',

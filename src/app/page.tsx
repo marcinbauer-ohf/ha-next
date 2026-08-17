@@ -36,7 +36,7 @@ import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
 import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { DashboardFilterBar } from '@/components/layout/DashboardFilterBar';
 import { PullToRevealPanel } from '@/components/sections';
-import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags, useFavorites, useFastScrollLabels, useIdleMarquee, useSectionCrumb, useScrollToEdges } from '@/hooks';
+import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags, useFavorites, useFastScrollLabels, useIdleMarquee, useSectionCrumb, useScrollToEdges, useMasonryCols, MASONRY_COLS_DESKTOP, MASONRY_COLS_MOBILE, MASONRY_GRID_CLASS } from '@/hooks';
 import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
 import { usePullToRevealContext, useHeader, useEditMode, useToast, useDebugFlags } from '@/contexts';
 import { NavChevron } from '@/components/ui';
@@ -49,7 +49,7 @@ import {
   domainIcon, deviceThumbnail, deviceFeedEntity, SECTION_ORDER, SECTION_TITLES,
   entityCategory, CATEGORY_ORDER, CATEGORY_TITLES,
   AREA_ICON, domainTypeIcon, CATEGORY_ICONS, type DeviceCategory,
-  PRESSABLE,
+  PRESSABLE, panelEntitiesForDevice,
 } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 
@@ -184,17 +184,6 @@ function parseCardDragId(id: string): { fromFav: boolean; section: string; devic
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-function useMasonryCols() {
-  const [cols, setCols] = useState(2);
-  useEffect(() => {
-    const update = () => setCols(window.innerWidth >= 1024 ? 3 : 2);
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
-  return cols;
-}
-
 export default function DashboardPage() {
   const masonryCols = useMasonryCols();
   const { immersiveMode, toggleImmersiveMode, immersivePhase } = useImmersiveMode();
@@ -224,12 +213,14 @@ export default function DashboardPage() {
   useIdleMarquee(scrollableRef, isListView && !isEditing);
 
   // Edit-mode grid must match the non-edit masonry column counts
-  // (useMasonryCols: ≥1024px=3, below=2) so the layout doesn't reflow when
-  // entering/exiting edit mode. Landscape tablet previews at 1024px → 3 cols.
-  const editColCount = previewViewport === 'desktop' || (previewViewport === 'tablet' && previewOrientation === 'landscape') ? 3 : 2;
+  // (useMasonryCols: ≥1024px=4, below=2) so the layout doesn't reflow when
+  // entering/exiting edit mode. Landscape tablet previews at 1024px → 4 cols.
+  const editColCount = previewViewport === 'desktop' || (previewViewport === 'tablet' && previewOrientation === 'landscape')
+    ? MASONRY_COLS_DESKTOP
+    : MASONRY_COLS_MOBILE;
   const gridCols = isEditing
-    ? editColCount === 3 ? 'grid-cols-3' : 'grid-cols-2'
-    : 'grid-cols-2 lg:grid-cols-3';
+    ? editColCount === MASONRY_COLS_DESKTOP ? 'grid-cols-4' : 'grid-cols-2'
+    : MASONRY_GRID_CLASS;
 
   // Previewing a viewport narrower than the lg breakpoint (mobile either
   // orientation, or tablet portrait at 768px). The real window is still ≥lg, so
@@ -261,6 +252,10 @@ export default function DashboardPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
   const [showTopGradient, setShowTopGradient] = useState(false);
+  // The summary chips pin themselves over the content when dragged back into
+  // view; they bring their own fade, and the scroller's top fade would paint on
+  // top of them (it sits outside the scroller's stacking context).
+  const [summaryChipsOverlay, setSummaryChipsOverlay] = useState(false);
   const [showBottomGradient, setShowBottomGradient] = useState(false);
   const [dashboardReady, setDashboardReady] = useState(false);
   const { setHeader } = useHeader();
@@ -773,39 +768,13 @@ export default function DashboardPage() {
     () => devices.find(d => d.id === selectedDeviceId) ?? null,
     [devices, selectedDeviceId],
   );
-  // All visible entities for the selected device in stable order — panel uses this as its list
-  const allPanelEntities = useMemo(() => {
-    if (!selectedDevice) return [];
-    const config = getConfig(selectedDevice.id);
-    const baseIds = config.slots.length === 0
-      ? selectedDevice.entities.slice(0, 1).map(e => e.entity_id) // default: primary only
-      : config.slots.filter(s => s.section === 'primary' || s.section === 'secondary').map(s => s.entity_id);
-    // Always include the camera/media feed entity (and put it first) so opening
-    // the device shows its feed even if that entity isn't a configured slot.
-    const feed = deviceFeedEntity(selectedDevice.entities);
-    const visibleIds = feed && !baseIds.includes(feed.entity_id)
-      ? [feed.entity_id, ...baseIds]
-      : baseIds;
-    return visibleIds.flatMap(id => {
-      const e = selectedDevice.entities.find(ent => ent.entity_id === id);
-      if (!e) return [];
-      const dom = entityDomain(e);
-      const isToggleable = TOGGLEABLE.has(dom);
-      const isPressable = PRESSABLE.has(dom);
-      return [{
-        entityId: e.entity_id,
-        icon: domainIcon(e),
-        name: entityLabel(e, selectedDevice.name),
-        state: stateLabel(e),
-        active: isOn(e),
-        toggleable: isToggleable,
-        pressable: isPressable,
-        unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
-        entityPicture: (() => { const p = e.attributes.entity_picture as string | undefined; return p ? (p.startsWith('http') ? p : `${haUrl}${p}`) : undefined; })(),
-        onToggle: (isToggleable || isPressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
-      }];
-    });
-  }, [selectedDevice, getConfig, toggleEntity]);
+  // Everything still on the selected device, in stable order — the panel's list.
+  const allPanelEntities = useMemo(
+    () => selectedDevice
+      ? panelEntitiesForDevice(selectedDevice, getConfig(selectedDevice.id), toggleEntity, haUrl)
+      : [],
+    [selectedDevice, getConfig, toggleEntity, haUrl],
+  );
 
   const isImmersiveFixed = immersivePhase !== 'normal';
   const isMobileImmersive = immersiveMode && !isImmersiveFixed;
@@ -898,7 +867,7 @@ export default function DashboardPage() {
                 already fades the content, so this would double up. */}
             <ScrollFadeEdge
               edge="top"
-              visible={showTopGradient}
+              visible={showTopGradient && !summaryChipsOverlay}
               onClick={scrollToTop}
               className="hidden lg:block absolute left-0 right-0 h-12 bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300"
               style={{ top: 'var(--app-topbar-clear, 0px)' }}
@@ -936,6 +905,7 @@ export default function DashboardPage() {
                   fullBleed={isMobileImmersive}
                   noSticky={dashboardView === '3d' || listMapView === 'map'}
                   narrowPreview={previewingBelowLg}
+                  onOverlayChange={setSummaryChipsOverlay}
                 />
 
 
@@ -1012,7 +982,7 @@ export default function DashboardPage() {
                             {favoriteDevices.length === 0 && (
                               <p className="text-sm text-text-tertiary mb-ha-2">Drag devices here to favorite them.</p>
                             )}
-                            <div className={`grid gap-ha-4 items-start ${gridCols ?? 'grid-cols-2 lg:grid-cols-3'}`}>
+                            <div className={`grid gap-ha-4 items-start ${gridCols ?? MASONRY_GRID_CLASS}`}>
                               {paddedSlots.map((device, i) => (
                                 <GridSlot key={device ? device.id : `fav-empty-${i}`} droppableId={slotId(FAVORITES_KEY, i)} dragId={device ? cardDragId(FAVORITES_KEY, device.id) : undefined}>
                                   {device && (
@@ -1047,7 +1017,7 @@ export default function DashboardPage() {
                   <div key={`${groupBy}-${activeFloorId ?? 'all'}`} className="ha-view-enter space-y-ha-8">
                   {visibleSections.map(({ key, title, devices: sectionDevices, kind }) => {
                     const slots = resolveSlots(sectionDevices, sectionOrders[key]);
-                    const editGridClass = `grid gap-ha-4 items-start ${gridCols ?? 'grid-cols-2 lg:grid-cols-3'}`;
+                    const editGridClass = `grid gap-ha-4 items-start ${gridCols ?? MASONRY_GRID_CLASS}`;
 
                     // Edit grid is a slot canvas: pad to full rows, and when
                     // every slot is taken open one extra empty row so cards
@@ -1186,7 +1156,6 @@ export default function DashboardPage() {
                 onSave={cfg => setConfig(selectedDevice.id, cfg)}
                 onBack={isEditing ? closePanel : () => setPanelMode('entity')}
                 onClose={closePanel}
-                hideBack={!isEditing}
               />
             )}
           </ModalSheet>

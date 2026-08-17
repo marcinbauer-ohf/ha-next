@@ -50,11 +50,11 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
       tabIndex={clickable ? 0 : undefined}
       onClick={onClick}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!(); } } : undefined}
-      className={`w-full px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50${clickable ? ' cursor-pointer hover:bg-surface-lower/95 active:scale-[0.99] transition-[background-color,transform]' : ''}`}
+      className={`w-full px-ha-2 py-ha-2 lg:px-ha-4 lg:py-ha-3 rounded-ha-2xl lg:rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50${clickable ? ' cursor-pointer hover:bg-surface-lower/95 active:scale-[0.99] transition-[background-color,transform]' : ''}`}
     >
-      <div className="flex items-center gap-ha-3">
-        <div className="shrink-0 relative w-9 h-9 lg:w-11 lg:h-11">
-          <div className="w-full h-full rounded-ha-xl bg-surface-mid flex items-center justify-center overflow-hidden">
+      <div className="flex items-center gap-ha-2 lg:gap-ha-3">
+        <div className="shrink-0 relative w-8 h-8 lg:w-11 lg:h-11">
+          <div className="w-full h-full rounded-ha-lg lg:rounded-ha-xl bg-surface-mid flex items-center justify-center overflow-hidden">
             {showImage ? (
               <img src={image} alt="" onError={() => setImgError(true)} className="w-full h-full object-contain p-0.5" />
             ) : (
@@ -81,7 +81,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ ...FADE, delay: 0.12 }}
-            className="text-sm font-semibold text-text-primary leading-tight truncate"
+            className="text-[13px] lg:text-sm font-semibold text-text-primary leading-tight truncate"
           >
             {title}
           </motion.p>
@@ -90,7 +90,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...FADE, delay: 0.2 }}
-              className="text-xs text-text-secondary mt-0.5 leading-tight truncate"
+              className="text-[11px] lg:text-xs text-text-secondary mt-0.5 leading-tight truncate"
             >
               {subtitle}
             </motion.p>
@@ -102,7 +102,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
             animate={{ opacity: 1 }}
             transition={{ ...FADE, delay: 0.26 }}
             onClick={(e) => { e.stopPropagation(); action.onClick(); }}
-            className="relative shrink-0 h-8 px-ha-3 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-xs font-semibold text-text-primary transition-colors active:scale-95 before:absolute before:-inset-2 before:content-['']"
+            className="relative shrink-0 h-7 lg:h-8 px-ha-2 lg:px-ha-3 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-[11px] lg:text-xs font-semibold text-text-primary transition-colors active:scale-95 before:absolute before:-inset-2 before:content-['']"
           >
             {action.label}
           </motion.button>
@@ -114,7 +114,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
             transition={{ ...FADE, delay: 0.32 }}
             onClick={(e) => { e.stopPropagation(); onClose(); }}
             aria-label="Dismiss"
-            className="relative shrink-0 w-10 h-10 -mr-1.5 rounded-ha-pill flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-surface-mid transition-colors active:scale-95 before:absolute before:-inset-3 before:content-['']"
+            className="relative shrink-0 w-8 h-8 lg:w-10 lg:h-10 -mr-0.5 lg:-mr-1.5 rounded-ha-pill flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-surface-mid transition-colors active:scale-95 before:absolute before:-inset-3 before:content-['']"
           >
             <Icon path={mdiClose} size={18} />
           </motion.button>
@@ -126,7 +126,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ ...FADE, delay: 0.3 }}
-          className="mt-3 flex flex-wrap gap-1.5"
+          className="mt-2 lg:mt-3 flex flex-wrap gap-1.5"
         >
           {details.map((d, i) => (
             <span
@@ -158,11 +158,14 @@ const MAX_PEEK = 2;
  * the newest toast shows in full while up to two older ones peek out
  * underneath; dismissing the front card pops the next one into place.
  *
- * Positioning comes from `.corner-toast`: full-width centered above the nav on
- * mobile, pinned to the bottom-right of the dashboard surface on desktop. The
- * stack portals into #toast-glow-root (absolute inset-0 inside <main>) so it's
- * clipped to the dashboard content area; falls back to viewport-fixed on
- * routes where that root isn't mounted.
+ * Positioning comes from `.corner-toast`: on mobile an iOS-style banner fixed
+ * to the top of the viewport, overlaying the top bar and everything under it;
+ * on desktop pinned to the bottom-right of the dashboard surface.
+ *
+ * Desktop portals the stack into #toast-glow-root (absolute inset-0 inside
+ * <main>) so it's clipped to the dashboard content area; mobile deliberately
+ * skips that root — being clipped to the content area is what would put the
+ * banner *behind* the chrome instead of over it.
  */
 export function ToastStack({ toasts }: { toasts: ToastStackItem[] }) {
   const show = toasts.length > 0;
@@ -174,8 +177,8 @@ export function ToastStack({ toasts }: { toasts: ToastStackItem[] }) {
   const hideForNav = navOpen && !isDesktop;
 
   useEffect(() => {
-    setRoot(document.getElementById('toast-glow-root'));
-  }, [show]);
+    setRoot(isDesktop ? document.getElementById('toast-glow-root') : null);
+  }, [show, isDesktop]);
 
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 1024px)');
@@ -185,13 +188,13 @@ export function ToastStack({ toasts }: { toasts: ToastStackItem[] }) {
     return () => mql.removeEventListener('change', update);
   }, []);
 
-  // Desktop slides in from the right edge; mobile rises from the nav bar.
+  // Desktop slides in from the right edge; mobile drops from under the top bar.
   const hidden = isDesktop
     ? { opacity: 0, x: 48, y: 0, scale: 0.96 }
-    : { opacity: 0, x: 0, y: 20, scale: 0.96 };
+    : { opacity: 0, x: 0, y: -20, scale: 0.96 };
   const exit = isDesktop
     ? { opacity: 0, x: 32, scale: 0.97 }
-    : { opacity: 0, y: 16, scale: 0.97 };
+    : { opacity: 0, y: -16, scale: 0.97 };
 
   const node = (
     <AnimatePresence>

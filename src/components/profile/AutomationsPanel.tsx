@@ -141,6 +141,7 @@ export function AutomationsTable({
       {
         id: 'status',
         mode: 'facet',
+        label: 'Status',
         chips: [
           { id: 'enabled', label: 'Enabled', predicate: (a) => a.enabled, defaultActive: true },
           { id: 'disabled', label: 'Disabled', predicate: (a) => !a.enabled, defaultActive: true },
@@ -182,6 +183,7 @@ export function AutomationsTable({
       },
     ],
     onRowClick: (a) => onSelect(a.id),
+    storageId: 'automations',
     fillHeight: true,
     defaultLayout: 'list',
     emptyLabel: 'No automations match these filters.',

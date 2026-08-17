@@ -23,7 +23,6 @@ import { isOnboardingActive, useOnboardingGate } from '@/lib/onboarding';
 import { emitSettingsReset } from '@/lib/settingsResetBus';
 import { RouteTransition } from '@/components/layout/RouteTransition';
 import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
-import { announceAutomationNotification, AUTOMATION_NOTIFICATIONS } from '@/lib/automationNotify';
 import { AnimatePresence, motion } from 'framer-motion';
 type ConnectionStatus = 'connecting' | 'connected' | 'error' | null;
 import {
@@ -278,22 +277,6 @@ function AppShellContent({ children }: AppShellProps) {
       discoveryShown.current = true;
       announceDiscovery(showToast, pickDiscoveries(1)[0]);
     }, 5000);
-    return () => clearTimeout(timer);
-  }, [showPreloader, onboardingActive, showToast]);
-
-  // Demo: surface a simulated automation notification (front door left
-  // unlocked) once, ~12s after the app is ready — offset from the discovery
-  // toast above so the two don't collide. Shows for *every* user, admin or not:
-  // home-automation notices reach non-admins too and land in their
-  // settings → Notifications list. Placeholder until wired to real HA
-  // notify.* / persistent_notification events.
-  const automationNotifyShown = useRef(false);
-  useEffect(() => {
-    if (showPreloader || onboardingActive || automationNotifyShown.current) return;
-    const timer = setTimeout(() => {
-      automationNotifyShown.current = true;
-      announceAutomationNotification(showToast, AUTOMATION_NOTIFICATIONS[0]);
-    }, 12000);
     return () => clearTimeout(timer);
   }, [showPreloader, onboardingActive, showToast]);
 
@@ -788,8 +771,8 @@ function AppShellContent({ children }: AppShellProps) {
                 style={{
                   height: '40vh',
                   zIndex: 61,
-                  // Match the connected-toast glow's weight (ToastContext bottom-center
-                  // glow): same geometry, same low opacity falloff — just a dark tint.
+                  // Match the toast glow's weight (ToastContext): same geometry,
+                  // same low opacity falloff — just a dark tint, mirrored to the bottom.
                   background:
                     'radial-gradient(ellipse 80% 70% at 50% 100%, rgba(0,0,0,0.14) 0%, rgba(0,0,0,0.05) 55%, transparent 75%)',
                   transformOrigin: '50% 100%',

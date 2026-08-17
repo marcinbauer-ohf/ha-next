@@ -7,6 +7,7 @@ import { SegmentedControl } from '../ui/SegmentedControl';
 import { getEntityHistory } from '@/lib/homeassistant/connection';
 import { entityDomain, friendlyName, domainIcon } from '@/lib/homeassistant/entityHelpers';
 import { useEnergyMetrics, useDevices, type HassDevice } from '@/hooks';
+import type { HassEntity } from '@/lib/homeassistant/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Power attribution — the whole-home meter power curve as a base, with each
@@ -102,8 +103,11 @@ interface DeviceTrace {
   onFraction: number; // share of window spent on — orders the list when no estimate
 }
 
-export function PowerAttributionChart() {
-  const { meter } = useEnergyMetrics();
+export function PowerAttributionChart({ meter: chosenMeter }: { meter?: HassEntity | null } = {}) {
+  // The user's picked power sensor wins; the heuristic guess is the fallback for
+  // callers that have no configured one.
+  const { meter: guessedMeter } = useEnergyMetrics();
+  const meter = chosenMeter ?? guessedMeter;
   const { devices } = useDevices();
   const [hours, setHours] = useState(24);
   const [meterSeries, setMeterSeries] = useState<{ t: number; w: number }[]>([]);

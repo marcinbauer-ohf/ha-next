@@ -31,6 +31,7 @@ import {
   getEntityHistory as getEntityHistoryAction,
   getStatistics as getStatisticsAction,
   getLogbook as getLogbookAction,
+  getRelated as getRelatedAction,
   getAutomationConfig as getAutomationConfigAction,
   createArea as createAreaAction,
   updateArea as updateAreaAction,
@@ -106,6 +107,7 @@ interface HomeAssistantContextValue {
   getEntityHistory: (entityId: string, hoursBack?: number) => Promise<HistoryPoint[]>;
   getStatistics: (entityId: string, hoursBack: number, period: '5minute' | 'hour' | 'day') => Promise<StatisticValue[]>;
   getLogbook: (entityId: string | string[], hoursBack?: number) => Promise<LogbookEntry[]>;
+  getRelated: (itemType: string, itemId: string) => Promise<Record<string, string[]>>;
   getAutomationConfig: (numericId: string) => Promise<AutomationConfig | null>;
   reconnect: () => Promise<void>;
   saveCredentials: (url: string, token: string) => Promise<void>;
@@ -604,6 +606,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   }, [demoMode, connected]);
   const getStatistics = useCallback((entityId: string, hoursBack: number, period: '5minute' | 'hour' | 'day') => getStatisticsAction(entityId, hoursBack, period), []);
   const getLogbook = useCallback((entityId: string | string[], hoursBack?: number) => getLogbookAction(entityId, hoursBack), []);
+  const getRelated = useCallback((itemType: string, itemId: string) => getRelatedAction(itemType, itemId), []);
   const getAutomationConfig = useCallback((numericId: string) => getAutomationConfigAction(numericId), []);
 
   const setMockEntity = useCallback((entityId: string, entity: HassEntity | null) => {
@@ -671,6 +674,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getEntityHistory,
     getStatistics,
     getLogbook,
+    getRelated,
     getAutomationConfig,
     reconnect,
     saveCredentials,
@@ -715,6 +719,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     getEntityHistory,
     getStatistics,
     getLogbook,
+    getRelated,
     getAutomationConfig,
     reconnect,
     saveCredentials,

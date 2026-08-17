@@ -117,6 +117,7 @@ const TEXT_TOKENS = [
 export default function DesignSystemPage() {
   const [seg, setSeg] = useState<'all' | 'active' | 'inactive'>('all');
   const [modalOpen, setModalOpen] = useState(false);
+  const [stackedOpen, setStackedOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const addMenuAnchorRef = useRef<HTMLButtonElement>(null);
   const { showToast } = useToast();
@@ -595,9 +596,18 @@ export default function DesignSystemPage() {
                 <h3 className="text-lg font-semibold text-text-primary">Modal title</h3>
                 <p className="text-sm text-text-secondary">This is a ModalSheet — centered card on desktop, bottom sheet on mobile. Springs in and out.</p>
                 <div className="flex gap-ha-2 pt-ha-2">
-                  <Button variant="primary" onClick={() => setModalOpen(false)}>Confirm</Button>
+                  <Button variant="primary" onClick={() => setStackedOpen(true)}>Open one over it</Button>
                   <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
                 </div>
+              </div>
+            </ModalSheet>
+            {/* The stack: a dialog opening over another leaves the first showing
+                — lifted and a touch smaller, its top edge above the newcomer. */}
+            <ModalSheet open={stackedOpen} onClose={() => setStackedOpen(false)} maxWidth={420}>
+              <div className="p-ha-5 space-y-ha-3">
+                <h3 className="text-lg font-semibold text-text-primary">Second dialog</h3>
+                <p className="text-sm text-text-secondary">The one underneath sits back rather than disappearing behind this scrim.</p>
+                <Button variant="ghost" onClick={() => setStackedOpen(false)}>Close</Button>
               </div>
             </ModalSheet>
           </div>

@@ -9,10 +9,6 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
  * Persisted to localStorage like the other ha-flag-* keys. Both default off.
  */
 
-// Device-card layout experiment. Unlike the two flags above this defaults ON
-// (only an explicit '0' opts out) — the new "hero" layout is the current design,
-// the toggle exists so the previous layout can be compared.
-const LS_HERO_CARD_LAYOUT_KEY = 'ha-flag-hero-card-layout';
 // Prototyping: strip the Home Center + assistant chrome. Desktop loses the whole
 // bottom bar, mobile loses the Home Center tab, and both lose the settings entry.
 const LS_HIDE_HOME_CENTER_KEY = 'ha-flag-hide-home-center';
@@ -28,10 +24,6 @@ const LS_DASHBOARD_FILTER_KEY = 'ha-flag-dashboard-filter';
 const LS_MOBILE_NAV_AUTOHIDE_KEY = 'ha-flag-mobile-nav-autohide';
 
 interface DebugFlagsContextValue {
-  /** true = new hero layout (name top-left, image right, toggle bottom-left); false = previous layout. */
-  heroCardLayoutEnabled: boolean;
-  setHeroCardLayoutEnabled: (value: boolean) => void;
-  toggleHeroCardLayout: () => void;
   /** true = desktop bottom bar gone, Home Center hidden from mobile nav + settings. */
   hideHomeCenterEnabled: boolean;
   toggleHideHomeCenter: () => void;
@@ -52,25 +44,6 @@ interface DebugFlagsContextValue {
 const DebugFlagsContext = createContext<DebugFlagsContextValue | undefined>(undefined);
 
 export function DebugFlagsProvider({ children }: { children: ReactNode }) {
-  // Opt-out flag: default on unless localStorage explicitly holds '0'.
-  const [heroCardLayoutEnabled, setHeroCardLayoutEnabledState] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem(LS_HERO_CARD_LAYOUT_KEY) !== '0';
-  });
-
-  const setHeroCardLayoutEnabled = useCallback((value: boolean) => {
-    setHeroCardLayoutEnabledState(value);
-    localStorage.setItem(LS_HERO_CARD_LAYOUT_KEY, value ? '1' : '0');
-  }, []);
-
-  const toggleHeroCardLayout = useCallback(() => {
-    setHeroCardLayoutEnabledState((prev) => {
-      const next = !prev;
-      localStorage.setItem(LS_HERO_CARD_LAYOUT_KEY, next ? '1' : '0');
-      return next;
-    });
-  }, []);
-
   const [hideHomeCenterEnabled, setHideHomeCenterEnabledState] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem(LS_HIDE_HOME_CENTER_KEY) === '1';
@@ -139,9 +112,6 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
   return (
     <DebugFlagsContext.Provider
       value={{
-        heroCardLayoutEnabled,
-        setHeroCardLayoutEnabled,
-        toggleHeroCardLayout,
         hideHomeCenterEnabled,
         toggleHideHomeCenter,
         hideCardImagesEnabled,

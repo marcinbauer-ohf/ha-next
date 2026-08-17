@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCloseOnScreensaver } from '@/contexts';
+import { useSheetStack } from '@/hooks/useSheetStack';
 import { haptic } from '@/lib/haptics';
 
 interface ConfirmDialogProps {
@@ -29,6 +30,9 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   useCloseOnScreensaver(open, onCancel);
+  // Joins the stack so whatever it opened over sits back instead of going flat
+  // black — and asks less of the scrim when there's already one under it.
+  const { below } = useSheetStack(open);
 
   useEffect(() => {
     if (!open) return;
@@ -57,7 +61,7 @@ export function ConfirmDialog({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
         >
-          <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
+          <div className={`absolute inset-0 ${below > 0 ? 'bg-black/25' : 'bg-black/50'}`} onClick={onCancel} />
           <motion.div
             role="alertdialog"
             aria-modal="true"

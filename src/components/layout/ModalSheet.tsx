@@ -8,6 +8,7 @@ import { useCloseOnScreensaver } from '@/contexts';
 import { lastPointerPoint } from '@/lib/lastPointer';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { visibleFocusables } from '@/hooks/useFocusTrap';
+import { recede, useSheetStack } from '@/hooks/useSheetStack';
 
 interface ModalSheetProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface ModalSheetProps {
 const SPRING = { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.9 };
 const SHEET_SPRING = { type: 'spring' as const, stiffness: 380, damping: 36, mass: 1 };
 
+
 /**
  * Desktop: centered floating card with scrim.
  * Mobile: bottom sheet that springs up; the grabber pill drags to dismiss.
@@ -30,6 +32,15 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
   // The screensaver clears anything sitting over the main UI. Since most modals
   // and surfaces ride on ModalSheet, this covers them in one place.
   useCloseOnScreensaver(open, onClose);
+
+  // Registration order is also paint order here: portals land in the body in
+  // *mount* order, which has nothing to do with which dialog you opened last.
+  const { above, below } = useSheetStack(open);
+  const sunk = Math.min(above, 2);
+  // Read by the key handler, which must not re-bind (and re-grab focus) just
+  // because something opened on top.
+  const aboveRef = useRef(above);
+  useEffect(() => { aboveRef.current = above; }, [above]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mobileScrollRef = useRef<HTMLDivElement | null>(null);
@@ -50,6 +61,10 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
     const onKeyDown = (e: KeyboardEvent) => {
       const container = containerRef.current;
       if (!container) return;
+      // Covered by another dialog: the keyboard belongs to the one on top. Both
+      // listen on `document`, so stopPropagation up there can't reach a sibling
+      // listener — Escape would otherwise close the whole stack at once.
+      if (aboveRef.current > 0) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
         onClose();
@@ -128,7 +143,8 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
           role="dialog"
           aria-modal="true"
           tabIndex={-1}
-          className="fixed inset-0 z-[200] flex items-end lg:items-center justify-center pointer-events-auto outline-none"
+          className="fixed inset-0 flex items-end lg:items-center justify-center pointer-events-auto outline-none"
+          style={{ zIndex: 200 + below }}
         >
           {/* Scrim */}
           <motion.div
@@ -137,7 +153,9 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="absolute inset-0 bg-black/70"
+            // Lighter over a sheet that's already dimmed the page — two full
+            // scrims would bury the card underneath instead of recessing it.
+            className={clsx('absolute inset-0', below > 0 ? 'bg-black/40' : 'bg-black/70')}
             onClick={onClose}
           />
 
@@ -149,7 +167,9 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             // new height in one frame while the content is still fading.
             layout={transitionKey !== undefined ? 'size' : false}
             initial={{ opacity: 0, scale: 0.90, x: origin.dx, y: origin.dy }}
-            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+            // Covered: shrink back and lift, so the card underneath shows as a
+            // shoulder above the new one rather than a shadow behind it.
+            animate={{ opacity: 1, scale: 1 - sunk * 0.06, x: 0, y: -sunk * 22 }}
             exit={{ opacity: 0, scale: 0.90, x: origin.dx, y: origin.dy }}
             transition={SPRING}
             className="hidden lg:flex relative w-full flex-col bg-surface-lower rounded-ha-3xl overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)]"
@@ -168,7 +188,9 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
           <motion.div
             key="sheet"
             initial={{ y: '100%' }}
-            animate={{ y: 0 }}
+            // Covered: narrower and a nudge higher, so its rounded top sticks
+            // out above the sheet that opened over it.
+            animate={recede(above)}
             exit={{ y: '100%' }}
             transition={SHEET_SPRING}
             drag="y"
@@ -183,6 +205,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             style={{
               maxHeight: '82dvh',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))',
+              transformOrigin: 'top center',
             }}
           >
             <div

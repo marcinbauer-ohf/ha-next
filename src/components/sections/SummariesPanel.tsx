@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { SummaryCard, TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
-import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities, useEdgeFade } from '@/hooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   mdiAccountMultiple,
@@ -11,6 +11,8 @@ import {
   mdiThermometer,
   mdiShieldHome,
   mdiWeatherPartlyCloudy,
+  mdiBattery,
+  mdiBatteryAlertVariantOutline,
   mdiGestureTap,
   mdiArrowExpandAll,
   mdiChevronLeft,
@@ -22,37 +24,41 @@ import { Icon } from '../ui/Icon';
 import { clsx } from 'clsx';
 import { arePeoplePresenceEqual, selectPeoplePresence } from '@/lib/homeassistant/selectors';
 import { CONTENT_MAX, CONTENT_GUTTER } from '@/lib/layout';
-import { EnergyGlance, AutomationsGlance } from '../glances';
+import { EnergyGlance, AutomationsGlance, SummaryGlance } from '../glances';
+import { PeopleDetail } from '../glances/summaryDetails';
+import { ModalSheet } from '../layout/ModalSheet';
 import { useHomeMode } from '@/lib/homeMode';
+import { batteryEntities, batteryLevel, climateSensors, lowBatteryAt, securityEntities, temperatureOf, useSummaryConfig, weatherSource } from '@/lib/summaryConfig';
 import type { GlanceId } from '@/types';
 
 export function useLiveSummaryItems() {
   const entities = useHomeAssistantEntities();
   const homeMode = useHomeMode();
+  // Which sensors count is the user's call, made in each chip's dialog — the
+  // chip and the dialog have to read the same ones or they'd disagree. An
+  // unconfigured home falls back to the sane default (see summaryConfig).
+  const config = useSummaryConfig();
   return useMemo(() => {
     const all = Object.values(entities);
 
     const lights = all.filter(e => e.entity_id.startsWith('light.'));
     const lightsOn = lights.filter(e => e.state === 'on').length;
 
-    const tempSensors = all.filter(e =>
-      (e.entity_id.startsWith('sensor.') || e.entity_id.startsWith('climate.')) &&
-      (e.attributes.device_class === 'temperature' || e.attributes.current_temperature != null) &&
-      !isNaN(parseFloat(String(e.attributes.current_temperature ?? e.state)))
-    );
-    const temps = tempSensors.map(e =>
-      parseFloat(String(e.attributes.current_temperature ?? e.state))
-    ).filter(v => !isNaN(v));
+    const temps = climateSensors(entities, config).map(temperatureOf).filter(v => !isNaN(v));
     const avgTemp = temps.length > 0
       ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1)
       : null;
 
-    const locks = all.filter(e => e.entity_id.startsWith('lock.'));
+    const locks = securityEntities(entities, config).filter(e => e.entity_id.startsWith('lock.'));
     const locksLocked = locks.filter(e => e.state === 'locked').length;
     const allLocked = locks.length > 0 && locksLocked === locks.length;
 
-    const weather = all.find(e => e.entity_id.startsWith('weather.'));
+    const weather = weatherSource(entities, config);
     const weatherTemp = weather?.attributes.temperature as number | undefined;
+
+    const low = lowBatteryAt(config);
+    const batteries = batteryEntities(entities, config).map(batteryLevel).filter(v => !isNaN(v));
+    const batteriesLow = batteries.filter(v => v <= low).length;
 
     const items = [
       // Home mode leads the row when a helper is configured — it's the
@@ -92,6 +98,15 @@ export function useLiveSummaryItems() {
         state: weatherTemp != null ? `${weatherTemp}° ${weather.state}` : weather.state,
         color: 'default' as const,
       }] : []),
+      // Batteries only earn a chip in a home that has them, and only shout
+      // when one is actually low — otherwise it's the lowest reading, quietly.
+      ...(batteries.length > 0 ? [{
+        id: 'battery' as GlanceId,
+        icon: batteriesLow > 0 ? mdiBatteryAlertVariantOutline : mdiBattery,
+        title: 'Batteries',
+        state: batteriesLow > 0 ? `${batteriesLow} low` : `${Math.round(Math.min(...batteries))}% lowest`,
+        color: (batteriesLow > 0 ? 'yellow' : 'default') as 'yellow' | 'default',
+      }] : []),
     ];
 
     // Fallback if no real data yet
@@ -102,7 +117,7 @@ export function useLiveSummaryItems() {
       ];
     }
     return items;
-  }, [entities, homeMode]);
+  }, [entities, homeMode, config]);
 }
 
 const tips = [
@@ -229,11 +244,25 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
   // Use variant if provided, otherwise fallback to compact prop
   const isCompact = variant ? variant === 'compact' : compact;
 
+  // Opens the People dialog, like every other chip in the row.
+  const [detailOpen, setDetailOpen] = useState(false);
+  const peopleDialog = (
+    <ModalSheet open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth={640}>
+      {detailOpen && <PeopleDetail onClose={() => setDetailOpen(false)} />}
+    </ModalSheet>
+  );
+  // Over the screensaver, a click that isn't stopped dismisses it.
+  const openDetail = (e: React.MouseEvent) => { e.stopPropagation(); setDetailOpen(true); };
+
   if (isCompact) {
     // Mobile: stacked avatars + count
     return (
-      <div className={clsx(
-        'flex items-center rounded-ha-pill whitespace-nowrap flex-shrink-0 transition-all',
+      <>
+      <button
+        type="button"
+        onClick={openDetail}
+        className={clsx(
+        'flex items-center rounded-ha-pill whitespace-nowrap flex-shrink-0 transition-all cursor-pointer hover:brightness-110 active:scale-95',
         translucent ? TRANSLUCENT_CHIP_FILL : 'bg-surface-low',
         isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-2.5' : 'gap-ha-2 px-ha-2 py-ha-1'
       )}>
@@ -270,13 +299,20 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
         )}>
           {resolvedPeopleHome.length} home
         </span>
-      </div>
+      </button>
+      {peopleDialog}
+      </>
     );
   }
 
   // Desktop: icon + text on left, avatars on right (home | away)
   return (
-    <div className="flex items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-default border border-surface-lower">
+    <>
+    <button
+      type="button"
+      onClick={openDetail}
+      className="flex w-full items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-default border border-surface-lower text-left transition-all cursor-pointer hover:brightness-110 active:scale-95"
+    >
       <div className="flex-shrink-0 text-ha-blue">
         <Icon path={mdiAccountMultiple} size={24} />
       </div>
@@ -345,7 +381,9 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
           </motion.div>
         </AnimatePresence>
       </div>
-    </div>
+    </button>
+    {peopleDialog}
+    </>
   );
 }
 
@@ -364,12 +402,68 @@ interface MobileSummaryRowProps {
    * ~32px past the dashboard cards inside the preview frame.
    */
   narrowPreview?: boolean;
+  /**
+   * Fires when the chips are pinned over the scrolled content (revealed by a
+   * drag up, past the top). The page's own top scroll-fade paints above this
+   * row — it lives outside the scroller's stacking context — so the page hides
+   * that fade while the chips are up; they carry their own fade instead.
+   */
+  onOverlayChange?: (overlaying: boolean) => void;
 }
 
-export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraContent, extraRef, narrowPreview = false }: MobileSummaryRowProps) {
+export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraContent, extraRef, narrowPreview = false, onOverlayChange }: MobileSummaryRowProps) {
   const liveSummaryItems = useLiveSummaryItems();
+  const { ref: chipsScrollRef, onScroll: onChipsScroll, style: chipsFadeStyle } = useEdgeFade();
 
-  const summaryBackground = 'linear-gradient(to bottom, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent) 0%, transparent 80%)';
+  // Chips scroll away, but a small upward drag brings them back from anywhere in
+  // the page — same reflex as the bottom nav's auto-hide. Sticky + translate, so
+  // the flow (and the natural position at scroll-top) is unchanged.
+  const chipsRef = useRef<HTMLDivElement | null>(null);
+  // 'top' = sitting in its natural place, 'shown' = pinned over the content,
+  // 'hidden' = tucked above the fold.
+  const [chipsMode, setChipsMode] = useState<'top' | 'shown' | 'hidden'>('top');
+  useEffect(() => {
+    if (noSticky) return;
+    const scroller = chipsRef.current?.closest<HTMLElement>('[data-scrollable]');
+    if (!scroller) return;
+    let last = scroller.scrollTop;
+    let travel = 0;
+    const onScroll = () => {
+      const top = scroller.scrollTop;
+      const delta = top - last;
+      last = top;
+      if (top <= 8) {
+        travel = 0;
+        setChipsMode('top');
+        return;
+      }
+      // Accumulate per direction so a jittery finger doesn't flip the row.
+      travel = (travel > 0) === (delta > 0) ? travel + delta : delta;
+      if (travel <= -40) setChipsMode('shown');
+      else if (travel >= 24) setChipsMode('hidden');
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => scroller.removeEventListener('scroll', onScroll);
+  }, [noSticky]);
+  useEffect(() => {
+    onOverlayChange?.(!noSticky && chipsMode === 'shown');
+  }, [chipsMode, noSticky, onOverlayChange]);
+  useEffect(() => () => onOverlayChange?.(false), [onOverlayChange]);
+
+  // Split in half rather than alternated, so the DOM order is the reading order
+  // in both layouts: left-to-right along the top row, then the bottom one — and
+  // unchanged when the rows dissolve into a single wrapping row on desktop.
+  const chips = [
+    <PeopleBadge key="people" compact />,
+    <EnergyGlance key="energy" compact />,
+    <AutomationsGlance key="automations" compact />,
+    ...liveSummaryItems.map((item) => <SummaryGlance key={item.title} item={item} compact />),
+  ];
+  const chipRows = [chips.slice(0, Math.ceil(chips.length / 2)), chips.slice(Math.ceil(chips.length / 2))];
+
+  // Opaque at the top so revealed chips cover the cards scrolling under them;
+  // at scroll-top it's the same colour as the surface behind, so invisible.
+  const summaryBackground = 'linear-gradient(to bottom, var(--ha-color-surface-lower) 0%, color-mix(in srgb, var(--ha-color-surface-lower) 85%, transparent) 70%, transparent 100%)';
   const containerStyle = fullBleed
     ? {
         background: summaryBackground,
@@ -384,33 +478,39 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
 
   return (
     <>
-    {/* Chips — scroll out of view with the page content */}
+    {/* Chips — scroll out of view with the page content, back on a drag up */}
     <div
+      ref={chipsRef}
       data-section-key="__summaries__"
       className={clsx(
         'pt-ha-4 pb-ha-1 w-full',
         !narrowPreview && 'lg:mx-0 lg:px-0',
-        fullBleed ? '' : '-mx-ha-1 px-ha-1'
+        fullBleed ? '' : '-mx-ha-1 px-ha-1',
+        // top-0, not --app-topbar-clear: the scroller's own pt-[--app-topbar-clear]
+        // already clears the top bar, and sticky offsets measure from its content
+        // box — adding the bar's height again left a bar-sized gap at scroll-top.
+        !noSticky && 'sticky top-0 z-[55] transition-[transform,opacity] duration-300 ease-out',
+        !noSticky && chipsMode === 'hidden' && 'opacity-0 pointer-events-none -translate-y-[130%]'
       )}
       style={containerStyle}
     >
       <div className={clsx(CONTENT_MAX, !narrowPreview && CONTENT_GUTTER)}>
-        {/* Wrapping bento row — chips flow onto new lines instead of scrolling */}
-        <div className="flex flex-wrap items-center gap-ha-2 px-1">
-          <PeopleBadge compact />
-          <EnergyGlance compact />
-          <AutomationsGlance compact />
-          {liveSummaryItems.map((item) => (
-            <SummaryCard
-              key={item.title}
-              id={item.id}
-              icon={item.icon}
-              title={item.title}
-              state={item.state}
-              color={item.color}
-              compact
-            />
-          ))}
+        {/* Two rows deep at most, scrolling sideways past that — a wrapping row
+            grew to four lines on a phone and ate the fold. The rows pack
+            independently, so chips stagger instead of lining up in columns.
+            Desktop dissolves both rows (lg:contents) back into one wrapping
+            row in the original order — the whole set fits on a line there. */}
+        <div
+          ref={chipsScrollRef}
+          onScroll={onChipsScroll}
+          style={chipsFadeStyle}
+          className="overflow-x-auto overscroll-x-contain scrollbar-hide lg:overflow-visible"
+        >
+          <div className="flex flex-col gap-ha-2 w-max px-1 lg:flex-row lg:flex-wrap lg:items-center lg:w-full">
+            {chipRows.map((row, i) => (
+              <div key={i} className="flex items-center gap-ha-2 lg:contents">{row}</div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -421,7 +521,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
       <div
         ref={extraRef}
         className={clsx(
-          !noSticky && 'sticky top-[var(--app-topbar-clear)] lg:top-0 z-[60]',
+          !noSticky && 'sticky top-0 z-[60]',
           'pt-ha-1 pb-ha-2 w-full',
           !narrowPreview && 'lg:mx-0 lg:px-0',
           fullBleed ? '' : '-mx-ha-1 px-ha-1'
@@ -472,13 +572,9 @@ export function SummariesPanel({ onToggleImmersive, onToggleDarkMode, onToggleSc
         <EnergyGlance variant={isCompact ? 'filled' : 'outlined'} compact={isCompact} />
         <AutomationsGlance variant={isCompact ? 'filled' : 'outlined'} compact={isCompact} />
         {liveSummaryItems.map((item) => (
-          <SummaryCard
+          <SummaryGlance
             key={item.title}
-            id={item.id}
-            icon={item.icon}
-            title={item.title}
-            state={item.state}
-            color={item.color}
+            item={item}
             variant={isCompact ? 'filled' : 'outlined'}
             compact={isCompact}
           />

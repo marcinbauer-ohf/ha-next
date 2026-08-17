@@ -32,11 +32,11 @@ import { TalkWidgetGlow } from './TalkWidgetGlow';
 import { ScreensaverVoiceMode } from './ScreensaverVoiceMode';
 import { CircularProgress } from './CircularProgress';
 import { resolveEntityPictureUrl } from '@/lib/utils';
-import { SummaryCard, TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
+import { TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
 import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
 import { RingShaderBackground, useRingOrigin } from './RingShaderBackground';
 import { ScreensaverPulseLog } from './ScreensaverPulseLog';
-import { EnergyGlance } from '../glances';
+import { EnergyGlance, SummaryGlance } from '../glances';
 import {
   areScreensaverDataEqual,
   selectScreensaverData,
@@ -994,22 +994,13 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
       {/* Date display */}
       <p className="text-lg mt-3 md:text-xl md:mt-6 lg:text-2xl text-white/80 [text-shadow:0_1px_10px_rgba(0,0,0,0.5)]">{date}</p>
 
-      {/* Summary badges — the Glance family; Energy opens its detail dialog in
-          place (the glance stops click propagation so the screensaver stays). */}
+      {/* Summary badges — the Glance family; each opens its detail dialog in
+          place (every glance stops click propagation so the screensaver stays). */}
       <div className="flex flex-wrap justify-center gap-ha-2 mt-5 md:gap-ha-4 md:mt-8 lg:mt-12 max-w-4xl px-ha-6">
         <PeopleBadge compact translucent />
         <EnergyGlance compact translucent />
         {liveSummaryItems.map((item) => (
-          <SummaryCard
-            key={item.title}
-            id={item.id}
-            icon={item.icon}
-            title={item.title}
-            state={item.state}
-            color={item.color}
-            compact
-            translucent
-          />
+          <SummaryGlance key={item.title} item={item} compact translucent />
         ))}
       </div>
 

@@ -1,9 +1,9 @@
 import { clsx } from 'clsx';
-import { GenerativeAvatar } from './GenerativeAvatar';
 
 interface AvatarProps {
   src?: string;
   alt?: string;
+  /** Kept for call-site compatibility; the no-photo fallback is the Casita mark. */
   initials?: string;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
@@ -17,31 +17,15 @@ const sizeClasses = {
   xl: 'w-20 h-20 text-2xl',
 };
 
-// Rendered edge length per size — lets the generative avatar decide whether the
-// home motif and initials are legible enough to draw.
-const sizePx = { xs: 28, sm: 32, md: 40, lg: 48, xl: 80 };
+/** No photo → the Casita house mark, same one the demo home ships with. */
+const FALLBACK_SRC = '/casita.png';
 
-export function Avatar({ src, alt = 'User', initials, size = 'md', className }: AvatarProps) {
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={alt}
-        className={clsx(
-          'rounded-full object-cover',
-          sizeClasses[size],
-          className
-        )}
-      />
-    );
-  }
-
+export function Avatar({ src, alt = 'User', size = 'md', className }: AvatarProps) {
   return (
-    <GenerativeAvatar
-      seed={alt}
-      initials={initials || alt.charAt(0).toUpperCase()}
-      pxSize={sizePx[size]}
-      className={clsx(sizeClasses[size], className)}
+    <img
+      src={src || FALLBACK_SRC}
+      alt={alt}
+      className={clsx('rounded-full object-cover', sizeClasses[size], className)}
     />
   );
 }

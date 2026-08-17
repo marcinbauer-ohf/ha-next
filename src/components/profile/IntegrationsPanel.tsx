@@ -253,6 +253,7 @@ export function IntegrationsTable({
       {
         id: 'status',
         mode: 'facet',
+        label: 'Status',
         chips: [
           { id: 'active', label: 'Active', predicate: (i) => i.status === 'active', defaultActive: true },
           { id: 'disabled', label: 'Disabled', predicate: (i) => i.status === 'disabled' },
@@ -306,6 +307,7 @@ export function IntegrationsTable({
       },
     ],
     onRowClick: (i) => onSelect(i.id),
+    storageId: 'integrations',
     fillHeight: true,
     defaultLayout: 'list',
     emptyLabel: 'No integrations match these filters.',

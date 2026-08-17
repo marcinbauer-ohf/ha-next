@@ -108,7 +108,7 @@ export default function EnergyDashboardPage() {
               {/* Controls row — sticky on mobile. Tabs (grouped button) on the
                   left, date-range filter on the right, wrapping on narrow widths. */}
               <div
-                className="sticky top-[var(--app-topbar-clear)] lg:top-0 pt-ha-2 pb-ha-4 z-30"
+                className="sticky top-0 pt-ha-2 pb-ha-4 z-30"
                 style={{ background: 'linear-gradient(to bottom, var(--ha-color-surface-lower) 65%, transparent)' }}
               >
                 <div className="flex flex-wrap items-center justify-between gap-ha-2">
