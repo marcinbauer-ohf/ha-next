@@ -31,7 +31,7 @@ import type { SelectChipOption } from '../ui/SelectChip';
  * sitting a few pixels away.
  */
 export const sheetHeaderButton =
-  'shrink-0 rounded-full p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary';
+  'shrink-0 rounded-full p-2 lg:p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary';
 
 /** The horizontal inset every sheet uses — header and body on the same edge. */
 export const SHEET_PAD = 'px-ha-4';
@@ -85,12 +85,12 @@ export function SheetHeader({
             type="button"
             onClick={onTitleClick}
             title={titleHint}
-            className="block max-w-full truncate text-left text-2xl font-bold leading-tight text-text-primary"
+            className="block max-w-full truncate text-left text-xl font-bold leading-tight text-text-primary lg:text-2xl"
           >
             {title}
           </button>
         ) : (
-          <p className="truncate text-2xl font-bold leading-tight text-text-primary">{title}</p>
+          <p className="truncate text-xl font-bold leading-tight text-text-primary lg:text-2xl">{title}</p>
         )}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-ha-1">{actions}</div>}
