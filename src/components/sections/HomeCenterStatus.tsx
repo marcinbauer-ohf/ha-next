@@ -8,7 +8,7 @@ import { useActivities } from '@/hooks/useActivities';
 import { useNotificationCenter } from '@/contexts';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { buildActivityFeed } from '@/lib/activities/feed';
-import { formatBackupAge, type HomeCenterSectionId } from '@/lib/homeCenter';
+import { formatBackupAge, HOME_CENTER_ICON, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { isHomeCenterSectionVisible } from '@/components/profile/settingsNavigation';
 import { ActivityFeed } from '../ui/ActivityFeed';
 import { resolveEntityPictureUrl } from '@/lib/utils';
@@ -22,7 +22,6 @@ import {
   mdiCloudCheck,
   mdiCloudOff,
   mdiDevices,
-  mdiHomeVariant,
   mdiPulse,
   mdiUpdate,
   mdiWeb,
@@ -416,7 +415,7 @@ export function OpenHomeCenterButton({
       onClick={() => (onClick ? onClick() : onNavigate('/settings?section=home-center'))}
       className={`w-full h-11 rounded-ha-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all ${tone}`}
     >
-      <Icon path={mdiHomeVariant} size={18} />
+      <Icon path={HOME_CENTER_ICON} size={18} />
       Open Home Center
     </button>
   );

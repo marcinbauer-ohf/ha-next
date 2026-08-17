@@ -892,7 +892,8 @@ export default function DashboardPage() {
                 'pt-[var(--app-topbar-clear)] lg:pt-0',
                 (dashboardView === '3d' || listMapView === 'map') ? 'overflow-hidden flex flex-col' : 'overflow-y-auto',
                 !(dashboardView === '3d' || listMapView === 'map') && 'pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pb-ha-5',
-                'px-ha-3',
+                // Same edge as every other route (CONTENT_EDGE's mobile half).
+                'px-edge',
                 // Desktop drops the scroller's own gutter (the grid wrapper below
                 // supplies it), but a below-lg preview keeps the mobile gutter.
                 !previewingBelowLg && 'lg:px-0',

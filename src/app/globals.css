@@ -115,6 +115,11 @@
   --ha-radius-2xl: 20px;
   --ha-radius-3xl: 24px;
   --ha-radius-pill: 9999px;
+  /* Bottom sheets sit against the phone's own screen corner, so they carry a
+     rounder top than any in-page surface. Derived from the ramp's top step so a
+     theme that flattens every radius (or exaggerates it) takes sheets with it —
+     no per-theme override needed. */
+  --ha-radius-sheet: calc(var(--ha-radius-3xl) + 8px);
 }
 
 /* ── Squircle corner smoothing ──────────────────────────────────────────────
@@ -1587,6 +1592,7 @@
   --radius-ha-xl: var(--ha-radius-xl);
   --radius-ha-2xl: var(--ha-radius-2xl);
   --radius-ha-3xl: var(--ha-radius-3xl);
+  --radius-ha-sheet: var(--ha-radius-sheet);
   --radius-ha-pill: var(--ha-radius-pill);
 
   /* Font */

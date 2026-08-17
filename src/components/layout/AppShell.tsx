@@ -677,10 +677,12 @@ function AppShellContent({ children }: AppShellProps) {
                 it. Both live inside this z-30 bar so the fade paints *over* the
                 scrolling cards: content dissolving as it slides under the title
                 is the point, and moving the fade below the content area lost
-                that haze entirely. */}
-          <div className="lg:hidden absolute inset-0 pointer-events-none bg-surface-default" aria-hidden />
+                that haze entirely. Coloured like the page surface below
+                (surface-lower), not the app background, so the bar reads as the
+                top of the dashboard rather than a separate band. */}
+          <div className="lg:hidden absolute inset-0 pointer-events-none bg-surface-lower" aria-hidden />
           <div
-            className="lg:hidden absolute top-full inset-x-0 h-6 pointer-events-none bg-gradient-to-b from-surface-default to-transparent"
+            className="lg:hidden absolute top-full inset-x-0 h-6 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent"
             aria-hidden
           />
           <div className="relative z-[1] h-full">

@@ -39,10 +39,12 @@ import { endedDismissKey } from '@/lib/activities/ledger';
 import type { ActivityStatus } from '@/lib/activities/types';
 import { HomeCenterPillIndicators, HomeCenterStatusSections, HomeModeCard, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
 import { HomeCenterBento } from '../ui/HomeCenterOverlay';
+import { SheetHeader } from '../cards/dialogKit';
 import { SettingsNavPanel } from '@/components/profile';
 import { isSettingsSlug, type SettingsSlug } from '@/components/profile/settingsNavigation';
 import { usePullToRevealContext, useSearchContext, useAssistantContext, useHomeCenterContext, useSidebarArrange, arrangeItems, useCloseOnScreensaver, useMobileToolbar, useDebugFlags, type SidebarItem } from '@/contexts';
 import { resolveEntityPictureUrl } from '@/lib/utils';
+import { HOME_CENTER_ICON } from '@/lib/homeCenter';
 import { subscribeStatusPulse } from '@/lib/statusPulseBus';
 import { isNavAutoHideFrozen, subscribeNavAutoHideFrozen } from '@/lib/navAutoHideBus';
 import { setMobileNavOpen } from '@/lib/mobileNavOpenBus';
@@ -69,7 +71,6 @@ import {
   mdiCreation,
   mdiPrinter3d,
   mdiViewDashboardOutline,
-  mdiHomeVariant,
   mdiStarFourPoints,
   mdiMenu,
   mdiMinus,
@@ -367,9 +368,10 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
   // Assistant now handled via expandedWidgetId
 
   const [timerProgress, setTimerProgress] = useState<number>(0);
-  const [scrollHideProgress, setScrollHideProgress] = useState(0);
-  // Whether the latest hide-progress change was a step rather than finger-tracking.
-  const [hideProgressJumped, setHideProgressJumped] = useState(false);
+  // Binary, not a fraction: the bar is either out or tucked away, and CSS eases
+  // between the two. Tracking scroll fractionally re-rendered this whole
+  // component on every scroll event, which is what made it chop.
+  const [scrollHidden, setScrollHidden] = useState(false);
   const [hideFromInactivity, setHideFromInactivity] = useState(false);
   // Held by transient interactions (e.g. scrubbing the scroll-index rail) that
   // scroll the dashboard programmatically — see navAutoHideBus.
@@ -397,9 +399,6 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
   const [selectedUpdateId, setSelectedUpdateId] = useState<string | null>(null);
   const [selectedBackupId, setSelectedBackupId] = useState<string | null>(null);
   const [selectedAlarmId, setSelectedAlarmId] = useState<string | null>(null);
-  const scrollHideProgressRef = useRef(0);
-  const lastScrollTopRef = useRef<number | null>(null);
-  const scrollSnapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const bottomSheetHandleRef = useRef<HTMLButtonElement | null>(null);
@@ -490,29 +489,15 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
   const matchingEntities = useHomeAssistantSelector(selectSearchMatches, areEntitySearchMatchesEqual);
   const effectiveHideProgress = disableAutoHide || isRevealed || isBottomSurfaceEngaged
     ? 0
-    : hideFromInactivity
+    : hideFromInactivity || scrollHidden
       ? 1
-      : scrollHideProgress;
+      : 0;
   const bottomRowVisibleRatio = 1 - effectiveHideProgress;
-  const isBottomRowHidden = bottomRowVisibleRatio <= 0.02;
-  // Scroll-driven hiding arrives as a per-event ratio, so it only needs a hair of
-  // smoothing. Everything else moves the row in one step (see setClampedHideProgress)
-  // and gets a real eased expansion instead of a 120ms snap.
-  const bottomRowEased = hideProgressJumped || isRevealed || isBottomSurfaceEngaged;
+  const isBottomRowHidden = effectiveHideProgress === 1;
   const getEntityPictureUrl = useCallback(
     (picture?: string, fallback?: string) => resolveEntityPictureUrl(haUrl, picture) ?? fallback,
     [haUrl]
   );
-
-  const setClampedHideProgress = useCallback((nextProgress: number) => {
-    const clamped = Math.max(0, Math.min(1, nextProgress));
-    // Big step = a jump, not finger-tracking: reveal at scroll-top, reveal on a
-    // fresh gesture, the midpoint snap, the inactivity hide. Those get a real
-    // eased expansion; the per-event scroll deltas stay glued to the finger.
-    setHideProgressJumped(Math.abs(clamped - scrollHideProgressRef.current) > 0.2);
-    scrollHideProgressRef.current = clamped;
-    setScrollHideProgress((prev) => (Math.abs(prev - clamped) < 0.001 ? prev : clamped));
-  }, []);
 
   const setBottomSheetDragProgressClamped = useCallback((nextProgress: number) => {
     const clamped = Math.max(0, Math.min(1, nextProgress));
@@ -546,60 +531,31 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
   // interaction (rail scrub) is driving programmatic scrolls.
   const freezeAuto = freezeAutoHide || navFrozenExternally;
 
-  // Scroll behavior
+  // Scroll behavior — same accumulate-travel-per-direction reflex the summary
+  // chips use (see MobileSummaryRow), so the two hide and come back together.
+  // State only flips when it crosses a threshold, so a scroll gesture costs at
+  // most two renders instead of one per event.
   useEffect(() => {
     let scrollable: HTMLElement | null = null;
     let attachRetryRaf: number | null = null;
-    const clearScrollSnapTimer = () => {
-      if (scrollSnapTimerRef.current) {
-        clearTimeout(scrollSnapTimerRef.current);
-        scrollSnapTimerRef.current = null;
-      }
-    };
-    const resetScrollTracking = () => {
-      lastScrollTopRef.current = null;
-      clearScrollSnapTimer();
-    };
 
-    // Freeze: hold the current progress, ignore scroll while a toast is up or
-    // the rail is scrubbing.
-    if (freezeAuto) {
-      resetScrollTracking();
-      return;
-    }
+    // Freeze: hold the current state, ignore scroll while a toast is up or the
+    // rail is scrubbing.
+    if (freezeAuto) return;
 
     if (disableAutoHide || isRevealed || isBottomSurfaceEngaged) {
-      resetScrollTracking();
       queueMicrotask(() => {
-        setClampedHideProgress(0);
+        setScrollHidden(false);
         setHideFromInactivity(false);
       });
       return;
     }
 
-    const HIDE_PROGRESS_DISTANCE_PX = 48;
-    const SHOW_PROGRESS_DISTANCE_PX = 32;
-    const SCROLL_SNAP_DELAY_MS = 120;
-    // Gap of inactivity that marks the next scroll event as a fresh gesture.
-    const GESTURE_GAP_MS = 180;
-    let lastScrollTime = 0;
-
-    const clearInactivityHide = () => {
-      setHideFromInactivity((hidden) => (hidden ? false : hidden));
-    };
-
-    const snapByMidpoint = () => {
-      const visibleRatio = 1 - scrollHideProgressRef.current;
-      setClampedHideProgress(visibleRatio > 0.5 ? 0 : 1);
-    };
-
-    const scheduleScrollSnap = () => {
-      clearScrollSnapTimer();
-      scrollSnapTimerRef.current = setTimeout(() => {
-        scrollSnapTimerRef.current = null;
-        snapByMidpoint();
-      }, SCROLL_SNAP_DELAY_MS);
-    };
+    // Accumulated travel in one direction before the bar commits to a move.
+    const HIDE_TRAVEL_PX = 24;
+    const SHOW_TRAVEL_PX = 16;
+    let last = 0;
+    let travel = 0;
 
     const handleScroll = () => {
       if (!scrollable) return;
@@ -607,48 +563,31 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
       // re-runs this effect — bail on the live flag so no jump leaks through.
       if (isNavAutoHideFrozen()) return;
 
-      const now = Date.now();
-      const isNewGesture = now - lastScrollTime > GESTURE_GAP_MS;
-      lastScrollTime = now;
+      const top = scrollable.scrollTop;
+      const delta = top - last;
+      last = top;
 
-      const nextScrollTop = scrollable.scrollTop;
-      const prevScrollTop = lastScrollTopRef.current ?? nextScrollTop;
-      lastScrollTopRef.current = nextScrollTop;
+      setHideFromInactivity((hidden) => (hidden ? false : hidden));
 
-      clearInactivityHide();
-
-      if (nextScrollTop <= 2) {
-        clearScrollSnapTimer();
-        setClampedHideProgress(0);
+      if (top <= 2) {
+        travel = 0;
+        setScrollHidden(false);
         return;
       }
 
-      // Starting a fresh scroll gesture while the nav is hidden reveals it,
-      // regardless of direction. Continued scrolling then drives hide/show by delta.
-      if (isNewGesture && scrollHideProgressRef.current > 0.02) {
-        setClampedHideProgress(0);
-        scheduleScrollSnap();
-        return;
-      }
-
-      const deltaY = nextScrollTop - prevScrollTop;
-      if (Math.abs(deltaY) >= 0.5) {
-        const progressDelta =
-          deltaY < 0
-            ? deltaY / SHOW_PROGRESS_DISTANCE_PX
-            : deltaY / HIDE_PROGRESS_DISTANCE_PX;
-        setClampedHideProgress(scrollHideProgressRef.current + progressDelta);
-      }
-
-      scheduleScrollSnap();
+      // Reset the tally when the direction flips, so a jittery finger can't
+      // creep its way over a threshold.
+      travel = (travel > 0) === (delta > 0) ? travel + delta : delta;
+      if (travel >= HIDE_TRAVEL_PX) setScrollHidden(true);
+      else if (travel <= -SHOW_TRAVEL_PX) setScrollHidden(false);
     };
 
     const attach = () => {
       const nextScrollable = getDashboardScrollableForPath(pathname);
       if (!nextScrollable) return false;
       scrollable = nextScrollable;
-      resetScrollTracking();
-      lastScrollTopRef.current = scrollable.scrollTop;
+      last = scrollable.scrollTop;
+      travel = 0;
       scrollable.addEventListener('scroll', handleScroll, { passive: true });
       return true;
     };
@@ -670,9 +609,8 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
       if (scrollable) {
         scrollable.removeEventListener('scroll', handleScroll);
       }
-      resetScrollTracking();
     };
-  }, [disableAutoHide, freezeAuto, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
+  }, [disableAutoHide, freezeAuto, isBottomSurfaceEngaged, isRevealed, pathname]);
 
   // Inactivity detection for hiding bottom row after 10s
   useEffect(() => {
@@ -702,7 +640,6 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
       inactivityTimer.current = setTimeout(() => {
         if (!isRevealed && !isBottomSurfaceEngaged) {
           setHideFromInactivity(true);
-          setClampedHideProgress(1);
         }
       }, 10000); // 10 seconds
     };
@@ -751,7 +688,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         scrollable.removeEventListener('scroll', resetInactivityTimer);
       }
     };
-  }, [disableAutoHide, freezeAuto, isBottomSurfaceEngaged, isRevealed, pathname, setClampedHideProgress]);
+  }, [disableAutoHide, freezeAuto, isBottomSurfaceEngaged, isRevealed, pathname]);
 
   // Publish the nav's rendered height so the corner toast can sit just above it.
   useEffect(() => {
@@ -1961,7 +1898,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
       data-component="MobileNav"
       data-connection-status={connectionStatus ?? 'unknown'}
       onMouseEnter={() => {
-        setClampedHideProgress(0);
+        setScrollHidden(false);
         setHideFromInactivity(false);
       }}
     >
@@ -2543,10 +2480,9 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         <div
           className="overflow-hidden shrink-0"
           style={{
-            transition: bottomRowEased
-              ? 'max-height 0.42s cubic-bezier(0.22,1,0.36,1), margin-top 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.32s ease-out, transform 0.42s cubic-bezier(0.22,1,0.36,1)'
-              : 'max-height 0.12s ease-out, margin-top 0.12s ease-out, opacity 0.12s ease-out, transform 0.12s ease-out',
-            maxHeight: `${56 * bottomRowVisibleRatio}px`,
+            transition:
+              'max-height 0.42s cubic-bezier(0.22,1,0.36,1), margin-top 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.32s ease-out, transform 0.42s cubic-bezier(0.22,1,0.36,1)',
+            maxHeight: `${48 * bottomRowVisibleRatio}px`,
             // The tab strip sits an even 8px in from the pill on all sides. When
             // the drag handle shows (non-settings) its band already fills that 8px
             // top gap, so no extra margin; when it's hidden (settings routes) this
@@ -2559,7 +2495,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         >
           {/* Concentric rounding: outer pill is --mobile-nav-radius with ha-2 (8px)
               side padding, so this inner strip is that radius minus 8px. */}
-          <div className="mobile-nav-tabs flex items-center justify-center gap-ha-7 rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-8 h-14">
+          <div className="mobile-nav-tabs flex items-center justify-center gap-ha-6 rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-6 h-12">
             <button
               type="button"
               onClick={handleDashboardsTap}
@@ -2612,7 +2548,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                 isHomeCenterSurfaceVisible ? 'text-ha-blue' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              <Icon path={mdiHomeVariant} size={28} />
+              <Icon path={HOME_CENTER_ICON} size={28} />
               <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
                 isHomeCenterSurfaceVisible ? 'opacity-100' : 'opacity-0'
               }`} />
@@ -2703,21 +2639,18 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
               onClick={() => setActivityListType(null)}
             />
             {/* Sheet */}
-            <div className="relative bg-surface-default w-full rounded-t-ha-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[70vh]">
+            <div className="relative bg-surface-default w-full rounded-t-ha-sheet shadow-2xl animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[70vh]">
               {/* Handle */}
               <div className="flex justify-center pt-ha-3 pb-ha-1 flex-shrink-0" onClick={() => setActivityListType(null)}>
                 <div className="w-10 h-1.5 rounded-full bg-surface-low/60" />
               </div>
-              {/* Header */}
-              <div className="flex items-center justify-between px-ha-4 py-ha-3 border-b border-surface-low flex-shrink-0">
-                <h3 className="font-semibold text-text-primary">{title}</h3>
-                <button
-                  onClick={() => setActivityListType(null)}
-                  className="p-1 hover:bg-surface-mid rounded-full text-text-secondary transition-colors"
-                >
-                  <Icon path={mdiClose} size={24} />
-                </button>
-              </div>
+              {/* Header — the shared one */}
+              <SheetHeader
+                eyebrow="Happening now"
+                title={title}
+                onClose={() => setActivityListType(null)}
+                className="border-b border-surface-low"
+              />
               {/* List */}
               <div className="relative flex-1 min-h-0">
                 <div

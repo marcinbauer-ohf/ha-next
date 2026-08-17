@@ -68,3 +68,7 @@ export { useFavorites } from './useFavorites';
 export type { DeviceCardConfig, EntitySlot, EntitySection } from './useDeviceCardConfig';
 export { useDashboardLayout } from './useDashboardLayout';
 export type { DashboardLayout, SectionConfig, CardConfig, CardColSpan, CardRowSpan } from './useDashboardLayout';
+export { useApplications } from './useApplications';
+export type { ApplicationSummary, ApplicationCategory } from './useApplications';
+export { useBlueprints } from './useBlueprints';
+export type { BlueprintSummary, BlueprintCategory } from './useBlueprints';

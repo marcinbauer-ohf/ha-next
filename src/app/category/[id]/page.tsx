@@ -5,7 +5,7 @@ import { mdiArrowLeft } from '@mdi/js';
 import { clsx } from 'clsx';
 import Link from 'next/link';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
-import { CONTENT_SHELL } from '@/lib/layout';
+import { CONTENT_EDGE, CONTENT_SHELL } from '@/lib/layout';
 import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
 import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { PullToRevealPanel } from '@/components/sections';
@@ -129,7 +129,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
 
             <main
               ref={el => { scrollableRef.current = el; }}
-              className="h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide select-none px-ha-3 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5"
+              className={`h-full overflow-y-auto overscroll-none touch-pan-y scrollbar-hide select-none ${CONTENT_EDGE} pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pt-ha-5 lg:pb-ha-5`}
               data-scrollable="dashboard"
             >
               <div className={CONTENT_SHELL}>

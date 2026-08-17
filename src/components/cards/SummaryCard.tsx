@@ -48,7 +48,9 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
           'flex items-center transition-all',
           isLg ? 'gap-ha-3 px-ha-5 py-ha-3 rounded-ha-2xl' :
           isMd ? 'gap-ha-2 px-ha-4 py-2.5 rounded-ha-xl' :
-          'gap-ha-2 px-ha-3 py-ha-2 rounded-ha-pill',
+          // Fixed height, not padding: the chips carry different innards
+          // (glyphs, stacked avatars) and only a set height keeps the row even.
+          'gap-ha-2 px-ha-3 h-10 rounded-ha-pill',
           'whitespace-nowrap',
           interactive,
           translucent ? translucentFill : isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color]
@@ -57,11 +59,21 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
         <div className={clsx('flex-shrink-0', translucent ? 'text-white' : iconColorClasses[color])}>
           <Icon path={icon} size={isLg ? 28 : isMd ? 22 : 18} />
         </div>
-        <span className={clsx(
-          'font-medium text-left',
-          translucent ? 'text-white' : 'text-text-primary',
-          isLg ? 'text-xl' : isMd ? 'text-base' : 'text-sm'
-        )}>{state}</span>
+        {/* Label above the value: the value alone ("3 on", "42 W") doesn't say
+            what it's counting once the chips are read out of context. */}
+        <div className="flex flex-col items-start leading-tight">
+          <span className={clsx(
+            translucent ? 'text-white/70' : 'text-text-secondary',
+            isLg ? 'text-sm' : isMd ? 'text-xs' : 'text-[11px]'
+          )}>{title}</span>
+          {/* Mono, same as a device card's state line — readings should look
+              like readings wherever they show up. */}
+          <span className={clsx(
+            'font-mono font-medium text-left',
+            translucent ? 'text-white' : 'text-text-primary',
+            isLg ? 'text-xl' : isMd ? 'text-base' : 'text-[13px]'
+          )}>{state}</span>
+        </div>
       </Tag>
     );
   }

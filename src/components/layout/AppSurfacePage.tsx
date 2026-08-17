@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { PullToRevealPanel } from '@/components/sections';
 import { usePullToRevealContext, useMobileToolbar } from '@/contexts';
 import { useDesktopImmersivePageLayout } from '@/hooks';
+import { CONTENT_EDGE } from '@/lib/layout';
 import { ApplicationViewNotice } from './ApplicationViewNotice';
 import { DashboardEditBorder } from './DashboardEditBorder';
 import { ImmersiveDogEar } from './ImmersiveDogEar';
@@ -50,7 +51,7 @@ export function AppSurfacePage({ children, scrollClassName = '' }: AppSurfacePag
                 handle (pill ≈ 86px tall vs 148px elsewhere) — so 3rem keeps the same
                 scroll-under tuck the 7rem pad gives dashboard pages. */}
             <main
-                className={`px-ha-3 pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(3rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
+                className={`${CONTENT_EDGE} pt-[calc(var(--app-topbar-clear)+var(--ha-space-4))] pb-[calc(3rem+env(safe-area-inset-bottom,0px))] lg:pt-ha-5 lg:pb-ha-5 ${scrollClassName}`}
               >
                 <ApplicationViewNotice />
                 {children}

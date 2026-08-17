@@ -21,3 +21,13 @@ export const CONTENT_GUTTER = 'lg:pl-14 lg:pr-ha-8';
 
 /** Full shell: max width + gutters. The common case. */
 export const CONTENT_SHELL = `${CONTENT_MAX} ${CONTENT_GUTTER}`;
+
+/**
+ * The mobile gutter, on the page's own scroll container. One token because it
+ * was drifting per route (12px on rooms / types / categories / energy, 16px on
+ * sub-dashboards and panels), so the content's left edge moved as you
+ * navigated. `px-edge` is the app's edge padding, the same one the shell's top
+ * bar and mobile nav sit on — so a page's content lines up with its chrome.
+ * Desktop drops it: CONTENT_SHELL supplies the gutters there.
+ */
+export const CONTENT_EDGE = 'px-edge lg:px-0';

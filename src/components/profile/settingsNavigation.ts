@@ -4,6 +4,7 @@ import {
   mdiAccountCircle,
   mdiAccountKey,
   mdiAlphaDBox,
+  mdiApps,
   mdiHomeVariant,
   mdiApi,
   mdiBackupRestore,
@@ -36,7 +37,7 @@ import {
   mdiWeb,
   mdiWrench,
 } from '@mdi/js';
-import type { HomeCenterSectionId } from '@/lib/homeCenter';
+import { HOME_CENTER_ICON, type HomeCenterSectionId } from '@/lib/homeCenter';
 
 export type SettingsSlug =
   | 'home-center'
@@ -67,6 +68,8 @@ export type SettingsSlug =
   | 'devices'
   | 'entities'
   | 'helpers'
+  // Applications (Supervisor add-ons, in user language)
+  | 'applications'
   // Automation
   | 'automations'
   | 'scenes'
@@ -118,6 +121,7 @@ export const categoryAccents: Record<string, string> = {
   'My Home': '#2aa361',
   Devices: '#18bcf2',
   Automation: '#8b5cf6',
+  Applications: '#f59e0b',
   'Voice & AI': '#14b8a6',
   System: '#64748b',
   'Developer Tools': '#6366f1',
@@ -128,7 +132,7 @@ export const settingsNavSections: SettingsNavSection[] = [
   {
     title: '',
     items: [
-      { slug: 'home-center', icon: mdiHomeVariant, label: 'Home Center', description: 'Notifications, updates, repairs, backups and connectivity' },
+      { slug: 'home-center', icon: HOME_CENTER_ICON, label: 'Home Center', description: 'Notifications, updates, repairs, backups and connectivity' },
       { slug: 'cloud', icon: mdiCloud, label: 'Nabu Casa Cloud', description: 'Remote access, voice, and cloud services', haPath: '/config/cloud' },
       { slug: 'notifications', icon: mdiBell, label: 'Notifications', description: 'Active notifications from your home' },
     ],
@@ -165,6 +169,12 @@ export const settingsNavSections: SettingsNavSection[] = [
       { slug: 'scenes', icon: mdiLightbulbGroup, label: 'Scenes', description: 'Saved device states applied at once', haPath: '/config/scene', addLabel: 'Scene' },
       { slug: 'scripts', icon: mdiScriptText, label: 'Scripts', description: 'Reusable sequences of actions', haPath: '/config/script', addLabel: 'Script' },
       { slug: 'blueprints', icon: mdiSitemap, label: 'Blueprints', description: 'Community automation templates', haPath: '/config/blueprint', addLabel: 'Blueprint' },
+    ],
+  },
+  {
+    title: 'Applications',
+    items: [
+      { slug: 'applications', icon: mdiApps, label: 'Applications', description: 'Extra software running alongside your home', haPath: '/hassio/dashboard', addLabel: 'Application' },
     ],
   },
   {
@@ -296,6 +306,8 @@ const IMPLEMENTED_SETTINGS_SLUGS = new Set<SettingsSlug>([
   'devices',
   'areas',
   'automations',
+  'applications',
+  'blueprints',
   'notifications',
   'updates',
   'repairs',

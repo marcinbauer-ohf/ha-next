@@ -369,10 +369,22 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             the text block had to reserve ~44% of its width to clear it. On a
             phone that leaves a two-column card with barely half a line for the
             name. Giving the render its own cell in the bottom row hands the
-            whole width back to the name and the reading. */}
+            whole width back to the name and the reading.
+
+            Desktop is the exception: at four columns the card is wide but short,
+            so the render is boxed in by the bottom row's height rather than by
+            width. There it goes back to a full-height column on the right — the
+            same width it already had, twice the height to fill — and the top row
+            reserves that width, because a ~263px card has enough left over for
+            the name. */}
 
         {/* Top row, HA tile-card order: icon badge left, name/state beside it. */}
-        <div className="relative z-[2] flex items-center gap-3">
+        <div className={clsx(
+          'relative z-[2] flex items-center gap-3',
+          // Same token the render's width comes from, so the two can't drift
+          // apart; only reserved when there's actually a render to clear.
+          showThumb && !showFeed && 'lg:pr-[calc(var(--dct-thumb-w,34%)+12px)]',
+        )}>
           {iconBadge}
           {renderNameState()}
         </div>
@@ -392,7 +404,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             leaves, so the render is as tall as the card allows and both cells
             sit on the card's bottom edge. Either cell may be empty — a
             read-only device has no control, a camera has no render. */}
-        <div className="relative z-[2] mt-auto flex flex-1 min-h-0 items-end justify-between gap-ha-2">
+        {/* `lg:static` so the render below can position against the whole card
+            instead of this row. z-index still applies — a flex item takes part in
+            stacking whether it's positioned or not. */}
+        <div className="relative z-[2] mt-auto flex flex-1 min-h-0 items-end justify-between gap-ha-2 lg:static">
           <div className="flex items-center">
             {!isUnavailable && primary.toggleable && primary.onToggle && (
               <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
@@ -407,10 +422,13 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
               className={clsx(
                 // Its own cell now, so no left-edge mask: nothing is behind it
                 // to keep legible. Shrinks with the row rather than overflowing
-                // a short card. Narrower on desktop, where the card is shorter
-                // and four to a row — the render doesn't need to reach as far
-                // across, and the name gets the width back.
-                'pointer-events-none select-none h-full max-h-full w-[var(--dct-thumb-w,44%)] lg:w-[var(--dct-thumb-w,34%)] shrink-0 object-contain object-right-bottom',
+                // a short card.
+                'pointer-events-none select-none h-full max-h-full w-[var(--dct-thumb-w,44%)] shrink-0 object-contain object-right-bottom',
+                // Desktop: a full-height column on the card's right, inset by the
+                // card's own padding, so the render uses the whole 96px the card
+                // has rather than the 56px the bottom row leaves it. `h-auto`
+                // because the insets set its height now.
+                'lg:absolute lg:inset-y-[var(--dct-pad,10px)] lg:right-[var(--dct-pad,10px)] lg:h-auto lg:w-[var(--dct-thumb-w,34%)]',
                 isUnavailable && 'grayscale',
               )}
               style={{

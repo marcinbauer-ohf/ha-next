@@ -19,6 +19,7 @@ import {
   mdiChevronRight,
   mdiThemeLightDark,
   mdiClockOutline,
+  mdiTuneVariant,
 } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { clsx } from 'clsx';
@@ -65,7 +66,9 @@ export function useLiveSummaryItems() {
       // "state of the whole home" so it reads first. Display-only.
       ...(homeMode ? [{
         id: 'mode' as GlanceId,
-        icon: homeMode.icon,
+        // A fixed "mode" glyph, not the per-option icon — the chip's job is to
+        // say "this is the home's mode"; the value below it says which one.
+        icon: mdiTuneVariant,
         title: 'Mode',
         state: homeMode.current,
         color: 'violet' as const,
@@ -264,7 +267,8 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
         className={clsx(
         'flex items-center rounded-ha-pill whitespace-nowrap flex-shrink-0 transition-all cursor-pointer hover:brightness-110 active:scale-95',
         translucent ? TRANSLUCENT_CHIP_FILL : 'bg-surface-low',
-        isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-2.5' : 'gap-ha-2 px-ha-2 py-ha-1'
+        // sm matches SummaryCard's compact chip: same fixed height and padding.
+        isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-2.5' : 'gap-ha-2 px-ha-2 h-10'
       )}>
         <div className={clsx(
           'flex flex-shrink-0',
@@ -279,26 +283,37 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
                 size={isLg ? 'md' : isMd ? 'sm' : 'xs'}
                 className={clsx(
                   'ring-2 ring-surface-low flex-shrink-0 bg-surface-default',
-                  isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-7 h-7'
+                  isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-6 h-6'
                 )}
               />
             ))
           ) : (
             <div className={clsx(
               'rounded-full bg-surface-mid flex items-center justify-center flex-shrink-0',
-              isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-7 h-7'
+              isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-6 h-6'
             )}>
               <span className={clsx('text-ha-blue font-bold leading-none', isLg ? 'text-lg' : isMd ? 'text-base' : 'text-xs')}>?</span>
             </div>
           )}
         </div>
-        <span className={clsx(
-          'font-medium text-left flex-shrink-0',
-          translucent ? 'text-white' : 'text-text-primary',
-          isLg ? 'text-xl pr-ha-3' : isMd ? 'text-base pr-ha-2' : 'text-sm pr-ha-1'
+        <div className={clsx(
+          'flex flex-col items-start leading-tight flex-shrink-0',
+          isLg ? 'pr-ha-3' : isMd ? 'pr-ha-2' : 'pr-ha-1'
         )}>
-          {resolvedPeopleHome.length} home
-        </span>
+          <span className={clsx(
+            translucent ? 'text-white/70' : 'text-text-secondary',
+            isLg ? 'text-sm' : isMd ? 'text-xs' : 'text-[11px]'
+          )}>
+            People
+          </span>
+          <span className={clsx(
+            'font-mono font-medium text-left',
+            translucent ? 'text-white' : 'text-text-primary',
+            isLg ? 'text-xl' : isMd ? 'text-base' : 'text-[13px]'
+          )}>
+            {resolvedPeopleHome.length} home
+          </span>
+        </div>
       </button>
       {peopleDialog}
       </>
@@ -438,8 +453,10 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
         return;
       }
       // Accumulate per direction so a jittery finger doesn't flip the row.
+      // Same thresholds as the bottom nav's auto-hide (see MobileNav), so the
+      // two edges of the screen tuck away and come back on the same gesture.
       travel = (travel > 0) === (delta > 0) ? travel + delta : delta;
-      if (travel <= -40) setChipsMode('shown');
+      if (travel <= -16) setChipsMode('shown');
       else if (travel >= 24) setChipsMode('hidden');
     };
     scroller.addEventListener('scroll', onScroll, { passive: true });
@@ -461,9 +478,11 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
   ];
   const chipRows = [chips.slice(0, Math.ceil(chips.length / 2)), chips.slice(Math.ceil(chips.length / 2))];
 
-  // Opaque at the top so revealed chips cover the cards scrolling under them;
-  // at scroll-top it's the same colour as the surface behind, so invisible.
-  const summaryBackground = 'linear-gradient(to bottom, var(--ha-color-surface-lower) 0%, color-mix(in srgb, var(--ha-color-surface-lower) 85%, transparent) 70%, transparent 100%)';
+  // Solid so revealed chips cover the cards scrolling under them; at scroll-top
+  // it's the same colour as the surface behind, so invisible. The fade lives
+  // below the row instead (see the under-fade element) — a gradient inside the
+  // row let cards show through the chips.
+  const summaryBackground = 'var(--ha-color-surface-lower)';
   const containerStyle = fullBleed
     ? {
         background: summaryBackground,
@@ -483,7 +502,10 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
       ref={chipsRef}
       data-section-key="__summaries__"
       className={clsx(
-        'pt-ha-4 pb-ha-1 w-full',
+        'pt-ha-4 pb-ha-1 w-full relative',
+        // Desktop-only: on a phone the same chips live in the Home Center, so
+        // the dashboard opens on the devices instead of a two-row chip block.
+        'hidden lg:block',
         !narrowPreview && 'lg:mx-0 lg:px-0',
         fullBleed ? '' : '-mx-ha-1 px-ha-1',
         // top-0, not --app-topbar-clear: the scroller's own pt-[--app-topbar-clear]
@@ -514,6 +536,19 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
         </div>
       </div>
 
+      {/* Under-fade — while the row is pinned over scrolled content it stands in
+          for the page's top scroll fade (which the page hides), so it needs the
+          same depth as that one, not a hairline. */}
+      {!noSticky && (
+        <div
+          aria-hidden
+          className={clsx(
+            'pointer-events-none absolute left-0 right-0 top-full h-16 transition-opacity duration-300 ease-out',
+            chipsMode === 'shown' ? 'opacity-100' : 'opacity-0',
+          )}
+          style={{ background: 'linear-gradient(to bottom, var(--ha-color-surface-lower) 0%, color-mix(in srgb, var(--ha-color-surface-lower) 60%, transparent) 45%, transparent 100%)' }}
+        />
+      )}
     </div>
 
     {/* Filters (floor tabs / grouping) — pinned while content scrolls under */}

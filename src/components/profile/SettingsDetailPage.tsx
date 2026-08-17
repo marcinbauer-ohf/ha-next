@@ -17,10 +17,12 @@ import { toggleCardTunerPanel } from '@/lib/cardTuner';
 import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { useHeader, useScreensaver, useAddContext, useDebugFlags, useCloseOnScreensaver, type BreadcrumbItem } from '@/contexts';
-import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFont, useDeviceStructure, useDeviceCardConfig, useIntegrations, useDevicesList, useAutomations } from '@/hooks';
+import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFont, useDeviceStructure, useDeviceCardConfig, useIntegrations, useDevicesList, useAutomations, useApplications } from '@/hooks';
 import { IntegrationsTable, IntegrationDetailView } from './IntegrationsPanel';
 import { DevicesTable, DeviceDetailView } from './DevicesPanel';
 import { AutomationsTable } from './AutomationsPanel';
+import { ApplicationsTable, ApplicationDetailView } from './ApplicationsPanel';
+import { BlueprintsPanel } from './BlueprintsPanel';
 import { AreasEditor } from '../areas/AreasEditor';
 import { AutomationEditor } from './AutomationEditor';
 import { HomeCenterSectionsBody } from './HomeCenterSectionEditor';
@@ -753,6 +755,10 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
   const { automations } = useAutomations();
   const activeAutomation = slug === 'automations' && detailId
     ? automations.find((a) => a.id === detailId) ?? null
+    : null;
+  const { apps } = useApplications();
+  const activeApplication = slug === 'applications' && detailId
+    ? apps.find((a) => a.slug === detailId) ?? null
     : null;
 
   // Let the settings workspace collapse its nav column while a focused editor
@@ -1710,6 +1716,42 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
       <div key="list" className={`ha-pane-in ha-pane-in--back ${listFill}`}>
         <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title} fill>
           <AutomationsTable automations={automations} onSelect={openDetail} lastOpenedId={lastOpenedId} />
+        </SettingsShell>
+      </div>
+    );
+  }
+
+  // ── Applications (master-detail drill-down + the store overlay) ───────────
+  // Same shape as Integrations; "+ → Application" opens the store from inside
+  // the list (see ApplicationsTable).
+  if (slug === 'applications') {
+    const paneFill = panelMode ? '' : 'flex flex-col flex-1 min-h-0';
+    const listFill = panelMode ? 'flex flex-col h-full min-h-0' : 'flex flex-col flex-1 min-h-0';
+    if (activeApplication) {
+      return (
+        <div key={`detail:${activeApplication.slug}`} className={`ha-pane-in ${paneFill}`}>
+          <SettingsShell panelMode={panelMode} title={panelMode ? undefined : activeApplication.name} onBack={panelMode ? undefined : () => setDetailId(null)}>
+            <ApplicationDetailView application={activeApplication} />
+          </SettingsShell>
+        </div>
+      );
+    }
+    return (
+      <div key="list" className={`ha-pane-in ha-pane-in--back ${listFill}`}>
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title} fill>
+          <ApplicationsTable applications={apps} onSelect={openDetail} lastOpenedId={lastOpenedId} />
+        </SettingsShell>
+      </div>
+    );
+  }
+
+  // ── Blueprints (list + the blueprint store) ───────────────────────────────
+  if (slug === 'blueprints') {
+    const listFill = panelMode ? 'flex flex-col h-full min-h-0' : 'flex flex-col flex-1 min-h-0';
+    return (
+      <div key="blueprints" className={`ha-pane-in ${listFill}`}>
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title} fill>
+          <BlueprintsPanel />
         </SettingsShell>
       </div>
     );

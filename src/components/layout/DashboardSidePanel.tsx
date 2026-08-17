@@ -42,7 +42,7 @@ export function DashboardSidePanel({ open, onClose, children }: DashboardSidePan
           >
             <div className="absolute inset-0 bg-black/70" onClick={onClose} />
             <div
-              className={`absolute bottom-0 left-0 right-0 bg-surface-lower rounded-t-ha-3xl transition-transform duration-300 ease-out ${
+              className={`absolute bottom-0 left-0 right-0 bg-surface-lower rounded-t-ha-sheet border-t border-white/10 transition-transform duration-300 ease-out ${
                 open ? 'translate-y-0' : 'translate-y-full'
               }`}
               style={{ maxHeight: '80dvh', ...sheetDrag.dragStyle }}

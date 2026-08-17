@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
-import { CONTENT_SHELL } from '@/lib/layout';
+import { CONTENT_EDGE, CONTENT_SHELL } from '@/lib/layout';
 import { NativeViewPlaceholder } from '@/components/layout/NativeViewPlaceholder';
 import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
 import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
@@ -97,7 +97,7 @@ export default function EnergyDashboardPage() {
           <ScrollFadeEdge edge="bottom" visible={showBottomGradient} onClick={scrollToBottom} className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-20 transition-opacity duration-300" />
           <div
             ref={(el) => { scrollableRef.current = el; }}
-            className="h-full overflow-y-auto overscroll-none touch-pan-y relative px-ha-3 pt-[var(--app-topbar-clear)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:px-0 lg:pt-ha-5 lg:pb-ha-5"
+            className={`h-full overflow-y-auto overscroll-none touch-pan-y relative ${CONTENT_EDGE} pt-[var(--app-topbar-clear)] pb-[calc(7rem+env(safe-area-inset-bottom,0px))] lg:pt-ha-5 lg:pb-ha-5`}
             data-scrollable="dashboard"
           >
             {/* One wrapper for controls + content, matching the home dashboard's

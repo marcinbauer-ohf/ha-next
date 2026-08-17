@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
 import { NavChevron } from './NavChevron';
-import { Avatar } from './Avatar';
 import { ActivityFeed } from './ActivityFeed';
 import { ScrollFadeEdge } from './ScrollFadeEdge';
 import { useHomeCenterContext } from '@/contexts/HomeCenterContext';
@@ -17,17 +16,12 @@ import { useHomeAssistant, useHomeAssistantSelector, useHomeCenterPrefs } from '
 import { useActivities } from '@/hooks/useActivities';
 import { buildActivityFeed } from '@/lib/activities/feed';
 import { isHomeCenterSectionVisible } from '@/components/profile/settingsNavigation';
+import { SheetHeader, SHEET_PAD, sheetHeaderButton } from '@/components/cards/dialogKit';
 import { useLiveSummaryItems } from '@/components/sections/SummariesPanel';
 import { EnergyGlance, AutomationsGlance, SummaryGlance } from '@/components/glances';
-import {
-  arePeoplePresenceEqual,
-  selectPeoplePresence,
-  areActivityDataEqual,
-  selectActivityData,
-} from '@/lib/homeassistant/selectors';
+import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { formatBackupAge, HOME_CENTER_SECTION_MAP, type HomeCenterSectionId } from '@/lib/homeCenter';
-import { resolveEntityPictureUrl } from '@/lib/utils';
-import { mdiClose, mdiCheckCircleOutline, mdiCog, mdiHomeVariant } from '@mdi/js';
+import { mdiCheckCircleOutline, mdiCog } from '@mdi/js';
 
 /** One thing asking for attention, folded up from a Home Center section. */
 interface AttentionGroup {
@@ -37,6 +31,12 @@ interface AttentionGroup {
   names: string[];
   path: string;
 }
+
+// Bento card skin. Two steps up from the sheet it sits on plus a hairline, so a
+// card still reads as a card in the light themes, where the surface ramp between
+// default and low is only a few percent. Both hosts (this sheet and the mobile
+// nav's expanded panel) ground the bento on surface-default, so one skin serves.
+const CARD = 'rounded-ha-2xl bg-surface-mid border border-surface-lower';
 
 /**
  * The live bento content. Split out from the shell so its entity selectors and
@@ -49,21 +49,14 @@ interface AttentionGroup {
  * cards answers that question slower than a sentence does.
  */
 export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => void }) {
-  const { haUrl, demoMode, connected, connecting, isAdmin } = useHomeAssistant();
-  const presence = useHomeAssistantSelector(selectPeoplePresence, arePeoplePresenceEqual);
+  const { demoMode, connected, connecting, isAdmin } = useHomeAssistant();
   const activity = useHomeAssistantSelector(selectActivityData, areActivityDataEqual);
   const { notifications: appNotifications } = useNotificationCenter();
   const { activities } = useActivities();
   const { visibleSections } = useHomeCenterPrefs();
   const glanceItems = useLiveSummaryItems();
 
-  const pic = (picture?: string) => resolveEntityPictureUrl(haUrl, picture);
-
-  const peopleHome = presence.peopleHome;
-  const peopleAway = presence.peopleAway;
-
   const feed = buildActivityFeed(activities);
-  const running = feed.filter((a) => a.phase === 'active').length;
 
   // Same set, same order and same admin gating as every other Home Center
   // surface — only folded into one list instead of one card each.
@@ -76,14 +69,7 @@ export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => 
     { id: 'battery', count: activity.lowBatteryDevices.length, names: activity.lowBatteryDevices.map((b) => `${b.name} ${b.level}%`), path: '/settings?section=home-center' },
   ] as AttentionGroup[]).filter((g) => g.count > 0 && shown.includes(g.id));
 
-  const attention = groups.reduce((sum, g) => sum + g.count, 0);
   const backup = formatBackupAge(activity.lastBackup?.lastBackup ?? null);
-
-  const headline = attention === 0
-    ? 'Nothing needs you'
-    : attention === 1
-      ? 'One thing needs you'
-      : `${attention} things need you`;
 
   const facts: { label: string; value: string }[] = [
     { label: 'Home Assistant', value: demoMode ? 'Demo' : connecting ? 'Connecting' : connected ? 'Connected' : 'Offline' },
@@ -93,38 +79,13 @@ export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => 
 
   return (
     <>
-      {/* ── The answer, then the chips ──────────────────────────── */}
-      <section className="rounded-ha-2xl bg-surface-low p-ha-4">
-        <div className="flex items-start gap-ha-3">
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate text-2xl font-bold leading-tight text-text-primary">{headline}</h3>
-            <p className="mt-1 truncate text-sm text-text-secondary">
-              {[
-                running > 0 ? `${running} running` : 'All quiet',
-                peopleHome.length + peopleAway.length > 0 ? `${peopleHome.length} of ${peopleHome.length + peopleAway.length} home` : null,
-              ].filter(Boolean).join(' ・ ')}
-            </p>
-          </div>
-          {/* Who's home, as faces rather than a card of its own. */}
-          {peopleHome.length + peopleAway.length > 0 && (
-            <div className="flex shrink-0 -space-x-2">
-              {[...peopleHome, ...peopleAway].slice(0, 5).map((p) => (
-                <Avatar
-                  key={p.id}
-                  src={pic(p.picture)}
-                  initials={p.initials}
-                  alt={p.name}
-                  size="sm"
-                  className={peopleHome.includes(p) ? 'ring-2 ring-surface-low' : 'opacity-50 grayscale ring-2 ring-surface-low'}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* The same chips as the dashboard summary row — every one opens its
-            own dialog, so the detail nobody folded away is a tap in. */}
-        <div className="mt-ha-3 flex flex-wrap items-center gap-ha-2">
+      {/* ── The chips ───────────────────────────────────────────────
+          No headline and no faces: the Needs-you card below already says what
+          wants attention, and the chips carry their own pill surfaces, so a
+          card (or a heading) around them read as a box of boxes. No padding
+          either — this block's edges are the cards' edges below it. */}
+      <section>
+        <div className="flex flex-wrap items-center gap-ha-2">
           <EnergyGlance compact />
           <AutomationsGlance compact />
           {glanceItems.map((item) => (
@@ -135,7 +96,7 @@ export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => 
 
       {/* ── Needs you / Happening now ───────────────────────────── */}
       <section className="grid grid-cols-1 gap-ha-3 lg:grid-cols-2">
-        <div className="rounded-ha-2xl bg-surface-low p-ha-2">
+        <div className={`${CARD} p-ha-2`}>
           <h4 className="px-ha-2 pb-ha-2 pt-ha-1 text-xs font-bold uppercase tracking-wider text-text-secondary">Needs you</h4>
           {groups.length === 0 ? (
             <p className="flex items-center gap-ha-2 px-ha-2 pb-ha-2 text-sm text-text-tertiary">
@@ -149,7 +110,7 @@ export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => 
                   key={g.id}
                   type="button"
                   onClick={() => onNavigate(g.path)}
-                  className="group flex items-center gap-ha-3 rounded-ha-xl px-ha-2 py-ha-2 text-left transition-colors hover:bg-surface-mid/40"
+                  className="group flex items-center gap-ha-3 rounded-ha-xl px-ha-2 py-ha-2 text-left transition-colors hover:bg-surface-lower/60"
                 >
                   <Icon path={HOME_CENTER_SECTION_MAP[g.id].icon} size={20} className="shrink-0 text-text-tertiary" />
                   <span className="min-w-0 flex-1">
@@ -166,7 +127,7 @@ export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => 
           )}
         </div>
 
-        <div className="rounded-ha-2xl bg-surface-low p-ha-2">
+        <div className={`${CARD} p-ha-2`}>
           <button
             type="button"
             onClick={() => onNavigate('/settings?section=activity')}
@@ -176,7 +137,7 @@ export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => 
             <NavChevron size={16} className="ml-auto text-text-disabled group-hover:text-text-secondary" />
           </button>
           {feed.length > 0 ? (
-            <div className="overflow-hidden rounded-ha-xl bg-surface-mid/30">
+            <div className="overflow-hidden rounded-ha-xl bg-surface-lower/50">
               <ActivityFeed items={feed} />
             </div>
           ) : (
@@ -186,7 +147,7 @@ export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => 
       </section>
 
       {/* ── The quiet facts ─────────────────────────────────────── */}
-      <section className="flex flex-wrap gap-ha-3 rounded-ha-2xl bg-surface-low px-ha-4 py-ha-3">
+      <section className={`${CARD} flex flex-wrap gap-ha-3 px-ha-4 py-ha-3`}>
         {facts.map((fact) => (
           <div key={fact.label} className="min-w-0 flex-1">
             <p className="truncate text-xs uppercase tracking-wider text-text-tertiary">{fact.label}</p>
@@ -311,7 +272,9 @@ export function HomeCenterOverlay() {
         className={`relative mt-auto bg-surface-default transition-[transform,opacity] duration-300 ease-out flex flex-col ${
           contained
             ? 'mx-ha-6 mb-ha-6 rounded-ha-3xl border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
-            : 'w-full rounded-t-ha-3xl'
+            // border-white/10 was invisible on the light themes — a token edge
+            // plus an upward shadow so the sheet lifts off the page in both.
+            : 'w-full rounded-t-ha-sheet border-t border-surface-mid shadow-[0_-16px_40px_-12px_rgba(0,0,0,0.45)]'
         } ${visible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
         style={{ maxHeight: contained ? 'calc(92% - var(--ha-space-6))' : '90dvh', paddingBottom: 'env(safe-area-inset-bottom)', ...sheetDrag.dragStyle }}
         onTransitionEnd={() => {
@@ -320,45 +283,35 @@ export function HomeCenterOverlay() {
           if (!homeCenterOpen && !visible) setMounted(false);
         }}
       >
-        {/* Header: drag indicator + title + close. Doubles as the drag handle. */}
+        {/* Header: the shared one, wrapped so the row still drags the sheet and
+            still carries the grabber pill. */}
         <div
           {...sheetDrag.handleProps}
-          className={`relative flex items-center justify-between gap-ha-3 px-ha-5 pt-ha-3 pb-ha-3 shrink-0 ${isDesktop ? '' : 'touch-none cursor-grab active:cursor-grabbing'}`}
+          className={`relative shrink-0 ${isDesktop ? '' : 'touch-none cursor-grab active:cursor-grabbing'}`}
         >
-          <div className="flex items-center gap-ha-3 min-w-0">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ha-blue/10 text-ha-blue">
-              <Icon path={mdiHomeVariant} size={20} />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold text-text-primary leading-tight truncate">Home Center</h2>
-              <p className="text-xs text-text-tertiary leading-tight truncate">Everything happening in your home</p>
-            </div>
-          </div>
           <div className="absolute left-1/2 top-ha-3 -translate-x-1/2 w-10 h-1 rounded-full bg-text-secondary/30" />
-          <div className="flex items-center gap-ha-2 shrink-0">
-            {/* Jump to the full Home Center settings page */}
-            <button
-              onClick={() => handleNavigate('/settings?section=home-center')}
-              aria-label="Open Home Center settings"
-              className="w-9 h-9 rounded-full bg-surface-lower flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <Icon path={mdiCog} size={18} />
-            </button>
-            <button
-              onClick={closeHomeCenter}
-              aria-label="Close Home Center"
-              className="w-9 h-9 rounded-full bg-surface-lower flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <Icon path={mdiClose} size={18} />
-            </button>
-          </div>
+          <SheetHeader
+            eyebrow="Your home"
+            title="Home Center"
+            onClose={closeHomeCenter}
+            actions={
+              /* Jump to the full Home Center settings page */
+              <button
+                onClick={() => handleNavigate('/settings?section=home-center')}
+                aria-label="Open Home Center settings"
+                className={sheetHeaderButton}
+              >
+                <Icon path={mdiCog} size={24} />
+              </button>
+            }
+          />
         </div>
 
         {/* Scrollable bento body with top/bottom scroll fades */}
         <div className="relative flex-1 min-h-0">
           <div
             ref={setScrollNode}
-            className={`h-full overflow-y-auto px-ha-5 pb-ha-6 pt-ha-1 space-y-ha-5 custom-scrollbar transition-opacity duration-300 ${
+            className={`h-full overflow-y-auto ${SHEET_PAD} pb-ha-6 pt-ha-1 space-y-ha-5 custom-scrollbar transition-opacity duration-300 ${
               visible ? 'opacity-100' : 'opacity-0'
             }`}
           >

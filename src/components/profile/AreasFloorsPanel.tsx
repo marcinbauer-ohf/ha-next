@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { clsx } from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   DndContext,
@@ -10,8 +11,10 @@ import {
   useSensors,
   useDroppable,
   closestCenter,
+  DragOverlay,
   type CollisionDetection,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -23,7 +26,7 @@ import { useAreasFloors, type AreaWithCounts, type FloorWithAreas } from '@/hook
 import { useAddContext } from '@/contexts';
 import type { LabelRegistryEntry } from '@/lib/homeassistant';
 import {
-  Icon, SectionLabel, IconPicker, iconPathFor, AliasInput, Dropdown, ConfirmDialog,
+  Icon, SectionLabel, ListSection, IconPicker, iconPathFor, AliasInput, Dropdown, ConfirmDialog,
 } from '@/components/ui';
 
 // ── Editor modal scaffold ────────────────────────────────────────────────────
@@ -64,7 +67,7 @@ function EditorModal({
             onClick={onClose}
           />
           <motion.div
-            className="fixed inset-x-0 bottom-0 z-[111] mx-auto w-full max-w-[480px] rounded-t-ha-3xl border border-surface-lower bg-surface-default p-ha-5 shadow-[0_-20px_60px_-24px_rgba(15,23,42,0.5)] sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-ha-3xl"
+            className="fixed inset-x-0 bottom-0 z-[111] mx-auto w-full max-w-[480px] rounded-t-ha-sheet border border-surface-lower bg-surface-default p-ha-5 shadow-[0_-20px_60px_-24px_rgba(15,23,42,0.5)] sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-ha-3xl"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 40 }}
@@ -382,9 +385,12 @@ function emptyFloorDraft(): FloorDraft {
   return { name: '', icon: null, level: '', aliases: [] };
 }
 
-// ── Area card (sortable within a floor, draggable across floors) ─────────────
+// ── Area row (sortable within a floor, draggable across floors) ──────────────
+// A row inside its floor's ListSection card, not a card of its own — the app's
+// grouped-list chrome (one surface, hairline dividers, shared corners) comes
+// from ListSection so this only draws its own contents.
 
-function AreaCard({
+function AreaRow({
   area,
   groupFloorId,
   labels,
@@ -393,7 +399,7 @@ function AreaCard({
   onDelete,
 }: {
   area: AreaWithCounts;
-  /** Floor group this card is rendered under (null ⇒ "Unassigned"). */
+  /** Floor group this row is rendered under (null ⇒ "Unassigned"). */
   groupFloorId: string | null;
   labels: LabelRegistryEntry[];
   editable: boolean;
@@ -406,12 +412,48 @@ function AreaCard({
     disabled: !editable,
   });
 
+  // The row being dragged is drawn by the DragOverlay instead — the list card
+  // clips its overflow (that is what gives it its corners), so a row translated
+  // out of it toward another floor would vanish at the edge. Siblings still take
+  // their displacement transform; they only ever move within the card.
   const style = {
-    transform: CSS.Translate.toString(transform),
+    transform: isDragging ? undefined : CSS.Translate.toString(transform),
     transition,
-    ...(isDragging ? { zIndex: 50, position: 'relative' as const } : {}),
   };
 
+  return (
+    <div ref={setNodeRef} style={style} className={isDragging ? 'opacity-40' : undefined}>
+      <AreaRowBody
+        area={area}
+        labels={labels}
+        editable={editable}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        handleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  );
+}
+
+/** The row's visible contents — shared by the in-list row and the drag overlay. */
+function AreaRowBody({
+  area,
+  labels,
+  editable,
+  onEdit,
+  onDelete,
+  handleProps,
+  floating = false,
+}: {
+  area: AreaWithCounts;
+  labels: LabelRegistryEntry[];
+  editable: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  handleProps?: Record<string, unknown>;
+  /** Drawn in the DragOverlay: needs its own surface and corners. */
+  floating?: boolean;
+}) {
   const iconPath = iconPathFor(area.icon) ?? mdiMapMarkerOutline;
   const areaLabels = (area.labels ?? [])
     .map((id) => labels.find((l) => l.label_id === id))
@@ -419,19 +461,19 @@ function AreaCard({
 
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      className={`group flex items-center gap-ha-3 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-3 py-ha-3 transition-shadow ${
-        isDragging ? 'opacity-80 shadow-[0_18px_42px_-20px_rgba(15,23,42,0.5)]' : ''
-      }`}
+      className={clsx(
+        'group flex items-center gap-ha-3 px-ha-3 py-ha-3 transition-colors',
+        floating
+          ? 'rounded-ha-2xl border border-surface-lower bg-surface-default shadow-[0_18px_42px_-20px_rgba(15,23,42,0.5)]'
+          : 'hover:bg-surface-low',
+      )}
     >
       {editable && (
         <button
           type="button"
           aria-label="Drag to reorder or move to another floor"
           className="-ml-1 flex-shrink-0 cursor-grab touch-none text-text-disabled transition-colors hover:text-text-secondary active:cursor-grabbing"
-          {...attributes}
-          {...listeners}
+          {...handleProps}
         >
           <Icon path={mdiDragHorizontalVariant} size={18} />
         </button>
@@ -571,9 +613,13 @@ function FloorGroup({
         )}
       </div>
 
-      <div
-        ref={setNodeRef}
-        className={`space-y-ha-2 rounded-ha-2xl p-ha-1 transition-colors ${isOver ? 'bg-ha-blue/5 ring-1 ring-ha-blue/30' : ''}`}
+      {/* One grouped list per floor — the app's standard list card, so areas
+          read as rows of a floor rather than a stack of loose cards. The empty
+          hint and the "add" action are rows of the same card, which is also
+          what keeps a floor with no areas a valid drop target. */}
+      <ListSection
+        bodyRef={setNodeRef}
+        bodyClassName={isOver ? 'ring-1 ring-ha-blue/30 bg-ha-blue/5' : undefined}
       >
         {areas.length === 0 ? (
           <p className="px-ha-3 py-ha-4 text-center text-[13px] text-text-tertiary">
@@ -582,7 +628,7 @@ function FloorGroup({
         ) : (
           <SortableContext items={areas.map((a) => `area:${a.area_id}`)} strategy={verticalListSortingStrategy}>
             {areas.map((a) => (
-              <AreaCard
+              <AreaRow
                 key={a.area_id}
                 area={a}
                 groupFloorId={groupFloorId}
@@ -599,13 +645,13 @@ function FloorGroup({
           <button
             type="button"
             onClick={onAddArea}
-            className="flex w-full items-center justify-center gap-ha-2 rounded-ha-2xl border border-dashed border-surface-lower px-ha-3 py-ha-2 text-[13px] font-semibold text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+            className="flex w-full items-center gap-ha-2 px-ha-3 py-ha-3 text-[13px] font-semibold text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
           >
             <Icon path={mdiPlus} size={16} exact />
             Add area to {floor.name}
           </button>
         )}
-      </div>
+      </ListSection>
     </section>
   );
 }
@@ -667,6 +713,13 @@ export function AreasFloorsPanel() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+  // The area being dragged, drawn in the DragOverlay. Rows now live inside a
+  // list card that clips its overflow, so the dragged row has to be lifted out
+  // of it to survive the trip to another floor.
+  const [draggingArea, setDraggingArea] = useState<AreaWithCounts | null>(null);
+  const findArea = (id: string) =>
+    floors.flatMap((f) => f.areas).concat(unassignedAreas).find((a) => a.area_id === id) ?? null;
+
   // One DndContext handles both floor and area drags; keep each kind's drops
   // scoped to its own targets (a dragged floor never lands on an area card).
   const collisionDetection: CollisionDetection = (args) => {
@@ -684,7 +737,13 @@ export function AreasFloorsPanel() {
     { floorId: null, ids: unassignedAreas.map((a) => a.area_id) },
   ];
 
+  const onDragStart = (e: DragStartEvent) => {
+    const data = e.active.data.current;
+    setDraggingArea(data?.kind === 'area' ? findArea(data.areaId as string) : null);
+  };
+
   const onDragEnd = (e: DragEndEvent) => {
+    setDraggingArea(null);
     const data = e.active.data.current;
     const overData = e.over?.data.current;
     if (!data || !e.over || !overData) return;
@@ -776,7 +835,13 @@ export function AreasFloorsPanel() {
         </div>
       )}
 
-      <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collisionDetection}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => setDraggingArea(null)}
+      >
         <div className="space-y-ha-6">
           <SortableContext items={floors.map((f) => `floorsort:${f.floor_id}`)} strategy={verticalListSortingStrategy}>
             {floors.map((f) => (
@@ -816,6 +881,12 @@ export function AreasFloorsPanel() {
             </p>
           )}
         </div>
+
+        <DragOverlay>
+          {draggingArea && (
+            <AreaRowBody area={draggingArea} labels={labels} editable={editable} floating />
+          )}
+        </DragOverlay>
       </DndContext>
 
       <AreaEditorModal

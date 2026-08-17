@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { mdiClose, mdiPencilOutline, mdiPower, mdiStar, mdiStarOutline, mdiCogOutline, mdiChevronRight, mdiDotsVertical, mdiDevices, mdiMapMarkerOutline, mdiAccountVoice, mdiRobotOutline, mdiEyeOffOutline, mdiTuneVariant, mdiChartLine, mdiInformation, mdiInformationOutline, mdiOpenInNew } from '@mdi/js';
+import { mdiPencilOutline, mdiPower, mdiStar, mdiStarOutline, mdiCogOutline, mdiChevronRight, mdiDotsVertical, mdiDevices, mdiMapMarkerOutline, mdiAccountVoice, mdiRobotOutline, mdiEyeOffOutline, mdiTuneVariant, mdiChartLine, mdiInformation, mdiInformationOutline, mdiOpenInNew } from '@mdi/js';
 import { clsx } from 'clsx';
 import { CircularProgress, Icon, ListSection, RollingNumericValue, SectionLabel, SegmentedControl, Dropdown, HALoader, ToggleSwitch } from '../ui';
+import { SheetHeader, SHEET_PAD, sheetHeaderButton } from './dialogKit';
 import { ContextMenu } from '../ui/ContextMenu';
 import { useToast } from '@/contexts/ToastContext';
 import { StateTimeline, type StateSegment } from '../ui/StateTimeline';
@@ -629,7 +630,7 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
     : {};
 
   return (
-    <div className="shrink-0 flex flex-col items-center gap-ha-2 px-6 py-3 overflow-hidden">
+    <div className={clsx('shrink-0 flex flex-col items-center gap-ha-2 py-ha-2 overflow-hidden', SHEET_PAD)}>
       {showHero && entity.entityPicture && (
         // Camera feed / media artwork shown as its own block at the top, so the
         // status value and history graph below it are no longer overlaid on the
@@ -1281,14 +1282,16 @@ export function EntityDetailPanel({
   // Product render used as the dialog's backdrop. Same render-adjust pattern as
   // the card: a hand-placed PNG that 404s drops out instead of leaving a broken
   // image behind the content.
+  // Dropped when the focused entity brings its own image (camera feed, album
+  // art, avatar): that picture is the hero's subject, and a stock product render
+  // behind it is a second picture of the same device fighting the real one.
   const [backdrop, setBackdrop] = useState<{ src?: string | null; ok: boolean }>({ src: deviceMeta?.thumbnail, ok: true });
   if (backdrop.src !== deviceMeta?.thumbnail) setBackdrop({ src: deviceMeta?.thumbnail, ok: true });
-  const showBackdrop = !!deviceMeta?.thumbnail && backdrop.ok && tab === 'main';
+  const showBackdrop = !!deviceMeta?.thumbnail && backdrop.ok && tab === 'main' && !focusedEntity?.entityPicture;
 
   // Header actions are the most-tapped controls in the dialog and sat at a 30px
   // target with 4px between them. Padded out to ~44px with real gaps so a thumb
   // can't miss (and so the group reads as three separate controls, not a blob).
-  const iconButton = 'p-2 rounded-full transition-colors';
 
   // Diagnostics only earn their own heading when there is something else to
   // separate them from — an all-diagnostics device keeps one plain list.
@@ -1359,94 +1362,53 @@ export function EntityDetailPanel({
       className="h-[min(70dvh,760px)] lg:h-[min(88vh,900px)] flex flex-col overflow-hidden"
       style={{ '--panel-shelf-peek': `${SHELF_PEEK}px` } as CSSProperties}
     >
-      {/* Header — close on the left (dialog pattern), name over its area → device
-          trail, options on the right. The frame's inset is the same 16px on the
-          top as on the sides (only the bottom is tighter — the hero is next, not
-          an edge), and that 16px plus the button's own 8px lands every header
-          glyph on the same 24px edge the hero below sits on. */}
-      <div className="flex items-center justify-between gap-ha-2 p-ha-4 pb-ha-2 shrink-0">
-        <button
-          className={clsx(iconButton, 'shrink-0 text-text-secondary hover:text-text-primary hover:bg-surface-low')}
-          onClick={onClose}
-          title="Close"
-          aria-label="Close"
-        >
-          <Icon path={mdiClose} size={20} />
-        </button>
-        {/* Where it lives, then what you're looking at: the room → device trail
-            is the eyebrow and the focused entity lands under it as the title,
-            matching the top bar's eyebrow-over-title shape. Switching entity
-            re-titles the dialog, which is what tells you it landed. */}
-        <div className="min-w-0 flex-1">
-          {/* A text triangle separates the crumbs — smaller and lighter than the
-              chevron glyph, and it sits on the type's own baseline. */}
-          {(deviceMeta?.areaName || deviceName) && (
-            <p className="flex min-w-0 items-center gap-1 truncate text-[13px] leading-none text-text-tertiary">
-              {deviceMeta?.areaName && <span className="truncate">{deviceMeta.areaName}</span>}
-              {deviceMeta?.areaName && deviceName && (
-                <span aria-hidden className="shrink-0 text-[10px] text-text-disabled">▸</span>
-              )}
-              {deviceName && <span className="truncate">{deviceName}</span>}
-            </p>
-          )}
-          {/* Tapping the title jumps to "On this device" — the title says which
-              entity you're on, so it's the natural handle for "show me the
-              others". */}
-          {(focusedEntity?.name || deviceName) && (
+      {/* Header — the shared one. Where it lives (room ▸ device) is the eyebrow,
+          the focused entity is the title, and tapping it jumps to "On this
+          device" — the title says which entity you're on, so it's the natural
+          handle for "show me the others". */}
+      <SheetHeader
+        eyebrow={[deviceMeta?.areaName, deviceName].filter(Boolean).join(' ▸ ') || undefined}
+        title={focusedEntity?.name ?? deviceName ?? ''}
+        onClose={onClose}
+        onTitleClick={() => setShelf(true)}
+        titleHint="Show everything on this device"
+        // Favorite and pencil sit bare; everything rarer (settings included)
+        // is behind the overflow dots.
+        actions={
+          <>
+            {onToggleFavorite && (
+              <button
+                className={clsx(sheetHeaderButton, isFavorite && 'text-amber-500')}
+                onClick={onToggleFavorite}
+                title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                aria-pressed={isFavorite}
+              >
+                <Icon path={isFavorite ? mdiStar : mdiStarOutline} size={24} />
+              </button>
+            )}
+            {onEditCard && (
+              <button className={sheetHeaderButton} onClick={onEditCard} title="Edit card">
+                <Icon path={mdiPencilOutline} size={24} />
+              </button>
+            )}
+            {/* Overflow — the less-used contextual actions, HA's more-info menu.
+                Settings is not in here any more: it has its own place in the nav. */}
             <button
-              type="button"
-              onClick={() => setShelf(true)}
-              title="Show everything on this device"
-              className="block max-w-full truncate text-left text-xl font-bold leading-tight text-text-primary"
+              className={sheetHeaderButton}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setMenuAt({ x: r.right - 200, y: r.bottom + 6 });
+              }}
+              title="More options"
+              aria-label="More options"
+              aria-haspopup="menu"
+              aria-expanded={!!menuAt}
             >
-              {focusedEntity?.name ?? deviceName}
+              <Icon path={mdiDotsVertical} size={24} />
             </button>
-          )}
-        </div>
-        {/* Favorite and pencil sit bare; everything rarer (settings included)
-            is behind the overflow dots. */}
-        <div className="flex items-center gap-ha-1 shrink-0">
-          {onToggleFavorite && (
-            <button
-              className={clsx(
-                iconButton,
-                isFavorite
-                  ? 'text-amber-500 hover:bg-surface-low'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-low',
-              )}
-              onClick={onToggleFavorite}
-              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-              aria-pressed={isFavorite}
-            >
-              <Icon path={isFavorite ? mdiStar : mdiStarOutline} size={20} />
-            </button>
-          )}
-          {onEditCard && (
-            <button
-              className={clsx(iconButton, 'text-text-secondary hover:text-text-primary hover:bg-surface-low')}
-              onClick={onEditCard}
-              title="Edit card"
-            >
-              <Icon path={mdiPencilOutline} size={20} />
-            </button>
-          )}
-          {/* Overflow — the less-used contextual actions, HA's more-info menu.
-              Settings is not in here any more: it has its own place in the nav. */}
-          <button
-            className={clsx(iconButton, 'text-text-secondary hover:text-text-primary hover:bg-surface-low')}
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              setMenuAt({ x: r.right - 200, y: r.bottom + 6 });
-            }}
-            title="More options"
-            aria-label="More options"
-            aria-haspopup="menu"
-            aria-expanded={!!menuAt}
-          >
-            <Icon path={mdiDotsVertical} size={20} />
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {menuAt && (
         <ContextMenu

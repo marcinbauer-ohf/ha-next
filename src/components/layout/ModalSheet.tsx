@@ -201,7 +201,9 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             onDragEnd={(_, info) => {
               if (info.offset.y > 120 || info.velocity.y > 800) onClose();
             }}
-            className="lg:hidden relative w-full bg-surface-lower rounded-t-ha-3xl overflow-hidden"
+            // Top hairline: in dark mode the sheet's surface is close enough to
+            // the scrimmed page behind it that the rounded edge disappears.
+            className="lg:hidden relative w-full bg-surface-lower rounded-t-ha-sheet overflow-hidden border-t border-white/10"
             style={{
               maxHeight: '82dvh',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))',
@@ -209,7 +211,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             }}
           >
             <div
-              className="flex justify-center py-ha-2 touch-none cursor-grab active:cursor-grabbing"
+              className="flex justify-center pt-ha-2 pb-0 touch-none cursor-grab active:cursor-grabbing"
               onPointerDown={(e) => dragControls.start(e)}
             >
               <div className="w-8 h-1 rounded-full bg-text-secondary/30" />

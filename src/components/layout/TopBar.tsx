@@ -109,8 +109,10 @@ export function TopBar() {
     prevHasEyebrow.current = hasEyebrow;
   }, [hasEyebrow]);
 
-  const titleContent = (
-    <div className="flex flex-col leading-none gap-0.5 text-left">
+  // `centered` is the back-arrow shape on mobile: the heading sits on the bar's
+  // centre axis instead of being pushed off it by the arrow.
+  const mobileTitle = (centered: boolean) => (
+    <div className={`flex flex-col leading-none gap-0.5 min-w-0 ${centered ? 'items-center text-center' : 'text-left'}`}>
       {subtitle?.trim() && collapseEyebrow(<span className="text-xs text-text-secondary capitalize">{subtitle}</span>)}
       <RollingText
         text={title}
@@ -229,7 +231,7 @@ export function TopBar() {
         </div>
       )}
       {/* Mobile: Logo/Icon + Title with dropdown - Centered vertically on mobile */}
-      <div className="flex items-center justify-between w-full lg:hidden h-full">
+      <div className="relative flex items-center justify-between w-full lg:hidden h-full">
         {/* When immersive mode is off the dashboard surface sits inside the grey
             panel, whose content is inset by an extra px-ha-3 (12px) beyond the
             top bar's px-edge gutter. Indent the title by that same amount so it
@@ -249,12 +251,12 @@ export function TopBar() {
               <Icon path={mdiArrowLeft} size={24} />
             </button>
           )}
-          {ENABLE_PULL_TO_REVEAL ? (
+          {!showBack && (ENABLE_PULL_TO_REVEAL ? (
             <button
               className="flex items-center gap-ha-1"
               onClick={toggle}
             >
-              {titleContent}
+              {mobileTitle(false)}
               <div className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-low transition-colors ml-1">
                 <Icon
                   path={isRevealed ? mdiClose : mdiMenu}
@@ -265,11 +267,22 @@ export function TopBar() {
             </button>
           ) : (
             <div className="flex items-center gap-ha-1">
-              {titleContent}
+              {mobileTitle(false)}
             </div>
-          )}
-          {editPencil}
+          ))}
+          {!showBack && editPencil}
         </div>
+
+        {/* Back pages: heading on the bar's centre axis, so the arrow on the
+            left and the actions on the right don't shift it off-centre.
+            pointer-events-none keeps the (non-interactive) heading from eating
+            taps meant for the actions it may overlap on narrow screens. */}
+        {showBack && (
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 flex max-w-[62%] -translate-x-1/2 -translate-y-1/2 items-center gap-ha-1">
+            {mobileTitle(true)}
+            {editPencil && <span className="pointer-events-auto">{editPencil}</span>}
+          </div>
+        )}
 
         {/* Mobile Actions */}
         <div className="flex items-center gap-ha-2">

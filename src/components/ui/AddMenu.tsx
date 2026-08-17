@@ -7,6 +7,7 @@ import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { mdiChevronDown, mdiLayers } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon } from './Icon';
+import { SheetHeader, SHEET_PAD } from '@/components/cards/dialogKit';
 import { useAddContext, useCloseOnScreensaver } from '@/contexts';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { useHomeAssistant } from '@/hooks';
@@ -30,6 +31,10 @@ interface AddMenuRow extends AddableSettingsItem {
   contextGroup?: boolean;
 }
 
+// Sections whose "add" is a store to browse rather than a form to fill in —
+// selecting one lands on the section and opens its store overlay.
+const STORE_SLUGS = new Set(['applications', 'blueprints']);
+
 // Sections that expose multiple create actions in the "+" menu.
 function expandRow(item: AddableSettingsItem, contextGroup: boolean): AddMenuRow[] {
   if (item.slug === 'areas') {
@@ -37,6 +42,9 @@ function expandRow(item: AddableSettingsItem, contextGroup: boolean): AddMenuRow
       { ...item, key: 'areas:area', label: 'Area', variant: 'area', contextGroup },
       { ...item, key: 'areas:floor', label: 'Floor', icon: mdiLayers, variant: 'floor', contextGroup },
     ];
+  }
+  if (STORE_SLUGS.has(item.slug)) {
+    return [{ ...item, key: item.slug, variant: 'store', contextGroup }];
   }
   return [{ ...item, key: item.slug, contextGroup }];
 }
@@ -218,7 +226,7 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
             onDragEnd={(_, info) => {
               if (info.offset.y > 120 || info.velocity.y > 800) onClose();
             }}
-            className="lg:hidden fixed inset-x-0 bottom-0 z-[200] bg-surface-default rounded-t-ha-3xl"
+            className="lg:hidden fixed inset-x-0 bottom-0 z-[200] bg-surface-default rounded-t-ha-sheet border-t border-white/10"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
           >
             <div
@@ -227,8 +235,8 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
             >
               <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
             </div>
-            <div className="px-ha-4 pt-ha-2 pb-ha-3">
-              <h3 className="text-base font-semibold text-text-primary mb-ha-3 px-ha-1">Add</h3>
+            <SheetHeader eyebrow="Your home" title="Add" onClose={onClose} />
+            <div className={`${SHEET_PAD} pb-ha-3`}>
               <div className="relative">
                 <div className={clsx('absolute top-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', sheetTop ? 'opacity-100' : 'opacity-0')} />
                 <div className={clsx('absolute bottom-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-t from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', sheetBottom ? 'opacity-100' : 'opacity-0')} />

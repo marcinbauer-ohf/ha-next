@@ -4,10 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { Icon } from '@/components/ui/Icon';
 import { SearchField } from '@/components/ui/SearchField';
+import { SheetHeader, SHEET_PAD } from '@/components/cards/dialogKit';
 import { useHomeAssistantEntities } from '@/hooks/useHomeAssistant';
 import { useCloseOnScreensaver } from '@/contexts';
 import {
-  mdiClose,
   mdiLightbulb,
   mdiLightbulbOutline,
   mdiToggleSwitchOutline,
@@ -146,7 +146,7 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
         onDragEnd={(_, info) => {
           if (info.offset.y > 120 || info.velocity.y > 800) onClose();
         }}
-        className="relative w-full lg:w-[480px] lg:rounded-ha-3xl bg-surface-default rounded-t-ha-3xl shadow-2xl flex flex-col max-h-[85vh] lg:max-h-[70vh]"
+        className="relative w-full lg:w-[480px] lg:rounded-ha-3xl bg-surface-default rounded-t-ha-sheet shadow-2xl flex flex-col max-h-[85vh] lg:max-h-[70vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle — drag down to dismiss (mobile sheet only) */}
@@ -157,20 +157,11 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
           <div className="w-10 h-1 rounded-full bg-surface-mid" />
         </div>
 
-        {/* Header */}
-        <div className="flex items-center gap-ha-2 px-ha-4 py-ha-3">
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="p-1.5 rounded-full hover:bg-surface-low text-text-secondary transition-colors shrink-0"
-          >
-            <Icon path={mdiClose} size={20} />
-          </button>
-          <h2 className="text-base font-semibold text-text-primary">Add Card</h2>
-        </div>
+        {/* Header — the shared one */}
+        <SheetHeader eyebrow="Dashboard" title="Add a card" onClose={onClose} />
 
         {/* Search */}
-        <div className="px-ha-4 pb-ha-3">
+        <div className={`${SHEET_PAD} pb-ha-3`}>
           <SearchField
             value={search}
             onChange={setSearch}
@@ -180,7 +171,7 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-ha-2 px-ha-4 overflow-x-auto scrollbar-hide pb-ha-2">
+        <div className={`flex gap-ha-2 ${SHEET_PAD} overflow-x-auto scrollbar-hide pb-ha-2`}>
           {TABS.map((tab) => (
             <button
               key={tab}
@@ -197,7 +188,7 @@ export function CardPickerSheet({ sectionId, existingEntityIds, onAdd, onClose }
         </div>
 
         {/* Entity list */}
-        <div className="flex-1 overflow-y-auto px-ha-4 pb-ha-4 pt-ha-2">
+        <div className={`flex-1 overflow-y-auto ${SHEET_PAD} pb-ha-4 pt-ha-2`}>
           {filtered.length === 0 ? (
             <p className="text-sm text-text-tertiary text-center py-ha-6">
               {search ? 'No matching devices' : 'Everything’s already on your dashboard'}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { clsx } from 'clsx';
-import { mdiCheck, mdiClose, mdiCogOutline } from '@mdi/js';
+import { mdiArrowLeft, mdiCheck, mdiClose, mdiCogOutline } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
 import { Dropdown, HALoader, ListSection, RollingNumericValue, SectionLabel, SelectChip, ToggleSwitch } from '../ui';
@@ -16,6 +16,7 @@ import type { SelectChipOption } from '../ui/SelectChip';
 // dialog, the automation dialog and each glance dialog are literally the same
 // object with different contents rather than six lookalikes drifting apart.
 //
+//   SheetHeader   the one header every sheet/dialog/panel wears
 //   DialogFrame   fixed-height shell: close left, eyebrow + title, action right
 //   DialogHero    the band: what it is, what it reads, what you can do about it
 //   DialogTile    one figure with its label — the row of numbers under the hero
@@ -24,11 +25,85 @@ import type { SelectChipOption } from '../ui/SelectChip';
 //   StatsChart    the past, from long-term statistics, in the standard slot
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Every header glyph in the app: a bare round button on the header's own
+ * surface. Exported so a caller's extra action can't drift from the close X
+ * sitting a few pixels away.
+ */
+export const sheetHeaderButton =
+  'shrink-0 rounded-full p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary';
+
+/** The horizontal inset every sheet uses — header and body on the same edge. */
+export const SHEET_PAD = 'px-ha-4';
+
+/**
+ * The one header. Close (or back) on the left, eyebrow over a large name in the
+ * middle, actions on the right — the same object whether it's a device, an
+ * automation, a store, Home Center or an "add" sheet. Only the words differ.
+ *
+ * Eyebrow is a plain string on purpose: it's the scope of the thing below it
+ * (its room, its kind, where it came from), and a string is what truncates
+ * cleanly when the room name is long.
+ */
+export function SheetHeader({
+  eyebrow,
+  title,
+  onClose,
+  onBack,
+  onTitleClick,
+  titleHint,
+  actions,
+  className,
+}: {
+  eyebrow?: string;
+  title: string;
+  onClose: () => void;
+  /** Drilled a level in: the leading button becomes a back arrow. */
+  onBack?: () => void;
+  /** Makes the title a button — used where it reveals what else is in here. */
+  onTitleClick?: () => void;
+  titleHint?: string;
+  /** The right side. Wrap each in `sheetHeaderButton`. */
+  actions?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={clsx('flex shrink-0 items-start justify-between gap-ha-2 pb-ha-2 pt-ha-2 lg:pt-ha-4', SHEET_PAD, className)}>
+      <button
+        type="button"
+        onClick={onBack ?? onClose}
+        aria-label={onBack ? 'Back' : 'Close'}
+        title={onBack ? 'Back' : 'Close'}
+        className={sheetHeaderButton}
+      >
+        <Icon path={onBack ? mdiArrowLeft : mdiClose} size={24} />
+      </button>
+      <div className="min-w-0 flex-1">
+        {eyebrow && <p className="mb-0.5 truncate text-sm leading-none text-text-tertiary">{eyebrow}</p>}
+        {onTitleClick ? (
+          <button
+            type="button"
+            onClick={onTitleClick}
+            title={titleHint}
+            className="block max-w-full truncate text-left text-2xl font-bold leading-tight text-text-primary"
+          >
+            {title}
+          </button>
+        ) : (
+          <p className="truncate text-2xl font-bold leading-tight text-text-primary">{title}</p>
+        )}
+      </div>
+      {actions && <div className="flex shrink-0 items-center gap-ha-1">{actions}</div>}
+    </div>
+  );
+}
+
 /** The dialog shell — one height for every dialog, a scrolling middle. */
 export function DialogFrame({
   eyebrow,
   title,
   onClose,
+  onBack,
   onConfigure,
   action,
   children,
@@ -36,6 +111,11 @@ export function DialogFrame({
   eyebrow: string;
   title: string;
   onClose: () => void;
+  /**
+   * Drilled into something inside the dialog (a store item, say): the leftmost
+   * button becomes a back arrow to the level above instead of the close X.
+   */
+  onBack?: () => void;
   /** Shows the cog; opens whatever setup step the dialog owns. */
   onConfigure?: () => void;
   /** Anything else for the header's right side (a link out, say). */
@@ -44,36 +124,30 @@ export function DialogFrame({
 }) {
   return (
     <div className="flex h-[min(70dvh,760px)] flex-col overflow-hidden lg:h-[min(85vh,780px)]">
-      {/* Close on the left, eyebrow over a large name, actions right. */}
-      <div className="flex shrink-0 items-start justify-between gap-2 px-ha-4 pb-ha-2 pt-ha-4">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          title="Close"
-          className="shrink-0 rounded-full p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-        >
-          <Icon path={mdiClose} size={24} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="mb-0.5 truncate text-sm leading-none text-text-tertiary">{eyebrow}</p>
-          <p className="truncate text-2xl font-bold leading-tight text-text-primary">{title}</p>
-        </div>
-        {action}
-        {onConfigure && (
-          <button
-            type="button"
-            onClick={onConfigure}
-            aria-label="Change what this reads"
-            title="Change what this reads"
-            className="shrink-0 rounded-full p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-          >
-            <Icon path={mdiCogOutline} size={24} />
-          </button>
+      <SheetHeader
+        eyebrow={eyebrow}
+        title={title}
+        onClose={onClose}
+        onBack={onBack}
+        actions={(action || onConfigure) && (
+          <>
+            {action}
+            {onConfigure && (
+              <button
+                type="button"
+                onClick={onConfigure}
+                aria-label="Change what this reads"
+                title="Change what this reads"
+                className={sheetHeaderButton}
+              >
+                <Icon path={mdiCogOutline} size={24} />
+              </button>
+            )}
+          </>
         )}
-      </div>
+      />
 
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide px-6 py-3">
+      <div className={clsx('min-h-0 flex-1 overflow-y-auto scrollbar-hide py-ha-2', SHEET_PAD)}>
         <div className="flex w-full flex-col gap-ha-2">{children}</div>
       </div>
     </div>
@@ -287,23 +361,9 @@ export function SetupStep({
 }) {
   return (
     <div className="flex h-[min(70dvh,760px)] flex-col overflow-hidden lg:h-[min(85vh,780px)]">
-      <div className="flex shrink-0 items-start justify-between gap-2 px-ha-4 pb-ha-2 pt-ha-4">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          title="Close"
-          className="shrink-0 rounded-full p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-        >
-          <Icon path={mdiClose} size={24} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="mb-0.5 truncate text-sm leading-none text-text-tertiary">{eyebrow}</p>
-          <p className="truncate text-2xl font-bold leading-tight text-text-primary">{title}</p>
-        </div>
-      </div>
+      <SheetHeader eyebrow={eyebrow} title={title} onClose={onClose} />
 
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide px-6 py-3">
+      <div className={clsx('min-h-0 flex-1 overflow-y-auto scrollbar-hide py-ha-2', SHEET_PAD)}>
         <div className="flex w-full flex-col gap-ha-2">
           <p className="px-ha-1 text-sm text-text-secondary">{intro}</p>
           {slots.map((slot) => (

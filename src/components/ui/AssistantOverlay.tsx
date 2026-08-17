@@ -311,7 +311,7 @@ export function AssistantOverlay() {
         className={`relative mt-auto overflow-hidden bg-surface-default text-text-primary transition-[transform,opacity] duration-300 ease-out ${
           contained
             ? 'mx-ha-6 mb-ha-6 rounded-ha-3xl border border-border-default shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.15)]'
-            : 'w-full rounded-t-ha-3xl'
+            : 'w-full rounded-t-ha-sheet border-t border-white/10'
         } ${visible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
         style={{ maxHeight: contained ? 'calc(85% - var(--ha-space-6))' : '85dvh', ...sheetDrag.dragStyle }}
       >

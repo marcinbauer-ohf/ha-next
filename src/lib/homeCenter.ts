@@ -3,11 +3,16 @@ import {
   mdiBatteryAlertVariantOutline,
   mdiBell,
   mdiDevices,
+  mdiHomeAnalytics,
   mdiPulse,
   mdiUpdate,
   mdiWeb,
   mdiWrench,
 } from '@mdi/js';
+
+// The glyph for Home Center itself — a house with the status bars it summarises.
+// Named here so all five Home Center surfaces stay on one icon.
+export const HOME_CENTER_ICON = mdiHomeAnalytics;
 
 // The Home Center surfaces (settings page, dashboard clock popup, screensaver)
 // all render the same set of status sections in the same configurable order.

@@ -104,10 +104,19 @@ export function EditorToolbarShell({ mobile, desktop }: { mobile: ReactNode; des
       className={`fixed z-[60] pointer-events-none inset-x-0 bottom-0 pb-edge lg:left-[76px] lg:right-0 lg:pb-6 ${hideHomeCenterEnabled ? 'lg:bottom-edge' : 'lg:bottom-20'}`}
       style={TOKEN_ALIASES}
     >
-      {/* Mobile: full-width pill matching MobileNav style */}
+      {/* Mobile: the same pill as MobileNav — identical radius, 1px gradient
+          edge, 8px inner inset and 48px control band. The toolbar replaces the
+          nav on mobile, so matching them makes that swap read as one surface
+          changing its contents rather than two different bars trading places. */}
       <div className="lg:hidden px-edge pointer-events-auto">
-        <div className="relative rounded-ha-3xl bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)]">
-          <div className="relative rounded-[calc(var(--ha-radius-3xl)-1px)] px-ha-2 py-ha-2" style={BLUE_PILL}>
+        <div className="relative rounded-[var(--mobile-nav-radius)] bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)]">
+          {/* min-h-16 = the nav's 8px + 48px band + 8px, border-box, so both
+              bars stand exactly as tall. Column flex so the caller's row still
+              spans the full width. */}
+          <div
+            className="relative flex min-h-16 flex-col justify-center rounded-[calc(var(--mobile-nav-radius)_-_1px)] px-ha-2 py-ha-2"
+            style={BLUE_PILL}
+          >
             {mobile}
           </div>
         </div>

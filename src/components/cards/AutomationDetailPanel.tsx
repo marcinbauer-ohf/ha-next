@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { clsx } from 'clsx';
-import { mdiCheck, mdiClose, mdiHistory, mdiPlay, mdiRobot, mdiPencil } from '@mdi/js';
+import { mdiCheck, mdiHistory, mdiPlay, mdiRobot, mdiPencil } from '@mdi/js';
 import { Icon } from '../ui/Icon';
+import { SheetHeader, SHEET_PAD, sheetHeaderButton } from './dialogKit';
 import { ToggleSwitch, ListSection, HALoader, SectionLabel, SegmentedControl } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
 import {
@@ -250,37 +251,27 @@ export function AutomationDetailPanel({
     // Same frame as the device dialog: one height for every automation, and a
     // scrolling middle under a fixed header.
     <div className="h-[min(70dvh,760px)] lg:h-[min(85vh,780px)] flex flex-col overflow-hidden">
-      {/* Header — close on the left, eyebrow over a large name, actions right. */}
-      <div className="flex items-start justify-between gap-2 px-ha-4 pt-ha-4 pb-ha-2 shrink-0">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          title="Close"
-          className="shrink-0 rounded-full p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-        >
-          <Icon path={mdiClose} size={24} />
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="mb-0.5 truncate text-sm leading-none text-text-tertiary">Automation</p>
-          <p className="truncate text-2xl font-bold leading-tight text-text-primary">{automation.name}</p>
-        </div>
-        {editUrl && (
+      {/* Header — the shared one; only the words are this dialog's. */}
+      <SheetHeader
+        eyebrow="Automation"
+        title={automation.name}
+        onClose={onClose}
+        actions={editUrl && (
           <a
             href={editUrl}
             target="_blank"
             rel="noopener noreferrer"
             title="Edit in Home Assistant"
             aria-label="Edit in Home Assistant"
-            className="shrink-0 rounded-full p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+            className={sheetHeaderButton}
           >
             <Icon path={mdiPencil} size={24} />
           </a>
         )}
-      </div>
+      />
 
       {/* Body — takes whatever the frame has left. */}
-      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide px-6 py-3">
+      <div className={clsx('flex-1 min-h-0 overflow-y-auto scrollbar-hide py-ha-2', SHEET_PAD)}>
         <div className="flex w-full flex-col gap-ha-2">
           {/* The automation as one object, exactly like the device dialog: what
               it reads, what you can set, and what it did — one surface,

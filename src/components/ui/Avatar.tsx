@@ -25,7 +25,10 @@ export function Avatar({ src, alt = 'User', size = 'md', className }: AvatarProp
     <img
       src={src || FALLBACK_SRC}
       alt={alt}
-      className={clsx('rounded-full object-cover', sizeClasses[size], className)}
+      // Opaque ground, always: casita.png (and plenty of HA entity pictures)
+      // carry alpha, and avatars are routinely stacked with a negative margin —
+      // transparent ones let the avatar underneath show through the face.
+      className={clsx('rounded-full object-cover bg-surface-default', sizeClasses[size], className)}
     />
   );
 }

@@ -302,6 +302,86 @@ export async function setAnalyticsPreferences(preferences: AnalyticsPreferences)
   await requireConnection().sendMessagePromise({ type: 'analytics/preferences', preferences });
 }
 
+// ── Applications (Supervisor add-ons) ───────────────────────────────────────
+// Only Supervised / HA OS installs answer these. A Container or Core install
+// errors out, which we read as "no applications here" and the caller falls back
+// to the demo catalog rather than showing an empty page.
+
+export interface SupervisorAddon {
+  slug: string;
+  name: string;
+  description?: string;
+  /** Installed version — null/absent in the store listing. */
+  version?: string | null;
+  version_latest?: string;
+  /** 'started' | 'stopped' — present on the installed listing only. */
+  state?: string;
+  update_available?: boolean;
+  advanced?: boolean;
+  /** 'stable' | 'experimental' | 'deprecated' */
+  stage?: string;
+  repository?: string;
+  url?: string;
+  ingress?: boolean;
+  boot?: string;
+  installed?: boolean | string | null;
+}
+
+/** Installed applications (via the existing getAddons) plus the store catalogue. */
+export async function getAddonCatalog(): Promise<{ installed: SupervisorAddon[]; store: SupervisorAddon[] }> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return { installed: [], store: [] };
+  const [installed, store] = await Promise.all([
+    getAddons().catch(() => []),
+    conn
+      .sendMessagePromise<{ addons?: SupervisorAddon[] }>({ type: 'supervisor/api', endpoint: '/store', method: 'get' })
+      .then((res) => res?.addons ?? [])
+      .catch(() => []),
+  ]);
+  return { installed, store };
+}
+
+// ── Blueprints ──────────────────────────────────────────────────────────────
+
+export interface BlueprintListItem {
+  /** Registry path, e.g. "homeassistant/motion_light.yaml" — the stable id. */
+  path: string;
+  domain: 'automation' | 'script';
+  name: string;
+  description?: string;
+  author?: string;
+  sourceUrl?: string;
+}
+
+interface BlueprintListEntry {
+  metadata?: { name?: string; description?: string; author?: string; source_url?: string };
+  error?: string;
+}
+
+export async function getBlueprints(): Promise<BlueprintListItem[]> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return [];
+  const domains: BlueprintListItem['domain'][] = ['automation', 'script'];
+  const lists = await Promise.all(domains.map(async (domain) => {
+    try {
+      const res = await conn.sendMessagePromise<Record<string, BlueprintListEntry>>({ type: 'blueprint/list', domain });
+      return Object.entries(res ?? {})
+        .filter(([, entry]) => !entry.error)
+        .map(([path, entry]) => ({
+          path,
+          domain,
+          name: entry.metadata?.name ?? path,
+          description: entry.metadata?.description,
+          author: entry.metadata?.author,
+          sourceUrl: entry.metadata?.source_url,
+        }));
+    } catch {
+      return [];
+    }
+  }));
+  return lists.flat();
+}
+
 export async function getIntegrationManifests(): Promise<IntegrationManifest[]> {
   const conn = connection ?? await waitForConnection();
   if (!conn) return [];
