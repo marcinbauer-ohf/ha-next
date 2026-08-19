@@ -670,17 +670,21 @@ function AppShellContent({ children }: AppShellProps) {
         {/* TopBar - Desktop & Mobile persistent header */}
         <div
           data-component="MobileTopBar"
-          className={`h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] lg:h-16 lg:pt-0 bg-transparent lg:bg-transparent px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 pointer-events-auto ${desktopTopBarStateClass}`}
+          className={`h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] lg:h-16 lg:pt-0 bg-surface-lower lg:bg-transparent px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 pointer-events-auto ${desktopTopBarStateClass}`}
           style={mobileTopBarStyle}
         >
-            {/* Mobile backdrop — solid behind the bar, then a short fade under
-                it. Both live inside this z-30 bar so the fade paints *over* the
-                scrolling cards: content dissolving as it slides under the title
-                is the point, and moving the fade below the content area lost
-                that haze entirely. Coloured like the page surface below
+            {/* Mobile backdrop: the solid fill sits on THIS element, not on an
+                absolute child. iOS 26 home-screen web apps tint their status
+                bar by sampling the background of the element at the top edge —
+                a transparent parent with the paint in a child makes it fall
+                back to its own frosted glass, which is why the top looked
+                blurred when installed. Coloured like the page surface below
                 (surface-lower), not the app background, so the bar reads as the
-                top of the dashboard rather than a separate band. */}
-          <div className="lg:hidden absolute inset-0 pointer-events-none bg-surface-lower" aria-hidden />
+                top of the dashboard rather than a separate band.
+                The short fade below the bar stays a child: it lives inside this
+                z-30 bar so it paints *over* the scrolling cards — content
+                dissolving as it slides under the title is the point, and moving
+                it below the content area lost that haze entirely. */}
           <div
             className="lg:hidden absolute top-full inset-x-0 h-6 pointer-events-none bg-gradient-to-b from-surface-lower to-transparent"
             aria-hidden

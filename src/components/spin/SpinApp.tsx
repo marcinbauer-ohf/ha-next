@@ -13,6 +13,7 @@ import { useHomeName } from '@/lib/homeName';
 import { SPIN_CATEGORY_MAP, type SpinCategoryId, type CategoryDevice } from './spinCategories';
 import { Home3DMap } from './Home3DMap';
 import { SpinWidgets, SpinDeviceModal } from './SpinWidgets';
+import { SpinDetail } from './SpinDetail';
 import { SpinPromptBar } from './SpinPromptBar';
 import { SpinDock } from './SpinDock';
 
@@ -232,8 +233,8 @@ export function SpinApp() {
               </div>
             </header>
 
-            {/* Center: 3D home map */}
-            <div className="relative min-h-0 flex-1">
+            {/* Center: 3D home map — yields the lower half once a category is open */}
+            <div className={inChild ? 'relative h-[38%] min-h-[200px] shrink-0' : 'relative min-h-0 flex-1'}>
               <Home3DMap
                 areas={areas}
                 devices={devices}
@@ -244,17 +245,27 @@ export function SpinApp() {
               />
             </div>
 
-            {/* Widgets strip (summary ⇄ category/area detail) */}
-            <SpinWidgets
-              devices={devices}
-              focusCategory={focusCategory}
-              selectedArea={selectedArea}
-              onFocus={(id) => {
-                setSelectedArea(null);
-                setFocusId(id);
-              }}
-              onOpenDevice={setOpenDevice}
-            />
+            {/* Bottom half: category glance ⇄ grouped detail list */}
+            <AnimatePresence mode="wait" initial={false}>
+              {inChild ? (
+                <SpinDetail
+                  key={`detail-${focusId ?? 'area'}-${selectedArea ?? 'all'}`}
+                  devices={devices}
+                  areas={areas}
+                  focusCategory={focusCategory}
+                  selectedArea={selectedArea}
+                  onOpenDevice={setOpenDevice}
+                />
+              ) : (
+                <SpinWidgets
+                  key="summary"
+                  onFocus={(id) => {
+                    setSelectedArea(null);
+                    setFocusId(id);
+                  }}
+                />
+              )}
+            </AnimatePresence>
 
             {/* Dock */}
             <AnimatePresence>

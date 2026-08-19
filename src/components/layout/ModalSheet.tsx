@@ -5,7 +5,6 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useCloseOnScreensaver } from '@/contexts';
-import { lastPointerPoint } from '@/lib/lastPointer';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { visibleFocusables } from '@/hooks/useFocusTrap';
 import { recede, useSheetStack } from '@/hooks/useSheetStack';
@@ -18,6 +17,11 @@ interface ModalSheetProps {
   maxWidth?: number;
   /** When this changes while open, the content crossfades (e.g. detail ↔ edit) */
   transitionKey?: string;
+  /**
+   * Accessible name for the dialog. Give it whatever the header would have said
+   * — required reading for a screen reader when the dialog shows no title.
+   */
+  label?: string;
 }
 
 const SPRING = { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.9 };
@@ -28,7 +32,7 @@ const SHEET_SPRING = { type: 'spring' as const, stiffness: 380, damping: 36, mas
  * Desktop: centered floating card with scrim.
  * Mobile: bottom sheet that springs up; the grabber pill drags to dismiss.
  */
-export function ModalSheet({ open, onClose, children, maxWidth = 560, transitionKey }: ModalSheetProps) {
+export function ModalSheet({ open, onClose, children, maxWidth = 560, transitionKey, label }: ModalSheetProps) {
   // The screensaver clears anything sitting over the main UI. Since most modals
   // and surfaces ride on ModalSheet, this covers them in one place.
   useCloseOnScreensaver(open, onClose);
@@ -41,6 +45,12 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
   // because something opened on top.
   const aboveRef = useRef(above);
   useEffect(() => { aboveRef.current = above; }, [above]);
+  // Same reason, and then some: this effect grabs focus on open and hands it back
+  // on close, so it must run when `open` flips and at no other time. With
+  // `onClose` in its deps it re-ran on every render of the caller — and every
+  // re-run stole focus out of whatever you were typing in. See useCloseOnScreensaver.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mobileScrollRef = useRef<HTMLDivElement | null>(null);
@@ -67,7 +77,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
       if (aboveRef.current > 0) return;
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab') return;
@@ -96,25 +106,9 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
       document.removeEventListener('keydown', onKeyDown, true);
       previousFocus?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (typeof document === 'undefined') return null;
-
-  // Grow the desktop card out of whatever was clicked. The offset is damped —
-  // the card drifts *from that direction* rather than literally flying across
-  // the screen — and falls back to a plain centred pop when there's no fresh
-  // pointer (keyboard, a toast action, the screensaver closing something).
-  const origin = (() => {
-    const p = open ? lastPointerPoint() : null;
-    if (!p) return { dx: 0, dy: 16, transformOrigin: 'center' };
-    const cx = window.innerWidth / 2;
-    const cy = window.innerHeight / 2;
-    return {
-      dx: (p.x - cx) * 0.35,
-      dy: (p.y - cy) * 0.35,
-      transformOrigin: `${((p.x / window.innerWidth) * 100).toFixed(1)}% ${((p.y / window.innerHeight) * 100).toFixed(1)}%`,
-    };
-  })();
 
   // Crossfade content when transitionKey changes (panel switch inside the open
   // dialog). Deliberately gentle: the two panels share a header, so a big slide
@@ -142,6 +136,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
           ref={containerRef}
           role="dialog"
           aria-modal="true"
+          aria-label={label}
           tabIndex={-1}
           className="fixed inset-0 flex items-end lg:items-center justify-center pointer-events-auto outline-none"
           style={{ zIndex: 200 + below }}
@@ -159,21 +154,24 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             onClick={onClose}
           />
 
-          {/* Desktop: centered card — grows from wherever you clicked */}
+          {/* Desktop: centered card — pops in place. The dialog says where it
+              came from with its words (eyebrow + title) and its glyph, not with a
+              directional drift that's gone in 300ms and means nothing on a
+              keyboard or voice open. */}
           <motion.div
             key="desktop-card"
             // `layout` eases the card's height between panels — popLayout pulls
             // the outgoing panel out of flow, so without it the card snaps to the
             // new height in one frame while the content is still fading.
             layout={transitionKey !== undefined ? 'size' : false}
-            initial={{ opacity: 0, scale: 0.90, x: origin.dx, y: origin.dy }}
+            initial={{ opacity: 0, scale: 0.90, y: 16 }}
             // Covered: shrink back and lift, so the card underneath shows as a
             // shoulder above the new one rather than a shadow behind it.
-            animate={{ opacity: 1, scale: 1 - sunk * 0.06, x: 0, y: -sunk * 22 }}
-            exit={{ opacity: 0, scale: 0.90, x: origin.dx, y: origin.dy }}
+            animate={{ opacity: 1, scale: 1 - sunk * 0.06, y: -sunk * 22 }}
+            exit={{ opacity: 0, scale: 0.90, y: 16 }}
             transition={SPRING}
             className="hidden lg:flex relative w-full flex-col bg-surface-lower rounded-ha-3xl overflow-hidden shadow-[0_32px_80px_-16px_rgba(0,0,0,0.5)]"
-            style={{ maxWidth, maxHeight: '90vh', transformOrigin: origin.transformOrigin }}
+            style={{ maxWidth, maxHeight: '90vh' }}
           >
             <div className="relative flex-1 flex flex-col min-h-0">
               <div className={clsx('absolute top-0 left-0 right-0 h-10 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', desktopTop ? 'opacity-100' : 'opacity-0')} />

@@ -33,7 +33,7 @@ interface AddMenuRow extends AddableSettingsItem {
 
 // Sections whose "add" is a store to browse rather than a form to fill in —
 // selecting one lands on the section and opens its store overlay.
-const STORE_SLUGS = new Set(['applications', 'blueprints']);
+const STORE_SLUGS = new Set(['applications', 'blueprints', 'integrations', 'devices']);
 
 // Sections that expose multiple create actions in the "+" menu.
 function expandRow(item: AddableSettingsItem, contextGroup: boolean): AddMenuRow[] {

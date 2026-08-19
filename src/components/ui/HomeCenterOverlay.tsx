@@ -16,12 +16,12 @@ import { useHomeAssistant, useHomeAssistantSelector, useHomeCenterPrefs } from '
 import { useActivities } from '@/hooks/useActivities';
 import { buildActivityFeed } from '@/lib/activities/feed';
 import { isHomeCenterSectionVisible } from '@/components/profile/settingsNavigation';
-import { SheetHeader, SHEET_PAD, sheetHeaderButton } from '@/components/cards/dialogKit';
+import { SHEET_PAD } from '@/components/cards/dialogKit';
 import { useLiveSummaryItems } from '@/components/sections/SummariesPanel';
 import { EnergyGlance, AutomationsGlance, SummaryGlance } from '@/components/glances';
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { formatBackupAge, HOME_CENTER_SECTION_MAP, type HomeCenterSectionId } from '@/lib/homeCenter';
-import { mdiCheckCircleOutline, mdiCog } from '@mdi/js';
+import { mdiArrowRight, mdiCheckCircleOutline } from '@mdi/js';
 
 /** One thing asking for attention, folded up from a Home Center section. */
 interface AttentionGroup {
@@ -283,28 +283,15 @@ export function HomeCenterOverlay() {
           if (!homeCenterOpen && !visible) setMounted(false);
         }}
       >
-        {/* Header: the shared one, wrapped so the row still drags the sheet and
-            still carries the grabber pill. */}
+        {/* No header: the bento says what this is, and every way out is still
+            here — Escape, the scrim, and a pull on this grabber. What the header
+            used to offer (the way through to the full Home Center) is the button
+            at the bottom, where a thumb can reach it. */}
         <div
           {...sheetDrag.handleProps}
-          className={`relative shrink-0 ${isDesktop ? '' : 'touch-none cursor-grab active:cursor-grabbing'}`}
+          className={`relative h-ha-5 shrink-0 ${isDesktop ? '' : 'touch-none cursor-grab active:cursor-grabbing'}`}
         >
           <div className="absolute left-1/2 top-ha-3 -translate-x-1/2 w-10 h-1 rounded-full bg-text-secondary/30" />
-          <SheetHeader
-            eyebrow="Your home"
-            title="Home Center"
-            onClose={closeHomeCenter}
-            actions={
-              /* Jump to the full Home Center settings page */
-              <button
-                onClick={() => handleNavigate('/settings?section=home-center')}
-                aria-label="Open Home Center settings"
-                className={sheetHeaderButton}
-              >
-                <Icon path={mdiCog} size={24} />
-              </button>
-            }
-          />
         </div>
 
         {/* Scrollable bento body with top/bottom scroll fades */}
@@ -331,6 +318,20 @@ export function HomeCenterOverlay() {
             onClick={() => scrollToEdge('bottom')}
             className="absolute bottom-0 inset-x-0 h-12 bg-gradient-to-t from-surface-default to-transparent transition-opacity duration-300"
           />
+        </div>
+
+        <div className={`shrink-0 ${SHEET_PAD} pb-ha-4 pt-ha-2`}>
+          <button
+            type="button"
+            onClick={() => handleNavigate('/settings?section=home-center')}
+            // Solid blue: this is the way through, not a selected state (those wear
+            // the blue *tint* — chips, segmented controls). Matches the store's
+            // "Add to my home".
+            className="flex h-13 w-full items-center justify-center gap-ha-2 rounded-ha-2xl bg-ha-blue text-sm font-semibold text-white transition-[filter] hover:brightness-105 active:brightness-95"
+          >
+            Open Home Center
+            <Icon path={mdiArrowRight} size={18} />
+          </button>
         </div>
       </div>
     </div>

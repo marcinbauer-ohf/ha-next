@@ -9,6 +9,7 @@ import { SectionLabel, DataListView, ToggleSwitch, NavChevron, Sidebar } from '.
 import type { DataListConfig } from '../ui';
 import { ModalSheet } from '../layout/ModalSheet';
 import { EntityDetailPanel, type PanelEntity } from '../cards/EntityDetailPanel';
+import { IntegrationStore } from './IntegrationsPanel';
 import type { DeviceSummary, HassDevice } from '@/hooks';
 import { DEVICE_CATEGORY_LABEL, useDevices, useCopyToClipboard } from '@/hooks';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
@@ -296,7 +297,14 @@ export function DevicesTable({
     highlightKey: lastOpenedId ?? undefined,
   }), [onSelect, lastOpenedId]);
 
-  return <DataListView items={devices} config={config} />;
+  // Adding a device means adding the brand it belongs to, so "+ → Device" opens
+  // the same brand store as "+ → Integration".
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <DataListView items={devices} config={config} />
+      <IntegrationStore />
+    </div>
+  );
 }
 
 // ── Detail view ─────────────────────────────────────────────────────────────

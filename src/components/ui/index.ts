@@ -25,8 +25,9 @@ export type {
   DataListColumn,
   DataListLayout,
 } from './DataListView';
+export { IntegrationLogo } from './IntegrationLogo';
 export { StoreOverlay } from './StoreOverlay';
-export type { StoreItem } from './StoreOverlay';
+export type { StoreItem, StoreFilter } from './StoreOverlay';
 export { SegmentedControl } from './SegmentedControl';
 export { Dropdown } from './Dropdown';
 export { SelectChip, type SelectChipOption } from './SelectChip';

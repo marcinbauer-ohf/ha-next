@@ -10,7 +10,8 @@
     "start": "next start",
     "start:proxy": "NODE_ENV=production node server.js",
     "lint": "eslint",
-    "capture:previews": "node scripts/capture-previews.mjs"
+    "capture:previews": "node scripts/capture-previews.mjs",
+    "catalog:integrations": "node scripts/fetch-integration-catalog.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

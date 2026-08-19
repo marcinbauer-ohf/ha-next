@@ -175,7 +175,6 @@ export function ApplicationStore({
       onAdd={(item) => install(item.id)}
       addLabel="Add to my home"
       addedLabel="Added"
-      searchPlaceholder="Search applications…"
       emptyLabel="No applications match that search."
     />
   );

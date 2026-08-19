@@ -185,7 +185,6 @@ export function BlueprintsPanel() {
         onAdd={(item) => importBlueprint(item.id)}
         addLabel="Add to my home"
         addedLabel="Added"
-        searchPlaceholder="Search blueprints…"
         emptyLabel="No blueprints match that search."
         footer={<ImportFromUrl onImport={importFromUrl} />}
       />

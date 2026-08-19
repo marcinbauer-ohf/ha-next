@@ -1819,6 +1819,13 @@
   border-bottom-right-radius: var(--ha-radius-3xl, 24px);
 }
 
+/* Explicit root colour: an installed iOS 26 web app samples the root
+   background when nothing opaque sits at the viewport edge, and treats a
+   transparent root as white/glass. Same value as body, so nothing shifts. */
+html {
+  background-color: var(--ha-color-surface-low);
+}
+
 body {
   background: var(--ha-color-surface-low);
   color: var(--ha-color-text-primary);

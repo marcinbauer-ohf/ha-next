@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from './Icon';
 import { SectionLabel } from './SectionLabel';
+import { SearchField } from './SearchField';
 import { useSearchContext } from '@/contexts/SearchContext';
 import { useCloseOnScreensaver, useAssistantContext } from '@/contexts';
 import { useCommands, type CommandItem } from '@/hooks/useCommands';
@@ -459,40 +460,41 @@ export function SearchOverlay() {
 
       {/* Palette */}
       <div
-        className={`relative w-[calc(100%-2rem)] max-w-[640px] bg-surface-default rounded-ha-2xl shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden border border-surface-lower transition-[opacity,transform] duration-200 ease-out ${
+        className={`relative w-[calc(100%-2rem)] max-w-[640px] bg-surface-lower rounded-ha-3xl shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden border border-surface-lower transition-[opacity,transform] duration-200 ease-out ${
           visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
         onKeyDown={handleKeyDown}
       >
-        {/* Input */}
-        <div className="flex items-center gap-ha-3 px-ha-4 h-14 border-b border-surface-lower">
-          <Icon
-            path={mode === 'command' ? mdiConsoleLine : mode === 'debug' ? mdiBugOutline : mode === 'navigate' ? mdiArrowRightThin : mdiMagnify}
-            size={22}
-            className={`flex-shrink-0 ${mode ? 'text-ha-blue' : 'text-text-secondary'}`}
-          />
-          {modeLabel && (
-            <span className="flex-shrink-0 text-xs font-semibold text-ha-blue bg-ha-blue/15 px-ha-3 py-1 rounded-full">
-              {modeLabel}
-            </span>
-          )}
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search your home, or ask anything"
+        {/* Input — the stores' big field, on the same surface, in the same shape.
+            Left-aligned here: it's flanked by a mode badge and the ESC hint, and
+            you read what you type against the results below. */}
+        <div className="p-ha-3">
+          <SearchField
+            size="lg"
+            align="start"
+            inputRef={inputRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 bg-transparent text-base text-text-primary placeholder-text-tertiary outline-none"
+            onChange={setQuery}
+            placeholder="Search your home, or ask anything"
+            icon={mode === 'command' ? mdiConsoleLine : mode === 'debug' ? mdiBugOutline : mode === 'navigate' ? mdiArrowRightThin : mdiMagnify}
+            iconClassName={mode ? 'text-ha-blue' : 'text-text-secondary'}
+            leading={modeLabel && (
+              <span className="flex-shrink-0 rounded-full bg-ha-blue/15 px-ha-3 py-1 text-xs font-semibold text-ha-blue">
+                {modeLabel}
+              </span>
+            )}
+            trailing={(
+              <kbd className="hidden lg:flex items-center rounded-ha-md bg-surface-low px-1.5 py-0.5 text-[13px] font-medium text-text-tertiary">
+                ESC
+              </kbd>
+            )}
           />
-          <kbd className="hidden lg:flex items-center text-[13px] text-text-tertiary bg-surface-lower px-1.5 py-0.5 rounded-ha-md font-medium">
-            ESC
-          </kbd>
         </div>
 
         {/* Results — wrapped so the standard scroll fades can overlay the list */}
         <div className="relative">
-          <div className={clsx('absolute top-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', listFades.showTop ? 'opacity-100' : 'opacity-0')} />
-          <div className={clsx('absolute bottom-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-t from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', listFades.showBottom ? 'opacity-100' : 'opacity-0')} />
+          <div className={clsx('absolute top-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', listFades.showTop ? 'opacity-100' : 'opacity-0')} />
+          <div className={clsx('absolute bottom-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', listFades.showBottom ? 'opacity-100' : 'opacity-0')} />
         <div
           ref={(el) => {
             listRef.current = el;

@@ -1227,12 +1227,65 @@ export function EntityDetailPanel({
   // device rows live inside it, so one container covers hero and shelf).
   const heroScrollRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
-  const shelfRef = useRef<HTMLDivElement>(null);
   useIdleMarquee(heroScrollRef, true);
 
   // Releases the landing pin below — the title's "jump to the list" must not be
   // yanked back by a late resize.
   const releasePin = useRef<() => void>(() => {});
+
+  // Phone: swipe the panel sideways to move between the three places in the nav,
+  // in the order the nav shows them. Touch only — a mouse has the nav itself —
+  // and native listeners rather than React's, because claiming the gesture needs
+  // a non-passive touchmove.
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    let from: { x: number; y: number } | null = null;
+    let claimed = false;
+    const onStart = (e: TouchEvent) => {
+      claimed = false;
+      const t = e.touches[0];
+      // Sliders, charts and timelines own their gesture — the same marker the
+      // sheet's own drag-to-dismiss steps around.
+      from = e.touches.length === 1 && t && !(e.target as Element | null)?.closest?.('[data-sheet-drag="none"]')
+        ? { x: t.clientX, y: t.clientY }
+        : null;
+    };
+    const onMove = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!from || !t) return;
+      const dx = t.clientX - from.x;
+      if (!claimed && Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(t.clientY - from.y) * 1.5) claimed = true;
+      // Own it once it reads as sideways: stops the panel scrolling under the
+      // swipe, and stops the release landing as a tap on whatever it passed over
+      // (the hero is one big toggle).
+      if (claimed) e.preventDefault();
+    };
+    const onEnd = (e: TouchEvent) => {
+      const start = from;
+      from = null;
+      const t = e.changedTouches[0];
+      if (!start || !claimed || !t) return;
+      claimed = false;
+      const dx = t.clientX - start.x;
+      if (Math.abs(dx) < 60) return;
+      setTab(current => {
+        const i = PANEL_TABS.findIndex(p => p.id === current);
+        // Ends of the row hold — three places in a fixed order, so wrapping
+        // would make "which way is Info" a different answer each time.
+        return PANEL_TABS[Math.min(PANEL_TABS.length - 1, Math.max(0, i + (dx < 0 ? 1 : -1)))].id;
+      });
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+    };
+  }, []);
 
   // Opening a device lands you on its hero, with the shut shelf's heading on the
   // bottom edge — the region is bottom-aligned and taller than its box, so
@@ -1263,14 +1316,16 @@ export function EntityDetailPanel({
 
   // Open the shelf and ride up to it. The list mounts in the same commit as the
   // state change, so the scroll waits a frame for it to have a height to scroll
-  // to. Closing goes the other way — back onto the hero.
+  // to. Open lands at the very top — the hero has collapsed to a pinned band, so
+  // the list already starts right under it. Closing goes the other way — back
+  // onto the hero.
   const setShelf = (open: boolean) => {
     setShelfOpen(open);
     releasePin.current();
     requestAnimationFrame(() => {
       const el = heroScrollRef.current;
       if (!el) return;
-      const top = open ? (shelfRef.current?.offsetTop ?? 0) : heroLanding(el, heroRef.current);
+      const top = open ? 0 : heroLanding(el, heroRef.current);
       el.scrollTo({ top, behavior: 'smooth' });
     });
   };
@@ -1359,6 +1414,7 @@ export function EntityDetailPanel({
     // scrolling — its heading plus the top edge of the first row. The hero is
     // sized to the frame minus this, so the shelf always announces itself.
     <div
+      ref={panelRef}
       className="h-[min(70dvh,760px)] lg:h-[min(88vh,900px)] flex flex-col overflow-hidden"
       style={{ '--panel-shelf-peek': `${SHELF_PEEK}px` } as CSSProperties}
     >
@@ -1470,8 +1526,15 @@ export function EntityDetailPanel({
               // Short of the full height by SHELF_PEEK: that gap is exactly the
               // shut shelf, so its heading and chevron sit on the panel's bottom
               // edge instead of being invisible until you find them.
-              'relative z-[1] flex min-h-[calc(100%-var(--panel-shelf-peek))] flex-col justify-end',
-              showBackdrop && 'pt-[116px]',
+              'relative z-[2] flex flex-col justify-end',
+              // Shelf open — you're running the list, and what you picked must
+              // stay on screen: the hero collapses to its band (no controls, no
+              // chart — see the props below) and pins to the top of the
+              // scrollport while every row scrolls under it. Content-height, so
+              // the list gets the rest of the frame whatever the device is.
+              shelfOpen
+                ? 'sticky top-0 bg-surface-lower'
+                : clsx('min-h-[calc(100%-var(--panel-shelf-peek))]', showBackdrop && 'pt-[116px]'),
             )}>
               <EntityDetailBody
                 key={focusedEntity.entityId}
@@ -1486,8 +1549,11 @@ export function EntityDetailPanel({
                 // is one place, the History tab, which keeps the same hero
                 // (scrubbing still moves the reading) and gives the chart and
                 // its log all the room the controls were using.
-                historyView={tab === 'history' ? 'full' : 'none'}
-                showControls={tab !== 'history'}
+                // Both off while the shelf is open: the pinned hero above is
+                // then always one band tall, so it fits any frame and the list
+                // keeps the room it needs.
+                historyView={tab === 'history' && !shelfOpen ? 'full' : 'none'}
+                showControls={tab !== 'history' && !shelfOpen}
                 pastTab={pastTab}
                 onPastTabChange={setPastTab}
                 heroLayout={heroLayout}
@@ -1507,7 +1573,7 @@ export function EntityDetailPanel({
               on every device is the point, and it holds everything the device
               still has (hidden entities included — only disabling one takes it
               out, see panelEntitiesForDevice). */}
-          <div ref={shelfRef} className="relative z-[1] bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
+          <div className="relative z-[1] bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
               {/* The heading is the handle — a 24px row (SHELF_PEEK is measured
                   from it), with the chevron turning down as it opens. Not
                   "entities": the list is everything this device can show or do,

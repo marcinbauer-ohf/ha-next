@@ -1,10 +1,14 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '../ui/Icon';
-import { SectionLabel, DataListView, NavChevron } from '../ui';
+import { SectionLabel, DataListView, NavChevron, IntegrationLogo, StoreOverlay } from '../ui';
 import type { DataListConfig } from '../ui';
 import type { IntegrationSummary, IntegrationStatus, IntegrationFlags } from '@/hooks';
+import { useIntegrations } from '@/hooks';
+import { useAddContext } from '@/contexts';
+import { useIntegrationCatalog, useAddedBrands, type CatalogBrand } from '@/hooks/useIntegrationCatalog';
+import type { StoreItem, StoreFilter } from '../ui';
 import {
   mdiCheckCircle,
   mdiFlaskOutline,
@@ -14,6 +18,18 @@ import {
   mdiCloudOutline,
   mdiLan,
   mdiAlertCircleOutline,
+  mdiLightbulbOutline,
+  mdiThermostat,
+  mdiShieldHomeOutline,
+  mdiPlayCircleOutline,
+  mdiFlashOutline,
+  mdiAccessPointNetwork,
+  mdiMicrophoneOutline,
+  mdiCarOutline,
+  mdiWeatherPartlyCloudy,
+  mdiRobotVacuumVariant,
+  mdiCalendarBlankOutline,
+  mdiToggleSwitchOutline,
 } from '@mdi/js';
 
 function countLabel(deviceCount: number, entityCount: number): string {
@@ -84,46 +100,6 @@ function IntegrationFlagBadges({ flags }: { flags: IntegrationFlags }) {
           {f.label}
         </span>
       ))}
-    </div>
-  );
-}
-
-/**
- * The integration's real brand logo from the Home Assistant brands CDN
- * (https://brands.home-assistant.io/<domain>/icon.png — the platform key is the
- * brand domain). Falls back to the thematic mdi icon if the brand has no logo
- * or the image fails to load.
- */
-function IntegrationLogo({
-  domain,
-  fallbackIcon,
-  tileClass,
-  iconSize,
-}: {
-  domain: string;
-  fallbackIcon: string;
-  tileClass: string;
-  iconSize: number;
-}) {
-  const [failed, setFailed] = useState(false);
-
-  if (failed) {
-    return (
-      <div className={`${tileClass} bg-fill-primary-normal text-ha-blue`}>
-        <Icon path={fallbackIcon} size={iconSize} />
-      </div>
-    );
-  }
-
-  return (
-    <div className={`${tileClass} bg-white/90 dark:bg-white p-1`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`https://brands.home-assistant.io/${domain}/icon.png`}
-        alt=""
-        className="h-full w-full object-contain"
-        onError={() => setFailed(true)}
-      />
     </div>
   );
 }
@@ -310,12 +286,19 @@ export function IntegrationsTable({
     storageId: 'integrations',
     fillHeight: true,
     defaultLayout: 'list',
-    emptyLabel: 'No integrations match these filters.',
+    emptyLabel: 'No integrations match these filters. Use + to add one.',
     bg: 'surface-lower',
     highlightKey: lastOpenedId ?? undefined,
   }), [onSelect, lastOpenedId]);
 
-  return <DataListView items={integrations} config={config} />;
+  // No "browse" button of its own: the top bar's "+" is the way in, and it
+  // already hoists "Integration" while this section is open.
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <DataListView items={integrations} config={config} />
+      <IntegrationStore />
+    </div>
+  );
 }
 
 /** Detail view: shown after drilling into a single integration row. */
@@ -404,5 +387,165 @@ export function IntegrationDetailView({ integration }: { integration: Integratio
         </div>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The brand store — everything Home Assistant works with, browsable behind the
+// top bar's "+ → Integration" and "+ → Device". One store, two doors: in Home
+// Assistant you add a device by adding the brand it belongs to, so splitting the
+// two would mean two stores holding the same 1,480 brands.
+//
+// The catalogue is a snapshot of home-assistant.io/integrations (see
+// scripts/fetch-integration-catalog.mjs), because a running instance can only
+// list what is already set up.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// One face per group, for the handful of brands with no logo on the CDN.
+const GROUP_META: Record<string, { icon: string; accent: string }> = {
+  'Lights & shades': { icon: mdiLightbulbOutline, accent: '#f5a524' },
+  Climate: { icon: mdiThermostat, accent: '#ff6b4a' },
+  Security: { icon: mdiShieldHomeOutline, accent: '#4a7dff' },
+  Media: { icon: mdiPlayCircleOutline, accent: '#a855f7' },
+  Energy: { icon: mdiFlashOutline, accent: '#22c55e' },
+  'Hubs & radios': { icon: mdiAccessPointNetwork, accent: '#18bcf2' },
+  'Voice & AI': { icon: mdiMicrophoneOutline, accent: '#ec4899' },
+  Car: { icon: mdiCarOutline, accent: '#64748b' },
+  Weather: { icon: mdiWeatherPartlyCloudy, accent: '#38bdf8' },
+  'Home care': { icon: mdiRobotVacuumVariant, accent: '#14b8a6' },
+  Everyday: { icon: mdiCalendarBlankOutline, accent: '#8b5cf6' },
+  'Sensors & switches': { icon: mdiToggleSwitchOutline, accent: '#0ea5e9' },
+  'Network & system': { icon: mdiLan, accent: '#64748b' },
+};
+
+// HA's iot_class, said the way you'd say it out loud.
+const CONNECTION_LABEL: Record<string, string> = {
+  'local-push': 'On your network, reports the moment it changes',
+  'local-polling': 'On your network, checked every so often',
+  'cloud-push': 'Through the maker’s service, reports right away',
+  'cloud-polling': 'Through the maker’s service, checked every so often',
+  'assumed-state': 'One-way — it takes commands but can’t report back',
+  calculated: 'Worked out from things you already have',
+  configurable: 'However you set it up',
+};
+
+// HA's integration_type, same treatment.
+const TYPE_LABEL: Record<string, string> = {
+  device: 'A device you own',
+  hub: 'A hub that brings its own devices',
+  service: 'An online service',
+  virtual: 'Set up through another brand',
+  system: 'Part of Home Assistant',
+  entity: 'Part of Home Assistant',
+  helper: 'A helper you build yourself',
+  integration: 'A connection to something else',
+  hardware: 'Hardware this runs on',
+};
+
+function toStoreItem(brand: CatalogBrand, installed: boolean): StoreItem {
+  const meta = GROUP_META[brand.group] ?? { icon: mdiDevices, accent: '#18bcf2' };
+  const badges: string[] = [];
+  if (brand.partner) badges.push('Works with Home Assistant');
+  if (brand.type === 'virtual') badges.push('Through another brand');
+  return {
+    id: brand.slug,
+    name: brand.name,
+    tagline: brand.tagline,
+    category: brand.group,
+    icon: meta.icon,
+    accent: meta.accent,
+    logoDomain: brand.domain,
+    // Home Assistant's own categories: not shown, but a search for "thermostat"
+    // or "doorbell" should still find the brand that has one.
+    keywords: brand.categories.join(' '),
+    badges,
+    installed,
+    featured: brand.featured && !installed,
+    facts: [
+      { label: 'How it connects', value: CONNECTION_LABEL[brand.iotClass ?? ''] ?? 'Depends on the device' },
+      { label: 'What it is', value: TYPE_LABEL[brand.type] ?? 'A connection to something else' },
+      { label: 'It can bring', value: brand.categories.slice(0, 3).join(', ') || 'Whatever you connect' },
+      { label: 'Supported since', value: brand.since ? `Version ${brand.since}` : 'Early days' },
+    ],
+    url: brand.url,
+  };
+}
+
+// Devices or services, from Home Assistant's own `integration_type`. The older
+// third of the catalogue has no type set, and HA's default for unset is `hub`, so
+// unclassified counts as a device — it means a filter for devices can show the odd
+// service, which beats hiding the camera brand you came for. HA's own building
+// blocks (entity, helper, system) are neither, and show when no chip is picked.
+const DEVICE_TYPES = new Set(['device', 'hub', 'hardware', 'brand', 'virtual', 'integration']);
+const SERVICE_TYPES = new Set(['service']);
+
+// Searches offered before anyone types: things people shop for that the category
+// grid can't show them — there is no "doorbell" or "blinds" group. Each was
+// checked against the catalogue (8–31 brands apiece), so none is a dead end.
+const SUGGESTED_SEARCHES = ['Doorbell', 'Vacuum', 'Blinds', 'Water heater', 'Solar', 'Air quality'];
+
+/**
+ * Opened from the top bar's "+ → Integration" / "+ → Device" (an AddContext
+ * request, the same channel Applications and Blueprints use). No second entry
+ * point — the "+" is the one way in.
+ *
+ * It watches AddContext itself rather than taking `open`, because both the
+ * integrations list and the devices list mount it and neither should have to
+ * keep the same piece of state.
+ */
+export function IntegrationStore() {
+  const { pendingAdd, clearPendingAdd } = useAddContext();
+  const [open, setOpen] = useState(false);
+
+  // Held open until dismissed, and raised on the next frame so the section it
+  // landed on paints first (see BlueprintsPanel).
+  const wanted = pendingAdd?.slug === 'integrations' || pendingAdd?.slug === 'devices';
+  useEffect(() => {
+    if (!wanted) return;
+    const frame = requestAnimationFrame(() => setOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, [wanted]);
+
+  const onClose = useCallback(() => {
+    setOpen(false);
+    clearPendingAdd();
+  }, [clearPendingAdd]);
+
+  const { items: catalog, loading } = useIntegrationCatalog(open);
+  const { integrations } = useIntegrations();
+  const { added, addBrand } = useAddedBrands();
+
+  const items = useMemo(() => {
+    const have = new Set([...integrations.map((i) => i.id), ...added]);
+    return catalog.map((brand) => toStoreItem(brand, have.has(brand.domain)));
+  }, [catalog, integrations, added]);
+
+  const filters = useMemo<StoreFilter[]>(() => {
+    const devices = new Set(catalog.filter((b) => DEVICE_TYPES.has(b.type)).map((b) => b.slug));
+    const services = new Set(catalog.filter((b) => SERVICE_TYPES.has(b.type)).map((b) => b.slug));
+    return [
+      { id: 'devices', label: 'Devices', match: (i) => devices.has(i.id) },
+      { id: 'services', label: 'Services', match: (i) => services.has(i.id) },
+    ];
+  }, [catalog]);
+
+  return (
+    <StoreOverlay
+      open={open}
+      onClose={onClose}
+      eyebrow="Devices & services"
+      title="Devices & services"
+      items={items}
+      onAdd={(item) => {
+        const brand = catalog.find((b) => b.slug === item.id);
+        if (brand) addBrand(brand.domain);
+      }}
+      addLabel="Add to my home"
+      addedLabel="Already here"
+      emptyLabel={loading ? 'Fetching everything Home Assistant works with…' : 'Nothing matches that search.'}
+      filters={filters}
+      itemsLabel="Brands"
+      suggestions={SUGGESTED_SEARCHES}
+    />
   );
 }

@@ -6,6 +6,10 @@ import {
   mdiShieldHome,
   mdiFan,
   mdiPlayCircle,
+  mdiWindowShutter,
+  mdiBattery50,
+  mdiWeatherPartlyCloudy,
+  mdiRobotOutline,
 } from '@mdi/js';
 import type { HassEntity } from '@/types';
 import type { HassDevice } from '@/hooks/useDevices';
@@ -17,7 +21,11 @@ export type SpinCategoryId =
   | 'climate'
   | 'security'
   | 'fans'
-  | 'media';
+  | 'media'
+  | 'covers'
+  | 'batteries'
+  | 'weather'
+  | 'automations';
 
 export interface SpinCategory {
   id: SpinCategoryId;
@@ -28,6 +36,12 @@ export interface SpinCategory {
   matches: (entity: HassEntity) => boolean;
   /** Whether this entity counts as "active" (lit, playing, unlocked…). */
   isActive: (entity: HassEntity) => boolean;
+  /**
+   * One-tap action over the category's active entities. Targets are the active
+   * entities in `domain` only — so "Lock all" ignores the open-door sensors that
+   * also make the security category active.
+   */
+  bulk?: { label: string; domain: string; service: string };
 }
 
 const domain = (e: HassEntity) => e.entity_id.split('.')[0];
@@ -40,6 +54,7 @@ export const SPIN_CATEGORIES: SpinCategory[] = [
   {
     id: 'lights',
     label: 'Lights',
+    bulk: { label: 'All off', domain: 'light', service: 'turn_off' },
     icon: mdiLightbulbGroup,
     accent: '#ffd166',
     matches: (e) => domain(e) === 'light',
@@ -48,6 +63,7 @@ export const SPIN_CATEGORIES: SpinCategory[] = [
   {
     id: 'climate',
     label: 'Climate',
+    bulk: { label: 'All off', domain: 'climate', service: 'turn_off' },
     icon: mdiThermostat,
     accent: '#ff9f6b',
     matches: (e) =>
@@ -75,6 +91,7 @@ export const SPIN_CATEGORIES: SpinCategory[] = [
   {
     id: 'security',
     label: 'Security',
+    bulk: { label: 'Lock all', domain: 'lock', service: 'lock' },
     icon: mdiShieldHome,
     accent: '#c792ff',
     matches: (e) =>
@@ -93,6 +110,7 @@ export const SPIN_CATEGORIES: SpinCategory[] = [
   {
     id: 'fans',
     label: 'Fans',
+    bulk: { label: 'All off', domain: 'fan', service: 'turn_off' },
     icon: mdiFan,
     accent: '#7fd8d8',
     matches: (e) => domain(e) === 'fan',
@@ -101,10 +119,47 @@ export const SPIN_CATEGORIES: SpinCategory[] = [
   {
     id: 'media',
     label: 'Media',
+    bulk: { label: 'Pause all', domain: 'media_player', service: 'media_pause' },
     icon: mdiPlayCircle,
     accent: '#ff8fb2',
     matches: (e) => domain(e) === 'media_player',
     isActive: (e) => e.state === 'playing',
+  },
+  {
+    id: 'covers',
+    label: 'Blinds',
+    bulk: { label: 'Close all', domain: 'cover', service: 'close_cover' },
+    icon: mdiWindowShutter,
+    accent: '#9db4ff',
+    matches: (e) => domain(e) === 'cover',
+    isActive: (e) => e.state === 'open' || Number(e.attributes.current_position ?? 0) > 0,
+  },
+  {
+    id: 'batteries',
+    label: 'Batteries',
+    icon: mdiBattery50,
+    accent: '#f2b544',
+    matches: (e) =>
+      (domain(e) === 'sensor' || domain(e) === 'binary_sensor') && deviceClass(e) === 'battery',
+    // "Active" means needs attention: a low-battery flag, or under 20%.
+    isActive: (e) =>
+      domain(e) === 'binary_sensor' ? e.state === 'on' : Number.parseFloat(e.state) < 20,
+  },
+  {
+    id: 'weather',
+    label: 'Weather',
+    icon: mdiWeatherPartlyCloudy,
+    accent: '#6fc9ff',
+    matches: (e) => domain(e) === 'weather',
+    isActive: () => false,
+  },
+  {
+    id: 'automations',
+    label: 'Automations',
+    icon: mdiRobotOutline,
+    accent: '#b9a0ff',
+    matches: (e) => domain(e) === 'automation',
+    isActive: (e) => e.state === 'on',
   },
 ];
 
@@ -194,4 +249,18 @@ export function friendlyState(entity: HassEntity): string {
 
 export function entityName(entity: HassEntity): string {
   return (entity.attributes.friendly_name as string | undefined) ?? entity.entity_id.split('.')[1].replaceAll('_', ' ');
+}
+
+/** Entities of the category that currently count as active, most useful first. */
+export function activeEntities(all: HassEntity[], category: SpinCategory): HassEntity[] {
+  return all.filter((e) => category.matches(e) && category.isActive(e));
+}
+
+/** Entity ids a category's bulk action can actually target. */
+export function bulkTargets(all: HassEntity[], category: SpinCategory): string[] {
+  if (!category.bulk) return [];
+  const { domain: d } = category.bulk;
+  return activeEntities(all, category)
+    .filter((e) => domain(e) === d)
+    .map((e) => e.entity_id);
 }

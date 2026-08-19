@@ -9,6 +9,7 @@ import { SearchField } from './SearchField';
 import { SectionLabel } from './SectionLabel';
 import { NavChevron } from './NavChevron';
 import { SelectChip } from './SelectChip';
+import { SegmentedControl } from './SegmentedControl';
 import { mdiSortVariant, mdiViewAgendaOutline, mdiCheck, mdiFormatListBulleted, mdiViewGridOutline, mdiTableLarge, mdiTune, mdiClose, mdiArrowUp, mdiArrowDown, mdiViewColumnOutline, mdiFilterVariant } from '@mdi/js';
 
 export type DataListLayout = 'list' | 'grid' | 'table';
@@ -180,7 +181,11 @@ const LAYOUT_META: Record<DataListLayout, { icon: string; label: string }> = {
   table: { icon: mdiTableLarge, label: 'Table view' },
 };
 
-/** Segmented layout switch over the modes the config actually supports. */
+/**
+ * Segmented layout switch over the modes the config actually supports — the same
+ * SegmentedControl the stores use for their Categories/Brands switch, so a switch
+ * looks like a switch wherever you meet one.
+ */
 function LayoutToggle({
   layout,
   onChange,
@@ -190,24 +195,18 @@ function LayoutToggle({
   onChange: (l: DataListLayout) => void;
   available: DataListLayout[];
 }) {
-  const modes = available.map((id) => ({ id, ...LAYOUT_META[id] }));
   return (
-    <div className="ml-auto inline-flex h-10 items-center rounded-ha-xl border border-surface-lower bg-surface-default p-0.5">
-      {modes.map((mode) => (
-        <button
-          key={mode.id}
-          type="button"
-          aria-label={mode.label}
-          aria-pressed={layout === mode.id}
-          onClick={() => onChange(mode.id)}
-          className={`flex h-9 w-9 items-center justify-center rounded-ha-lg transition-colors ${
-            layout === mode.id ? 'bg-fill-primary-normal text-ha-blue' : 'text-text-secondary hover:bg-surface-low'
-          }`}
-        >
-          <Icon path={mode.icon} size={16} />
-        </button>
-      ))}
-    </div>
+    <SegmentedControl
+      className="ml-auto"
+      iconOnly
+      value={layout}
+      onChange={onChange}
+      segments={available.map((id) => ({
+        value: id,
+        label: LAYOUT_META[id].label,
+        icon: <Icon path={LAYOUT_META[id].icon} size={16} />,
+      }))}
+    />
   );
 }
 
@@ -576,8 +575,14 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
               // Same rule as ListSection: over a card of rows the heading lines
               // up with the row text; over a grid of cards it lines up with the
               // cards' outer edge.
+              // The padding is there so rows can't slide visibly through the text
+              // while the heading is stuck; it must not also read as distance from
+              // the list it labels. `space-y` puts its gap on *this* element's
+              // margin-bottom, so `mb-0` drops that and the 4px padding is the
+              // whole gap — ListSection's 8px, once the count badge's own height
+              // is counted in. `-mt` gives the top padding back to the group.
               <div
-                className={`sticky z-20 ${solidBg} flex items-center gap-ha-2 py-ha-1 ${layout === 'grid' && renderCard ? 'px-ha-1' : 'px-ha-4'}`}
+                className={`sticky z-20 -mt-ha-1 mb-0 ${solidBg} flex items-center gap-ha-2 py-ha-1 ${layout === 'grid' && renderCard ? 'px-ha-1' : 'px-ha-4'}`}
                 style={{ top: headerStickyTop }}
               >
                 <SectionLabel>{bucket.title}</SectionLabel>

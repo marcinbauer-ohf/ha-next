@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   mdiLightbulb,
   mdiFan,
@@ -24,15 +24,14 @@ import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { useHomeAssistantEntities } from '@/hooks/useHomeAssistant';
 import { useEnergyMetrics } from '@/hooks/useEnergyMetrics';
 import { useEdgeFade } from '@/hooks/useEdgeFade';
-import type { HassDevice } from '@/hooks/useDevices';
 import {
-  SPIN_CATEGORIES,
-  devicesForCategory,
+  SPIN_CATEGORY_MAP,
+  activeEntities,
+  bulkTargets,
   friendlyState,
   entityName,
   isTogglable,
   type CategoryDevice,
-  type SpinCategory,
   type SpinCategoryId,
 } from './spinCategories';
 
@@ -50,7 +49,7 @@ const DOMAIN_ICONS: Record<string, string> = {
   switch: mdiToggleSwitch,
 };
 
-function domainIcon(entity: HassEntity): string {
+export function domainIcon(entity: HassEntity): string {
   return DOMAIN_ICONS[entity.entity_id.split('.')[0]] ?? mdiPowerPlug;
 }
 
@@ -59,6 +58,10 @@ interface SummaryValue {
   value: string;
   detail: string;
   live: boolean;
+  /** Friendly names of what's currently active — the glance that saves a tap. */
+  names: string[];
+  /** Entity ids the category's bulk action would hit right now. */
+  targets: string[];
 }
 
 function useCategorySummaries(): SummaryValue[] {
@@ -101,7 +104,26 @@ function useCategorySummaries(): SummaryValue[] {
 
     const watts = energy.watts;
 
-    return [
+    const covers = byDomain('cover');
+    const coversOpen = covers.filter((e) => e.state === 'open' || Number(e.attributes.current_position ?? 0) > 0);
+
+    const batteries = all.filter(
+      (e) =>
+        (e.entity_id.startsWith('sensor.') || e.entity_id.startsWith('binary_sensor.')) &&
+        e.attributes.device_class === 'battery',
+    );
+    const batteryLow = batteries.filter((e) =>
+      e.entity_id.startsWith('binary_sensor.') ? e.state === 'on' : parseFloat(e.state) < 20,
+    );
+    const lowest = batteries
+      .filter((e) => e.entity_id.startsWith('sensor.') && !Number.isNaN(parseFloat(e.state)))
+      .sort((a, b) => parseFloat(a.state) - parseFloat(b.state))[0];
+
+    const weather = byDomain('weather')[0];
+    const automations = byDomain('automation');
+    const automationsOff = automations.filter((e) => e.state === 'off');
+
+    const base = [
       {
         id: 'power' as const,
         value: watts != null ? (watts >= 1000 ? `${(watts / 1000).toFixed(1)} kW` : `${Math.round(watts)} W`) : '—',
@@ -144,157 +166,150 @@ function useCategorySummaries(): SummaryValue[] {
         detail: `${players.length} players`,
         live: playing > 0,
       },
-    ].filter((s) => {
-      // Hide categories the home simply doesn't have.
-      if (s.id === 'fans') return fans.length > 0;
-      if (s.id === 'media') return players.length > 0;
-      if (s.id === 'power') return energy.watts != null || energy.powerSensors.length > 0;
-      return true;
-    });
+      {
+        id: 'covers' as const,
+        value: coversOpen.length ? `${coversOpen.length} open` : 'All closed',
+        detail: `${covers.length} blinds & covers`,
+        live: coversOpen.length > 0,
+      },
+      {
+        id: 'batteries' as const,
+        value: batteryLow.length ? `${batteryLow.length} low` : 'All good',
+        detail: lowest
+          ? `Lowest ${entityName(lowest)} · ${Math.round(parseFloat(lowest.state))}%`
+          : `${batteries.length} tracked`,
+        live: batteryLow.length > 0,
+      },
+      {
+        id: 'weather' as const,
+        value:
+          weather?.attributes.temperature != null
+            ? `${Math.round(weather.attributes.temperature as number)}°`
+            : '—',
+        detail: weather
+          ? String(weather.state)
+              .replace('partlycloudy', 'partly cloudy')
+              .replaceAll('-', ' ')
+              .replace(/^./, (c) => c.toUpperCase())
+          : 'No forecast',
+        live: false,
+      },
+      {
+        id: 'automations' as const,
+        value: automationsOff.length ? `${automationsOff.length} paused` : `${automations.length} on`,
+        detail: automationsOff.length ? `${automations.length - automationsOff.length} running` : 'All running',
+        live: automationsOff.length > 0,
+      },
+    ];
+
+    return base
+      .filter((s) => {
+        // Hide categories the home simply doesn't have.
+        if (s.id === 'fans') return fans.length > 0;
+        if (s.id === 'media') return players.length > 0;
+        if (s.id === 'covers') return covers.length > 0;
+        if (s.id === 'batteries') return batteries.length > 0;
+        if (s.id === 'weather') return weather != null;
+        if (s.id === 'automations') return automations.length > 0;
+        if (s.id === 'power') return energy.watts != null || energy.powerSensors.length > 0;
+        return true;
+      })
+      .map((s) => {
+        const cat = SPIN_CATEGORY_MAP.get(s.id)!;
+        return {
+          ...s,
+          names: activeEntities(all, cat).map(entityName),
+          targets: cat.bulk ? bulkTargets(all, cat) : [],
+        };
+      });
   }, [entities, energy]);
 }
 
 interface SpinWidgetsProps {
-  devices: HassDevice[];
-  focusCategory: SpinCategory | null;
-  selectedArea: string | null;
   onFocus: (id: SpinCategoryId) => void;
-  onOpenDevice: (item: CategoryDevice) => void;
 }
 
-export function SpinWidgets({ devices, focusCategory, selectedArea, onFocus, onOpenDevice }: SpinWidgetsProps) {
+/**
+ * The home glance: one widget per category, each carrying enough state that most
+ * checks end here. Horizontal strip on phones, full grid from `sm` up — the whole
+ * set is fixed-length, so the grid never needs to scroll.
+ */
+export function SpinWidgets({ onFocus }: SpinWidgetsProps) {
+  const ha = useHomeAssistant();
   const summaries = useCategorySummaries();
   const { ref: fadeRef, onScroll: onFadeScroll, style: fadeStyle } = useEdgeFade();
 
-  const detailItems = useMemo<CategoryDevice[] | null>(() => {
-    if (!focusCategory && !selectedArea) return null;
-    let pool = devices;
-    if (selectedArea) pool = pool.filter((d) => d.areaId === selectedArea);
-    if (focusCategory) return devicesForCategory(pool, focusCategory);
-    return pool
-      .filter((d) => !d.isService && d.entities.length > 0)
-      .map((d) => ({
-        device: d,
-        lead: d.primaryEntity ?? d.entities[0],
-        categoryEntities: d.entities,
-      }));
-  }, [devices, focusCategory, selectedArea]);
-
-  const modeKey = detailItems ? `detail-${focusCategory?.id ?? 'area'}-${selectedArea ?? 'all'}` : 'summary';
-
+  // The bottom padding clears the floating prompt chip (it sits 112px up).
   return (
-    <div className="relative z-10 shrink-0 pb-3">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={modeKey}
-          ref={fadeRef}
-          onScroll={onFadeScroll}
-          className="flex gap-3.5 overflow-x-auto px-6 py-2 sm:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          style={fadeStyle}
-          initial={{ opacity: 0, y: 26 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -18 }}
-          transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
-        >
-          {!detailItems &&
-            summaries.map((s, i) => {
-              const cat = SPIN_CATEGORIES.find((c) => c.id === s.id)!;
-              return (
-                <motion.button
-                  key={s.id}
-                  type="button"
-                  onClick={() => onFocus(s.id)}
-                  className="group flex w-[172px] shrink-0 flex-col justify-between rounded-3xl border border-white/12 bg-white/[0.07] p-4 text-left backdrop-blur-xl transition-colors hover:bg-white/[0.13]"
-                  style={{ minHeight: 148 }}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
-                  whileHover={{ y: -4 }}
-                  whileTap={{ scale: 0.97 }}
+    <div className="relative z-10 shrink-0 pb-[72px]">
+      <div
+        ref={fadeRef}
+        onScroll={onFadeScroll}
+        style={fadeStyle}
+        className="flex gap-3 overflow-x-auto px-6 py-2 sm:grid sm:grid-cols-4 sm:overflow-x-visible sm:px-10 lg:grid-cols-5 2xl:grid-cols-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {summaries.map((s, i) => {
+          const cat = SPIN_CATEGORY_MAP.get(s.id)!;
+          const glance = s.names.slice(0, 2).join(', ');
+          const more = s.names.length - 2;
+          return (
+            <motion.div
+              key={s.id}
+              className="relative w-[168px] shrink-0 sm:w-auto"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
+              whileHover={{ y: -4 }}
+            >
+              <button
+                type="button"
+                onClick={() => onFocus(s.id)}
+                className="flex h-full w-full flex-col justify-between gap-3 rounded-3xl border border-white/12 bg-white/[0.07] p-4 text-left backdrop-blur-xl transition-colors hover:bg-white/[0.13] active:scale-[0.98]"
+                style={{ minHeight: 136 }}
+              >
+                <span
+                  className="flex h-10 w-10 items-center justify-center rounded-full"
+                  style={{
+                    background: s.live ? `${cat.accent}2b` : 'rgba(255,255,255,0.08)',
+                    boxShadow: s.live ? `0 0 24px ${cat.accent}33` : 'none',
+                    color: s.live ? cat.accent : 'rgba(255,255,255,0.7)',
+                  }}
                 >
-                  <span
-                    className="flex h-10 w-10 items-center justify-center rounded-full"
-                    style={{
-                      background: s.live ? `${cat.accent}2b` : 'rgba(255,255,255,0.08)',
-                      boxShadow: s.live ? `0 0 24px ${cat.accent}33` : 'none',
-                      color: s.live ? cat.accent : 'rgba(255,255,255,0.7)',
-                    }}
-                  >
-                    <Icon path={cat.icon} size={22} />
-                  </span>
-                  <span>
-                    <span className="block text-[22px] font-semibold leading-tight text-white">{s.value}</span>
-                    <span className="mt-0.5 block truncate text-[12px] text-white/50">{s.detail}</span>
-                    <span className="mt-1 block text-[13px] font-medium text-white/75">{cat.label}</span>
-                  </span>
-                </motion.button>
-              );
-            })}
+                  <Icon path={cat.icon} size={22} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[22px] font-semibold leading-tight text-white">{s.value}</span>
+                  <span className="mt-0.5 block truncate text-[12px] text-white/50">{s.detail}</span>
+                  <span className="mt-1 block text-[13px] font-medium text-white/75">{cat.label}</span>
+                  {glance && (
+                    <span className="mt-1.5 block truncate text-[11px]" style={{ color: `${cat.accent}cc` }}>
+                      {glance}
+                      {more > 0 && ` +${more}`}
+                    </span>
+                  )}
+                </span>
+              </button>
 
-          {detailItems &&
-            (detailItems.length === 0 ? (
-              <p className="px-2 py-10 text-sm text-white/45">Nothing here yet</p>
-            ) : (
-              detailItems.map((item, i) => (
-                <DeviceCard key={item.device.id} item={item} index={i} accent={focusCategory?.accent ?? '#18bcf2'} onOpen={() => onOpenDevice(item)} />
-              ))
-            ))}
-        </motion.div>
-      </AnimatePresence>
+              {cat.bulk && s.targets.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    ha.callService({
+                      domain: cat.bulk!.domain,
+                      service: cat.bulk!.service,
+                      target: { entity_id: s.targets },
+                    })
+                  }
+                  className="absolute right-3 top-3 rounded-full bg-white/12 px-2.5 py-1 text-[11px] font-medium text-white/80 backdrop-blur-md transition-colors hover:bg-white/25"
+                >
+                  {cat.bulk.label}
+                </button>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
-  );
-}
-
-function DeviceCard({ item, index, accent, onOpen }: { item: CategoryDevice; index: number; accent: string; onOpen: () => void }) {
-  const ha = useHomeAssistant();
-  const lead = item.lead;
-  const active = lead.state === 'on' || lead.state === 'playing' || lead.state === 'unlocked' || (lead.entity_id.startsWith('climate.') && lead.state !== 'off');
-  const canToggle = isTogglable(lead);
-
-  return (
-    <motion.div
-      className="flex w-[196px] shrink-0 cursor-pointer flex-col justify-between rounded-3xl border p-4 backdrop-blur-xl transition-colors"
-      style={{
-        minHeight: 148,
-        borderColor: active ? `${accent}55` : 'rgba(255,255,255,0.12)',
-        background: active
-          ? `linear-gradient(165deg, ${accent}24, rgba(255,255,255,0.05))`
-          : 'rgba(255,255,255,0.07)',
-      }}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04, duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
-      whileHover={{ y: -4 }}
-      whileTap={{ scale: 0.97 }}
-      onClick={onOpen}
-    >
-      <div className="flex items-start justify-between">
-        <span
-          className="flex h-10 w-10 items-center justify-center rounded-full"
-          style={{ background: active ? `${accent}30` : 'rgba(255,255,255,0.08)', color: active ? accent : 'rgba(255,255,255,0.7)' }}
-        >
-          <Icon path={domainIcon(lead)} size={22} />
-        </span>
-        {canToggle && (
-          <button
-            type="button"
-            aria-label={active ? 'Turn off' : 'Turn on'}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 transition-colors hover:bg-white/20"
-            style={{ color: active ? accent : 'rgba(255,255,255,0.6)' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              ha.toggleEntity(lead.entity_id, lead.state);
-            }}
-          >
-            <Icon path={mdiPower} size={18} />
-          </button>
-        )}
-      </div>
-      <div>
-        <span className="block truncate text-[15px] font-medium text-white/90">{item.device.name}</span>
-        <span className="block truncate text-[12px] text-white/55">{friendlyState(lead)}</span>
-      </div>
-    </motion.div>
   );
 }
 

@@ -58,6 +58,8 @@ export { useScrollToEdges } from './useScrollToEdges';
 export { useEdgeFade } from './useEdgeFade';
 export { useMasonryCols, MASONRY_COLS_DESKTOP, MASONRY_COLS_MOBILE, MASONRY_GRID_CLASS } from './useMasonryCols';
 export { useDevices, useDeviceStructure, useDeviceInfo, useIntegrations, useDevicesList, DEVICE_CATEGORY_LABEL } from './useDevices';
+export { useIntegrationCatalog, useAddedBrands } from './useIntegrationCatalog';
+export type { CatalogBrand } from './useIntegrationCatalog';
 export type { HassDevice, IntegrationSummary, IntegrationDevice, IntegrationStatus, IntegrationFlags, DeviceSummary, DeviceInfo } from './useDevices';
 export { useAutomations, useAutomationActions, formatLastTriggered } from './useAutomations';
 export type { AutomationSummary } from './useAutomations';

@@ -8,6 +8,7 @@ import { Avatar } from '../ui/Avatar';
 import { Dropdown, HALoader, ListSection, RollingNumericValue, SectionLabel, SelectChip, ToggleSwitch } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
 import { useHomeAssistant } from '@/hooks';
+import { useScrollFades } from '@/hooks/useScrollFades';
 import { mergeStatistics, type EnergyBucket } from '@/lib/energyStatistics';
 import type { SelectChipOption } from '../ui/SelectChip';
 
@@ -80,7 +81,9 @@ export function SheetHeader({
       </button>
       <div className="min-w-0 flex-1">
         {eyebrow && <p className="mb-0.5 truncate text-sm leading-none text-text-tertiary">{eyebrow}</p>}
-        {onTitleClick ? (
+        {/* An empty title is a deliberate one: the store puts its name in the big
+            search field below instead of saying it twice. */}
+        {!title ? null : onTitleClick ? (
           <button
             type="button"
             onClick={onTitleClick}
@@ -106,6 +109,9 @@ export function DialogFrame({
   onBack,
   onConfigure,
   action,
+  size = 'default',
+  headerless = false,
+  stickyTop,
   children,
 }: {
   eyebrow: string;
@@ -120,35 +126,97 @@ export function DialogFrame({
   onConfigure?: () => void;
   /** Anything else for the header's right side (a link out, say). */
   action?: React.ReactNode;
+  /**
+   * 'large' takes the whole height the sheet allows, for a dialog you browse
+   * rather than read — the stores. Phones are already near-full either way.
+   */
+  size?: 'default' | 'large';
+  /**
+   * No header at all — for content that is its own heading (a store's big search
+   * field). Closing is still covered: Escape, the scrim, and on phones the
+   * grabber or an overscroll pull, all of which live in ModalSheet.
+   */
+  headerless?: boolean;
+  /**
+   * Controls that stay put while the body scrolls under them — a store's search
+   * field and its filters. Rendered outside the scroll container rather than
+   * `position: sticky` inside it, so nothing shows through above them.
+   */
+  stickyTop?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  // The house scroll treatment: content fades out at whichever edge it runs past.
+  const { attach, showTop, showBottom } = useScrollFades<HTMLDivElement>();
   return (
-    <div className="flex h-[min(70dvh,760px)] flex-col overflow-hidden lg:h-[min(85vh,780px)]">
-      <SheetHeader
-        eyebrow={eyebrow}
-        title={title}
-        onClose={onClose}
-        onBack={onBack}
-        actions={(action || onConfigure) && (
-          <>
-            {action}
-            {onConfigure && (
-              <button
-                type="button"
-                onClick={onConfigure}
-                aria-label="Change what this reads"
-                title="Change what this reads"
-                className={sheetHeaderButton}
-              >
-                <Icon path={mdiCogOutline} size={24} />
-              </button>
-            )}
-          </>
-        )}
-      />
+    <div
+      className={clsx(
+        'flex h-[min(70dvh,760px)] flex-col overflow-hidden',
+        size === 'large' ? 'lg:h-[min(90vh,1000px)]' : 'lg:h-[min(85vh,780px)]',
+      )}
+    >
+      {!headerless && (
+        <SheetHeader
+          eyebrow={eyebrow}
+          title={title}
+          onClose={onClose}
+          onBack={onBack}
+          actions={(action || onConfigure) && (
+            <>
+              {action}
+              {onConfigure && (
+                <button
+                  type="button"
+                  onClick={onConfigure}
+                  aria-label="Change what this reads"
+                  title="Change what this reads"
+                  className={sheetHeaderButton}
+                >
+                  <Icon path={mdiCogOutline} size={24} />
+                </button>
+              )}
+            </>
+          )}
+        />
+      )}
 
-      <div className={clsx('min-h-0 flex-1 overflow-y-auto scrollbar-hide py-ha-2', SHEET_PAD)}>
-        <div className="flex w-full flex-col gap-ha-2">{children}</div>
+      {stickyTop && (
+        <div
+          className={clsx(
+            'flex shrink-0 flex-col gap-ha-3 pb-ha-3',
+            // Standing in for the header, so it wears the header's own top inset:
+            // whatever leads the band lands where the header's content would.
+            headerless && 'pt-ha-2 lg:pt-ha-4',
+            SHEET_PAD,
+          )}
+        >
+          {stickyTop}
+        </div>
+      )}
+
+      <div className="relative min-h-0 flex-1">
+        <div
+          className={clsx(
+            'pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent transition-opacity duration-300',
+            showTop ? 'opacity-100' : 'opacity-0',
+          )}
+        />
+        <div
+          className={clsx(
+            'pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent transition-opacity duration-300',
+            showBottom ? 'opacity-100' : 'opacity-0',
+          )}
+        />
+        <div
+          ref={attach}
+          className={clsx(
+            'h-full overflow-y-auto scrollbar-hide py-ha-2',
+            // With no header and no sticky band, the body carries the top inset.
+            headerless && !stickyTop && 'pt-ha-3 lg:pt-ha-5',
+            SHEET_PAD,
+          )}
+        >
+          <div className="flex w-full flex-col gap-ha-2">{children}</div>
+        </div>
       </div>
     </div>
   );
