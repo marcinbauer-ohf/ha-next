@@ -45,7 +45,8 @@ export type GlanceId = 'people' | 'lights' | 'climate' | 'security' | 'weather' 
 export interface SummaryCardProps {
   icon: string;
   title: string;
-  state: string;
+  /** The reading. Omit for a name-only chip (one line, no value). */
+  state?: string;
   color?: 'primary' | 'danger' | 'success' | 'yellow' | 'violet' | 'default';
   compact?: boolean;
   variant?: 'filled' | 'outlined';
@@ -56,12 +57,8 @@ export interface SummaryCardProps {
   id?: GlanceId;
   /** When set, the glance becomes interactive (renders as a button) — e.g. to open detail. */
   onClick?: (e: React.MouseEvent) => void;
-}
-
-export interface DashboardSectionProps {
-  title: string;
-  children: React.ReactNode;
-  columns?: 2 | 3 | 4;
+  /** Extra classes on the chip itself — e.g. a selection ring. */
+  className?: string;
 }
 
 export interface Room {

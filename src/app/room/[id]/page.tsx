@@ -9,7 +9,7 @@ import { CONTENT_EDGE, CONTENT_SHELL } from '@/lib/layout';
 import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
 import { ScreensaverDogEar } from '@/components/layout/ScreensaverDogEar';
 import { PullToRevealPanel } from '@/components/sections';
-import { DeviceSectionsView, DeviceGridSkeleton, type DeviceSection } from '@/components/sections';
+import { DeviceSectionsView, DeviceGridSkeleton, AreaSummaryRow, type DeviceSection } from '@/components/sections';
 import { Icon } from '@/components/ui/Icon';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
@@ -17,6 +17,7 @@ import { usePullToRevealContext, useHeader } from '@/contexts';
 import { useDevices, useDesktopImmersivePageLayout, useFeatureFlags, useFastScrollLabels, useIdleMarquee, useSectionCrumb, useScrollToEdges } from '@/hooks';
 import { entityDomain, SECTION_ORDER, SECTION_TITLES, domainTypeIcon } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
+import type { HassEntities } from '@/types';
 
 interface RoomPageProps {
   params: Promise<{ id: string }>;
@@ -76,6 +77,17 @@ export default function RoomPage({ params }: RoomPageProps) {
     [devices, id],
   );
   const deviceCount = useMemo(() => sections.reduce((n, s) => n + s.devices.length, 0), [sections]);
+
+  // What the summary chips above the grid read: this room's entities, keyed the
+  // same way the entity store is, so every summary helper works unchanged.
+  const areaEntities = useMemo(() => {
+    const scoped: HassEntities = {};
+    for (const device of devices) {
+      if (device.areaId !== id) continue;
+      for (const entity of device.entities) scoped[entity.entity_id] = entity;
+    }
+    return scoped;
+  }, [devices, id]);
 
   useEffect(() => {
     const el = scrollableRef.current;
@@ -143,6 +155,8 @@ export default function RoomPage({ params }: RoomPageProps) {
             >
               <div className={CONTENT_SHELL}>
                 <ApplicationViewNotice />
+
+                {!loading && <AreaSummaryRow entities={areaEntities} areaName={areaName} />}
 
                 {loading && <DeviceGridSkeleton />}
 

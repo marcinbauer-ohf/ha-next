@@ -29,7 +29,7 @@ const iconColorClasses = {
 // the chips read against any shader while still letting the scene peek through.
 export const TRANSLUCENT_CHIP_FILL = 'bg-black/55 border border-white/15';
 
-export function SummaryCard({ icon, title, state, color = 'default', compact = false, variant = 'filled', size = 'sm', translucent = false, onClick }: SummaryCardProps) {
+export function SummaryCard({ icon, title, state, color = 'default', compact = false, variant = 'filled', size = 'sm', translucent = false, onClick, className }: SummaryCardProps) {
   const translucentFill = TRANSLUCENT_CHIP_FILL;
   // Interactive glances render as a button with hover/press affordance.
   const Tag = onClick ? 'button' : 'div';
@@ -50,17 +50,28 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
           isMd ? 'gap-ha-2 px-ha-4 py-2.5 rounded-ha-xl' :
           // Fixed height, not padding: the chips carry different innards
           // (glyphs, stacked avatars) and only a set height keeps the row even.
-          'gap-ha-2 px-ha-3 h-10 rounded-ha-pill',
+          'gap-ha-2 px-ha-3 h-10 rounded-full',
           'whitespace-nowrap',
           interactive,
-          translucent ? translucentFill : isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color]
+          translucent ? translucentFill : isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color],
+          className,
         )}
       >
         <div className={clsx('flex-shrink-0', translucent ? 'text-white' : iconColorClasses[color])}>
           <Icon path={icon} size={isLg ? 28 : isMd ? 22 : 18} />
         </div>
-        {/* Label above the value: the value alone ("3 on", "42 W") doesn't say
-            what it's counting once the chips are read out of context. */}
+        {/* No reading to show (an entity chip, which is just what it is): one
+            line at the value's size — the label alone would sit small and lost
+            in a 40px pill. */}
+        {state === undefined ? (
+          <span className={clsx(
+            'font-medium',
+            translucent ? 'text-white' : 'text-text-primary',
+            isLg ? 'text-xl' : isMd ? 'text-base' : 'text-[13px]',
+          )}>{title}</span>
+        ) : (
+        /* Label above the value: the value alone ("3 on", "42 W") doesn't say
+           what it's counting once the chips are read out of context. */
         <div className="flex flex-col items-start leading-tight">
           <span className={clsx(
             translucent ? 'text-white/70' : 'text-text-secondary',
@@ -74,6 +85,7 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
             isLg ? 'text-xl' : isMd ? 'text-base' : 'text-[13px]'
           )}>{state}</span>
         </div>
+        )}
       </Tag>
     );
   }
@@ -89,7 +101,8 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
         'flex items-center gap-ha-3 p-ha-3 rounded-ha-xl transition-all w-full text-left',
         isLg ? 'p-ha-4' : 'p-ha-3',
         interactive,
-        isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color]
+        isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color],
+        className,
       )}
     >
       <div className={clsx('flex-shrink-0', iconColorClasses[color])}>

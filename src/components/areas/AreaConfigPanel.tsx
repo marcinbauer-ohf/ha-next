@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Icon } from '../ui/Icon';
 import { mdiPlus, mdiTrashCanOutline, mdiVectorSquare } from '@mdi/js';
 import type { AreaRegistryEntry, FloorRegistryEntry } from '@/lib/homeassistant';
+import { Button } from '../ui';
+import { SectionLabel } from '../ui/SectionLabel';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config sidebar body for the area map. Two modes:
@@ -39,9 +41,7 @@ export function AreaAssignBody({
 
       {unplacedAreas.length > 0 && (
         <div className="space-y-ha-1">
-          <p className="px-ha-1 text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-            Unplaced areas
-          </p>
+          <SectionLabel className="px-ha-3">Unplaced areas</SectionLabel>
           <div className="space-y-ha-1">
             {unplacedAreas.map((a) => (
               <button
@@ -62,9 +62,7 @@ export function AreaAssignBody({
 
       {editable && (
         <div className="space-y-ha-2">
-          <p className="px-ha-1 text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-            New area
-          </p>
+          <SectionLabel className="px-ha-3">New area</SectionLabel>
           <input
             className={inputCls}
             placeholder="Area name"
@@ -166,14 +164,9 @@ export function AreaEditBody({
 
       <div className="h-px bg-surface-lower" />
 
-      <button
-        type="button"
-        onClick={onDeleteShape}
-        className="flex w-full items-center justify-center gap-ha-2 rounded-ha-2xl border border-surface-lower px-ha-4 py-ha-3 text-sm font-semibold text-red-500 transition-colors hover:bg-red-500/10"
-      >
-        <Icon path={mdiTrashCanOutline} size={18} />
+      <Button variant="danger" icon={mdiTrashCanOutline} onClick={onDeleteShape} block>
         Remove shape from map
-      </button>
+      </Button>
       <p className="px-ha-1 text-xs text-text-tertiary">
         Removes the drawn footprint only — the area itself stays in Home Assistant.
       </p>

@@ -9,6 +9,8 @@ import { DashboardPreviewThumb } from './DashboardPreviewThumb';
 import { useSidebarItems } from '@/hooks';
 import { usePullToRevealContext, ENABLE_PULL_TO_REVEAL } from '@/contexts';
 import { clsx } from 'clsx';
+import { SheetGrabber } from '../ui/SheetGrabber';
+import { SectionLabel } from '../ui/SectionLabel';
 
 const appPalettes = [
   { bg: 'bg-[var(--ha-color-fill-primary-normal)]', text: 'text-ha-blue' },
@@ -393,7 +395,7 @@ export function PullToRevealPanel() {
                 >
                   {/* Dashboards section */}
                   <div className="p-ha-3">
-                    <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-3">Dashboards</div>
+                    <SectionLabel className="mb-ha-2">Dashboards</SectionLabel>
                     <div className="grid grid-cols-3 gap-ha-3">
                       {dashboards.map((dashboard) => (
                         <Link
@@ -429,7 +431,7 @@ export function PullToRevealPanel() {
 
                   {/* Applications section */}
                   <div className="p-ha-3">
-                    <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">Applications</div>
+                    <SectionLabel className="mb-ha-2">Applications</SectionLabel>
                     <div className="grid grid-cols-5 gap-x-ha-2 gap-y-1.5">
                       {apps.map((app) => {
                         const isActive = pathname === app.urlPath ||
@@ -479,7 +481,7 @@ export function PullToRevealPanel() {
                     ref={revealedHandleRef}
                     className="h-6 w-12 -my-2 flex items-center justify-center touch-none"
                   >
-                    <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
+                    <SheetGrabber />
                   </div>
                 </div>
             </div>
@@ -489,7 +491,7 @@ export function PullToRevealPanel() {
               ref={collapsedHandleRef}
               className="flex justify-center py-1 cursor-grab active:cursor-grabbing select-none flex-shrink-0"
             >
-              <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
+              <SheetGrabber />
             </div>
           )}
         </div>

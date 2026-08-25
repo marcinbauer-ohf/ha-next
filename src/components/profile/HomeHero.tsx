@@ -55,7 +55,7 @@ export function HomeHero({ onEdit }: { onEdit?: () => void }) {
           <button
             type="button"
             onClick={onEdit}
-            className="inline-flex items-center gap-ha-1 rounded-ha-pill bg-black/35 px-ha-3 py-1.5 text-xs font-semibold text-white ring-1 ring-inset ring-white/25 backdrop-blur-md transition-colors hover:bg-black/55 active:bg-black/65"
+            className="inline-flex items-center gap-ha-1 rounded-full bg-black/35 px-ha-3 py-1.5 text-xs font-semibold text-white ring-1 ring-inset ring-white/25 backdrop-blur-md transition-colors hover:bg-black/55 active:bg-black/65"
           >
             <Icon path={mdiPencilOutline} size={15} />
             Edit home

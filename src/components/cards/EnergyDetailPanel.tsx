@@ -15,16 +15,17 @@ import { Dropdown, HALoader, SectionLabel, SegmentedControl } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
 import {
   DialogCard,
+  DialogConfigureButton,
   DialogFrame,
   DialogHero,
   DialogTiles,
+  IntroStep,
   SetupStep,
   type DialogTileSpec,
   type SetupSlot,
 } from './dialogKit';
 import { PowerAttributionChart } from '../sections/PowerAttributionChart';
 import { useEntities, useHomeAssistant, useHomeAssistantEntities } from '@/hooks';
-import { useHomeName } from '@/lib/homeName';
 import {
   energySensorChoices,
   guessEnergyConfig,
@@ -87,7 +88,7 @@ function factorFor(unit: string | undefined): number {
 
 // ── Setup step ───────────────────────────────────────────────────────────────
 
-function EnergySetup({ config, onDone, onClose }: { config: EnergyConfig; onDone: () => void; onClose: () => void }) {
+function EnergySetup({ config, onDone, onRestart }: { config: EnergyConfig; onDone: () => void; onRestart: () => void }) {
   const entities = useHomeAssistantEntities();
   const powerOptions = useMemo(() => energySensorChoices(entities, 'power'), [entities]);
   const energyOptions = useMemo(() => energySensorChoices(entities, 'energy'), [entities]);
@@ -157,7 +158,8 @@ function EnergySetup({ config, onDone, onClose }: { config: EnergyConfig; onDone
       slots={slots}
       onToggle={toggle}
       onSave={() => { setEnergyConfig(draft); onDone(); }}
-      onClose={onClose}
+      onBack={onDone}
+      onRestart={onRestart}
       canSave={draft.power.length > 0 || draft.today.length > 0}
       saveLabel="Show my energy"
       blockedLabel="Pick a power or daily sensor"
@@ -234,8 +236,9 @@ function DailyBars({
 export function EnergyDetailPanel({ onClose }: { onClose: () => void }) {
   const config = useEnergyConfig();
   const { getStatistics, getCoreConfig } = useHomeAssistant();
-  const homeName = useHomeName();
-  const [setup, setSetup] = useState(() => !isEnergyConfigured(config));
+  // Three screens, not two: what this is for, the picker, and the reading. A
+  // home that has never picked a meter opens on the first one.
+  const [view, setView] = useState<'intro' | 'setup' | 'reading'>(() => (isEnergyConfigured(config) ? 'reading' : 'intro'));
 
   const powerEntities = useEntities(config.power);
   const todayEntities = useEntities(config.today);
@@ -308,7 +311,23 @@ export function EnergyDetailPanel({ onClose }: { onClose: () => void }) {
     return () => { cancelled = true; };
   }, [tab, powerHours, dailyDays, idKey, factorKey, getStatistics]);
 
-  if (setup) return <EnergySetup config={config} onDone={() => setSetup(false)} onClose={onClose} />;
+  if (view === 'setup') {
+    return <EnergySetup config={config} onDone={() => setView('reading')} onRestart={() => setView('intro')} />;
+  }
+
+  if (view === 'intro' || !isEnergyConfigured(config)) {
+    return (
+      <IntroStep
+        icon={mdiFlash}
+        iconClass="text-amber-500"
+        eyebrow="Energy"
+        headline="See what your home is using"
+        blurb="Point this at your meter or the plugs you care about and it reads what the house draws right now, what today cost, and which devices account for it."
+        cta="Pick your meters"
+        onStart={() => setView('setup')}
+      />
+    );
+  }
 
   const hoveredBucket = hovered !== null ? series[hovered] ?? null : null;
   // With no power sensor picked, today's total is the headline instead of a live
@@ -349,103 +368,102 @@ export function EnergyDetailPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <DialogFrame
-      eyebrow="Energy"
-      title={homeName || 'Your home'}
       onClose={onClose}
-      onConfigure={() => setSetup(true)}
-    >
-      {/* One surface: what the house draws, the numbers that follow from it,
-          and the past off a hairline — the device dialog's arrangement. */}
-      <DialogCard>
-            <DialogHero
-              icon={mdiFlash}
-              iconClass="text-amber-500"
-              value={heroValue}
-              unit={heroUnit}
-              meta={metaLine}
-              stamp={heroStamp}
-            />
-
-            {/* The numbers a homeowner asks for, in the order they ask them. */}
-            <DialogTiles tiles={tiles} />
-
-            {/* The past. Hourly average draw, or a day-by-day total — two ways
-                to read the same house, in one fixed slot. */}
-            <div className="flex w-full flex-col gap-ha-1 border-t border-surface-mid pt-ha-2">
-              <div className="flex w-full items-center gap-ha-2">
-                <SegmentedControl
-                  segments={[{ value: 'power', label: 'Power' }, { value: 'daily', label: 'Daily' }]}
-                  value={tab}
-                  onChange={(v) => { setTab(v as 'power' | 'daily'); setHovered(null); }}
-                  className="text-xs"
-                />
-                <div className="ml-auto flex items-center gap-ha-2">
-                  {tab === 'power' ? (
-                    <Dropdown className="shrink-0" options={POWER_SPANS} value={powerHours} onChange={setPowerHours} />
-                  ) : (
-                    <Dropdown className="shrink-0" options={DAILY_SPANS} value={dailyDays} onChange={setDailyDays} />
-                  )}
-                </div>
-              </div>
-
-              <div className="flex h-[150px] w-full flex-col overflow-hidden lg:h-[200px]">
-                {loading ? (
-                  <div className="flex h-full items-center justify-center"><HALoader size="sm" /></div>
-                ) : points.length < (tab === 'power' ? 3 : 1) ? (
-                  <div className="flex h-full items-center justify-center px-ha-4 text-center text-sm text-text-tertiary">
-                    {chartIds.length === 0
-                      ? 'No sensor picked for this yet — open the settings above.'
-                      : 'Home Assistant hasn’t recorded enough of this yet.'}
-                  </div>
-                ) : tab === 'power' ? (
-                  <div className="min-h-0 w-full flex-1 opacity-90">
-                    <Sparkline
-                      points={points}
-                      on
-                      rgb="245,158,11"
-                      gradientId="energy-power"
-                      xFractions={xFractions}
-                      onHover={setHovered}
-                      fillHeight
-                    />
-                  </div>
+      aside={<>
+        <DialogCard>
+          {/* The past. Hourly average draw, or a day-by-day total — two ways
+              to read the same house, in one fixed slot. */}
+          <div className="flex w-full flex-col gap-ha-1">
+            <div className="flex w-full items-center gap-ha-2">
+              <SegmentedControl
+                segments={[{ value: 'power', label: 'Power' }, { value: 'daily', label: 'Daily' }]}
+                value={tab}
+                onChange={(v) => { setTab(v as 'power' | 'daily'); setHovered(null); }}
+                className="text-xs"
+              />
+              <div className="ml-auto flex items-center gap-ha-2">
+                {tab === 'power' ? (
+                  <Dropdown className="shrink-0" options={POWER_SPANS} value={powerHours} onChange={setPowerHours} />
                 ) : (
-                  <DailyBars data={series} hovered={hovered} onHover={setHovered} />
+                  <Dropdown className="shrink-0" options={DAILY_SPANS} value={dailyDays} onChange={setDailyDays} />
                 )}
               </div>
+            </div>
 
-              {tab === 'daily' && !loading && series.length > 0 && (
-                <p className="text-center text-[11px] font-medium text-text-tertiary">
-                  {fmtKwh(dailyTotal)} kWh over {series.length} days ・ {fmtKwh(dailyTotal / series.length)} kWh a day
-                  {config.price > 0 && ` ・ ${fmtMoney(dailyTotal * config.price)} total`}
-                </p>
+            <div className="flex h-[150px] w-full flex-col overflow-hidden lg:h-[200px]">
+              {loading ? (
+                <div className="flex h-full items-center justify-center"><HALoader size="sm" /></div>
+              ) : points.length < (tab === 'power' ? 3 : 1) ? (
+                <div className="flex h-full items-center justify-center px-ha-4 text-center text-sm text-text-tertiary">
+                  {chartIds.length === 0
+                    ? 'No sensor picked for this yet.'
+                    : 'Home Assistant hasn’t recorded enough of this yet.'}
+                </div>
+              ) : tab === 'power' ? (
+                <div className="min-h-0 w-full flex-1 opacity-90">
+                  <Sparkline
+                    points={points}
+                    on
+                    rgb="245,158,11"
+                    gradientId="energy-power"
+                    xFractions={xFractions}
+                    onHover={setHovered}
+                    fillHeight
+                  />
+                </div>
+              ) : (
+                <DailyBars data={series} hovered={hovered} onHover={setHovered} />
               )}
             </div>
-      </DialogCard>
 
-      {/* Which devices moved the line — the whole-home curve with each
-              device's on-spans laid over it. Only meaningful once a live power
-              sensor is picked, and only fetched when asked for: it reads the
-              history of every device that could draw power. */}
-      {powerEntities[0] && (
-        <div className="w-full">
-          <SectionLabel inset>Where it goes</SectionLabel>
-          <div className="mt-ha-2 rounded-ha-2xl bg-surface-low p-ha-2">
-            {breakdown ? (
-              <PowerAttributionChart meter={powerEntities[0]} />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setBreakdown(true)}
-                className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.99]"
-              >
-                <Icon path={mdiHomeLightningBoltOutline} size={18} className="text-ha-blue" />
-                Match it to your devices
-              </button>
+            {tab === 'daily' && !loading && series.length > 0 && (
+              <p className="text-center text-[11px] font-medium text-text-tertiary">
+                {fmtKwh(dailyTotal)} kWh over {series.length} days ・ {fmtKwh(dailyTotal / series.length)} kWh a day
+                {config.price > 0 && ` ・ ${fmtMoney(dailyTotal * config.price)} total`}
+              </p>
             )}
           </div>
-        </div>
-      )}
+        </DialogCard>
+        {/* Which devices moved the line — the whole-home curve with each device's
+            on-spans laid over it. Only meaningful once a live power sensor is
+            picked, and only fetched when asked for: it reads the history of every
+            device that could draw power. */}
+        {powerEntities[0] && (
+          <div className="w-full">
+            <SectionLabel inset>Where it goes</SectionLabel>
+            <div className="mt-ha-2 rounded-ha-2xl bg-surface-low p-ha-2">
+              {breakdown ? (
+                <PowerAttributionChart meter={powerEntities[0]} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setBreakdown(true)}
+                  className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.98]"
+                >
+                  <Icon path={mdiHomeLightningBoltOutline} size={18} className="text-ha-blue" />
+                  Match it to your devices
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </>}
+    >
+      {/* What the house draws, and the numbers that follow from it. */}
+      <DialogCard>
+        <DialogHero
+          onConfigure={() => setView('setup')}
+          icon={mdiFlash}
+          iconClass="text-amber-500"
+          value={heroValue}
+          unit={heroUnit}
+          meta={metaLine}
+          stamp={heroStamp}
+        />
+        {/* The numbers a homeowner asks for, in the order they ask them. */}
+        <DialogTiles tiles={tiles} />
+      </DialogCard>
+      <DialogConfigureButton label="Configure your energy" onClick={() => setView('setup')} />
     </DialogFrame>
   );
 }

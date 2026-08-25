@@ -60,7 +60,7 @@ export function ScreensaverPulseLog() {
             // ha-surface-enter (fade + rise) — the tailwindcss-animate classes
             // this used (`animate-in fade-in …`) were never generated: the
             // plugin isn't installed, so they were dead classes.
-            className="ha-surface-enter flex items-center gap-ha-2 rounded-ha-pill bg-black/55 border border-white/15 pl-ha-2 pr-ha-3 py-ha-1"
+            className="ha-surface-enter flex items-center gap-ha-2 rounded-full bg-black/55 border border-white/15 pl-ha-2 pr-ha-3 py-ha-1"
           >
             <span
               className="w-2 h-2 rounded-full shrink-0 animate-pulse"

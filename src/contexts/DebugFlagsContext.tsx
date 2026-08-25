@@ -15,13 +15,17 @@ const LS_HIDE_HOME_CENTER_KEY = 'ha-flag-hide-home-center';
 // Prototyping: drop the product render from device cards. The mdi entity icon
 // takes its place beside the name/state and the cards shrink a lattice step.
 const LS_HIDE_CARD_IMAGES_KEY = 'ha-flag-hide-card-images';
-// Both default ON — they gate shipped behaviour, so only an explicit '0' opts
-// out. Sidebar hover preview thumbnails, and the home dashboard's filter pill.
+// Sidebar hover preview thumbnails default OFF (opt-in with '1'); the home
+// dashboard's filter pill defaults ON (only an explicit '0' opts out).
 const LS_SIDEBAR_PREVIEWS_KEY = 'ha-flag-sidebar-previews';
 const LS_DASHBOARD_FILTER_KEY = 'ha-flag-dashboard-filter';
-// Prototyping: let the mobile bottom nav hide itself again (on scroll-down and
-// after 10s of inactivity). Defaults OFF — the nav currently stays put.
+// The mobile bottom nav hides itself on scroll-down and after 10s of
+// inactivity. Defaults ON — only an explicit '0' pins it.
 const LS_MOBILE_NAV_AUTOHIDE_KEY = 'ha-flag-mobile-nav-autohide';
+// Where the settings section list lives: the shell's own rail column beside the
+// sidebar (default), or back inside the page content as the first of two
+// columns. Defaults ON — only an explicit '0' puts it back in the page.
+const LS_SETTINGS_RAIL_KEY = 'ha-flag-settings-rail';
 
 interface DebugFlagsContextValue {
   /** true = desktop bottom bar gone, Home Center hidden from mobile nav + settings. */
@@ -39,6 +43,9 @@ interface DebugFlagsContextValue {
   /** Mobile bottom nav hides on scroll-down and after 10s idle. Off pins it. */
   mobileNavAutoHideEnabled: boolean;
   toggleMobileNavAutoHide: () => void;
+  /** Settings list as a shell rail beside the sidebar; off puts it back in the page. */
+  settingsRailEnabled: boolean;
+  toggleSettingsRail: () => void;
 }
 
 const DebugFlagsContext = createContext<DebugFlagsContextValue | undefined>(undefined);
@@ -71,8 +78,8 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const [sidebarPreviewsEnabled, setSidebarPreviewsEnabledState] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem(LS_SIDEBAR_PREVIEWS_KEY) !== '0';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(LS_SIDEBAR_PREVIEWS_KEY) === '1';
   });
 
   const toggleSidebarPreviews = useCallback(() => {
@@ -97,14 +104,27 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const [mobileNavAutoHideEnabled, setMobileNavAutoHideEnabledState] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(LS_MOBILE_NAV_AUTOHIDE_KEY) === '1';
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(LS_MOBILE_NAV_AUTOHIDE_KEY) !== '0';
   });
 
   const toggleMobileNavAutoHide = useCallback(() => {
     setMobileNavAutoHideEnabledState((prev) => {
       const next = !prev;
       localStorage.setItem(LS_MOBILE_NAV_AUTOHIDE_KEY, next ? '1' : '0');
+      return next;
+    });
+  }, []);
+
+  const [settingsRailEnabled, setSettingsRailEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(LS_SETTINGS_RAIL_KEY) !== '0';
+  });
+
+  const toggleSettingsRail = useCallback(() => {
+    setSettingsRailEnabledState((prev) => {
+      const next = !prev;
+      localStorage.setItem(LS_SETTINGS_RAIL_KEY, next ? '1' : '0');
       return next;
     });
   }, []);
@@ -122,6 +142,8 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
         toggleDashboardFilter,
         mobileNavAutoHideEnabled,
         toggleMobileNavAutoHide,
+        settingsRailEnabled,
+        toggleSettingsRail,
       }}
     >
       {children}

@@ -30,9 +30,7 @@ export function HelloStep({ next }: StepProps) {
         </StepSubtitle>
       </div>
 
-      <StepActions>
-        <PrimaryPill onClick={next}>Let&apos;s begin</PrimaryPill>
-      </StepActions>
+      <StepActions primary={<PrimaryPill onClick={next}>Let&apos;s begin</PrimaryPill>} />
     </div>
   );
 }

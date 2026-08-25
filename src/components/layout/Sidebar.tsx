@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -26,17 +26,15 @@ import { HALogo } from '../ui/HALogo';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { ContextMenu, type ContextMenuAction } from '../ui/ContextMenu';
 import { useSidebarItems, useLongPress, useRunShortcut, useHomeAssistant } from '@/hooks';
-import { useActivities } from '@/hooks/useActivities';
 import { useSidebarArrange, arrangeItems, type SidebarItem, type AppStatus } from '@/contexts';
 import { useDebugFlags } from '@/contexts';
-import { Avatar } from '../ui/Avatar';
-import { resolveEntityPictureUrl } from '@/lib/utils';
+import { SettingsGlyph } from '../ui/SettingsGlyph';
 import { callService, uninstallAddon } from '@/lib/homeassistant';
 import { useDashboardThumbnail } from '@/lib/dashboardThumbnails';
 import { removeShortcut } from '@/lib/sidebarShortcuts';
 import { ShortcutPicker } from '../ui/ShortcutPicker';
 import { EditItemsButton } from '../ui/EditItemsButton';
-import { mdiMinus, mdiCheck, mdiPlus, mdiPlusBoxOutline, mdiDragVariant, mdiDeleteOutline, mdiMinusCircleOutline, mdiMenu, mdiPlay, mdiStop, mdiRestart, mdiDownload } from '@mdi/js';
+import { mdiMinus, mdiCheck, mdiPlus, mdiPlusBoxOutline, mdiDragVariant, mdiDeleteOutline, mdiMinusCircleOutline, mdiPlay, mdiStop, mdiRestart, mdiDownload } from '@mdi/js';
 import { shortcutHint, useIsMacPlatform } from '@/lib/keyboardShortcuts';
 import { clsx } from 'clsx';
 import { haptic } from '@/lib/haptics';
@@ -373,13 +371,7 @@ export function Sidebar({
   const capturedThumb = useDashboardThumbnail(tooltip.urlPath);
   const previewThumb = sidebarPreviewsEnabled ? capturedThumb : null;
 
-  const { haUrl, isAdmin, demoMode } = useHomeAssistant();
-  const { data: activityData } = useActivities();
-  const userAvatar = useMemo(() => ({
-    picture: resolveEntityPictureUrl(haUrl, activityData.user?.picture),
-    initials: activityData.user?.initials ?? 'U',
-  }), [activityData.user, haUrl]);
-
+  const { isAdmin, demoMode } = useHomeAssistant();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const [pickerOpen, setPickerOpen] = useState(false);
   const runShortcut = useRunShortcut();
@@ -765,8 +757,13 @@ export function Sidebar({
             </button>
           </div>
         )}
+        {/* The pencil tile is narrower than the w-12 tiles above and below it,
+            so it gets its own w-12 lane to centre in — otherwise it sits off the
+            rail's icon axis (and centring it in the full slot would swing it out
+            to the middle of the expanded rail). */}
         {!arranging && (
           <div className="flex-shrink-0 mt-ha-2 w-full px-2">
+            <span className="w-12 flex justify-center">
             <EditItemsButton
               variant="rail"
               onClick={startArrange}
@@ -775,6 +772,7 @@ export function Sidebar({
               }
               onMouseLeave={hideTooltipSoon}
             />
+            </span>
           </div>
         )}
         {!arranging && onToggleExpanded && (
@@ -811,33 +809,14 @@ export function Sidebar({
           <div className="flex-shrink-0 mt-ha-1 w-full px-2">
             <button
               type="button"
-              aria-label="Open settings"
+              aria-label="Toggle settings"
               onClick={onProfileToggle}
               onMouseEnter={(event) => showTooltip(event.currentTarget, 'Settings', { shortcut: 'S' })}
               onMouseLeave={hideTooltipSoon}
               className="group w-full h-10 rounded-ha-xl transition-colors flex items-center hover:bg-surface-low"
             >
-              {/* Same hamburger-behind-avatar composition as the desktop
-                  status bar and the mobile nav settings item. */}
               <span className="w-12 flex-shrink-0 flex items-center justify-center">
-                <span className="relative flex items-center justify-center translate-x-1">
-                  <Icon
-                    path={mdiMenu}
-                    size={28}
-                    className={clsx(
-                      'absolute -left-3 z-0 transition-[transform,color] duration-500 ease-out group-hover:-translate-x-1',
-                      pathname.startsWith('/settings')
-                        ? 'text-text-primary'
-                        : 'text-text-secondary group-hover:text-text-primary'
-                    )}
-                  />
-                  <span className={clsx(
-                    'relative z-10 rounded-full ring-[3px] transition-colors',
-                    pathname.startsWith('/settings') ? 'ring-surface-mid bg-surface-mid' : 'ring-surface-low bg-surface-low',
-                  )}>
-                    <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" />
-                  </span>
-                </span>
+                <SettingsGlyph active={pathname.startsWith('/settings')} />
               </span>
               <span
                 className={clsx(

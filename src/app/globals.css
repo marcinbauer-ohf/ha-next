@@ -1630,6 +1630,23 @@
   }
 }
 
+/* Onboarding finale — the dashboard eases toward the camera as the flow's veil
+   lifts, so arriving reads as walking in rather than a cut. Driven by
+   [data-finale] on <html>, which FinaleStep sets for the length of the beat and
+   removes on unmount. */
+@keyframes ha-finale-dolly {
+  from { transform: scale(0.96); }
+  to { transform: scale(1); }
+}
+[data-finale='walk'] [data-app-shell] {
+  animation: ha-finale-dolly 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-finale='walk'] [data-app-shell] {
+    animation: none;
+  }
+}
+
 /* Status-bar clock pill pulse — fired when a toast appears about a subject
    the clock widget also reports (connectivity, updates, battery, …). Mimics
    the press/click interaction (scale-down then settle) to point the eye at
@@ -2221,6 +2238,41 @@ html {
   }
 }
 
+/* Device card hover grow — the card's edge moves out 4px on every side while
+   nothing inside it moves or resizes. A box-shadow spread rather than a
+   transform (which would scale the text and the product render with it) or a
+   margin (which would shove the neighbouring cards around); a shadow is outside
+   layout entirely. The masonry gutter is 16px, so there is room to grow into.
+
+   `--ha-card-grow` is the band's paint, defaulting to the card's own hover
+   surface. A tinted card (a light that's on, a device that's offline) sets it to
+   that tint instead, so the band always matches the surface it extends — get it
+   wrong and it reads as a border rather than as the card being bigger.
+
+   Here rather than as a Tailwind utility because `shadow-[0_0_0_4px_var(…)]`
+   doesn't generate in this build (a bare `shadow-[0_0_0_4px]` does, but its
+   companion `shadow-surface-low` resolved to a near-white #f5f5f5 and painted a
+   white halo on a dark card). */
+.ha-card-grow:hover {
+  box-shadow: 0 0 0 4px var(--ha-card-grow, var(--ha-color-surface-low));
+}
+
+/* Edit mode's blue ring rides the GROWN edge. It can't be an inset ring on a
+   child: that sits at the card's un-grown border box and is clipped by the
+   card's `overflow-hidden`, so it read as a border 4px inside the hovered edge.
+   Same 4px band, split 2px surface paint + 2px blue, so the band still matches
+   the card and the ring lands on its new outer edge (a shadow spread rounds its
+   corners with it, so the radius follows for free). */
+.ha-card-grow-ring:hover {
+  box-shadow:
+    0 0 0 2px var(--ha-card-grow, var(--ha-color-surface-low)),
+    0 0 0 4px color-mix(in srgb, var(--ha-color-blue) 30%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ha-card-grow { transition: none; }
+}
+
 /* Card flash — pulses a glowing ring on the card a hint scrolled you to. */
 .ha-card-flash {
   animation: ha-card-flash 1200ms ease-out;
@@ -2308,6 +2360,20 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .ha-pane-in,
   .ha-pane-in--back { animation: none; }
+}
+
+/* Settings nav rail — the section list parked between the app sidebar and the
+   content surface. Expands open on arrival so the surface visibly makes room
+   for it instead of the rail just being there. */
+.ha-rail-in {
+  animation: ha-rail-in 320ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ha-rail-in {
+  from { width: 0; opacity: 0; }
+  to   { width: 328px; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ha-rail-in { animation: none; }
 }
 
 /* Dropdown menu open — quick fade + slide-down from the trigger. */

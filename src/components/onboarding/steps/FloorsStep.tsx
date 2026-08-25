@@ -1,6 +1,6 @@
 'use client';
 
-import { Icon } from '@/components/ui';
+import { IconButton} from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { mdiMinus, mdiPlus } from '@mdi/js';
 import { clampRoomsToFloors, floorNames, MAX_FLOORS, type StepProps } from '../types';
@@ -45,9 +45,7 @@ export function FloorsStep({ state, update, next }: StepProps) {
 
         <p className="text-[13px] text-text-tertiary max-w-[420px]">{floorNames(count).join(' · ')}</p>
 
-        <StepActions>
-          <PrimaryPill onClick={next}>Continue</PrimaryPill>
-        </StepActions>
+        <StepActions primary={<PrimaryPill onClick={next}>Continue</PrimaryPill>} />
       </div>
     </div>
   );
@@ -65,14 +63,6 @@ function StepperButton({
   disabled: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      className="w-13 h-13 rounded-full bg-surface-low/70 backdrop-blur-sm border border-surface-lower flex items-center justify-center text-text-primary hover:bg-surface-low hover:border-fill-primary-normal transition-all active:scale-95 disabled:opacity-35 disabled:hover:bg-surface-low/70"
-    >
-      <Icon path={icon} size={22} />
-    </button>
+    <IconButton icon={icon} label={label} size="lg" filled onClick={onClick} disabled={disabled} />
   );
 }

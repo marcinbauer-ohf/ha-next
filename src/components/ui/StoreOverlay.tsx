@@ -79,6 +79,13 @@ interface StoreOverlayProps {
   emptyLabel?: string;
   /** Extra row under the grid — e.g. blueprints' "import from a URL". */
   footer?: React.ReactNode;
+  /**
+   * Sits above the featured shelf on the landing view, for what the caller
+   * already knows about before anyone browses — the devices the home found on
+   * its own. Hidden the moment you search or pick a category, like `featured`:
+   * by then you're looking for something specific.
+   */
+  shelf?: React.ReactNode;
   /** One row of either/or chips, on top of the category rail. */
   filters?: StoreFilter[];
   /**
@@ -260,7 +267,7 @@ function FeaturedCard({ item, onOpen }: { item: StoreItem; onOpen: () => void })
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-[260px] flex-shrink-0 flex-col justify-between gap-ha-3 overflow-hidden rounded-ha-2xl p-ha-4 text-left transition-transform active:scale-[0.99]"
+      className="flex w-[260px] flex-shrink-0 flex-col justify-between gap-ha-3 overflow-hidden rounded-ha-2xl p-ha-4 text-left transition-transform active:scale-[0.98]"
       style={{ background: `linear-gradient(140deg, ${accent}2e, ${accent}0d)` }}
     >
       <div className="flex items-center gap-ha-2 text-[11px] font-semibold uppercase tracking-wide" style={{ color: accent }}>
@@ -361,6 +368,7 @@ export function StoreOverlay({
   searchPlaceholder,
   emptyLabel = 'Nothing matches that search.',
   footer,
+  shelf,
   filters,
   itemsLabel,
   suggestions,
@@ -415,8 +423,13 @@ export function StoreOverlay({
   const showCategories = byCategory && !q && !category;
 
   const hasFilters = Boolean(filters && filters.length > 0);
-  // The big field is the store's heading, so it names the store by default.
-  const placeholder = searchPlaceholder ?? `Search ${title.toLowerCase()}`;
+  // The big field is the store's heading, so it has to name where you actually
+  // are: the whole store at the top, the category once you've picked one, the
+  // filter's own words when that's all you've narrowed by. A field that still
+  // says "Search devices & services" while you're standing in Lights & shades is
+  // promising a search it isn't going to run.
+  const scope = category ?? activeFilter?.label ?? title;
+  const placeholder = searchPlaceholder ?? `Search ${scope.toLowerCase()}`;
 
   const selected = openId ? items.find((i) => i.id === openId) ?? null : null;
 
@@ -576,6 +589,8 @@ export function StoreOverlay({
               </div>
             ) : (
               <>
+            {shelf && !q && !category && shelf}
+
             {featured.length > 0 && (
               <div className="-mx-1 flex gap-ha-3 overflow-x-auto scrollbar-hide px-1 pb-1">
                 {featured.map((item) => (

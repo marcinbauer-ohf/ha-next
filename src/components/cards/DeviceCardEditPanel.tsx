@@ -16,11 +16,13 @@ import {
 } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon } from '../ui/Icon';
+import { IconButton } from '../ui/IconButton';
 import { ListSection } from '../ui/ListSection';
 import { domainIcon, entityLabel, entityDomain } from '@/lib/homeassistant/entityHelpers';
 import type { HassEntity } from '@/lib/homeassistant/types';
 import type { HassDevice } from '@/hooks/useDevices';
 import type { EntitySlot, EntitySection, DeviceCardConfig } from '@/hooks/useDeviceCardConfig';
+import { Button } from '../ui';
 
 interface DeviceCardEditPanelProps {
   device: HassDevice;
@@ -138,27 +140,16 @@ export function DeviceCardEditPanel({ device, config, onSave, onBack, onClose }:
           lurching. No back arrow: Done already returns where you came from, and
           a third "leave" control only squeezed the name. */}
       <div className="flex items-center justify-between gap-ha-2 p-ha-4 pb-ha-2 shrink-0">
-        <button
-          onClick={onClose}
-          className="p-2 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors shrink-0"
-          title="Close"
-          aria-label="Close"
-        >
-          <Icon path={mdiClose} size={20} />
-        </button>
+        <IconButton icon={mdiClose} label="Close" onClick={onClose} />
 
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] leading-none text-text-tertiary">Editing card</p>
           <p className="truncate text-xl font-bold leading-tight text-text-primary">{device.name}</p>
         </div>
 
-        <button
-          onClick={onBack}
-          className="shrink-0 flex items-center gap-1 px-ha-3 py-2 rounded-full text-sm font-semibold bg-ha-blue text-white hover:bg-ha-blue-dark shadow-none transition-colors"
-        >
-          <Icon path={mdiCheck} size={15} />
+        <Button variant="primary" size="sm" icon={mdiCheck} onClick={onBack} className="rounded-full">
           Done
-        </button>
+        </Button>
       </div>
 
       {/* Sections — the app's grouped-list pattern: an inset uppercase heading

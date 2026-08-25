@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AnimatePresence, motion } from 'framer-motion';
 import { mdiDevices, mdiTrashCanOutline, mdiVectorSquare } from '@mdi/js';
-import { Sidebar } from '../ui';
+import { SidePanel } from '../layout/SidePanel';
 import { Icon } from '../ui/Icon';
 import { useMobileToolbar } from '@/contexts';
 import { useAreasFloors } from '@/hooks/useAreasFloors';
@@ -58,9 +57,11 @@ export function AreasEditor({ onExit }: { onExit?: () => void }) {
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
   const dropConverterRef = useRef<((cx: number, cy: number) => Vec2 | null) | null>(null);
 
-  // Hide the mobile bottom nav while our toolbar is up.
+  // Hide the mobile bottom nav while our toolbar is up — but keep the shell's
+  // sidebars: you move between areas, floors and other settings while laying a
+  // home out, so folding the navigation away would fight the task.
   const { acquireToolbar } = useMobileToolbar();
-  useEffect(() => acquireToolbar(), [acquireToolbar]);
+  useEffect(() => acquireToolbar({ dimChrome: false }), [acquireToolbar]);
 
   const planes = useMemo<Plane[]>(() => {
     if (floors.length === 0) return [{ id: null, label: 'All areas' }];
@@ -359,53 +360,19 @@ export function AreasEditor({ onExit }: { onExit?: () => void }) {
               dropConverterRef={dropConverterRef}
             />
           </div>
-          {showSidebar && (
-            <Sidebar
-              resizable
-              {...sidebarHeader}
-              className="ha-pane-in mt-16 mr-ha-4 mb-ha-4 hidden flex-shrink-0 self-stretch lg:flex"
-            >
-              {sidebarBody}
-            </Sidebar>
-          )}
+          {/* The area / device config: a docked rail beside the map on a
+              desktop, the same panel as a bottom sheet on a phone. */}
+          <SidePanel
+            open={showSidebar}
+            onClose={dismissSheet}
+            header={sidebarHeader}
+            dock="inset"
+            resizable
+          >
+            {sidebarBody}
+          </SidePanel>
         </div>,
         appRoot,
-      )}
-
-      {/* Mobile config sheet. */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {showSidebar && (
-            <>
-              <motion.div
-                key="area-sheet-scrim"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="fixed inset-0 z-[100] bg-black/70 lg:hidden"
-                onClick={dismissSheet}
-              />
-              <motion.div
-                key="area-sheet"
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                className="fixed inset-x-0 bottom-0 z-[100] px-ha-2 lg:hidden"
-                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
-              >
-                <div className="flex justify-center pb-ha-2">
-                  <div className="h-1.5 w-9 rounded-full bg-white/40" />
-                </div>
-                <Sidebar {...sidebarHeader} className="flex max-h-[82vh]">
-                  {sidebarBody}
-                </Sidebar>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>,
-        document.body,
       )}
 
       {/* Drag ghost following the pointer while dragging a tray device. */}

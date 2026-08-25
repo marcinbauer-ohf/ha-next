@@ -25,6 +25,14 @@ export function useScreensaver() {
 }
 
 /**
+ * Just the flag, and resilient outside the provider — for surfaces that only
+ * need to know the screensaver is up, not to react to it.
+ */
+export function useScreensaverActive() {
+  return useContext(ScreensaverContext)?.isActive ?? false;
+}
+
+/**
  * Dismiss an overlay when the screensaver kicks in. Call this inside any
  * modal/surface component (passing its own open state + close handler) so the
  * screensaver clears whatever sits over the main UI. Wiring it into the leaf

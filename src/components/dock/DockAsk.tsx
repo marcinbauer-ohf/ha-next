@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import { motion } from 'framer-motion';
 import { mdiCreation, mdiMagnify, mdiSend } from '@mdi/js';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { useHomeSummary, summaryToSentence } from '@/hooks';
 import { DockSlotIcon } from './DockBar';
 import type { DockItem } from './dockItems';
@@ -243,15 +244,7 @@ export function AskChatPane({ items, onOpen }: { items: DockItem[]; onOpen: (ite
           placeholder="Ask about your home, or find anything in it"
           className="min-w-0 flex-1 bg-transparent py-1 text-[14px] text-neutral-800 outline-none placeholder:text-neutral-400"
         />
-        <button
-          type="button"
-          onClick={send}
-          aria-label="Send"
-          disabled={!query.trim()}
-          className="shrink-0 rounded-full p-1 text-neutral-400 transition-colors hover:text-neutral-700 disabled:opacity-40"
-        >
-          <Icon path={mdiSend} size={18} exact />
-        </button>
+        <IconButton icon={mdiSend} label="Send" size="sm" exact onClick={send} disabled={!query.trim()} />
       </div>
     </div>
   );

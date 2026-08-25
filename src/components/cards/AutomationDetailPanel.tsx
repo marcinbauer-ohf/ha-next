@@ -153,9 +153,12 @@ function RelatedRows({ ids }: { ids: string[] }) {
 export function AutomationDetailPanel({
   automation,
   onClose,
+  onBack,
 }: {
   automation: AutomationSummary;
   onClose: () => void;
+  /** Drilled in from a list: the leading glyph goes back to it, not out. */
+  onBack?: () => void;
 }) {
   const { connected, demoMode, getAutomationConfig, getLogbook, isAdmin, haUrl } = useHomeAssistant();
   const { triggerAutomation, setAutomationEnabled } = useAutomationActions();
@@ -256,6 +259,7 @@ export function AutomationDetailPanel({
         eyebrow="Automation"
         title={automation.name}
         onClose={onClose}
+        onBack={onBack}
         actions={editUrl && (
           <a
             href={editUrl}
@@ -294,7 +298,7 @@ export function AutomationDetailPanel({
             <button
               type="button"
               onClick={handleRun}
-              className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.99]"
+              className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.98]"
             >
               <Icon path={ran ? mdiCheck : mdiPlay} size={18} className={ran ? 'text-green-500' : 'text-ha-blue'} />
               {ran ? 'Triggered' : 'Run now'}

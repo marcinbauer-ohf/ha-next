@@ -65,7 +65,7 @@ const selectAutomationEntities = (entities: HassEntities): HassEntity[] =>
   Object.values(entities).filter((e) => e.entity_id.startsWith('automation.'));
 
 export function useAutomations(): { automations: AutomationSummary[]; loading: boolean } {
-  const { connected, demoMode } = useHomeAssistant();
+  const { connected, demoMode, demoEmpty } = useHomeAssistant();
 
   const automationEntities = useHomeAssistantSelector(
     selectAutomationEntities,
@@ -73,7 +73,9 @@ export function useAutomations(): { automations: AutomationSummary[]; loading: b
   );
 
   // Demo layout only when there is no live connection — never mixed with live data.
-  const useDemoData = demoMode && !connected;
+  // The emptied demo is a brand-new install: no automations have been written
+  // yet, so the sample set stays out of it.
+  const useDemoData = demoMode && !connected && !demoEmpty;
 
   const automations = useMemo<AutomationSummary[]>(() => {
     if (useDemoData) return buildDemoAutomations(new Date());

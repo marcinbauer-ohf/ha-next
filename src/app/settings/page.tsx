@@ -1,47 +1,46 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { CONTENT_SHELL } from '@/lib/layout';
 import { SettingsNavPanel } from '@/components/profile';
 import { SettingsDetailPage } from '@/components/profile/SettingsDetailPage';
-import { useHeader, useDebugFlags } from '@/contexts';
+import { useHeader, useDebugFlags, useRailSlot } from '@/contexts';
 import { type SettingsSlug, isSettingsSlug, isAdminOnlySlug, getDefaultSettingsSlug, getVisibleSettingsNavSections } from '@/components/profile/settingsNavigation';
 import { useHomeAssistant } from '@/hooks';
-import { subscribeSettingsReset } from '@/lib/settingsResetBus';
+import { useScrollFades } from '@/hooks/useScrollFades';
+import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
 import { canFireBareShortcut, matchShortcut } from '@/lib/keyboardShortcuts';
 
-function ScrollColumn({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [showTop, setShowTop] = useState(false);
-  const [showBottom, setShowBottom] = useState(false);
-
-  const update = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const threshold = 10;
-    setShowTop(el.scrollTop > threshold);
-    setShowBottom(el.scrollTop + el.clientHeight < el.scrollHeight - threshold);
-  }, []);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    update();
-    el.addEventListener('scroll', update);
-    window.addEventListener('resize', update);
-    return () => {
-      el.removeEventListener('scroll', update);
-      window.removeEventListener('resize', update);
-    };
-  }, [update]);
+// Two independent scrolling columns, each with the app's standard top+bottom
+// gradient fades. State comes from the shared hook (it also catches content
+// swaps, which a plain scroll listener misses) and the fades are the shared
+// click-to-edge overlay, so this column behaves like every other one.
+function ScrollColumn({ children, className = '', fade = 'from-surface-lower' }: { children: React.ReactNode; className?: string; fade?: string }) {
+  const { attach, showTop, showBottom } = useScrollFades<HTMLDivElement>();
+  const elRef = useRef<HTMLDivElement | null>(null);
+  const scrollTo = (top: number) => elRef.current?.scrollTo({ top, behavior: 'smooth' });
 
   return (
     <div className={`relative h-full ${className}`}>
-      <div className={`hidden lg:block pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-surface-lower to-transparent z-10 transition-opacity duration-200 ${showTop ? 'opacity-100' : 'opacity-0'}`} />
-      <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-surface-lower to-transparent z-10 transition-opacity duration-200 ${showBottom ? 'opacity-100' : 'opacity-0'}`} />
-      <div ref={ref} className="h-full overflow-y-auto scrollbar-hide">
+      <ScrollFadeEdge
+        edge="top"
+        visible={showTop}
+        onClick={() => scrollTo(0)}
+        className={`hidden lg:block absolute inset-x-0 top-0 h-10 bg-gradient-to-b ${fade} to-transparent z-10 transition-opacity duration-200`}
+      />
+      <ScrollFadeEdge
+        edge="bottom"
+        visible={showBottom}
+        onClick={() => scrollTo(elRef.current?.scrollHeight ?? 0)}
+        className={`absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t ${fade} to-transparent z-10 transition-opacity duration-200`}
+      />
+      <div
+        ref={(el) => { elRef.current = el; attach(el); }}
+        className="h-full overflow-y-auto scrollbar-hide"
+      >
         {children}
       </div>
     </div>
@@ -52,7 +51,14 @@ function SettingsWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAdmin } = useHomeAssistant();
-  const { hideHomeCenterEnabled } = useDebugFlags();
+  // Prototyping switch: the section list either lives in the shell's rail
+  // column (default) or back inside the page as the first of two columns.
+  const { hideHomeCenterEnabled, settingsRailEnabled } = useDebugFlags();
+  // The shell's left rail column — between the app sidebar and the content
+  // surface, and spanning the top-bar row, so the section list's search starts
+  // level with the global one. The shell owns the column's width (it has to
+  // indent the top-bar title by the same amount); we just fill it.
+  const railSlot = useRailSlot();
   // Honour a `?section=<slug>` deep-link (e.g. the clock pop-up's "Open Home
   // Center") so callers can open the two-column layout focused on a section.
   // Ignore it if it points at an admin-only section the current user can't see.
@@ -98,11 +104,6 @@ function SettingsWorkspace() {
     if (!isDesktop) setHeader({ title: 'Settings', onBack: () => router.push('/') });
   }, [isDesktop, setHeader, router]);
 
-  // Re-tapping the settings entry point while already here resets to the
-  // default view (Home Center). Setting the section also clears any drill-down,
-  // since SettingsDetailPage resets its detail when the active slug changes.
-  useEffect(() => subscribeSettingsReset(() => setActiveSlug(getDefaultSettingsSlug(isAdmin, hideHomeCenterEnabled))), [isAdmin, hideHomeCenterEnabled]);
-
   // Keyboard shortcuts — [ / ] step through the sidebar sections, D jumps to
   // Prototype & Debug Tools. Single keys skip text fields (the nav search) and
   // open dialogs; paused while a focused editor owns the workspace.
@@ -132,47 +133,69 @@ function SettingsWorkspace() {
   }, [editorFocus, isDesktop, router, isAdmin, hideHomeCenterEnabled]);
 
   return (
-    <AppSurfacePage scrollClassName="xl:h-full">
-      {/* Narrow (< xl): single-column nav list; tapping opens the detail route.
-          The two-column split needs room for the content's own sidebar, so it
-          only kicks in at xl — below that, content gets the full width. */}
-      {/* `--list-top-pad` mirrors <main>'s top padding (pt-ha-4 / lg:pt-ha-5) so the
-          nav's sticky search absorbs it and pins under the top bar without drift —
-          same mechanism the devices list (DataListView) uses. */}
-      <div className="xl:hidden max-w-2xl mx-auto [--list-top-pad:var(--ha-space-4)] lg:[--list-top-pad:var(--ha-space-5)]">
-        <SettingsNavPanel
-          activeSlug={null}
-          onSelect={(slug) => router.push(`/settings/${slug}`)}
-        />
-      </div>
+    // Desktop (≥ xl): the section list is pulled OUT of the content surface into
+    // the shell's own rail column, so the main surface shows only the open
+    // section. Below xl there's no room for the rail, so the surface carries the
+    // nav list on its own.
+    <>
+      {/* No panel of its own — the rail sits directly on the shell background so
+          the section list isn't a surface inside a surface. A single hairline on
+          the left is all that divides it from the app sidebar. */}
+      {settingsRailEnabled && railSlot && createPortal(
+        <div className="h-full overflow-hidden pt-ha-1 pl-ha-4 pr-ha-3 border-l border-surface-mid">
+          <ScrollColumn fade="from-surface-default">
+            <SettingsNavPanel activeSlug={effectiveActiveSlug} onSelect={setActiveSlug} flat bg="surface-default" />
+          </ScrollColumn>
+        </div>,
+        railSlot,
+      )}
 
-      {/* Wide (≥ xl): two independent scrolling columns with gradient masks.
-          Shares the dashboards' content shell (1536px + matching gutters) so the
-          settings content edges line up with every other route. */}
-      <div className={`hidden xl:flex xl:h-full ${CONTENT_SHELL}`}>
-        {/* Slides away while a focused editor is open. The inner column keeps
-            its fixed width so its content doesn't reflow mid-animation. */}
-        <div
-          className={`h-full shrink-0 overflow-hidden transition-[width,opacity,transform] duration-300 ease-out ${
-            editorFocus ? 'w-0 opacity-0 -translate-x-6 pointer-events-none' : 'w-[372px] opacity-100 translate-x-0'
-          }`}
-          aria-hidden={editorFocus}
-        >
-          <ScrollColumn className="w-[340px] mr-ha-8">
-            <SettingsNavPanel activeSlug={effectiveActiveSlug} onSelect={setActiveSlug} />
+      <AppSurfacePage scrollClassName="xl:h-full">
+        {/* Narrow (< xl): single-column nav list; tapping opens the detail route.
+            `--list-top-pad` mirrors <main>'s top padding (pt-ha-4 / lg:pt-ha-5) so the
+            nav's sticky search absorbs it and pins under the top bar without drift —
+            same mechanism the devices list (DataListView) uses. */}
+        <div className="xl:hidden max-w-2xl mx-auto [--list-top-pad:var(--ha-space-4)] lg:[--list-top-pad:var(--ha-space-5)]">
+          <SettingsNavPanel
+            activeSlug={null}
+            onSelect={(slug) => router.push(`/settings/${slug}`)}
+          />
+        </div>
+
+        {/* Wide (≥ xl): the open section, and — when the rail is switched off —
+            the list beside it as a second column. Shares the dashboards' content
+            shell (1536px + matching gutters) so the settings content edges line
+            up with every other route. */}
+        <div className={`hidden xl:flex xl:h-full ${CONTENT_SHELL}`}>
+          {!settingsRailEnabled && (
+            // In-page column: its own surface panel beside the section's, so the
+            // two columns read as a pair. (The rail can't do this — it sits on
+            // the shell background, where a panel would be a surface floating on
+            // nothing.) Flat list inside: one surface, not cards within a card.
+            <div className="h-full w-[312px] shrink-0 mr-ha-6">
+              <div className="h-full rounded-ha-3xl bg-surface-default overflow-hidden pt-ha-4 px-ha-3">
+                <ScrollColumn fade="from-surface-default">
+                  <SettingsNavPanel activeSlug={effectiveActiveSlug} onSelect={setActiveSlug} flat bg="surface-default" />
+                </ScrollColumn>
+              </div>
+            </div>
+          )}
+          <ScrollColumn className="flex-1 min-w-0">
+            {/* Re-keyed per section so the pane fades/slides in instead of snapping.
+                `h-full` lets a fill section (devices/integrations/automations) own
+                its own scroll; flowing sections just overflow it and the column
+                scrolls as before. */}
+            {/* `isDesktop` is in the key so crossing the xl breakpoint remounts the
+                pane: below xl this page claims the top bar for a plain "Settings"
+                header, and only a remount makes the pane re-announce its own
+                header (and with it the rail) on the way back up. */}
+            <div key={`${effectiveActiveSlug}-${isDesktop}`} className="ha-pane-in h-full">
+              <SettingsDetailPage slug={effectiveActiveSlug} panelMode onEditorFocusChange={setEditorFocus} onSelectSection={setActiveSlug} />
+            </div>
           </ScrollColumn>
         </div>
-        <ScrollColumn className="flex-1 min-w-0">
-          {/* Re-keyed per section so the pane fades/slides in instead of snapping.
-              `h-full` lets a fill section (devices/integrations/automations) own
-              its own scroll; flowing sections just overflow it and the column
-              scrolls as before. */}
-          <div key={effectiveActiveSlug} className="ha-pane-in h-full">
-            <SettingsDetailPage slug={effectiveActiveSlug} panelMode onEditorFocusChange={setEditorFocus} onSelectSection={setActiveSlug} />
-          </div>
-        </ScrollColumn>
-      </div>
-    </AppSurfacePage>
+      </AppSurfacePage>
+    </>
   );
 }
 

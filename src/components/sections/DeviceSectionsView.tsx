@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import Link from 'next/link';
 import { mdiImageOffOutline } from '@mdi/js';
 import { ModalSheet } from '@/components/layout/ModalSheet';
+import { SectionHeader } from './SectionHeader';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
 import { DeferredCard } from '@/components/cards/DeferredCard';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
-import { NavChevron } from '@/components/ui';
 import { useDevices, useHomeAssistant, useDeviceCardConfig, useMasonryCols } from '@/hooks';
 import {
   entityDomain, entityLabel, stateLabel, stateExtras, isOn, TOGGLEABLE, primaryCornerBadge, domainIcon, deviceFeedEntity, deviceThumbnail,
@@ -25,25 +24,6 @@ export interface DeviceSection {
 
 interface DeviceSectionsViewProps {
   sections: DeviceSection[];
-}
-
-// Non-sticky section header that scrolls away naturally. As it leaves the top
-// of the scroll area, the page republishes its title into the top bar as a
-// reversed breadcrumb (see useSectionCrumb) — same pattern as the home
-// dashboard's Section.
-function SectionHeader({ title, href }: { title: string; href?: string }) {
-  return (
-    <div className="-mx-ha-1 px-ha-1 py-ha-2 mb-ha-1" data-section-header>
-      {href ? (
-        <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
-          <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
-          <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
-        </Link>
-      ) : (
-        <span className="text-xl font-semibold text-text-primary">{title}</span>
-      )}
-    </div>
-  );
 }
 
 export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {

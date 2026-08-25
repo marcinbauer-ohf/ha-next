@@ -2,6 +2,7 @@ export {
   HomeAssistantProvider,
   useHomeAssistant,
   useHomeAssistantEntities,
+  useHomeIsEmpty,
   useHomeAssistantSelector,
   useEntity,
   useEntities,
@@ -46,7 +47,6 @@ export { useDashboardThumbnailCapture } from './useDashboardThumbnailCapture';
 export { ImmersiveModeProvider, useImmersiveMode } from './useImmersiveMode';
 export { useDesktopImmersivePageLayout } from './useDesktopImmersivePageLayout';
 
-export { usePullToReveal } from './usePullToReveal';
 
 export { useSheetDrag } from './useSheetDrag';
 

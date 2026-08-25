@@ -1,19 +1,26 @@
 'use client';
 
 import { type ReactNode, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
-import { SectionLabel, DataListView, ToggleSwitch, NavChevron, Sidebar } from '../ui';
+import { SectionLabel, DataListView, ToggleSwitch, NavChevron } from '../ui';
 import type { DataListConfig } from '../ui';
 import { ModalSheet } from '../layout/ModalSheet';
+import { SidePanel } from '../layout/SidePanel';
 import { EntityDetailPanel, type PanelEntity } from '../cards/EntityDetailPanel';
 import { IntegrationStore } from './IntegrationsPanel';
+import {
+  usePendingRows,
+  PendingListRow,
+  PendingTile,
+  PendingNameCell,
+  PENDING_GROUP,
+  IGNORED_GROUP,
+  type PendingRow,
+} from './DiscoveredDevices';
 import type { DeviceSummary, HassDevice } from '@/hooks';
 import { DEVICE_CATEGORY_LABEL, useDevices, useCopyToClipboard } from '@/hooks';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
-import { recede, useSheetStack } from '@/hooks/useSheetStack';
 import {
   entityLabel,
   stateLabel,
@@ -188,6 +195,23 @@ function DeviceTile({
  * DataListConfig and lets the generic DataListView handle search / sort / group
  * / filter / layout — same pattern as IntegrationsTable.
  */
+// A row is either a device you have or one the home found and is waiting on.
+// Keeping them in one list means one search, one sort and one set of chips
+// covers both — and a find is never somewhere you have to remember to go look.
+type DeviceListRow = DeviceSummary | PendingRow;
+const isPending = (row: DeviceListRow): row is PendingRow => 'kind' in row;
+
+// Accessors that read either kind, so sort and column code stays one branch
+// shallower than it would be spelling the union out at every call site.
+const rowName = (r: DeviceListRow) => (isPending(r) ? r.title : r.name);
+const rowArea = (r: DeviceListRow) => (isPending(r) ? '\uFFFF' : r.areaName ?? '\uFFFF');
+const rowBrand = (r: DeviceListRow) => (isPending(r) ? r.subtitle : r.integrationName ?? '\uFFFF');
+// Pending rows have no entities; a count sort should leave them on top, where
+// the things still to do belong, not bury them under every populated device.
+const rowEntities = (r: DeviceListRow) => (isPending(r) ? Infinity : r.entityCount);
+/** Found before everything, dismissed after — whichever grouping is chosen. */
+const pendingRank = (key: string) => (key === PENDING_GROUP.key ? -1 : key === IGNORED_GROUP.key ? 1 : 0);
+
 export function DevicesTable({
   devices,
   onSelect,
@@ -197,40 +221,58 @@ export function DevicesTable({
   onSelect: (id: string) => void;
   lastOpenedId?: string | null;
 }) {
-  const config = useMemo<DataListConfig<DeviceSummary>>(() => ({
+  const pending = usePendingRows();
+  const rows = useMemo<DeviceListRow[]>(() => [...pending, ...devices], [pending, devices]);
+
+  const config = useMemo<DataListConfig<DeviceListRow>>(() => ({
     keyOf: (d) => d.id,
-    searchText: (d) => `${d.name} ${d.manufacturer ?? ''} ${d.model ?? ''} ${d.areaName ?? ''} ${d.integrationName ?? ''} ${d.isService ? 'service' : ''}`,
+    searchText: (d) =>
+      isPending(d)
+        ? `${d.title} ${d.subtitle} ${d.foundBy} ${d.kind === 'found' ? 'found discovered new' : 'ignored not mine'}`
+        : `${d.name} ${d.manufacturer ?? ''} ${d.model ?? ''} ${d.areaName ?? ''} ${d.integrationName ?? ''} ${d.isService ? 'service' : ''}`,
     searchPlaceholder: 'Search devices & services…',
     sortOptions: [
-      { id: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
-      { id: 'entities', label: 'Entities', compare: (a, b) => b.entityCount - a.entityCount || a.name.localeCompare(b.name) },
-      { id: 'area', label: 'Area', compare: (a, b) => (a.areaName ?? 'zzz').localeCompare(b.areaName ?? 'zzz') || a.name.localeCompare(b.name) },
+      { id: 'name', label: 'Name', compare: (a, b) => rowName(a).localeCompare(rowName(b)) },
+      { id: 'entities', label: 'Entities', compare: (a, b) => rowEntities(b) - rowEntities(a) || rowName(a).localeCompare(rowName(b)) },
+      { id: 'area', label: 'Area', compare: (a, b) => rowArea(a).localeCompare(rowArea(b)) || rowName(a).localeCompare(rowName(b)) },
     ],
     groupOptions: [
       {
         id: 'area',
         label: 'Area',
         groupOf: (d) =>
-          d.isService
-            ? { key: '⚙', title: 'Services' }
-            : { key: d.areaId ?? '∅', title: d.areaName ?? 'No area' },
+          isPending(d)
+            ? (d.kind === 'found' ? PENDING_GROUP : IGNORED_GROUP)
+            : d.isService
+              ? { key: '⚙', title: 'Services' }
+              : { key: d.areaId ?? '∅', title: d.areaName ?? 'No area' },
         compareGroups: (a, b) => {
-          // Real areas A→Z; "No area" sinks below them; "Services" sinks last.
-          const rank = (k: string) => (k === '⚙' ? 2 : k === '∅' ? 1 : 0);
+          // Found first — it is the only group with something to do in it. Then
+          // real areas A→Z, "No area", "Services", and the dismissed last.
+          const rank = (k: string) =>
+            k === PENDING_GROUP.key ? -1 : k === IGNORED_GROUP.key ? 3 : k === '⚙' ? 2 : k === '∅' ? 1 : 0;
           return rank(a.key) - rank(b.key) || a.title.localeCompare(b.title);
         },
       },
       {
         id: 'category',
         label: 'Type',
-        groupOf: (d) => ({ key: d.category, title: DEVICE_CATEGORY_LABEL[d.category] }),
-        compareGroups: (a, b) => CATEGORY_RANK[a.key as DeviceCategory] - CATEGORY_RANK[b.key as DeviceCategory],
+        groupOf: (d) =>
+          isPending(d)
+            ? (d.kind === 'found' ? PENDING_GROUP : IGNORED_GROUP)
+            : { key: d.category, title: DEVICE_CATEGORY_LABEL[d.category] },
+        compareGroups: (a, b) =>
+          pendingRank(a.key) - pendingRank(b.key) ||
+          (CATEGORY_RANK[a.key as DeviceCategory] ?? 0) - (CATEGORY_RANK[b.key as DeviceCategory] ?? 0),
       },
       {
         id: 'integration',
         label: 'Integration',
-        groupOf: (d) => ({ key: d.integration ?? '∅', title: d.integrationName ?? 'Other' }),
-        compareGroups: (a, b) => a.title.localeCompare(b.title),
+        groupOf: (d) =>
+          isPending(d)
+            ? (d.kind === 'found' ? PENDING_GROUP : IGNORED_GROUP)
+            : { key: d.integration ?? '∅', title: d.integrationName ?? 'Other' },
+        compareGroups: (a, b) => pendingRank(a.key) - pendingRank(b.key) || a.title.localeCompare(b.title),
       },
     ],
     defaultGroupId: 'area',
@@ -242,8 +284,12 @@ export function DevicesTable({
         mode: 'facet',
         label: 'Show',
         chips: [
-          { id: 'devices', label: 'Devices', predicate: (d) => !d.isService, defaultActive: true },
-          { id: 'services', label: 'Services', predicate: (d) => d.isService, defaultActive: true },
+          { id: 'devices', label: 'Devices', predicate: (d) => !isPending(d) && !d.isService, defaultActive: true },
+          { id: 'services', label: 'Services', predicate: (d) => !isPending(d) && d.isService, defaultActive: true },
+          { id: 'found', label: 'Found', predicate: (d) => isPending(d) && d.kind === 'found', defaultActive: true },
+          // Off by default: a dismissal is a decision you already made, and the
+          // chip is how you go back and look at it.
+          { id: 'ignored', label: 'Not yours', predicate: (d) => isPending(d) && d.kind === 'ignored' },
         ],
       },
       {
@@ -251,44 +297,50 @@ export function DevicesTable({
         mode: 'facet',
         label: 'Availability',
         chips: [
-          { id: 'available', label: 'Available', predicate: (d) => d.available, defaultActive: true },
-          { id: 'unavailable', label: 'Unavailable', predicate: (d) => !d.available },
+          // A pending row has no availability to speak of, so neither chip should
+          // be able to hide it — that is the "Show" row's job.
+          { id: 'available', label: 'Available', predicate: (d) => isPending(d) || d.available, defaultActive: true },
+          { id: 'unavailable', label: 'Unavailable', predicate: (d) => isPending(d) || !d.available },
         ],
       },
     ],
-    renderRow: (d) => <DeviceRow device={d} onSelect={onSelect} />,
-    renderCard: (d) => <DeviceTile device={d} onSelect={onSelect} />,
+    renderRow: (d) => (isPending(d) ? <PendingListRow row={d} /> : <DeviceRow device={d} onSelect={onSelect} />),
+    renderCard: (d) => (isPending(d) ? <PendingTile row={d} /> : <DeviceTile device={d} onSelect={onSelect} />),
     columns: [
       {
         id: 'name',
         header: 'Device',
-        sortAccessor: (d) => d.name.toLowerCase(),
-        cell: (d) => (
-          <div className="flex items-center gap-ha-3">
-            <DeviceIconTile
-              icon={d.icon}
-              thumbnail={d.thumbnail}
-              tileClass="w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 overflow-hidden"
-              iconSize={16}
-            />
-            <span className="min-w-0 flex items-center gap-ha-2">
-              <span className="font-semibold text-text-primary truncate">{d.name}</span>
-              <AvailabilityPill available={d.available} />
-            </span>
-          </div>
-        ),
+        sortAccessor: (d) => rowName(d).toLowerCase(),
+        cell: (d) =>
+          isPending(d) ? (
+            <PendingNameCell row={d} />
+          ) : (
+            <div className="flex items-center gap-ha-3">
+              <DeviceIconTile
+                icon={d.icon}
+                thumbnail={d.thumbnail}
+                tileClass="w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 overflow-hidden"
+                iconSize={16}
+              />
+              <span className="min-w-0 flex items-center gap-ha-2">
+                <span className="font-semibold text-text-primary truncate">{d.name}</span>
+                <AvailabilityPill available={d.available} />
+              </span>
+            </div>
+          ),
       },
-      { id: 'area', header: 'Area', sortAccessor: (d) => (d.areaName ?? '￿').toLowerCase(), cell: (d) => d.areaName ?? (d.isService ? 'Service' : 'No area'), hideBelow: 'sm' },
-      { id: 'integration', header: 'Integration', sortAccessor: (d) => (d.integrationName ?? '￿').toLowerCase(), cell: (d) => d.integrationName ?? '—', hideBelow: 'md' },
+      { id: 'area', header: 'Area', sortAccessor: (d) => rowArea(d).toLowerCase(), cell: (d) => (isPending(d) ? '—' : d.areaName ?? (d.isService ? 'Service' : 'No area')), hideBelow: 'sm' },
+      { id: 'integration', header: 'Integration', sortAccessor: (d) => rowBrand(d).toLowerCase(), cell: (d) => (isPending(d) ? d.subtitle || '—' : d.integrationName ?? '—'), hideBelow: 'md' },
       {
         id: 'entities',
         header: 'Entities',
         align: 'right',
-        sortAccessor: (d) => d.entityCount,
-        cell: (d) => <span className="tabular-nums">{d.entityCount}</span>,
+        sortAccessor: (d) => rowEntities(d),
+        cell: (d) => (isPending(d) ? <span className="text-text-disabled">—</span> : <span className="tabular-nums">{d.entityCount}</span>),
       },
     ],
-    onRowClick: (d) => onSelect(d.id),
+    // A pending row's buttons are the whole of it; there is no detail to open.
+    onRowClick: (d) => { if (!isPending(d)) onSelect(d.id); },
     storageId: 'devices',
     fillHeight: true,
     defaultLayout: 'list',
@@ -301,7 +353,7 @@ export function DevicesTable({
   // the same brand store as "+ → Integration".
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <DataListView items={devices} config={config} />
+      <DataListView items={rows} config={config} />
       <IntegrationStore />
     </div>
   );
@@ -477,7 +529,7 @@ const ENTITY_BUCKET_RANK: Record<string, number> = { controls: 0, sensors: 1, di
  * Body of the "Device info" sidebar — the device summary (icon, name,
  * availability, entity/control/sensor counts) plus the static metadata rows
  * (area, integration, manufacturer, model, device ID). Rendered inside the
- * reusable <Sidebar> chrome on desktop and the mobile bottom sheet.
+ * reusable <SidePanel> chrome — docked rail on desktop, sheet on mobile.
  */
 function DeviceInfoPanel({ device }: { device: DeviceSummary }) {
   const router = useRouter();
@@ -510,7 +562,7 @@ function DeviceInfoPanel({ device }: { device: DeviceSummary }) {
 
       {/* Device info — area + integration drill into their views; manufacturer,
           model and device ID copy to the clipboard on click. */}
-      <div className="space-y-ha-3">
+      <div className="space-y-ha-2">
         <SectionLabel inset>Device info</SectionLabel>
         <div className="bg-surface-default rounded-ha-2xl border border-surface-lower overflow-hidden">
           {device.areaId ? (
@@ -580,7 +632,6 @@ export function DeviceDetailView({
   // the dashboard device cards use, in the shared ModalSheet.
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
   // …so this sheet sits back under that dialog rather than vanishing behind it.
-  const { above: sheetAbove } = useSheetStack(infoOpen);
   const panelEntities = useMemo<PanelEntity[]>(() => entities.map((e) => {
     const dom = e.entity_id.split('.')[0];
     const isToggleable = TOGGLEABLE.has(dom);
@@ -646,7 +697,7 @@ export function DeviceDetailView({
         )}
 
         {/* Configure (placeholder — production opens HA's device page) */}
-        <div className="space-y-ha-3">
+        <div className="space-y-ha-2">
           <SectionLabel inset>Configuration</SectionLabel>
           <div className="flex items-center gap-ha-2 px-ha-4 py-ha-3 bg-surface-low rounded-ha-2xl border border-surface-lower">
             <Icon path={mdiOpenInNew} size={15} className="text-text-tertiary flex-shrink-0" />
@@ -658,63 +709,16 @@ export function DeviceDetailView({
         </div>
       </div>
 
-      {/* Right sidebar (lg+), sticky below the pinned title — the device summary
-          and metadata. Hidden entirely when toggled off so the main column fills
-          the width. */}
-      {infoOpen && (
-        <Sidebar
-          resizable
-          {...panelHeader}
-          // z-20 lifts the sidebar above the ScrollColumn's z-10 top/bottom fade
-          // gradients, so the fade only veils the scrolling main column — the
-          // docked (non-scrolling) sidebar stays crisp.
-          className="ha-pane-in sticky z-20 hidden flex-shrink-0 lg:flex"
-          style={{
-            top: 'calc(var(--settings-header-h, 0px) + 4px)',
-            maxHeight: 'calc(100vh - var(--settings-header-h, 0px) - 24px)',
-          }}
-        >
-          {infoBody}
-        </Sidebar>
-      )}
-
-      {/* Below lg the same panel rises as a bottom sheet. Portaled to the body —
-          the pane-transition wrapper is transformed during its animation, which
-          would otherwise clip this fixed overlay to the page. */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {infoOpen && (
-            <>
-              <motion.div
-                key="device-sheet-scrim"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="lg:hidden fixed inset-0 z-[100] bg-black/70"
-                onClick={() => onCloseInfo?.()}
-              />
-              <motion.div
-                key="device-sheet"
-                initial={{ y: '100%' }}
-                animate={recede(sheetAbove)}
-                exit={{ y: '100%' }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:hidden fixed inset-x-0 bottom-0 z-[100] px-ha-2"
-                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)', transformOrigin: 'top center' }}
-              >
-                <div className="flex justify-center pb-ha-2">
-                  <div className="h-1.5 w-9 rounded-full bg-white/40" />
-                </div>
-                <Sidebar {...panelHeader} className="flex max-h-[82vh]">
-                  {infoBody}
-                </Sidebar>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+      {/* The device summary + metadata: a docked rail beside the list on a
+          desktop, the same panel as a bottom sheet on a phone. */}
+      <SidePanel
+        open={infoOpen}
+        onClose={() => onCloseInfo?.()}
+        header={panelHeader}
+        resizable
+      >
+        {infoBody}
+      </SidePanel>
 
       {/* Entity more-info dialog — same panel the dashboard device cards open. */}
       <ModalSheet

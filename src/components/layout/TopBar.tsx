@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Icon } from '../ui/Icon';
+import { IconButton } from '../ui/IconButton';
 import { RollingText } from '../ui/RollingText';
 import { AddMenu } from '../ui/AddMenu';
 import { Tooltip } from '../ui/Tooltip';
@@ -125,7 +126,7 @@ export function TopBar() {
   );
 
   const desktopEyebrow = hasTrail ? (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-text-secondary">
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-text-secondary min-w-0 truncate">
       {breadcrumbs!.map((crumb, i) => (
         <span key={`${crumb.label}-${i}`} className="flex items-center gap-1">
           {i > 0 && <span aria-hidden className="text-text-tertiary">›</span>}
@@ -144,7 +145,7 @@ export function TopBar() {
       ))}
     </nav>
   ) : subtitle?.trim() ? (
-    <span className="text-xs text-text-secondary capitalize">{subtitle}</span>
+    <span className="text-xs text-text-secondary capitalize truncate">{subtitle}</span>
   ) : null;
 
   // Single persistent flex-col + RollingText for every header shape, so the
@@ -154,9 +155,12 @@ export function TopBar() {
   const desktopStandalone = !hasTrail && !subtitle;
   const desktopTitleSize = desktopStandalone ? 'text-2xl' : 'text-xl';
   const desktopTitleContent = (
-    <div className="flex flex-col leading-none gap-0.5 text-left">
+    // min-w-0 + truncate: the row caps this block at the centred search pill's
+    // left edge (half the row, less half the pill), so a long title ellipsises
+    // instead of running underneath it.
+    <div className="flex flex-col leading-none gap-0.5 text-left min-w-0 max-w-full">
       {desktopEyebrow && collapseEyebrow(desktopEyebrow)}
-      <h1 className={`${desktopTitleSize} leading-none font-semibold text-text-primary capitalize`}>
+      <h1 className={`${desktopTitleSize} leading-none font-semibold text-text-primary capitalize truncate`}>
         <RollingText
           text={title}
           direction={titleDirection}
@@ -185,28 +189,37 @@ export function TopBar() {
   // Edit affordance sits next to the heading (both breakpoints), sized and
   // coloured like the sidebar's arrange pencil rather than the 24px actions.
   const editPencil = isDashboardPage && !isEditing && (
-    <button
-      type="button"
-      aria-label="Edit dashboard"
-      onClick={toggleEditMode}
-      className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-disabled transition-colors hover:bg-surface-low hover:text-text-primary"
-    >
-      <Icon path={pencilIcon} size={17} exact />
-    </button>
+    <IconButton icon={pencilIcon} label="Edit dashboard" size="sm" tone="quiet" shape="square" exact onClick={toggleEditMode} />
   );
   return (
     <header className="relative h-full py-ha-2 px-ha-0" data-component="TopBar">
+      {/* Left inset: the shell's rail column (settings' section list) spans this
+          row, so the row inside starts where the content column does. Its shell
+          then centres on that same column — which is what makes the heading and
+          the action buttons land on the page content's own left/right edges at
+          every width, clamp included. 0 on every route without a rail. */}
+      <div className="h-full xl:pl-[var(--app-rail-w,0px)] transition-[padding] duration-300 ease-out">
       {/* Inner row shares the exact content shell (max-w + centering + gutters)
           used by every page below, so the title/breadcrumbs on the left and the
           action buttons on the right line up with the content at every width. */}
-      <div className={`relative h-full flex items-center justify-between ${CONTENT_MAX} ${CONTENT_GUTTER}`}>
+      <div className={`h-full ${CONTENT_MAX} ${CONTENT_GUTTER}`}>
+      {/* Inner box = the content column exactly, with the shell's asymmetric
+          gutters already taken off — so the centred search lands on the true
+          midpoint between the heading and the actions. */}
+      <div className="relative h-full w-full flex items-center justify-between">
 
       {/* Desktop: merged search + ask entry — a big centered input-shaped
           trigger that opens the command palette. Two controls in one pill, so
           the outer shell is a div: search takes the whole field, Ask goes
-          straight to the assistant instead of the palette's "ask" row. */}
+          straight to the assistant instead of the palette's "ask" row.
+
+          Centred on the row's content box — the span between the heading on the
+          left and the action buttons on the right, which is the page content's
+          own column. Sits inside the inner row (not the padded shell) because
+          the shell's gutters are asymmetric, and half of that difference would
+          otherwise pull the pill off the midpoint. */}
       {!isEditing && (
-        <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center h-11 w-[min(30rem,34vw)] pl-ha-4 pr-ha-2 rounded-ha-pill bg-surface-low hover:bg-surface-mid/60 transition-colors group">
+        <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 items-center h-11 w-[min(30rem,34vw)] pl-ha-4 pr-ha-2 rounded-full bg-surface-low hover:bg-surface-mid/60 transition-colors group">
           <button
             type="button"
             onClick={openSearch}
@@ -314,7 +327,7 @@ export function TopBar() {
       {/* Desktop Header Content. Back button is absolutely positioned to the
           left of the row so the title stays on the content's left edge instead
           of being pushed right by the arrow's width. */}
-      <div className="relative hidden lg:flex items-center gap-ha-2">
+      <div className="relative hidden lg:flex items-center gap-ha-2 min-w-0 max-w-[calc(50%-min(15rem,17vw)-1rem)]">
         {showBack && (
           <button
             onClick={handleBack}
@@ -360,6 +373,8 @@ export function TopBar() {
             <Icon path={mdiPlus} size={24} />
           </button>
         )}
+      </div>
+      </div>
       </div>
       </div>
 

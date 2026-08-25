@@ -52,7 +52,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: 'global.search', group: 'Global', label: 'Search & commands', keys: [{ key: 'k', mod: true }, { key: '/' }] },
   { id: 'global.assistant', group: 'Global', label: 'Toggle assistant', keys: [{ key: 'a' }] },
   { id: 'global.home', group: 'Global', label: 'Go to home dashboard', keys: [{ key: 'h' }, { key: 'h', mod: true, hidden: true }] },
-  { id: 'global.settings', group: 'Global', label: 'Open settings', keys: [{ key: 's' }] },
+  { id: 'global.settings', group: 'Global', label: 'Toggle settings', keys: [{ key: 's' }] },
   { id: 'global.sidebar', group: 'Global', label: 'Toggle sidebar', keys: [{ key: 'b', mod: true }] },
   { id: 'global.help', group: 'Global', label: 'Show keyboard shortcuts', keys: [{ key: '?' }] },
   { id: 'global.color-mode', group: 'Global', label: 'Toggle light / dark mode', keys: [{ key: 'd', mod: true, shift: true }], displayOnly: true },

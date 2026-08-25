@@ -63,8 +63,11 @@ export default function LocationMap({ center, onChange }: LocationMapProps) {
       </MapContainer>
 
       {/* Fixed centre pin — the thing being placed. pointer-events-none so it
-          never eats a pan gesture that starts on top of it. */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          never eats a pan gesture that starts on top of it, and z-500 because
+          Leaflet's own panes sit at z-index 400: without it the pin paints
+          under the tiles. (The people map doesn't need this — its marker lives
+          inside a Leaflet pane rather than over one.) */}
+      <div className="absolute inset-0 z-[500] flex items-center justify-center pointer-events-none">
         <div className="ha-map-home">
           <Icon path={mdiHome} size={20} />
         </div>

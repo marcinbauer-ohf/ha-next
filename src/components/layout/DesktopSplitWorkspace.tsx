@@ -12,9 +12,10 @@ import {
 import { mdiClose } from '@mdi/js';
 import { useHeader } from '@/contexts';
 import type { SidebarItem } from '@/hooks';
-import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { HALogo } from '@/components/ui/HALogo';
 import { MdiIcon } from '@/components/ui/MdiIcon';
+import { SectionLabel } from '../ui/SectionLabel';
 
 export type SplitSide = 'left' | 'right' | 'top' | 'bottom';
 
@@ -722,22 +723,13 @@ export function DesktopSplitViewMenu({
             <p className="text-sm font-semibold text-text-primary">{directionLabel[side]}</p>
             <p className="text-xs text-text-secondary">Choose the view to load in this split.</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-lower hover:text-text-primary"
-            title="Close menu"
-          >
-            <Icon path={mdiClose} size={16} />
-          </button>
+          <IconButton icon={mdiClose} label="Close menu" size="sm" onClick={onClose} />
         </div>
 
         <div className="max-h-[min(56vh,460px)] overflow-y-auto py-ha-2">
           {groupedOptions.map((group) => (
             <div key={group.label} className="mb-ha-1 px-ha-2">
-              <div className="px-ha-3 py-ha-1 text-[13px] font-medium uppercase tracking-wider text-text-tertiary">
-                {group.label}
-              </div>
+              <SectionLabel className="px-ha-3 py-ha-1">{group.label}</SectionLabel>
               {group.items.map((option) => (
                 <button
                   key={option.route}
@@ -812,14 +804,7 @@ function SplitPaneChrome({
           <p className="truncate text-sm font-semibold text-text-primary">{paneTitle}</p>
           <p className="truncate text-xs text-text-secondary">{paneSubtitle}</p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-10 w-10 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-          title="Close pane"
-        >
-          <Icon path={mdiClose} size={18} />
-        </button>
+        <IconButton icon={mdiClose} label="Close pane" onClick={onClose} />
       </div>
 
       <div className="relative flex-1 min-h-0 min-w-0 overflow-hidden" onMouseEnter={onActivate}>

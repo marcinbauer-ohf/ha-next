@@ -19,6 +19,8 @@ import {
 import { haptic } from '@/lib/haptics';
 import { mdiPlus, mdiCheck, mdiMagnify, mdiOpenInNew } from '@mdi/js';
 import { clsx } from 'clsx';
+import { Button } from './Button';
+import { SectionLabel } from './SectionLabel';
 
 interface PickerRow {
   key: string;
@@ -64,9 +66,7 @@ function entityRow(entityId: string, name: string, sublabel: string): PickerRow 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-text-tertiary text-xs font-medium uppercase tracking-wider mb-ha-2">
-        {title}
-      </div>
+      <SectionLabel className="mb-ha-2">{title}</SectionLabel>
       <div className="space-y-ha-1">{children}</div>
     </div>
   );
@@ -235,20 +235,15 @@ export function ShortcutPicker({ open, onClose }: { open: boolean; onClose: () =
               inputMode="url"
               className="w-full h-10 px-ha-3 rounded-ha-lg bg-surface-default outline-none text-sm text-text-primary placeholder:text-text-tertiary transition-colors"
             />
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              block
+              icon={mdiOpenInNew}
               disabled={!linkValid}
               onClick={addLink}
-              className={clsx(
-                'w-full h-10 rounded-ha-lg flex items-center justify-center gap-ha-2 text-sm font-semibold transition-colors',
-                linkValid
-                  ? 'bg-ha-blue text-white hover:bg-ha-blue/90'
-                  : 'bg-surface-low text-text-tertiary'
-              )}
             >
-              <Icon path={mdiOpenInNew} size={16} />
               Add link
-            </button>
+            </Button>
           </div>
         </Section>
       </div>

@@ -253,6 +253,9 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
   const roomsStepFloor = roomsFloor(stepId);
   const middleIndex = middleSteps.indexOf(stepId);
   const showChrome = middleIndex !== -1;
+  // The finale walks you into the room: the flow's own opaque backdrop clears
+  // off the live dashboard running underneath (AppShell keeps it mounted).
+  const atFinale = stepId === 'finale';
 
   // Fast asymmetric cut: exits accelerate away (0.2s ease-in), entrances
   // decelerate in (0.35s ease-out) — responsive calm, not a slideshow.
@@ -301,19 +304,27 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
       // backdrop + white text) regardless of the app's current mode — the
       // [data-mode="dark"] CSS vars cascade to every descendant token.
       data-mode="dark"
-      className="fixed inset-0 z-[130] bg-surface-default text-text-primary select-none flex flex-col focus:outline-none"
+      className={`fixed inset-0 z-[130] ${atFinale ? '' : 'bg-surface-default'} text-text-primary select-none flex flex-col focus:outline-none`}
       initial={false}
       exit={{ opacity: 0, scale: reduce ? 1 : 1.03 }}
       transition={{ duration: 0.8, ease: EASE_OUT }}
     >
       {/* The screensaver's ambient shader — immersive full-bleed, forced dark so
-          it fills instead of blending over a light surface. */}
-      <RingShaderBackground mode="warp" resolvedMode="dark" center={ringOrigin.center} reach={ringOrigin.reach} opaque />
-      {/* Black scrim over the shader. Top-weighted, not flat: the warp field is
+          it fills instead of blending over a light surface. Fades out on the
+          finale so the doorway opens onto the real dashboard, not the shader.
+          Black scrim over it is top-weighted, not flat: the warp field is
           brightest along the top edge, which read as a haze band across the top
           of the screen. Damping just that end keeps the shader visible lower
           down without a flat 55% killing it everywhere. */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/22" aria-hidden />
+      <motion.div
+        className="absolute inset-0"
+        aria-hidden
+        animate={{ opacity: atFinale ? 0 : 1 }}
+        transition={{ duration: atFinale ? (reduce ? 0.5 : 1.1) : 0, delay: atFinale && !reduce ? 0.15 : 0, ease: EASE_OUT }}
+      >
+        <RingShaderBackground mode="warp" resolvedMode="dark" center={ringOrigin.center} reach={ringOrigin.reach} opaque />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/22" />
+      </motion.div>
 
       {/* ── Top chrome: back · progress dots · skip ─────────────────────── */}
       <div className="relative z-10 flex-shrink-0 h-[calc(3.5rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] px-ha-4 grid grid-cols-[1fr_auto_1fr] items-center">
@@ -336,6 +347,12 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
           </AnimatePresence>
         </div>
 
+        {/* The dots keep their own grid cell even when they aren't rendered:
+            AnimatePresence emits no DOM node of its own, so without this wrapper
+            the row loses a child on the steps that hide the dots (hello,
+            finale) and the accessibility button slides from the third column
+            into the middle one. */}
+        <div className="justify-self-center">
         <AnimatePresence>
           {showChrome && (
             <motion.div
@@ -352,7 +369,7 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
                   key={s}
                   layout
                   aria-hidden
-                  className={`h-1.5 rounded-ha-pill ${
+                  className={`h-1.5 rounded-full ${
                     i === middleIndex ? 'bg-text-primary' : i < middleIndex ? 'bg-text-primary/55' : 'bg-text-primary/30'
                   }`}
                   initial={{ opacity: 0, scale: 0.5 }}
@@ -363,6 +380,7 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
 
         {/* No skip affordance: setting the home up is the point of this flow,
             and an escape hatch in the corner tells people it's optional. The
@@ -409,13 +427,17 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
                   <RoomsStep state={state} update={update} next={next} back={back} floor={roomsStepFloor} />
                 )}
                 {stepId === 'analytics' && <AnalyticsStep state={state} update={update} next={next} back={back} />}
-                {stepId === 'finale' && <FinaleStep onFinish={finish} />}
                 </StepActionsHostContext.Provider>
               </motion.div>
             </AnimatePresence>
           </div>
         </div>
       </div>
+
+      {/* The finale is full-bleed, so it hangs off the flow root rather than the
+          centred step column — which scrolls, clips and slides sideways. Still
+          inside the root, so the exit fade carries it through. */}
+      {stepId === 'finale' && <FinaleStep onFinish={finish} />}
 
       {/* CTA slot — every step's Continue button portals in here (StepActions),
           so it holds one position regardless of how tall the step is.
@@ -428,9 +450,12 @@ export function OnboardingFlow({ onDone, resume = true }: OnboardingFlowProps) {
           anchor (18rem under centre, clamped for short windows) and the buttons
           sit at the row's top edge — same position as before, now with the space
           actually reserved. Stacks grow down from that edge. */}
+      {/* invisible at the finale: the outgoing step's CTA lives on here for
+          another 200ms (it portals out of the sliding column), and a button
+          hanging around over the reveal reads as a leftover. */}
       <div
         ref={setActionsHost}
-        className="pointer-events-none relative z-20 flex-shrink-0 flex flex-col items-center gap-ha-2 px-ha-6 pb-[calc(var(--ha-edge-padding)+var(--ha-space-2))] lg:pb-0 lg:min-h-[max(calc(var(--ha-space-8)+3.5rem),calc(50%_-_18rem_+_3.5rem))]"
+        className={`${atFinale ? 'invisible ' : ''}pointer-events-none relative z-20 flex-shrink-0 flex flex-col items-center gap-ha-2 px-ha-6 pb-[calc(var(--ha-edge-padding)+var(--ha-space-2))] lg:pb-0 lg:min-h-[max(calc(var(--ha-space-8)+3.5rem),calc(50%_-_18rem_+_3.5rem))]`}
       />
     </motion.div>
   );

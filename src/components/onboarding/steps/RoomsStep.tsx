@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Icon } from '@/components/ui';
+import { Icon, IconButton} from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import {
   mdiBedOutline,
@@ -116,7 +116,7 @@ export function RoomsStep({ state, update, next, floor: active }: RoomsStepProps
                 type="button"
                 aria-pressed={here}
                 onClick={() => toggle(p.name, p.icon, p.haIcon)}
-                className={`inline-flex items-center gap-ha-2 h-11 pl-ha-3 pr-ha-4 rounded-ha-pill border text-sm font-medium transition-all active:scale-95 ${
+                className={`inline-flex items-center gap-ha-2 h-11 pl-ha-3 pr-ha-4 rounded-full border text-sm font-medium transition-all active:scale-95 ${
                   here
                     ? 'bg-ha-blue text-white border-ha-blue shadow-md shadow-ha-blue/20'
                     : 'bg-surface-low/70 backdrop-blur-sm border-surface-lower text-text-primary hover:bg-surface-low hover:border-fill-primary-normal'
@@ -135,7 +135,7 @@ export function RoomsStep({ state, update, next, floor: active }: RoomsStepProps
               type="button"
               aria-pressed
               onClick={() => update((s) => ({ rooms: s.rooms.filter((x) => x.id !== r.id) }))}
-              className="inline-flex items-center gap-ha-2 h-11 pl-ha-3 pr-ha-4 rounded-ha-pill border text-sm font-medium bg-ha-blue text-white border-ha-blue shadow-md shadow-ha-blue/20 transition-all active:scale-95"
+              className="inline-flex items-center gap-ha-2 h-11 pl-ha-3 pr-ha-4 rounded-full border text-sm font-medium bg-ha-blue text-white border-ha-blue shadow-md shadow-ha-blue/20 transition-all active:scale-95"
             >
               <Icon path={mdiCheck} size={17} />
               {r.name}
@@ -151,35 +151,32 @@ export function RoomsStep({ state, update, next, floor: active }: RoomsStepProps
             placeholder="Add your own room…"
             maxLength={24}
             aria-label={count > 1 ? `Add your own room on the ${names[active]}` : 'Add your own room'}
-            className="flex-1 h-11 px-ha-4 rounded-ha-pill bg-surface-low/70 backdrop-blur-sm text-sm text-text-primary placeholder:text-text-tertiary select-text focus:outline-none transition-colors"
+            className="flex-1 h-11 px-ha-4 rounded-full bg-surface-low/70 backdrop-blur-sm text-sm text-text-primary placeholder:text-text-tertiary select-text focus:outline-none transition-colors"
           />
-          <button
-            type="submit"
-            disabled={!custom.trim()}
-            aria-label="Add room"
-            className="w-11 h-11 rounded-full bg-surface-low border border-surface-lower flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-mid transition-colors disabled:opacity-40"
-          >
-            <Icon path={mdiPlus} size={20} />
-          </button>
+          <IconButton icon={mdiPlus} label="Add room" size="lg" filled disabled={!custom.trim()} />
         </form>
 
-        {/* Hint above the pill: the stack is bottom-anchored, so the CTA stays
-            in the bottom-nav band whether or not the hint shows. */}
-        <StepActions>
-          {here === 0 && (
-            <p className="text-[13px] text-text-tertiary text-center">
-              {count > 1
-                ? 'Nothing on this floor? Just continue — you can add rooms whenever.'
-                : 'Not sure yet? That’s fine — continue and add rooms whenever.'}
-            </p>
-          )}
-          {/* min-width keeps the pill from resizing/recentering as the label changes. */}
-          <div className="min-w-[260px] flex justify-center">
-            <PrimaryPill onClick={next}>
-              {here > 0 ? `Continue with ${here} ${here === 1 ? 'room' : 'rooms'}` : 'Continue'}
-            </PrimaryPill>
-          </div>
-        </StepActions>
+        {/* The hint rides in the reserved secondary row, so it can come and go
+            without ever moving the CTA. */}
+        <StepActions
+          primary={
+            // min-width keeps the pill from resizing/recentering as the label changes.
+            <div className="min-w-[260px] flex justify-center">
+              <PrimaryPill onClick={next}>
+                {here > 0 ? `Continue with ${here} ${here === 1 ? 'room' : 'rooms'}` : 'Continue'}
+              </PrimaryPill>
+            </div>
+          }
+          secondary={
+            here === 0 ? (
+              <p className="text-[13px] text-text-tertiary text-center text-balance">
+                {count > 1
+                  ? 'Nothing on this floor? Just continue — you can add rooms whenever.'
+                  : 'Not sure yet? That’s fine — continue and add rooms whenever.'}
+              </p>
+            ) : undefined
+          }
+        />
       </div>
     </div>
   );

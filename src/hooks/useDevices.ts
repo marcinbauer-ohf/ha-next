@@ -342,7 +342,7 @@ function buildDevicesCached(
 // ── Hook ──────────────────────────────────────────────────────────────────
 
 export function useDevices(): { devices: HassDevice[]; services: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; loading: boolean } {
-  const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry } = useHomeAssistant();
+  const { connected, demoMode, demoEmpty, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry } = useHomeAssistant();
   const allEntities = useHomeAssistantEntities();
 
   const { entityReg, deviceReg, areaReg: liveAreaReg, floorReg, loading: regLoading } = useSyncExternalStore(
@@ -361,7 +361,8 @@ export function useDevices(): { devices: HassDevice[]; services: HassDevice[]; a
 
   // Demo mode has no live registries — substitute the sample home's layout so
   // area grouping, floor tabs, and room pages work on demo data.
-  const useDemoLayout = demoMode && !connected;
+  // Emptied demo = a fresh install, which has no areas or floors either.
+  const useDemoLayout = demoMode && !connected && !demoEmpty;
   const areaReg = useDemoLayout ? DEMO_AREAS : liveAreaReg;
   const floorRegEffective = useDemoLayout ? DEMO_FLOORS : floorReg;
 
@@ -712,7 +713,7 @@ export function useIntegrations(): { integrations: IntegrationSummary[]; loading
 // live HA feed, freezing navigation. The entity count is a cheap signal that
 // changes only when entities appear/disappear, not when a value updates.
 export function useDeviceStructure(): { devices: HassDevice[]; services: HassDevice[]; areas: Map<string, string>; areaReg: AreaRegistryEntry[]; floors: FloorRegistryEntry[]; labelReg: LabelRegistryEntry[]; loading: boolean } {
-  const { connected, demoMode, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry } = useHomeAssistant();
+  const { connected, demoMode, demoEmpty, getEntityRegistry, getDeviceRegistry, getAreaRegistry, getFloorRegistry, getLabelRegistry } = useHomeAssistant();
 
   const { entityReg, deviceReg, areaReg: liveAreaReg, floorReg, labelReg, loading: regLoading } = useSyncExternalStore(
     subscribeToRegistry,
@@ -720,7 +721,8 @@ export function useDeviceStructure(): { devices: HassDevice[]; services: HassDev
     getServerRegistrySnapshot,
   );
 
-  const useDemoLayout = demoMode && !connected;
+  // Emptied demo = a fresh install, which has no areas or floors either.
+  const useDemoLayout = demoMode && !connected && !demoEmpty;
   const areaReg = useDemoLayout ? DEMO_AREAS : liveAreaReg;
   const floorRegEffective = useDemoLayout ? DEMO_FLOORS : floorReg;
 

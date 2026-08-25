@@ -4,7 +4,8 @@ import { useEffect, useState, useMemo, useRef, useCallback, type CSSProperties }
 import { usePathname, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../ui/Icon';
-import { Avatar } from '../ui/Avatar';
+import { IconButton } from '../ui/IconButton';
+import { SettingsGlyph } from '../ui/SettingsGlyph';
 import { Tooltip } from '../ui/Tooltip';
 import { CircularProgress } from '../ui/CircularProgress';
 import { RollingNumericValue } from '../ui/RollingNumericValue';
@@ -16,6 +17,7 @@ import { endedDismissKey } from '@/lib/activities/ledger';
 import { ALERT_WINDOW_MS, type ActivityStatus, type ActivityType } from '@/lib/activities/types';
 import { HomeCenterPillIndicators } from '../sections/HomeCenterStatus';
 import { subscribeStatusPulse } from '@/lib/statusPulseBus';
+import { Button } from '../ui';
 import {
   mdiMicrophone,
   mdiPlay,
@@ -36,7 +38,6 @@ import {
   mdiStop,
   mdiAccount,
   mdiVideo,
-  mdiMenu,
   mdiRobotVacuum,
   mdiBatteryHigh,
   mdiMapMarkerRadius,
@@ -959,17 +960,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
     return () => clearInterval(interval);
   }, [activeTimers]);
 
-  // Get current user's avatar (for immersive mode)
-  const userAvatar = useMemo(() => {
-    if (activityData.user) {
-      return {
-        picture: resolveEntityPictureUrl(haUrl, activityData.user.picture),
-        initials: activityData.user.initials,
-      };
-    }
-    return { picture: undefined, initials: 'U' };
-  }, [activityData.user, haUrl]);
-
   const getEntityPictureUrl = (picture?: string, fallback?: string) => {
     return resolveEntityPictureUrl(haUrl, picture) ?? fallback;
   };
@@ -1024,16 +1014,12 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         <Tooltip content="Settings" shortcut="S" placement="top">
         <button
           onClick={onProfileToggle}
-          aria-label="Open settings"
+          aria-label="Toggle settings"
+          // Padding puts the avatar on the sidebar rail's icon axis directly
+          // above it — the two read as one column.
           className="group pl-ha-4 pr-ha-1 py-ha-1 flex items-center justify-center flex-shrink-0 transition-opacity opacity-90 hover:opacity-100"
-          style={{ marginLeft: '8px' }}
         >
-          <div className="relative flex items-center justify-center">
-            <Icon path={mdiMenu} size={28} className={`absolute -left-3 z-0 transition-[transform,color] duration-500 ease-out group-hover:-translate-x-1 ${pathname.startsWith('/settings') ? 'text-text-primary' : 'text-text-secondary group-hover:text-text-primary'}`} />
-            <div className="relative z-10 rounded-full ring-[3px] ring-surface-low bg-surface-low">
-              <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" />
-            </div>
-          </div>
+          <SettingsGlyph active={pathname.startsWith('/settings')} />
         </button>
         </Tooltip>
 
@@ -1047,7 +1033,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
           type="button"
           onClick={() => toggleAssistant()}
           aria-label="Ask your home"
-          className="flex items-center gap-ha-2 bg-surface-low rounded-ha-pill px-ha-4 h-12 flex-shrink-0 min-w-[220px] border border-surface-low hover:bg-surface-mid hover:border-ha-blue/40 transition-colors active:scale-[0.99]"
+          className="flex items-center gap-ha-2 bg-surface-low rounded-full px-ha-4 h-12 flex-shrink-0 min-w-[220px] border border-surface-low hover:bg-surface-mid hover:border-ha-blue/40 transition-colors active:scale-[0.98]"
         >
           <span className="flex-1 text-sm text-text-secondary text-left">
             Ask your home…
@@ -1164,15 +1150,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           ))}
                         </div>
 
-                        <button
+                        <Button
+                          variant="primary"
                           onClick={(e) => {
                             e.stopPropagation();
                             dismissReleaseNote(releaseNote.entity_id, releaseNote.updatedAt);
                           }}
-                          className="h-10 rounded-ha-xl bg-green-600 text-white text-xs font-bold uppercase tracking-wider hover:bg-green-700 transition-colors"
                         >
-                          Dismiss Notes
-                        </button>
+                          Dismiss notes
+                        </Button>
                       </div>
                     </motion.div>
 
@@ -1187,7 +1173,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           e.stopPropagation();
                           minimizeActivityWidget();
                         }}
-                        className="h-12 rounded-ha-pill bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
+                        className="h-12 rounded-full bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
                         style={{ width: activityWidgetWidths['release-notes-widget'] }}
                       >
                         <Icon path={mdiChevronDown} size={20} />
@@ -1249,7 +1235,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           e.stopPropagation();
                           minimizeActivityWidget();
                         }}
-                        className="h-12 rounded-ha-pill bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
+                        className="h-12 rounded-full bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
                         style={{ width: activityWidgetWidths['release-notes-widget'] }}
                       >
                         <Icon path={mdiChevronDown} size={20} />
@@ -1268,7 +1254,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         ? openActivityWidgetDialog(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')
                         : openActivityWidget(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')
                     )}
-                    className="relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer"
+                    className="relative flex items-center gap-ha-3 bg-surface-low rounded-full px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer"
                   >
                     <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                       <div className="relative">
@@ -1484,7 +1470,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['media-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -1549,7 +1535,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['media-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -1568,7 +1554,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')
                       : openActivityWidget(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer ${player.status.isStale ? 'opacity-70' : ''}`}
+                  className={`relative flex items-center gap-ha-3 bg-surface-low rounded-full px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer ${player.status.isStale ? 'opacity-70' : ''}`}
                 >
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="relative">
@@ -1697,18 +1683,19 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <h3 className="text-base font-bold text-text-primary mb-ha-5 text-center truncate w-full px-4">{timer.name}</h3>
 
                       <div className="flex items-center gap-ha-3 w-full">
-                        <button
+                        <Button
+                          className="flex-1"
                           onClick={() => callService({ domain: 'timer', service: 'cancel', target: { entity_id: timer.entity_id } })}
-                          className="flex-1 h-11 rounded-ha-xl bg-surface-low text-text-secondary font-bold text-xs uppercase tracking-wider hover:bg-red-500/10 hover:text-red-500 transition-colors"
                         >
                           Cancel
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="primary"
+                          className="flex-1"
                           onClick={() => callService({ domain: 'timer', service: timer.state === 'active' ? 'pause' : 'start', target: { entity_id: timer.entity_id } })}
-                          className={`flex-1 h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white transition-all shadow-md active:scale-95 ${timer.state === 'active' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-ha-blue hover:bg-ha-blue-dark'}`}
                         >
                           {timer.state === 'active' ? 'Pause' : 'Resume'}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -1773,30 +1760,32 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <h3 className="text-base font-bold text-text-primary mb-ha-5 text-center truncate w-full px-4">{timer.name}</h3>
 
                       {timer.status.phase === 'ended' ? (
-                        <button
+                        <Button
+                          variant="primary"
+                          block
                           onClick={(e) => {
                             e.stopPropagation();
                             dismissActivity(timer.entity_id, endedDismissKey(timer.status));
                             minimizeActivityWidget();
                           }}
-                          className="w-full h-11 rounded-ha-xl bg-green-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-green-500 transition-colors"
                         >
                           Dismiss
-                        </button>
+                        </Button>
                       ) : (
                         <div className="flex items-center gap-ha-3 w-full">
-                          <button
+                          <Button
+                            className="flex-1"
                             onClick={() => callService({ domain: 'timer', service: 'cancel', target: { entity_id: timer.entity_id } })}
-                            className="flex-1 h-11 rounded-ha-xl bg-surface-low text-text-secondary font-bold text-xs uppercase tracking-wider hover:bg-red-500/10 hover:text-red-500 transition-colors"
                           >
                             Cancel
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="primary"
+                            className="flex-1"
                             onClick={() => callService({ domain: 'timer', service: timer.state === 'active' ? 'pause' : 'start', target: { entity_id: timer.entity_id } })}
-                            className={`flex-1 h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white transition-all shadow-md active:scale-95 ${timer.state === 'active' ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-ha-blue hover:bg-ha-blue-dark'}`}
                           >
                             {timer.state === 'active' ? 'Pause' : 'Resume'}
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -1813,7 +1802,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
+                      className="h-12 rounded-full bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
                       style={{ width: activityWidgetWidths['timer-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -1882,7 +1871,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
+                      className="h-12 rounded-full bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
                       style={{ width: activityWidgetWidths['timer-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -1901,7 +1890,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
                       : openActivityWidget(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
                     timer.status.phase === 'ended'
                       ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : 'bg-surface-low hover:bg-surface-mid'
@@ -1939,16 +1928,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <span className="text-xs text-text-secondary truncate">{timer.name}</span>
                     </div>
                     {timer.status.phase === 'ended' && (
-                      <button
-                        aria-label="Dismiss"
+                      <IconButton
+                        icon={mdiClose}
+                        label="Dismiss"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           dismissActivity(timer.entity_id, endedDismissKey(timer.status));
                         }}
-                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
-                      >
-                        <Icon path={mdiClose} size={15} />
-                      </button>
+                      />
                     )}
                   </div>
                   {showPreview && (
@@ -2045,14 +2033,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-ha-3">
-                          <button className="h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all">
-                            <Icon path={mdiMicrophone} size={16} />
-                            Talk
-                          </button>
-                          <button className="h-11 rounded-ha-xl bg-surface-low text-text-primary text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-mid border border-surface-low active:scale-95 transition-all">
-                            <Icon path={mdiVideo} size={16} />
-                            Recordings
-                          </button>
+                          <Button variant="primary" icon={mdiMicrophone}>Talk</Button>
+                          <Button icon={mdiVideo}>Recordings</Button>
                         </div>
                       </div>
                     </>
@@ -2107,14 +2089,8 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-ha-3">
-                        <button className="h-11 rounded-ha-xl bg-ha-blue text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-ha-blue-dark shadow-md active:scale-95 transition-all">
-                          <Icon path={mdiMicrophone} size={16} />
-                          Talk
-                        </button>
-                        <button className="h-11 rounded-ha-xl bg-surface-low text-text-primary text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-mid border border-surface-low active:scale-95 transition-all">
-                          <Icon path={mdiVideo} size={16} />
-                          Recordings
-                        </button>
+                        <Button variant="primary" icon={mdiMicrophone}>Talk</Button>
+                        <Button icon={mdiVideo}>Recordings</Button>
                       </div>
                     </div>
                   </motion.div>
@@ -2130,7 +2106,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      className="h-12 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
                       style={{ width: activityWidgetWidths['camera-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2191,7 +2167,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      className="h-12 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
                       style={{ width: activityWidgetWidths['camera-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2210,7 +2186,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
                       : openActivityWidget(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
                     camera.status.phase === 'ended'
                       ? 'bg-surface-low hover:bg-surface-mid'
                       : 'bg-red-500/10 border border-red-500/20 hover:bg-red-500/15'
@@ -2240,16 +2216,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       </span>
                     </div>
                     {camera.status.phase === 'ended' && (
-                      <button
-                        aria-label="Dismiss"
+                      <IconButton
+                        icon={mdiClose}
+                        label="Dismiss"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           dismissActivity(camera.entity_id, endedDismissKey(camera.status));
                         }}
-                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
-                      >
-                        <Icon path={mdiClose} size={15} />
-                      </button>
+                      />
                     )}
                   </div>
                   {showPreview && (
@@ -2434,7 +2409,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['printer-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2503,7 +2478,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['printer-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2522,7 +2497,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')
                       : openActivityWidget(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
                     printer.status.phase === 'ended' && printer.status.endLabel === 'Print complete'
                       ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : 'bg-surface-low hover:bg-surface-mid'
@@ -2570,16 +2545,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <span className="text-xs text-text-secondary truncate">{printer.fileName}</span>
                     </div>
                     {printer.status.phase === 'ended' ? (
-                      <button
-                        aria-label="Dismiss"
+                      <IconButton
+                        icon={mdiClose}
+                        label="Dismiss"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           dismissActivity(printer.entity_id, endedDismissKey(printer.status));
                         }}
-                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
-                      >
-                        <Icon path={mdiClose} size={15} />
-                      </button>
+                      />
                     ) : (
                       <div className="hidden xl:flex flex-col items-end ml-1 pl-2 border-l border-surface-mid">
                         <span className="text-[13px] text-text-disabled font-bold leading-none mb-0.5 uppercase">Left</span>
@@ -2806,7 +2780,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['vacuum-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2875,7 +2849,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['vacuum-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2894,7 +2868,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeVacuums.length > 1 ? 'list-vacuum' : vacuum.entity_id, 'vacuum-widget')
                       : openActivityWidget(activeVacuums.length > 1 ? 'list-vacuum' : vacuum.entity_id, 'vacuum-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
                     vacuum.status.phase === 'ended'
                       ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : 'bg-surface-low hover:bg-surface-mid'
@@ -2940,16 +2914,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <span className="text-xs text-text-secondary truncate">{vacuum.area || vacuum.name}</span>
                     </div>
                     {vacuum.status.phase === 'ended' ? (
-                      <button
-                        aria-label="Dismiss"
+                      <IconButton
+                        icon={mdiClose}
+                        label="Dismiss"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           dismissActivity(vacuum.entity_id, endedDismissKey(vacuum.status));
                         }}
-                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
-                      >
-                        <Icon path={mdiClose} size={15} />
-                      </button>
+                      />
                     ) : vacuum.battery !== undefined && (
                       <div className="hidden xl:flex flex-col items-end ml-1 pl-2 border-l border-surface-mid">
                         <span className="text-[13px] text-text-disabled font-bold leading-none mb-0.5 uppercase">Batt</span>
@@ -3098,16 +3071,17 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       {isComplete ? (
                         <>
                           <p className="text-sm font-semibold text-green-600 mb-ha-4">{update.status.endLabel}</p>
-                          <button
+                          <Button
+                            variant="primary"
+                            block
                             onClick={(e) => {
                               e.stopPropagation();
                               dismissActivity(update.entity_id, endedDismissKey(update.status));
                               minimizeActivityWidget();
                             }}
-                            className="w-full h-10 rounded-ha-xl bg-green-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-green-500 transition-colors"
                           >
                             Dismiss
-                          </button>
+                          </Button>
                         </>
                       ) : (
                         <>
@@ -3143,7 +3117,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['update-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3210,7 +3184,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['update-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3229,7 +3203,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeUpdateInstalls.length > 1 ? 'list-update' : update.entity_id, 'update-widget')
                       : openActivityWidget(activeUpdateInstalls.length > 1 ? 'list-update' : update.entity_id, 'update-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
                     isComplete ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15' : 'bg-surface-low hover:bg-surface-mid'
                   } ${update.status.isStale ? 'opacity-70' : ''} ${isAlerting(update.status, nowMs) ? 'ha-status-pulse' : ''}`}
                 >
@@ -3267,16 +3241,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <span className="text-xs text-text-secondary truncate">{update.name}</span>
                     </div>
                     {isComplete && (
-                      <button
-                        aria-label="Dismiss"
+                      <IconButton
+                        icon={mdiClose}
+                        label="Dismiss"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           dismissActivity(update.entity_id, endedDismissKey(update.status));
                         }}
-                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
-                      >
-                        <Icon path={mdiClose} size={15} />
-                      </button>
+                      />
                     )}
                   </div>
                   {showPreview && (
@@ -3419,16 +3392,17 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       {isComplete ? (
                         <>
                           <p className={`text-sm font-semibold mb-ha-4 ${failed ? 'text-red-500' : 'text-green-600'}`}>{backup.status.endLabel}</p>
-                          <button
+                          <Button
+                            variant="primary"
+                            block
                             onClick={(e) => {
                               e.stopPropagation();
                               dismissActivity(backup.entity_id, endedDismissKey(backup.status));
                               minimizeActivityWidget();
                             }}
-                            className={`w-full h-10 rounded-ha-xl text-white font-bold text-xs uppercase tracking-wider transition-colors ${failed ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'}`}
                           >
                             Dismiss
-                          </button>
+                          </Button>
                         </>
                       ) : (
                         <>
@@ -3462,7 +3436,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['backup-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3529,7 +3503,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['backup-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3548,7 +3522,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeBackups.length > 1 ? 'list-backup' : backup.entity_id, 'backup-widget')
                       : openActivityWidget(activeBackups.length > 1 ? 'list-backup' : backup.entity_id, 'backup-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
                     isComplete
                       ? failed ? 'bg-red-500/10 border border-red-500/20 hover:bg-red-500/15' : 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : 'bg-surface-low hover:bg-surface-mid'
@@ -3590,16 +3564,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <span className="text-xs text-text-secondary truncate">{backup.stage || backup.name}</span>
                     </div>
                     {isComplete && (
-                      <button
-                        aria-label="Dismiss"
+                      <IconButton
+                        icon={mdiClose}
+                        label="Dismiss"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           dismissActivity(backup.entity_id, endedDismissKey(backup.status));
                         }}
-                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
-                      >
-                        <Icon path={mdiClose} size={15} />
-                      </button>
+                      />
                     )}
                   </div>
                   {showPreview && (
@@ -3733,16 +3706,17 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         </div>
                       </div>
                       {isComplete && (
-                        <button
+                        <Button
+                          variant="primary"
+                          block
                           onClick={(e) => {
                             e.stopPropagation();
                             dismissActivity(alarm.entity_id, endedDismissKey(alarm.status));
                             minimizeActivityWidget();
                           }}
-                          className="w-full h-10 mt-ha-4 rounded-ha-xl bg-green-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-green-500 transition-colors"
                         >
                           Dismiss
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </motion.div>
@@ -3758,7 +3732,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      className="h-12 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
                       style={{ width: activityWidgetWidths['alarm-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3819,7 +3793,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-ha-pill bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      className="h-12 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
                       style={{ width: activityWidgetWidths['alarm-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3838,7 +3812,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeAlarms.length > 1 ? 'list-alarm' : alarm.entity_id, 'alarm-widget')
                       : openActivityWidget(activeAlarms.length > 1 ? 'list-alarm' : alarm.entity_id, 'alarm-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
                     isComplete
                       ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : isTriggered
@@ -3866,16 +3840,15 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       <span className="text-xs text-text-secondary truncate">{alarm.name}</span>
                     </div>
                     {isComplete && (
-                      <button
-                        aria-label="Dismiss"
+                      <IconButton
+                        icon={mdiClose}
+                        label="Dismiss"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           dismissActivity(alarm.entity_id, endedDismissKey(alarm.status));
                         }}
-                        className="p-1 -mr-1 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors"
-                      >
-                        <Icon path={mdiClose} size={15} />
-                      </button>
+                      />
                     )}
                   </div>
                   {showPreview && (
@@ -3906,7 +3879,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         {/* The status pill toggles the Home Center bento overlay — clicking it
             again while open closes it. */}
         <button
-          className={`flex items-center gap-ha-3 bg-surface-low rounded-ha-pill px-ha-4 h-12 hover:bg-surface-mid transition-all duration-300 active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50 ${statusPulsing ? 'ha-status-pulse' : ''}`}
+          className={`flex items-center gap-ha-3 bg-surface-low rounded-full px-ha-4 h-12 hover:bg-surface-mid transition-all duration-300 active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50 ${statusPulsing ? 'ha-status-pulse' : ''}`}
           onClick={toggleHomeCenter}
         >
         {/* Status indicators — order and visibility follow Home Center prefs */}

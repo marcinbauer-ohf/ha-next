@@ -59,7 +59,7 @@ export function HomeModeSettings() {
             onSelect={(id) => setHomeModeEntityId(id === NONE ? '' : id)}
           />
           {homeMode && (
-            <span className="rounded-ha-pill bg-surface-low px-ha-3 py-1.5 text-xs font-medium text-text-secondary">
+            <span className="rounded-full bg-surface-low px-ha-3 py-1.5 text-xs font-medium text-text-secondary">
               Currently: <span className="font-semibold text-text-primary">{homeMode.current}</span>
             </span>
           )}

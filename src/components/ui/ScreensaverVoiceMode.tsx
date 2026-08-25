@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 import { VoiceWaveBackground, type VoiceVisualState } from './VoiceWaveBackground';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { useHomeName } from '@/lib/homeName';
@@ -240,14 +241,7 @@ export function ScreensaverVoiceMode({ onExit }: ScreensaverVoiceModeProps) {
           <p className="text-[13px] lg:text-xs font-semibold uppercase tracking-[0.28em] text-white/50">
             Talk to {homeName}
           </p>
-          <button
-            type="button"
-            onClick={onExit}
-            aria-label="Back to the clock"
-            className="w-11 h-11 rounded-full bg-white/10 border border-white/15 backdrop-blur-md flex items-center justify-center text-white/80 hover:bg-white/15 hover:text-white transition-colors active:scale-95"
-          >
-            <Icon path={mdiClose} size={18} />
-          </button>
+          <IconButton icon={mdiClose} label="Back to the clock" size="lg" tone="onImage" filled onClick={onExit} />
         </div>
 
         {/* The face — a big centered orb that owns the composition */}
@@ -304,8 +298,8 @@ export function ScreensaverVoiceMode({ onExit }: ScreensaverVoiceModeProps) {
                   key={message.id}
                   className={`animate-in fade-in slide-in-from-bottom-2 duration-400 max-w-[82%] px-ha-4 py-ha-3 rounded-ha-2xl border backdrop-blur-md text-base lg:text-lg leading-snug [text-shadow:0_1px_8px_rgba(0,0,0,0.35)] ${
                     message.role === 'home'
-                      ? `self-start bg-[rgba(10,30,46,0.75)] border-ha-blue/30 text-white ${lastOfGroup ? 'rounded-bl-md' : ''}`
-                      : `self-end bg-[rgba(38,44,54,0.7)] border-white/20 text-white ${lastOfGroup ? 'rounded-br-md' : ''}`
+                      ? `self-start bg-[rgba(10,30,46,0.75)] border-ha-blue/30 text-white ${lastOfGroup ? 'rounded-bl-ha-md' : ''}`
+                      : `self-end bg-[rgba(38,44,54,0.7)] border-white/20 text-white ${lastOfGroup ? 'rounded-br-ha-md' : ''}`
                   }`}
                 >
                   {message.text}
@@ -313,7 +307,7 @@ export function ScreensaverVoiceMode({ onExit }: ScreensaverVoiceModeProps) {
               );
             })}
             {busy && (
-              <div className="self-start flex items-center gap-1.5 px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-md bg-[rgba(10,30,46,0.75)] border border-ha-blue/30 backdrop-blur-md animate-in fade-in duration-300">
+              <div className="self-start flex items-center gap-1.5 px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-ha-md bg-[rgba(10,30,46,0.75)] border border-ha-blue/30 backdrop-blur-md animate-in fade-in duration-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-bounce motion-reduce:animate-none [animation-delay:0ms]" />
                 <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-bounce motion-reduce:animate-none [animation-delay:150ms]" />
                 <span className="w-1.5 h-1.5 rounded-full bg-white/80 animate-bounce motion-reduce:animate-none [animation-delay:300ms]" />
@@ -327,7 +321,7 @@ export function ScreensaverVoiceMode({ onExit }: ScreensaverVoiceModeProps) {
           className="px-ha-6 pb-[calc(env(safe-area-inset-bottom)+3rem)] lg:pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
         >
           <form
-            className="w-full max-w-lg mx-auto flex items-center gap-ha-2 h-12 px-ha-4 rounded-ha-pill bg-white/8 backdrop-blur-md focus-within:bg-white/12 transition-colors"
+            className="w-full max-w-lg mx-auto flex items-center gap-ha-2 h-12 px-ha-4 rounded-full bg-white/8 backdrop-blur-md focus-within:bg-white/12 transition-colors"
             onSubmit={(e) => {
               e.preventDefault();
               void handleSend();

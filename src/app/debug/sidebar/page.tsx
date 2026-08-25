@@ -71,9 +71,9 @@ export default function SidebarDebugPage() {
           Lovelace Dashboards ({lovelaceDashboards.length})
         </h2>
         {lovelaceDashboards.length > 0 ? (
-          <div className="bg-surface-low rounded-xl p-4 space-y-3">
+          <div className="bg-surface-low rounded-ha-lg p-4 space-y-3">
             {lovelaceDashboards.map(([key, panel]) => (
-              <div key={key} className="flex items-center gap-3 p-3 bg-surface-default rounded-lg">
+              <div key={key} className="flex items-center gap-3 p-3 bg-surface-default rounded-ha-md">
                 <span className="text-lg font-mono text-text-secondary">{panel.icon || 'mdi:view-dashboard'}</span>
                 <div>
                   <p className="font-medium text-text-primary">{panel.title || key}</p>
@@ -92,9 +92,9 @@ export default function SidebarDebugPage() {
           Other Panels ({otherPanels.length})
         </h2>
         {otherPanels.length > 0 ? (
-          <div className="bg-surface-low rounded-xl p-4 space-y-3">
+          <div className="bg-surface-low rounded-ha-lg p-4 space-y-3">
             {otherPanels.map(([key, panel]) => (
-              <div key={key} className="flex items-center gap-3 p-3 bg-surface-default rounded-lg">
+              <div key={key} className="flex items-center gap-3 p-3 bg-surface-default rounded-ha-md">
                 <span className="text-lg font-mono text-text-secondary">{panel.icon || 'mdi:cog'}</span>
                 <div>
                   <p className="font-medium text-text-primary">{panel.title}</p>
@@ -112,7 +112,7 @@ export default function SidebarDebugPage() {
 
       <section>
         <h2 className="text-xl font-semibold text-text-primary mb-4">Raw Data (also logged to console)</h2>
-        <details className="bg-surface-low rounded-xl p-4">
+        <details className="bg-surface-low rounded-ha-lg p-4">
           <summary className="cursor-pointer text-text-primary font-medium">All Panels JSON</summary>
           <pre className="mt-2 text-xs text-text-secondary overflow-auto max-h-96">
             {JSON.stringify(panels, null, 2)}

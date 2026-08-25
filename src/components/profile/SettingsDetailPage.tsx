@@ -1,14 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
 import { clsx } from 'clsx';
-import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppSurfacePage } from '@/components/layout/AppSurfacePage';
 import { CONTENT_SHELL } from '@/lib/layout';
 import { Icon } from '../ui/Icon';
-import { Sidebar, Accordion, AccordionSection, useIconSet, setIconSet, type IconSet } from '../ui';
+import { Accordion, AccordionSection, IconButton, SectionLabel, useIconSet, setIconSet, type IconSet } from '../ui';
+import { SidePanel } from '../layout/SidePanel';
+import { ModalSheet } from '../layout/ModalSheet';
 import { HomeHero } from './HomeHero';
 import { HomeInformation } from './HomeInformation';
 import { ShortcutList } from '@/components/ui/KeyboardShortcutsDialog';
@@ -16,7 +16,7 @@ import { openShortcutsHelp } from '@/lib/keyboardShortcuts';
 import { toggleCardTunerPanel } from '@/lib/cardTuner';
 import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
-import { useHeader, useScreensaver, useAddContext, useDebugFlags, useCloseOnScreensaver, type BreadcrumbItem } from '@/contexts';
+import { useHeader, useScreensaver, useAddContext, useDebugFlags, type BreadcrumbItem } from '@/contexts';
 import { useFeatureFlags, useHomeAssistant, useHomeAssistantSelector, useImmersiveMode, useTheme, useFont, useDeviceStructure, useDeviceCardConfig, useIntegrations, useDevicesList, useAutomations, useApplications } from '@/hooks';
 import { IntegrationsTable, IntegrationDetailView } from './IntegrationsPanel';
 import { DevicesTable, DeviceDetailView } from './DevicesPanel';
@@ -223,8 +223,14 @@ function SettingsCard({
       }
     >
       {!hideTitle && (
-        <div className={flush ? 'mb-ha-3' : 'mb-ha-4'}>
-          <h3 className={flush ? 'text-[13px] font-semibold uppercase tracking-wide text-text-tertiary' : 'text-lg font-semibold text-text-primary'}>{title}</h3>
+        // Flush = no card chrome of its own, so the heading floats above the
+        // card its rows live in and takes the standard grouped-list treatment:
+        // indented to the rows' own padding, 8px above them. The framed variant
+        // sits inside the card's padding already.
+        <div className={flush ? 'mb-ha-2 px-ha-4' : 'mb-ha-4'}>
+          {flush
+            ? <SectionLabel>{title}</SectionLabel>
+            : <h3 className="text-lg font-semibold text-text-primary">{title}</h3>}
           {description && <p className="mt-ha-1 text-sm text-text-secondary">{description}</p>}
         </div>
       )}
@@ -246,7 +252,7 @@ function ChoiceGroup<T extends string>({
 }) {
   return (
     <div className="space-y-ha-2">
-      <div className="text-xs font-medium uppercase tracking-wider text-text-tertiary">{label}</div>
+      <SectionLabel>{label}</SectionLabel>
       <div className="flex flex-wrap gap-ha-2">
         {options.map((option) => {
           const selected = option.value === value;
@@ -301,7 +307,7 @@ function MultiChoiceGroup<T extends string>({
 }) {
   return (
     <div className="space-y-ha-2">
-      <div className="text-xs font-medium uppercase tracking-wider text-text-tertiary">{label}</div>
+      <SectionLabel>{label}</SectionLabel>
       {caption && <div className="text-[13px] text-text-secondary">{caption}</div>}
       <div className="flex flex-wrap gap-ha-2">
         {options.map((option) => {
@@ -333,20 +339,6 @@ function MultiChoiceGroup<T extends string>({
 // selects the control it sits next to.
 function FeaturePreview({ src, label }: { src: string; label: string }) {
   const [open, setOpen] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
-  useCloseOnScreensaver(open, close);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        close();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown, true);
-    return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [open, close]);
 
   return (
     <>
@@ -359,48 +351,18 @@ function FeaturePreview({ src, label }: { src: string; label: string }) {
         <Icon path={mdiPlayCircleOutline} size={15} />
         Preview
       </button>
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {open && (
-            <motion.div
-              className="fixed inset-0 z-[120] flex items-center justify-center p-ha-5"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              <div className="absolute inset-0 bg-black/60" onClick={close} />
-              <motion.div
-                role="dialog"
-                aria-modal="true"
-                aria-label={`${label} preview`}
-                className="relative w-full max-w-lg overflow-hidden rounded-ha-3xl border border-surface-lower bg-surface-default shadow-2xl"
-                initial={{ scale: 0.94, opacity: 0, y: 8 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.96, opacity: 0, y: 4 }}
-                transition={{ duration: 0.18, ease: [0.22, 0.61, 0.36, 1] }}
-              >
-                <div className="flex items-center justify-between gap-ha-3 border-b border-surface-lower px-ha-5 py-ha-3">
-                  <h3 className="text-sm font-semibold text-text-primary">{label}</h3>
-                  <button
-                    type="button"
-                    onClick={close}
-                    aria-label="Close preview"
-                    className="flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-                  >
-                    <Icon path={mdiClose} size={18} />
-                  </button>
-                </div>
-                <div className="bg-surface-low">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- animated GIF, no Next/Image optimisation */}
-                  <img src={src} alt={`${label} preview`} className="block h-auto w-full select-none" />
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+      {/* The lightbox is a ModalSheet like every other dialog here, so Escape,
+          the scrim, the overlay stack and the screensaver all behave the same. */}
+      <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={512} label={`${label} preview`}>
+        <div className="flex items-center justify-between gap-ha-3 border-b border-surface-lower px-ha-5 py-ha-3">
+          <h3 className="text-sm font-semibold text-text-primary">{label}</h3>
+          <IconButton icon={mdiClose} label="Close preview" size="sm" onClick={() => setOpen(false)} />
+        </div>
+        <div className="bg-surface-low">
+          {/* eslint-disable-next-line @next/next/no-img-element -- animated GIF, no Next/Image optimisation */}
+          <img src={src} alt={`${label} preview`} className="block h-auto w-full select-none" />
+        </div>
+      </ModalSheet>
     </>
   );
 }
@@ -676,8 +638,10 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     connected,
     connecting,
     demoMode,
+    demoEmpty,
     haUrl,
     enableDemoMode,
+    setDemoEmpty,
     error: connectionError,
     saveCredentials,
     setMockEntity,
@@ -824,7 +788,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setTimeout(() => setConfigureStatus('idle'), 2500);
   }, [devices, setConfig]);
 
-  const { hideHomeCenterEnabled, toggleHideHomeCenter, hideCardImagesEnabled, toggleHideCardImages, sidebarPreviewsEnabled, toggleSidebarPreviews, dashboardFilterEnabled, toggleDashboardFilter, mobileNavAutoHideEnabled, toggleMobileNavAutoHide } = useDebugFlags();
+  const { hideHomeCenterEnabled, toggleHideHomeCenter, hideCardImagesEnabled, toggleHideCardImages, sidebarPreviewsEnabled, toggleSidebarPreviews, dashboardFilterEnabled, toggleDashboardFilter, mobileNavAutoHideEnabled, toggleMobileNavAutoHide, settingsRailEnabled, toggleSettingsRail } = useDebugFlags();
   const [connectionSetupOpen, setConnectionSetupOpen] = useState(false);
 
   const allNavItems = allSettingsLinks;
@@ -971,15 +935,10 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
         });
       } else {
         // Section root: the selected nav item owns the title with "Settings" as
-        // the eyebrow above it. Back returns to wherever you opened settings from
-        // (a dashboard or app) — section switches happen in the nav column and
-        // don't push history, so `router.back()` skips straight past them.
-        setHeader({
-          title: meta.title,
-          subtitle: 'Settings',
-          icon: meta.icon,
-          onBack: () => router.back(),
-        });
+        // the eyebrow above it, lined up with the pane's own left edge. No back
+        // arrow — the rail beside it is how you move between sections, and a
+        // section root has nothing to go back out of.
+        setHeader({ title: meta.title, subtitle: 'Settings', icon: meta.icon, hideBack: true });
       }
       return;
     }
@@ -1053,10 +1012,16 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
               </div>
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-text-primary">
-                  {demoMode ? 'Demo home active' : connected ? 'Live Home Assistant connected' : 'Not connected'}
+                  {demoMode
+                    ? (demoEmpty ? 'Demo home, emptied' : 'Demo home active')
+                    : connected ? 'Live Home Assistant connected' : 'Not connected'}
                 </div>
                 <div className="truncate text-sm text-text-secondary">
-                  {demoMode ? 'Sample data — connect to use your real instance.' : haUrl || 'Saved credentials appear here after connecting.'}
+                  {demoMode
+                    ? (demoEmpty
+                        ? 'A brand-new installation — no devices at all.'
+                        : 'Sample data — connect to use your real instance.')
+                    : haUrl || 'Saved credentials appear here after connecting.'}
                 </div>
               </div>
             </div>
@@ -1076,6 +1041,21 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
                 </>
               )}
             </div>
+
+            {/* Demo-only: takes the devices out of the demo home so the
+                brand-new-installation experience (empty dashboard, summaries as
+                invitations, every intro screen) can be walked without wiping
+                anything. A live instance is never touched. */}
+            {demoMode && (
+              <RowGroup>
+                <ToggleRow
+                  label="Empty home"
+                  description="Strip every device out of the demo, as if Home Assistant had just been installed. Turn it off to get the demo home back."
+                  checked={demoEmpty}
+                  onToggle={() => setDemoEmpty(!demoEmpty)}
+                />
+              </RowGroup>
+            )}
           </div>
         </SettingsCard>
 
@@ -1583,6 +1563,12 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           onToggle={toggleDashboardFilter}
         />
         <ToggleRow
+          label="Settings list as a shell rail"
+          description="Where this page's section list lives: on its own column beside the app sidebar, level with the global search. Off puts it back inside the page content as the first of two columns."
+          checked={settingsRailEnabled}
+          onToggle={toggleSettingsRail}
+        />
+        <ToggleRow
           label="Mobile nav auto-hide"
           description="The bottom nav slides away as you scroll down and after 10s of no input, and comes back on the next scroll. Off pins it in place."
           checked={mobileNavAutoHideEnabled}
@@ -1855,61 +1841,18 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
               )}
             </div>
 
-            {/* Docked editor rail (lg+), sticky below the pinned title. Reuses the
-                same <Sidebar> chrome as the devices / automation editors. */}
-            {sectionsEditorOpen && (
-              <Sidebar
-                resizable
-                {...sectionsHeader}
-                className="ha-pane-in sticky z-20 hidden flex-shrink-0 lg:flex"
-                style={{
-                  top: 'calc(var(--settings-header-h, 0px) + 4px)',
-                  maxHeight: 'calc(100vh - var(--settings-header-h, 0px) - 24px)',
-                }}
-              >
-                <HomeCenterSectionsBody />
-              </Sidebar>
-            )}
+            {/* The Home Center section editor: a docked rail beside the page on
+                a desktop, the same panel as a bottom sheet on a phone. */}
+            <SidePanel
+              open={sectionsEditorOpen}
+              onClose={() => setSectionsEditorOpen(false)}
+              header={sectionsHeader}
+              resizable
+            >
+              <HomeCenterSectionsBody />
+            </SidePanel>
           </div>
         </SettingsShell>
-
-        {/* Below lg the same panel rises as a bottom sheet. Portaled to the body —
-            the pane-transition wrapper is transformed during its animation, which
-            would otherwise clip this fixed overlay to the page. */}
-        {typeof document !== 'undefined' && createPortal(
-          <AnimatePresence>
-            {sectionsEditorOpen && (
-              <>
-                <motion.div
-                  key="sections-sheet-scrim"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="lg:hidden fixed inset-0 z-[100] bg-black/70"
-                  onClick={() => setSectionsEditorOpen(false)}
-                />
-                <motion.div
-                  key="sections-sheet"
-                  initial={{ y: '100%' }}
-                  animate={{ y: 0 }}
-                  exit={{ y: '100%' }}
-                  transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                  className="lg:hidden fixed inset-x-0 bottom-0 z-[100] px-ha-2"
-                  style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
-                >
-                  <div className="flex justify-center pb-ha-2">
-                    <div className="h-1.5 w-9 rounded-full bg-white/40" />
-                  </div>
-                  <Sidebar {...sectionsHeader} className="flex max-h-[82vh]">
-                    <HomeCenterSectionsBody />
-                  </Sidebar>
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>,
-          document.body,
-        )}
       </>
     );
   }

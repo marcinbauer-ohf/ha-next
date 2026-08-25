@@ -54,14 +54,16 @@ function buildEntity(state: string, progress: number, area: string, battery: num
  * instance" rule — on a real connection only genuinely cleaning vacuums appear.
  */
 export function useVacuumSimulator(): void {
-  const { demoMode, setMockEntity } = useHomeAssistant();
+  const { demoMode, demoEmpty, setMockEntity } = useHomeAssistant();
   // Keep the latest setter in a ref so the driver loop doesn't restart on every
   // provider re-render (setMockEntity is memoised, but be defensive).
   const setMockEntityRef = useRef(setMockEntity);
   setMockEntityRef.current = setMockEntity;
 
   useEffect(() => {
-    if (!demoMode) return;
+    // An emptied demo has no robot either — the whole point is a home with
+    // nothing in it, and this one would drive itself back into the entity store.
+    if (!demoMode || demoEmpty) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
@@ -111,5 +113,5 @@ export function useVacuumSimulator(): void {
       // Remove the mock entity so it doesn't linger after leaving demo mode.
       setMockEntityRef.current(AUTO_VACUUM_ID, null);
     };
-  }, [demoMode]);
+  }, [demoMode, demoEmpty]);
 }

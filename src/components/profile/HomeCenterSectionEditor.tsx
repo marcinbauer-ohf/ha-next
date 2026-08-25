@@ -19,6 +19,7 @@ import { useHomeCenterPrefs } from '@/hooks';
 import { HOME_CENTER_SECTION_MAP, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { Icon } from '../ui/Icon';
 import { mdiDragHorizontalVariant, mdiLock } from '@mdi/js';
+import { Button } from '../ui';
 
 function SectionRow({ id }: { id: HomeCenterSectionId }) {
   const { isEnabled, toggle } = useHomeCenterPrefs();
@@ -117,13 +118,9 @@ export function HomeCenterSectionsBody() {
         </SortableContext>
       </DndContext>
 
-      <button
-        type="button"
-        onClick={reset}
-        className="w-full rounded-ha-xl border border-surface-lower bg-surface-default px-ha-4 py-ha-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-low"
-      >
+      <Button variant="ghost" onClick={reset} block className="border border-surface-lower">
         Reset to defaults
-      </button>
+      </Button>
     </div>
   );
 }

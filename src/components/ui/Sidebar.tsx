@@ -3,6 +3,7 @@
 import { type CSSProperties, type ReactNode, useCallback, useRef, useState } from 'react';
 import { mdiClose } from '@mdi/js';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sidebar — reusable docked panel with an EntityDetailPanel-style header (round
@@ -57,14 +58,7 @@ export function SidebarHeader({ icon, title, subtitle, onClose, headerActions }:
           <div className="flex items-center gap-1 shrink-0">
             {headerActions}
             {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="rounded-ha-lg p-1.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-              >
-                <Icon path={mdiClose} size={22} />
-              </button>
+              <IconButton icon={mdiClose} label="Close" size="sm" shape="square" onClick={onClose} />
             )}
           </div>
         )}

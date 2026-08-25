@@ -109,10 +109,10 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem(LS_DESKTOP_SPLIT_VIEW_KEY) === '1';
   });
 
-  // Defaults on — opt-out flag. Only an explicit '0' disables it.
+  // Defaults off — opt-in flag. Only an explicit '1' enables it.
   const [offscreenChangeHintsEnabled, setOffscreenChangeHintsEnabledState] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem(LS_OFFSCREEN_CHANGE_HINTS_KEY) !== '0';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(LS_OFFSCREEN_CHANGE_HINTS_KEY) === '1';
   });
 
   const setDesktopSplitViewEnabled = useCallback((value: boolean) => {
@@ -133,10 +133,10 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     setOffscreenChangeHintsEnabled(!offscreenChangeHintsEnabled);
   }, [offscreenChangeHintsEnabled, setOffscreenChangeHintsEnabled]);
 
-  // Scroll index rail — defaults on, opt-out. Only an explicit '0' disables it.
+  // Scroll index rail — defaults off, opt-in. Only an explicit '1' enables it.
   const [scrollIndexEnabled, setScrollIndexEnabledState] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem(LS_SCROLL_INDEX_KEY) !== '0';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(LS_SCROLL_INDEX_KEY) === '1';
   });
 
   const setScrollIndexEnabled = useCallback((value: boolean) => {
@@ -291,10 +291,10 @@ export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
     setFastScrollLabelsEnabled(!fastScrollLabelsEnabled);
   }, [fastScrollLabelsEnabled, setFastScrollLabelsEnabled]);
 
-  // Ships on — opt-out flag, so only an explicit '0' hides the assistant chrome.
+  // Ships off — opt-in flag, so only an explicit '1' shows the assistant chrome.
   const [assistVisualizationEnabled, setAssistVisualizationEnabledState] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem(LS_ASSIST_VISUALIZATION_KEY) !== '0';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(LS_ASSIST_VISUALIZATION_KEY) === '1';
   });
 
   const setAssistVisualizationEnabled = useCallback((value: boolean) => {

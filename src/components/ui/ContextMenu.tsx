@@ -75,7 +75,10 @@ export function ContextMenu({
     <div
       ref={ref}
       style={{ top: y, left: x, transformOrigin: 'top left' }}
-      className="fixed z-[210] min-w-[188px] py-ha-1 bg-surface-default border border-surface-lower rounded-ha-xl shadow-2xl shadow-black/40 animate-in fade-in zoom-in-95 duration-150"
+      // A long menu (every entity on a device) has to stay reachable: cap it to
+      // the viewport and scroll inside. The clamp above measures offsetHeight,
+      // so the cap is what it clamps against.
+      className="fixed z-[210] max-h-[calc(100dvh-16px)] overflow-y-auto min-w-[188px] py-ha-1 bg-surface-default border border-surface-lower rounded-ha-xl shadow-2xl shadow-black/40 animate-in fade-in zoom-in-95 duration-150"
       onContextMenu={(e) => e.preventDefault()}
     >
       {actions.map((action, i) => (

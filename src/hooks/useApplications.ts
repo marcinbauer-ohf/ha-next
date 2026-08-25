@@ -252,7 +252,7 @@ export interface UseApplications {
 }
 
 export function useApplications(): UseApplications {
-  const { connected } = useHomeAssistant();
+  const { connected, demoEmpty } = useHomeAssistant();
 
   const addonsV = useSyncExternalStore(subscribeAddons, getAddonsVersion, getServerAddonsVersion);
   const overridesV = useSyncExternalStore(subscribeOverrides, getOverridesVersion, getServerOverridesVersion);
@@ -277,14 +277,19 @@ export function useApplications(): UseApplications {
           }
           return [...bySlug.values()];
         })()
-      : DEMO_CATALOG;
+      // A brand-new install has an add-on store to browse but nothing installed
+      // from it yet — so the emptied demo keeps the catalogue, minus every
+      // "you already run this" flag (which is what the sidebar lists).
+      : demoEmpty
+        ? DEMO_CATALOG.map((app) => ({ ...app, installed: false, running: false, version: null, updateAvailable: false }))
+        : DEMO_CATALOG;
     return base.map((app) => {
       const override = overrides.get(app.slug);
       return override ? { ...app, ...override } : app;
     });
     // The two version counters are the reactive handle on the module stores.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, addonsV, overridesV]);
+  }, [connected, demoEmpty, addonsV, overridesV]);
 
   const apps = useMemo(() => catalog.filter((a) => a.installed), [catalog]);
 

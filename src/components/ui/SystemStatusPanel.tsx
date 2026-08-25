@@ -12,6 +12,7 @@ import { Icon } from './Icon';
 import { NavChevron } from './NavChevron';
 import { CountBadge } from './CountBadge';
 import { SectionLabel } from './SectionLabel';
+import { IconButton } from './IconButton';
 import {
   mdiWeb,
   mdiCloudOutline,
@@ -55,16 +56,22 @@ function SectionHeader({
     // Sticky caption — pins below the settings title (its measured height is
     // published as --settings-header-h; 0 on the full-page route) so you can see
     // which Home Center section you're scrolling. Sticks within its own section.
+    //
+    // `px-ha-4` on the row, not on the label: the heading lines up with the row
+    // text inside the card below it (ActivityFeed and friends are all px-ha-4),
+    // and the count badge and chevron travel with it. `pb-ha-1` is the same 4px
+    // the grouped device list leaves — with a count badge in the row, that reads
+    // as the standard 8px gap.
     <div
-      className="sticky z-10 bg-surface-lower pb-ha-2"
+      className="sticky z-10 bg-surface-lower pb-ha-1"
       style={{ top: 'var(--settings-header-h, 0px)' }}
     >
       {onNavigate ? (
-        <button type="button" onClick={onNavigate} className="group flex items-center gap-ha-2 w-fit">
+        <button type="button" onClick={onNavigate} className="group flex w-fit items-center gap-ha-2 px-ha-4">
           {inner}
         </button>
       ) : (
-        <div className="flex items-center gap-ha-2">{inner}</div>
+        <div className="flex items-center gap-ha-2 px-ha-4">{inner}</div>
       )}
     </div>
   );
@@ -142,14 +149,14 @@ function Row({
           {body}
         </button>
         {onDismiss && (
-          <button
-            type="button"
+          <IconButton
+            icon={mdiClose}
+            label="Dismiss notification"
+            size="sm"
+            tone="quiet"
+            className="self-center -mr-1"
             onClick={onDismiss}
-            aria-label="Dismiss notification"
-            className="flex-shrink-0 self-center -mr-1 px-1 py-0.5 text-text-disabled hover:text-text-secondary transition-colors"
-          >
-            <Icon path={mdiClose} size={15} />
-          </button>
+          />
         )}
       </div>
     );

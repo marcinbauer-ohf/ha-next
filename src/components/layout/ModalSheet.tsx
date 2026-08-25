@@ -1,13 +1,15 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { clsx } from 'clsx';
-import { useCloseOnScreensaver } from '@/contexts';
+import { useCloseOnScreensaver, useScreensaverActive } from '@/contexts';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { visibleFocusables } from '@/hooks/useFocusTrap';
 import { recede, useSheetStack } from '@/hooks/useSheetStack';
+import { SheetGrabber } from '../ui/SheetGrabber';
+import { ContainedSheetContext } from './containedSheet';
 
 interface ModalSheetProps {
   open: boolean;
@@ -22,6 +24,13 @@ interface ModalSheetProps {
    * — required reading for a screen reader when the dialog shows no title.
    */
   label?: string;
+  /**
+   * lg+ gets Home Center's sheet instead of the centered card: bottom-anchored
+   * and inset inside the dashboard panel. For the summary chips, whose dialogs
+   * are read rather than worked in. Falls back to the viewport-wide sheet where
+   * there is no panel to sit in (the screensaver).
+   */
+  contained?: boolean;
 }
 
 const SPRING = { type: 'spring' as const, stiffness: 420, damping: 34, mass: 0.9 };
@@ -32,7 +41,7 @@ const SHEET_SPRING = { type: 'spring' as const, stiffness: 380, damping: 36, mas
  * Desktop: centered floating card with scrim.
  * Mobile: bottom sheet that springs up; the grabber pill drags to dismiss.
  */
-export function ModalSheet({ open, onClose, children, maxWidth = 560, transitionKey, label }: ModalSheetProps) {
+export function ModalSheet({ open, onClose, children, maxWidth = 560, transitionKey, label, contained = false }: ModalSheetProps) {
   // The screensaver clears anything sitting over the main UI. Since most modals
   // and surfaces ride on ModalSheet, this covers them in one place.
   useCloseOnScreensaver(open, onClose);
@@ -58,6 +67,21 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
   // the top; null once the gesture is claimed (or was never a candidate).
   const overscrollFrom = useRef<number | null>(null);
   const dragControls = useDragControls();
+  // The lg breakpoint, same threshold the Assist-family sheets contain at.
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    if (!contained) return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, [contained]);
+  const screensaverUp = useScreensaverActive();
+  // Which branch renders on lg. Never while the screensaver is up: the panel
+  // this contains itself to sits underneath it, so a contained sheet opened from
+  // a screensaver chip would render behind the screensaver.
+  const sheetOnDesktop = contained && isDesktop && !screensaverUp;
   const { attach: attachDesktopFades, showTop: desktopTop, showBottom: desktopBottom } = useScrollFades<HTMLDivElement>();
   const { attach: attachMobileFades, showTop: mobileTop, showBottom: mobileBottom } = useScrollFades<HTMLDivElement>();
 
@@ -110,6 +134,14 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
 
   if (typeof document === 'undefined') return null;
 
+  // The clip layer that bounds the dashboard panel. Read straight from the DOM
+  // rather than held in state: it's a stable node that outlives every dialog, and
+  // a mount-time probe would miss it — this sits deep enough in the tree to mount
+  // before the panel paints, and would then stay viewport-wide forever. No clip
+  // layer at all (the screensaver) is the same answer: viewport-wide sheet.
+  const glowRoot = sheetOnDesktop ? document.getElementById('toast-glow-root') : null;
+  const asSheet = glowRoot != null;
+
   // Crossfade content when transitionKey changes (panel switch inside the open
   // dialog). Deliberately gentle: the two panels share a header, so a big slide
   // makes a swap that is mostly the *same* dialog look like a different one.
@@ -130,6 +162,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
   ) : children;
 
   return createPortal(
+    <ContainedSheetContext.Provider value={asSheet}>
     <AnimatePresence>
       {open && (
         <div
@@ -138,7 +171,11 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
           aria-modal="true"
           aria-label={label}
           tabIndex={-1}
-          className="fixed inset-0 flex items-end lg:items-center justify-center pointer-events-auto outline-none"
+          className={clsx(
+            'flex items-end justify-center pointer-events-auto outline-none',
+            asSheet ? 'absolute dashboard-panel-clip' : 'fixed inset-0',
+            !sheetOnDesktop && 'lg:items-center',
+          )}
           style={{ zIndex: 200 + below }}
         >
           {/* Scrim */}
@@ -158,7 +195,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
               came from with its words (eyebrow + title) and its glyph, not with a
               directional drift that's gone in 300ms and means nothing on a
               keyboard or voice open. */}
-          <motion.div
+          {!sheetOnDesktop && <motion.div
             key="desktop-card"
             // `layout` eases the card's height between panels — popLayout pulls
             // the outgoing panel out of flow, so without it the card snaps to the
@@ -180,7 +217,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
                 {content}
               </div>
             </div>
-          </motion.div>
+          </motion.div>}
 
           {/* Mobile: bottom sheet — springs up; drag the grabber down to dismiss */}
           <motion.div
@@ -201,9 +238,16 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             }}
             // Top hairline: in dark mode the sheet's surface is close enough to
             // the scrimmed page behind it that the rounded edge disappears.
-            className="lg:hidden relative w-full bg-surface-lower rounded-t-ha-sheet overflow-hidden border-t border-white/10"
+            className={clsx(
+              'relative w-full bg-surface-lower overflow-hidden',
+              !sheetOnDesktop && 'lg:hidden',
+              asSheet
+                // Home Center's contained skin, value for value.
+                ? 'flex flex-col mx-ha-6 mb-ha-6 rounded-ha-3xl border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
+                : 'rounded-t-ha-sheet border-t border-white/10',
+            )}
             style={{
-              maxHeight: '82dvh',
+              maxHeight: asSheet ? 'calc(92% - var(--ha-space-6))' : '82dvh',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))',
               transformOrigin: 'top center',
             }}
@@ -212,14 +256,14 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
               className="flex justify-center pt-ha-2 pb-0 touch-none cursor-grab active:cursor-grabbing"
               onPointerDown={(e) => dragControls.start(e)}
             >
-              <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
+              <SheetGrabber />
             </div>
             {/* Overscroll hands the gesture to the sheet: keep pulling down once
                 the content is already at its top and the sheet comes with you,
                 so dismissing never means aiming for the little grabber. */}
             {/* Pad past the home-indicator / gesture bar, plus a little breathing
                 room so content never kisses the device's bottom edge. */}
-            <div className="relative">
+            <div className={clsx('relative', asSheet && 'flex min-h-0 flex-1 flex-col')}>
               <div className={clsx('absolute top-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-b from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', mobileTop ? 'opacity-100' : 'opacity-0')} />
               <div className={clsx('absolute bottom-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-t from-surface-lower via-surface-lower/60 to-transparent z-10 transition-opacity duration-300', mobileBottom ? 'opacity-100' : 'opacity-0')} />
               <div
@@ -244,13 +288,14 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
                 }}
                 onPointerUp={() => { overscrollFrom.current = null; }}
                 onPointerCancel={() => { overscrollFrom.current = null; }}
-                className="overflow-y-auto scrollbar-hide overscroll-contain"
+                className={clsx('overflow-y-auto scrollbar-hide overscroll-contain', asSheet && 'min-h-0 flex-1')}
                 style={{
                   // The padding lives on the sheet, not in here: inside the
                   // scrollport it counts toward scrollHeight, so a panel sized to
                   // fill the sheet always overflowed by exactly the padding —
                   // which is what pushed its header out of view on the phone.
-                  maxHeight: 'calc(82dvh - 20px - env(safe-area-inset-bottom, 0px) - var(--ha-space-4, 16px))',
+                  // Contained, the flex column above already bounds it.
+                  maxHeight: asSheet ? undefined : 'calc(82dvh - 20px - env(safe-area-inset-bottom, 0px) - var(--ha-space-4, 16px))',
                 }}
               >
                 {content}
@@ -259,7 +304,8 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
           </motion.div>
         </div>
       )}
-    </AnimatePresence>,
-    document.body,
+    </AnimatePresence>
+    </ContainedSheetContext.Provider>,
+    asSheet ? glowRoot : document.body,
   );
 }

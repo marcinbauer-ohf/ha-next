@@ -26,7 +26,7 @@ import { useAreasFloors, type AreaWithCounts, type FloorWithAreas } from '@/hook
 import { useAddContext } from '@/contexts';
 import type { LabelRegistryEntry } from '@/lib/homeassistant';
 import {
-  Icon, SectionLabel, ListSection, IconPicker, iconPathFor, AliasInput, Dropdown, ConfirmDialog,
+  Icon, SectionLabel, ListSection, IconPicker, iconPathFor, AliasInput, Dropdown, ConfirmDialog, IconButton,
 } from '@/components/ui';
 
 // ── Editor modal scaffold ────────────────────────────────────────────────────
@@ -74,14 +74,7 @@ function EditorModal({
           >
             <div className="mb-ha-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close"
-                className="flex h-9 w-9 items-center justify-center rounded-ha-xl text-text-secondary transition-colors hover:bg-surface-mid"
-              >
-                <Icon path={mdiClose} size={20} />
-              </button>
+              <IconButton icon={mdiClose} label="Close" size="sm" shape="square" onClick={onClose} />
             </div>
 
             <div className="space-y-ha-4">{children}</div>
@@ -502,12 +495,8 @@ function AreaRowBody({
 
       {editable && (
         <div className="flex flex-shrink-0 items-center gap-ha-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-          <button type="button" onClick={onEdit} aria-label={`Edit ${area.name}`} className="flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-tertiary transition-colors hover:bg-surface-mid hover:text-text-secondary">
-            <Icon path={mdiPencil} size={16} />
-          </button>
-          <button type="button" onClick={onDelete} aria-label={`Delete ${area.name}`} className="flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-tertiary transition-colors hover:bg-red-500/10 hover:text-red-600">
-            <Icon path={mdiTrashCanOutline} size={16} />
-          </button>
+          <IconButton icon={mdiPencil} label={`Edit ${area.name}`} size="sm" tone="quiet" shape="square" onClick={onEdit} />
+          <IconButton icon={mdiTrashCanOutline} label={`Delete ${area.name}`} size="sm" tone="quiet" shape="square" onClick={onDelete} />
         </div>
       )}
     </div>
@@ -603,12 +592,8 @@ function FloorGroup({
         </div>
         {floor && editable && (
           <>
-            <button type="button" onClick={onEditFloor} aria-label="Edit floor" className="flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-tertiary transition-colors hover:bg-surface-mid hover:text-text-secondary">
-              <Icon path={mdiPencil} size={16} />
-            </button>
-            <button type="button" onClick={onDeleteFloor} aria-label="Delete floor" className="flex h-8 w-8 items-center justify-center rounded-ha-lg text-text-tertiary transition-colors hover:bg-red-500/10 hover:text-red-600">
-              <Icon path={mdiTrashCanOutline} size={16} />
-            </button>
+            <IconButton icon={mdiPencil} label="Edit floor" size="sm" tone="quiet" shape="square" onClick={onEditFloor} />
+            <IconButton icon={mdiTrashCanOutline} label="Delete floor" size="sm" tone="quiet" shape="square" onClick={onDeleteFloor} />
           </>
         )}
       </div>
@@ -862,7 +847,7 @@ export function AreasFloorsPanel() {
 
           {(unassignedAreas.length > 0 || floors.length === 0) && (
             <>
-              {floors.length > 0 && <SectionLabel className="px-ha-1">Unassigned</SectionLabel>}
+              {floors.length > 0 && <SectionLabel inset>Unassigned</SectionLabel>}
               <FloorGroup
                 floor={null}
                 areas={unassignedAreas}

@@ -667,6 +667,190 @@ export async function getRelated(itemType: string, itemId: string): Promise<Reco
   }
 }
 
+// ── Discovery ────────────────────────────────────────────────────────────────
+// The flows Home Assistant has open but nobody has answered yet — a device it
+// found over zeroconf/DHCP/Bluetooth/USB/SSDP and is waiting to be told about.
+// This is the real thing behind the store's "Found in your home".
+//
+// There is no one-shot list for it: `/api/config/config_entries/flow` answers
+// 405 to a GET, and the only read path is this subscription. It opens with the
+// whole current set (each entry `type: null`), then sends `added`/`removed` as
+// devices appear and are dealt with — which suits a shelf that should empty
+// itself as you work through it.
+
+/** One discovery flow waiting to be answered. */
+export interface DiscoveryFlow {
+  flow_id: string;
+  /** Brand domain — also the brands-CDN logo key. */
+  handler: string;
+  /** Which step the flow stopped at (`pair`, `discovery_confirm`, `user`, …). */
+  step_id: string;
+  context: {
+    /** zeroconf | dhcp | bluetooth | ssdp | usb | mqtt | hassio | integration_discovery | … */
+    source: string;
+    /** What HA prints on its own card: `{ name: "Scrypted 752D", category: "Bridge" }`. */
+    title_placeholders?: Record<string, string>;
+    unique_id?: string;
+  };
+}
+
+interface FlowSubscriptionEvent {
+  type: 'added' | 'removed' | null;
+  flow_id: string;
+  flow?: DiscoveryFlow;
+}
+
+/**
+ * Watch the discovery flows in progress. Admin-only: a non-admin token fails the
+ * subscribe, which reports an empty set — the store then simply has no shelf,
+ * rather than an error nobody can act on.
+ *
+ * Returns the unsubscribe function.
+ */
+export async function subscribeDiscoveryFlows(
+  onFlows: (flows: DiscoveryFlow[]) => void,
+): Promise<() => void> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) {
+    onFlows([]);
+    return () => {};
+  }
+  const flows = new Map<string, DiscoveryFlow>();
+  try {
+    return await conn.subscribeMessage<FlowSubscriptionEvent[]>(
+      (events) => {
+        for (const event of events) {
+          if (event.type === 'removed') flows.delete(event.flow_id);
+          else if (event.flow) flows.set(event.flow_id, event.flow);
+        }
+        onFlows([...flows.values()]);
+      },
+      { type: 'config_entries/flow/subscribe' },
+    );
+  } catch {
+    onFlows([]);
+    return () => {};
+  }
+}
+
+/**
+ * Remove a config entry. For an ignored discovery this is the undo — HA drops the
+ * "don't ask me again" record and rediscovers the device on its next sweep.
+ */
+export async function deleteConfigEntry(entryId: string): Promise<boolean> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return false;
+  try {
+    await conn.sendMessagePromise({ type: 'config_entries/delete', entry_id: entryId });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ── Answering a discovery ────────────────────────────────────────────────────
+// A discovered flow is already open and parked on a step; you don't start it,
+// you read where it stopped and push it along. Most of the finds on a real home
+// are parked on a confirm — `data_schema: []`, meaning "is this yours?" and
+// nothing to fill in. The rest ask for what only the owner knows: a camera's
+// password, a pairing code, an account.
+//
+// These are the only calls here that change the person's actual home, so they
+// are the only ones with no silent fallback: a failure comes back as an abort
+// step the caller has to show, never as a shrug.
+
+/** One field HA is asking for, from a step's `data_schema`. */
+export interface FlowField {
+  /** string | boolean | integer | float | select | multi_select | … */
+  type: string;
+  name: string;
+  required?: boolean;
+  optional?: boolean;
+  default?: unknown;
+  /** `select` only: HA sends either [value, label] pairs or bare values. */
+  options?: Array<[string, string] | string>;
+  /** 'password' when HA marks the field secret. */
+  format?: string;
+}
+
+/** Where a flow currently stands. */
+export interface FlowStep {
+  type: 'form' | 'create_entry' | 'abort' | 'external' | 'progress' | 'menu';
+  flow_id: string;
+  handler: string;
+  step_id?: string;
+  data_schema?: FlowField[] | null;
+  /** Per-field messages plus `base` for the whole form. */
+  errors?: Record<string, string> | null;
+  description_placeholders?: Record<string, string> | null;
+  /** `create_entry`: what got created. */
+  title?: string;
+  /** `abort`: why it stopped (`already_configured`, `cannot_connect`, …). */
+  reason?: string;
+  /** `menu`: the branches offered. */
+  menu_options?: string[] | Record<string, string>;
+}
+
+function flowUrl(flowId: string): string | null {
+  return restUrl ? `${restUrl}/api/config/config_entries/flow/${flowId}` : null;
+}
+
+/** Where this flow is parked. Read-only. */
+export async function getFlowStep(flowId: string): Promise<FlowStep | null> {
+  const url = flowUrl(flowId);
+  if (!url || !restToken) return null;
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${restToken}` } });
+    if (!res.ok) return null;
+    return (await res.json()) as FlowStep;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Answer the current step. Returns the next one — another form, or the
+ * `create_entry` that means the device is now part of the home, or an `abort`
+ * carrying the reason it couldn't be.
+ *
+ * A network failure comes back as a synthetic abort rather than null: the caller
+ * has a step to render either way, and "unknown" is the reason HA itself uses.
+ */
+export async function submitFlowStep(
+  flowId: string,
+  userInput: Record<string, unknown>,
+): Promise<FlowStep> {
+  const url = flowUrl(flowId);
+  const fallback: FlowStep = { type: 'abort', flow_id: flowId, handler: '', reason: 'unknown' };
+  if (!url || !restToken) return fallback;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${restToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(userInput),
+    });
+    if (!res.ok) return fallback;
+    return (await res.json()) as FlowStep;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * "Not mine" — HA's own ignore, which turns the flow into an ignored entry so it
+ * stops being rediscovered. Reversible: deleting that entry brings it back.
+ */
+export async function ignoreFlow(flowId: string, title: string): Promise<boolean> {
+  const conn = connection ?? await waitForConnection();
+  if (!conn) return false;
+  try {
+    await conn.sendMessagePromise({ type: 'config_entries/ignore_flow', flow_id: flowId, title });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * An automation's stored config (triggers / conditions / actions). There is no
  * WS command for this, so it goes through the REST config endpoint using the

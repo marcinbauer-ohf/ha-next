@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { mdiRobot, mdiChevronRight } from '@mdi/js';
 import { Icon } from '../ui/Icon';
-import { HALoader } from '../ui';
+import { HALoader, IconButton} from '../ui';
 import { useAutomations, type AutomationSummary } from '@/hooks';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { LogbookEntry } from '@/lib/homeassistant';
@@ -245,15 +245,7 @@ function RunsTable({ rows, label, selected, palette, highlightKey, onHighlight, 
                 <span className="shrink-0 text-[12px] tabular-nums text-text-tertiary">{clock(r.last * 1000)}</span>
               </button>
               {openable && (
-                <button
-                  type="button"
-                  onClick={() => onOpen(r.key)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-ha-lg text-text-tertiary transition-colors hover:bg-surface-mid hover:text-text-primary"
-                  aria-label={`Open ${r.name}`}
-                  title="Open this automation"
-                >
-                  <Icon path={mdiChevronRight} size={18} />
-                </button>
+                <IconButton icon={mdiChevronRight} label={`Open ${r.name}`} size="sm" tone="quiet" shape="square" onClick={() => onOpen(r.key)} />
               )}
             </div>
             );

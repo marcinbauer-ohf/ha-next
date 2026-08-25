@@ -178,28 +178,22 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
             )}
           </AnimatePresence>
 
-          {/* Secondary first: the stack is bottom-anchored, so the primary
-              action ends up in the bottom-nav band. */}
-          <StepActions>
-            {succeeded ? (
-              <>
+          {/* Connected or not, the primary row holds the same rect — the badge
+              is pill-shaped and pill-sized on purpose. */}
+          <StepActions
+            primary={
+              succeeded ? (
                 <motion.div
                   role="status"
                   initial={{ scale: reduce ? 1 : 0.7, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.4, ease: EASE_OUT }}
-                  className="inline-flex items-center gap-ha-2 h-14 min-h-[56px] px-8 rounded-ha-pill bg-green-600 text-white text-base font-semibold"
+                  className="inline-flex items-center gap-ha-2 h-14 min-h-[56px] px-8 rounded-full bg-green-600 text-white text-base font-semibold"
                 >
                   <Icon path={mdiCheck} size={20} />
                   You&apos;re connected
                 </motion.div>
-                {!attempted && <QuietButton onClick={next}>Continue</QuietButton>}
-              </>
-            ) : (
-              <>
-                <QuietButton onClick={onDemo} disabled={connecting}>
-                  Use the demo home instead
-                </QuietButton>
+              ) : (
                 <PrimaryPill
                   onClick={() => submit()}
                   disabled={!url.trim() || !token.trim()}
@@ -208,9 +202,18 @@ export function ConnectStep({ update, next, onDemo }: ConnectStepProps) {
                 >
                   {connecting ? 'Connecting…' : 'Connect'}
                 </PrimaryPill>
-              </>
-            )}
-          </StepActions>
+              )
+            }
+            secondary={
+              succeeded ? (
+                !attempted && <QuietButton onClick={next}>Continue</QuietButton>
+              ) : (
+                <QuietButton onClick={onDemo} disabled={connecting}>
+                  Use the demo home instead
+                </QuietButton>
+              )
+            }
+          />
         </form>
       </div>
     </div>

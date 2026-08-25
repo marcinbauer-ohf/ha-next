@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { EditorToolbarShell, ToolbarPrimaryButton } from '../layout/EditorToolbarShell';
 import { Icon } from '../ui/Icon';
+import { IconButton } from '../ui/IconButton';
 import {
   mdiAutoFix,
   mdiChevronLeft,
@@ -210,15 +211,7 @@ export function AreasEditorToolbar({
               <MapSubToggle subMode={subMode} onChange={onChangeSubMode} />
               {areasSub && <DrawButton active={drawing} disabled={drawDisabled} onClick={onToggleDraw} />}
               {onGenerate && (
-                <button
-                  type="button"
-                  onClick={onGenerate}
-                  aria-label={areasSub ? 'Generate test layout' : 'Randomly place devices'}
-                  title={areasSub ? 'Generate test layout' : 'Randomly place devices'}
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-ha-xl bg-surface-low text-text-secondary transition-colors hover:bg-surface-mid"
-                >
-                  <Icon path={mdiAutoFix} size={18} />
-                </button>
+                <IconButton icon={mdiAutoFix} label={areasSub ? 'Generate test layout' : 'Randomly place devices'} size="lg" shape="square" filled onClick={onGenerate} />
               )}
             </div>
           )}
@@ -235,15 +228,7 @@ export function AreasEditorToolbar({
               <MapSubToggle subMode={subMode} onChange={onChangeSubMode} />
               {areasSub && <DrawButton active={drawing} disabled={drawDisabled} onClick={onToggleDraw} />}
               {onGenerate && (
-                <button
-                  type="button"
-                  onClick={onGenerate}
-                  aria-label={areasSub ? 'Generate test layout' : 'Randomly place devices'}
-                  title={areasSub ? 'Generate test layout' : 'Randomly place devices'}
-                  className="flex h-11 w-11 items-center justify-center rounded-ha-xl bg-surface-low text-text-secondary transition-colors hover:bg-surface-mid"
-                >
-                  <Icon path={mdiAutoFix} size={18} />
-                </button>
+                <IconButton icon={mdiAutoFix} label={areasSub ? 'Generate test layout' : 'Randomly place devices'} size="lg" shape="square" filled onClick={onGenerate} />
               )}
             </>
           )}

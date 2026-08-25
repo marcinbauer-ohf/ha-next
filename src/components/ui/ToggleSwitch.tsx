@@ -47,7 +47,7 @@ export function ToggleSwitch({ on, onToggle, size = 'md', disabled, label }: Tog
       className={clsx(
         'group/switch flex items-center shrink-0 rounded-full outline-none transition-[background-color,box-shadow,transform,opacity]',
         'focus-visible:ring-2 focus-visible:ring-ha-blue/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-default',
-        'active:scale-[0.97] disabled:opacity-40 disabled:active:scale-100',
+        'active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100',
         TRACK[size],
         on
           ? 'bg-green-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.12)]'

@@ -4,7 +4,6 @@ import { useState, useRef } from 'react';
 import {
   mdiLightbulb,
   mdiThermometer,
-  mdiSpeaker,
   mdiFlash,
   mdiMotionSensor,
   mdiHomeAutomation,
@@ -12,7 +11,6 @@ import {
   mdiWeatherSunny,
   mdiCheck,
   mdiClose,
-  mdiPencil,
   mdiCog,
   mdiPlus,
   mdiChevronRight,
@@ -22,9 +20,12 @@ import {
   mdiAutoFix,
   mdiAlertCircle,
   mdiCheckCircle,
+  mdiTrashCanOutline,
+  mdiPencilOutline,
 } from '@mdi/js';
 import { useToast } from '@/contexts';
 import { Button } from '@/components/ui/Button';
+import { IconButton } from '@/components/ui/IconButton';
 import { HALoader } from '@/components/ui/HALoader';
 import { RollingNumericValue } from '@/components/ui/RollingNumericValue';
 import { ModalSheet } from '@/components/layout/ModalSheet';
@@ -213,7 +214,7 @@ export default function DesignSystemPage() {
               { name: 'xl', cls: 'rounded-ha-xl' },
               { name: '2xl', cls: 'rounded-ha-2xl' },
               { name: '3xl', cls: 'rounded-ha-3xl' },
-              { name: 'pill', cls: 'rounded-ha-pill' },
+              { name: 'pill', cls: 'rounded-full' },
             ].map(r => (
               <div key={r.name} className="flex flex-col items-center gap-ha-1">
                 <div className={`w-12 h-12 bg-fill-primary-normal ${r.cls}`} />
@@ -228,36 +229,85 @@ export default function DesignSystemPage() {
           <div className="bg-surface-default rounded-ha-2xl p-ha-5 border border-surface-lower space-y-ha-4">
             <Row label="variant">
               <div className="flex flex-col gap-ha-1 items-start">
-                <Button variant="default">Default</Button>
-                <PropTag name="variant" value="default" />
-              </div>
-              <div className="flex flex-col gap-ha-1 items-start">
-                <Button variant="primary">Primary</Button>
+                <Button variant="primary" icon={mdiCheck}>Save</Button>
                 <PropTag name="variant" value="primary" />
               </div>
               <div className="flex flex-col gap-ha-1 items-start">
-                <Button variant="ghost">Ghost</Button>
+                <Button icon={mdiPlus}>Add device</Button>
+                <PropTag name="variant" value="neutral (default)" />
+              </div>
+              <div className="flex flex-col gap-ha-1 items-start">
+                <Button variant="ghost" icon={mdiClose}>Cancel</Button>
                 <PropTag name="variant" value="ghost" />
+              </div>
+              <div className="flex flex-col gap-ha-1 items-start">
+                <Button variant="danger" icon={mdiTrashCanOutline}>Delete</Button>
+                <PropTag name="variant" value="danger" />
               </div>
             </Row>
             <Row label="size">
               <div className="flex flex-col gap-ha-1 items-start">
-                <Button size="sm" icon={mdiCog} />
-                <PropTag name="size" value="sm" />
+                <Button size="sm">Small</Button>
+                <PropTag name="size" value="sm · 36px" />
               </div>
               <div className="flex flex-col gap-ha-1 items-start">
-                <Button size="md" icon={mdiCog} />
-                <PropTag name="size" value="md (default)" />
+                <Button size="md">Medium</Button>
+                <PropTag name="size" value="md · 44px (default)" />
               </div>
               <div className="flex flex-col gap-ha-1 items-start">
-                <Button size="lg" icon={mdiCog} />
-                <PropTag name="size" value="lg" />
+                <Button size="lg">Large</Button>
+                <PropTag name="size" value="lg · 48px" />
               </div>
             </Row>
-            <Row label="icon + label">
-              <Button icon={mdiPlus}>Add device</Button>
-              <Button variant="primary" icon={mdiCheck}>Save</Button>
-              <Button variant="ghost" icon={mdiClose}>Cancel</Button>
+            <Row label="state">
+              <div className="flex flex-col gap-ha-1 items-start">
+                <Button variant="primary" disabled>Save</Button>
+                <PropTag name="disabled" value="true" />
+              </div>
+              <div className="flex w-64 flex-col gap-ha-1 items-start">
+                <Button variant="primary" block iconTrailing={mdiChevronRight}>Continue</Button>
+                <PropTag name="block" value="true" />
+              </div>
+            </Row>
+          </div>
+        </Section>
+
+        {/* ── IconButton ──────────────────────────────────────────────────────── */}
+        <Section title="IconButton">
+          <div className="bg-surface-default rounded-ha-2xl p-ha-5 border border-surface-lower space-y-ha-4">
+            <Row label="size">
+              {([['sm', '36px'], ['md', '40px (default)'], ['lg', '48px']] as const).map(([size, note]) => (
+                <div key={size} className="flex flex-col gap-ha-1 items-start">
+                  <IconButton icon={mdiCog} label={`Settings (${size})`} size={size} />
+                  <PropTag name="size" value={`${size} · ${note}`} />
+                </div>
+              ))}
+            </Row>
+            <Row label="tone">
+              {(['default', 'quiet', 'accent', 'danger'] as const).map((tone) => (
+                <div key={tone} className="flex flex-col gap-ha-1 items-start">
+                  <IconButton icon={mdiClose} label={`Close (${tone})`} tone={tone} />
+                  <PropTag name="tone" value={tone} />
+                </div>
+              ))}
+              <div className="flex flex-col gap-ha-1 items-start rounded-ha-lg bg-neutral-800 p-ha-2">
+                <IconButton icon={mdiClose} label="Close (onImage)" tone="onImage" filled />
+                <PropTag name="tone" value="onImage" />
+              </div>
+            </Row>
+            <Row label="shape / fill / state">
+              <div className="flex flex-col gap-ha-1 items-start">
+                <IconButton icon={mdiPencilOutline} label="Edit" shape="square" />
+                <PropTag name="shape" value="square" />
+              </div>
+              <div className="flex flex-col gap-ha-1 items-start">
+                <IconButton icon={mdiPencilOutline} label="Edit" filled />
+                <PropTag name="filled" value="true" />
+              </div>
+              <div className="flex flex-col gap-ha-1 items-start">
+                <IconButton icon={mdiPencilOutline} label="Edit" disabled />
+                <PropTag name="disabled" value="true" />
+              </div>
             </Row>
           </div>
         </Section>
@@ -620,7 +670,7 @@ export default function DesignSystemPage() {
             <button
               ref={addMenuAnchorRef}
               onClick={() => setAddMenuOpen(true)}
-              className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+              className="h-9 px-ha-4 rounded-full bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
             >
               + Add
             </button>
@@ -642,7 +692,7 @@ export default function DesignSystemPage() {
                 <button
                   key={label}
                   onClick={() => showToast(props)}
-                  className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+                  className="h-9 px-ha-4 rounded-full bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
                 >
                   {label}
                 </button>
@@ -651,7 +701,7 @@ export default function DesignSystemPage() {
             <Row label="with action">
               <button
                 onClick={() => showToast({ icon: mdiAutoFix, title: 'With action', subtitle: 'Tap the button to undo', action: { label: 'Undo', onClick: () => {} } })}
-                className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+                className="h-9 px-ha-4 rounded-full bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
               >
                 With action
               </button>
@@ -660,7 +710,7 @@ export default function DesignSystemPage() {
               <div className="flex flex-col gap-ha-1 items-start">
                 <button
                   onClick={() => showToast({ icon: mdiCheckCircle, iconColor: 'text-green-500', title: 'Connected', subtitle: 'Pulses the clock widget', statusSection: 'connectivity' })}
-                  className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+                  className="h-9 px-ha-4 rounded-full bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
                 >
                   Connectivity toast
                 </button>
@@ -674,7 +724,7 @@ export default function DesignSystemPage() {
                     showToast({ icon: mdiCheckCircle, iconColor: 'text-green-500', title: 'First toast', subtitle: 'Waits behind, pops forward', duration: 8000 });
                     showToast({ icon: mdiAutoFix, title: 'Second toast', subtitle: 'Newest shows in front', duration: 4000 });
                   }}
-                  className="h-9 px-ha-4 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
+                  className="h-9 px-ha-4 rounded-full bg-surface-mid hover:bg-surface-lower text-sm font-medium text-text-primary transition-colors"
                 >
                   Show two stacked
                 </button>

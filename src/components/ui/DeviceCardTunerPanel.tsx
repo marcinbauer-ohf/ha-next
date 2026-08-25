@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import { motion, useDragControls } from 'framer-motion';
 import { mdiClose, mdiContentCopy, mdiRestore, mdiTune, mdiCheck } from '@mdi/js';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 import { ToggleSwitch } from './ToggleSwitch';
 import {
   CARD_TUNER_GROUPS,
@@ -70,20 +71,8 @@ export function DeviceCardTunerPanel() {
         >
           <Icon path={copied ? mdiCheck : mdiContentCopy} size={15} className={copied ? 'text-green-500' : undefined} />
         </button>
-        <button
-          onClick={resetCardTuner}
-          title="Reset all to defaults"
-          className="p-1.5 rounded-full hover:bg-surface-low text-text-secondary transition-colors"
-        >
-          <Icon path={mdiRestore} size={15} />
-        </button>
-        <button
-          onClick={() => toggleCardTunerPanel(false)}
-          title="Close"
-          className="p-1.5 rounded-full hover:bg-surface-low text-text-secondary transition-colors"
-        >
-          <Icon path={mdiClose} size={15} />
-        </button>
+        <IconButton icon={mdiRestore} label="Reset all to defaults" size="sm" onClick={resetCardTuner} />
+        <IconButton icon={mdiClose} label="Close" size="sm" onClick={() => toggleCardTunerPanel(false)} />
       </div>
 
       {/* Body */}

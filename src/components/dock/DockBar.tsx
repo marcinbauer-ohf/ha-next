@@ -9,6 +9,7 @@ import { mdiDotsHorizontal, mdiMenu, mdiPinOffOutline, mdiViewDashboard } from '
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { ContextMenu } from '@/components/ui/ContextMenu';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { MdiIcon } from '@/components/ui/MdiIcon';
 import { AskPill } from './DockAsk';
 import { DOCK_DROPPABLE_ID, usesLovelace, type DockItem } from './dockItems';
@@ -342,14 +343,7 @@ export function DockBar({
                 </button>
                 {/* The default dashboard has no remove affordance anywhere. */}
                 {item.id !== fixedId && (
-                  <button
-                    type="button"
-                    onClick={() => onUnpin(item.id)}
-                    aria-label={`Remove ${item.label} from dock`}
-                    className="shrink-0 rounded-lg p-2 text-neutral-400 opacity-0 transition-all hover:text-neutral-700 focus-visible:opacity-100 group-hover:opacity-100"
-                  >
-                    <Icon path={mdiPinOffOutline} size={18} exact />
-                  </button>
+                  <IconButton icon={mdiPinOffOutline} label={`Remove ${item.label} from dock`} size="sm" shape="square" exact onClick={() => onUnpin(item.id)} />
                 )}
               </div>
             ))}

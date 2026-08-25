@@ -13,6 +13,8 @@ import { isHomeCenterSectionVisible } from '@/components/profile/settingsNavigat
 import { ActivityFeed } from '../ui/ActivityFeed';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import { useHomeMode } from '@/lib/homeMode';
+import { Button } from '../ui';
+import { SectionLabel } from '../ui/SectionLabel';
 import {
   mdiAlertCircle,
   mdiBackupRestore,
@@ -53,7 +55,7 @@ export function HomeModeCard() {
   const homeMode = useHomeMode();
   if (!homeMode) return null;
   return (
-    <div className="flex items-center gap-ha-3 rounded-2xl bg-surface-low p-ha-3">
+    <div className="flex items-center gap-ha-3 rounded-ha-xl bg-surface-low p-ha-3">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-500/10 text-violet-500">
         <Icon path={homeMode.icon} size={22} />
       </div>
@@ -196,18 +198,18 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
     switch (id) {
       case 'activity':
         return (
-          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
-            <button type="button" onClick={() => onNavigate('/settings?section=activity')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
-              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Happening Now</h4>
+          <div key={id} className="bg-surface-low rounded-ha-xl p-ha-3">
+            <button type="button" onClick={() => onNavigate('/settings?section=activity')} className="group w-full flex items-center justify-between mb-ha-2 px-ha-2">
+              <SectionLabel className="group-hover:text-text-primary transition-colors">Happening Now</SectionLabel>
               <div className="flex items-center gap-ha-2">
                 {activeActivityCount > 0 && (
-                  <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeActivityCount}</span>
+                  <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-ha-md">{activeActivityCount}</span>
                 )}
                 <NavChevron size={16} className="text-text-disabled group-hover:text-text-secondary" />
               </div>
             </button>
             {activityFeed.length > 0 ? (
-              <div className="overflow-hidden rounded-xl bg-surface-mid/30">
+              <div className="overflow-hidden rounded-ha-lg bg-surface-mid/30">
                 <ActivityFeed items={activityFeed} />
               </div>
             ) : (
@@ -217,12 +219,12 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
         );
       case 'notifications':
         return (
-          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
-            <button type="button" onClick={() => onNavigate('/settings?section=notifications')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
-              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Notifications</h4>
+          <div key={id} className="bg-surface-low rounded-ha-xl p-ha-3">
+            <button type="button" onClick={() => onNavigate('/settings?section=notifications')} className="group w-full flex items-center justify-between mb-ha-2 px-ha-2">
+              <SectionLabel className="group-hover:text-text-primary transition-colors">Notifications</SectionLabel>
               <div className="flex items-center gap-ha-2">
                 {activeNotifications.length > 0 && (
-                  <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-md">{activeNotifications.length}</span>
+                  <span className="text-xs font-bold text-white bg-yellow-500 px-1.5 py-0.5 rounded-ha-md">{activeNotifications.length}</span>
                 )}
                 <NavChevron size={16} className="text-text-disabled group-hover:text-text-secondary" />
               </div>
@@ -230,7 +232,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
             {activeNotifications.length > 0 ? (
               <div className="space-y-2">
                 {activeNotifications.map(notif => (
-                  <div key={notif.id} className="flex items-start gap-ha-3 p-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
+                  <div key={notif.id} className="flex items-start gap-ha-3 p-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-ha-lg transition-colors">
                     <Icon path={mdiBell} size={18} className="text-yellow-500 shrink-0 mt-0.5" />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-text-primary leading-tight">{notif.title}</p>
@@ -246,12 +248,12 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
         );
       case 'updates':
         return (
-          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
-            <button type="button" onClick={() => onNavigate('/settings?section=updates')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
-              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Updates Available</h4>
+          <div key={id} className="bg-surface-low rounded-ha-xl p-ha-3">
+            <button type="button" onClick={() => onNavigate('/settings?section=updates')} className="group w-full flex items-center justify-between mb-ha-2 px-ha-2">
+              <SectionLabel className="group-hover:text-text-primary transition-colors">Updates</SectionLabel>
               <div className="flex items-center gap-ha-2">
                 {activeUpdates.length > 0 && (
-                  <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-md">{activeUpdates.length}</span>
+                  <span className="text-xs font-bold text-white bg-blue-500 px-1.5 py-0.5 rounded-ha-md">{activeUpdates.length}</span>
                 )}
                 <NavChevron size={16} className="text-text-disabled group-hover:text-text-secondary" />
               </div>
@@ -259,7 +261,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
             {activeUpdates.length > 0 ? (
               <div className="space-y-2">
                 {activeUpdates.map(update => (
-                  <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-xl transition-colors cursor-pointer group">
+                  <div key={update.id} className="flex items-center gap-ha-3 p-ha-2 hover:bg-surface-mid rounded-ha-lg transition-colors cursor-pointer group">
                     <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-110 transition-transform">
                       {update.picture ? <img src={getEntityPictureUrl(update.picture)} alt={update.name} className="w-full h-full rounded-full object-cover"/> : <Icon path={mdiUpdate} size={18} />}
                     </div>
@@ -275,17 +277,17 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
         );
       case 'repairs':
         return (
-          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+          <div key={id} className="bg-surface-low rounded-ha-xl p-ha-3">
             <div className="w-full flex items-center justify-between mb-ha-2 px-1">
-              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Repairs</h4>
+              <SectionLabel>Repairs</SectionLabel>
               {repairCount > 0 && (
-                <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-md ${hasCriticalRepair ? 'bg-red-500' : 'bg-orange-500'}`}>{repairCount}</span>
+                <span className={`text-xs font-bold text-white px-1.5 py-0.5 rounded-ha-md ${hasCriticalRepair ? 'bg-red-500' : 'bg-orange-500'}`}>{repairCount}</span>
               )}
             </div>
             {repairCount > 0 ? (
               <div className="space-y-2">
                 {repairs.map(r => (
-                  <div key={r.id} className="flex items-start gap-ha-3 p-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-xl transition-colors">
+                  <div key={r.id} className="flex items-start gap-ha-3 p-2.5 bg-surface-mid/30 hover:bg-surface-mid rounded-ha-lg transition-colors">
                     <Icon path={mdiWrench} size={18} className={`${r.severity === 'critical' ? 'text-red-500' : 'text-orange-500'} shrink-0 mt-0.5`} />
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-text-primary leading-tight">{r.title}</p>
@@ -301,12 +303,12 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
         );
       case 'issues':
         return (
-          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
-            <button type="button" onClick={() => onNavigate('/settings?section=repairs')} className="group w-full flex items-center justify-between mb-ha-2 px-1">
-              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider group-hover:text-text-primary transition-colors">Offline Devices</h4>
+          <div key={id} className="bg-surface-low rounded-ha-xl p-ha-3">
+            <button type="button" onClick={() => onNavigate('/settings?section=repairs')} className="group w-full flex items-center justify-between mb-ha-2 px-ha-2">
+              <SectionLabel className="group-hover:text-text-primary transition-colors">Offline Devices</SectionLabel>
               <div className="flex items-center gap-ha-2">
                 {offlineDevices.length > 0 && (
-                  <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-md">{offlineDevices.length}</span>
+                  <span className="text-xs font-bold text-white bg-red-500 px-1.5 py-0.5 rounded-ha-md">{offlineDevices.length}</span>
                 )}
                 <NavChevron size={16} className="text-text-disabled group-hover:text-text-secondary" />
               </div>
@@ -314,7 +316,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
             {offlineDevices.length > 0 ? (
               <div className="space-y-1">
                 {offlineDevices.map(device => (
-                  <div key={device.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg text-text-secondary hover:text-text-primary hover:bg-surface-mid/50 transition-colors">
+                  <div key={device.id} className="flex items-center gap-ha-2 p-ha-2 rounded-ha-md text-text-secondary hover:text-text-primary hover:bg-surface-mid/50 transition-colors">
                     <div className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></div>
                     <span className="text-sm truncate font-medium">{device.name}</span>
                   </div>
@@ -327,17 +329,17 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
         );
       case 'battery':
         return (
-          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+          <div key={id} className="bg-surface-low rounded-ha-xl p-ha-3">
             <div className="w-full flex items-center justify-between mb-ha-2 px-1">
-              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Low Battery</h4>
+              <SectionLabel>Low Battery</SectionLabel>
               {lowBatteryCount > 0 && (
-                <span className="text-xs font-bold text-white bg-amber-500 px-1.5 py-0.5 rounded-md">{lowBatteryCount}</span>
+                <span className="text-xs font-bold text-white bg-amber-500 px-1.5 py-0.5 rounded-ha-md">{lowBatteryCount}</span>
               )}
             </div>
             {lowBatteryCount > 0 ? (
               <div className="space-y-1">
                 {lowBatteryDevices.map(b => (
-                  <div key={b.id} className="flex items-center gap-ha-2 p-ha-2 rounded-lg hover:bg-surface-mid/50 transition-colors">
+                  <div key={b.id} className="flex items-center gap-ha-2 p-ha-2 rounded-ha-md hover:bg-surface-mid/50 transition-colors">
                     <Icon path={mdiBatteryAlertVariantOutline} size={16} className={`shrink-0 ${b.level <= 10 ? 'text-red-500' : 'text-amber-500'}`} />
                     <span className="text-sm truncate font-medium text-text-primary flex-1">{b.name}</span>
                     <span className={`text-sm font-semibold tabular-nums ${b.level <= 10 ? 'text-red-500' : 'text-text-secondary'}`}>{b.level}%</span>
@@ -351,11 +353,11 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
         );
       case 'backups':
         return (
-          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+          <div key={id} className="bg-surface-low rounded-ha-xl p-ha-3">
             <div className="w-full flex items-center justify-between mb-ha-2 px-1">
-              <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Backups</h4>
+              <SectionLabel>Backups</SectionLabel>
             </div>
-            <div className="flex items-center gap-ha-2 p-ha-2 rounded-lg hover:bg-surface-mid/50 transition-colors">
+            <div className="flex items-center gap-ha-2 p-ha-2 rounded-ha-md hover:bg-surface-mid/50 transition-colors">
               <Icon path={mdiBackupRestore} size={16} className={`shrink-0 ${backupAge.stale ? 'text-orange-500' : 'text-green-500'}`} />
               <span className="text-sm truncate font-medium text-text-primary flex-1">{lastBackup?.name ?? 'Backups'}</span>
               <span className={`text-sm font-medium ${backupAge.stale ? 'text-orange-500' : 'text-text-secondary'}`}>{backupAge.label}</span>
@@ -364,7 +366,7 @@ export function HomeCenterStatusSections({ onNavigate }: { onNavigate: (path: st
         );
       case 'connectivity':
         return (
-          <div key={id} className="bg-surface-low rounded-2xl p-ha-3">
+          <div key={id} className="bg-surface-low rounded-ha-xl p-ha-3">
             <div className="flex items-center gap-ha-3 mb-ha-3">
               <div className={`p-2 rounded-full ${connToneClasses[connTone].badge}`}>
                 <Icon path={connected || demoMode ? mdiCheckCircle : mdiAlertCircle} size={24} />
@@ -405,18 +407,14 @@ export function OpenHomeCenterButton({
   onClick?: () => void;
   variant?: 'primary' | 'secondary';
 }) {
-  const tone =
-    variant === 'secondary'
-      ? 'bg-surface-low text-text-primary hover:bg-surface-lower'
-      : 'bg-ha-blue text-white hover:bg-ha-blue-dark shadow-md';
   return (
-    <button
-      type="button"
+    <Button
+      variant={variant === 'secondary' ? 'neutral' : 'primary'}
+      icon={HOME_CENTER_ICON}
+      block
       onClick={() => (onClick ? onClick() : onNavigate('/settings?section=home-center'))}
-      className={`w-full h-11 rounded-ha-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all ${tone}`}
     >
-      <Icon path={HOME_CENTER_ICON} size={18} />
       Open Home Center
-    </button>
+    </Button>
   );
 }

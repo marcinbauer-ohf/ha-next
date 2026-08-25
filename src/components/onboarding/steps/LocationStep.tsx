@@ -82,34 +82,37 @@ export function LocationStep({ state, update, next }: StepProps) {
             type="button"
             onClick={useMyLocation}
             disabled={locating}
-            className="inline-flex items-center gap-ha-2 h-10 px-ha-4 rounded-ha-pill bg-surface-low/70 backdrop-blur-sm border border-surface-lower text-sm font-medium text-text-primary hover:bg-surface-low transition-colors active:scale-[0.98] disabled:opacity-50"
+            className="inline-flex items-center gap-ha-2 h-10 px-ha-4 rounded-full bg-surface-low/70 backdrop-blur-sm border border-surface-lower text-sm font-medium text-text-primary hover:bg-surface-low transition-colors active:scale-[0.98] disabled:opacity-50"
           >
             <Icon path={mdiCrosshairsGps} size={17} />
             {locating ? 'Finding you…' : 'Use my current location'}
           </button>
         </div>
 
+        {/* Errors only. Coordinates told nobody anything they could act on —
+            the pin on the map is the answer. Height reserved so the row
+            appearing doesn't shove the buttons. */}
         <p className="text-[13px] text-text-tertiary min-h-[1.25rem]" aria-live="polite">
-          {locateError
-            ? "Couldn't get your location — move the map instead."
-            : picked
-              ? `${picked.lat.toFixed(4)}, ${picked.lng.toFixed(4)}`
-              : 'Nothing picked yet'}
+          {locateError ? "Couldn't get your location — move the map instead." : ''}
         </p>
 
-        <StepActions>
-          <PrimaryPill onClick={next} disabled={!picked}>
-            Continue
-          </PrimaryPill>
-          <QuietButton
-            onClick={() => {
-              update({ location: null });
-              next();
-            }}
-          >
-            Skip for now
-          </QuietButton>
-        </StepActions>
+        <StepActions
+          primary={
+            <PrimaryPill onClick={next} disabled={!picked}>
+              Continue
+            </PrimaryPill>
+          }
+          secondary={
+            <QuietButton
+              onClick={() => {
+                update({ location: null });
+                next();
+              }}
+            >
+              Skip for now
+            </QuietButton>
+          }
+        />
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname } from 'next/navigation';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 import { SectionLabel } from './SectionLabel';
 import { VoiceWaveBackground, type VoiceVisualState } from './VoiceWaveBackground';
 import { useAssistantContext } from '@/contexts/AssistantContext';
@@ -12,6 +13,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useSheetDrag } from '@/hooks/useSheetDrag';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { processConversation, startVoiceAssist, type VoiceAssistSession } from '@/lib/homeassistant';
+import { SheetGrabber } from './SheetGrabber';
 import {
   mdiClose,
   mdiLightbulbOnOutline,
@@ -330,14 +332,8 @@ export function AssistantOverlay() {
             className={`flex items-center justify-between px-ha-4 pt-ha-3 pb-ha-1 ${isDesktop ? '' : 'touch-none cursor-grab active:cursor-grabbing'}`}
           >
             <div className="w-8" />
-            <div className="w-10 h-1 rounded-full bg-text-tertiary/50" />
-            <button
-              onClick={closeAssistant}
-              aria-label="Close assistant"
-              className="w-8 h-8 rounded-full bg-surface-low border border-border-default flex items-center justify-center text-text-secondary hover:bg-surface-mid hover:text-text-primary transition-colors"
-            >
-              <Icon path={mdiClose} size={18} />
-            </button>
+            <SheetGrabber />
+            <IconButton icon={mdiClose} label="Close assistant" size="sm" filled onClick={closeAssistant} />
           </div>
 
           {/* The face — same orb as the lock screen, sheet-sized */}
@@ -396,7 +392,7 @@ export function AssistantOverlay() {
               className="w-full max-w-lg mx-auto max-h-[30dvh] overflow-y-auto flex flex-col gap-ha-2 pt-6 [scrollbar-width:none] [mask-image:linear-gradient(to_bottom,transparent,black_16%)]"
             >
               {messages.length === 0 && (
-                <div className="self-start max-w-[82%] px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-md border bg-surface-low/85 border-ha-blue/30 backdrop-blur-md text-[15px] leading-snug animate-in fade-in slide-in-from-bottom-2 duration-400">
+                <div className="self-start max-w-[82%] px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-ha-md border bg-surface-low/85 border-ha-blue/30 backdrop-blur-md text-[15px] leading-snug animate-in fade-in slide-in-from-bottom-2 duration-400">
                   Hi — ask me anything, or tell your <span className="capitalize font-medium">{contextName}</span> what to do.
                 </div>
               )}
@@ -407,8 +403,8 @@ export function AssistantOverlay() {
                     key={message.id}
                     className={`animate-in fade-in slide-in-from-bottom-2 duration-400 max-w-[82%] px-ha-4 py-ha-3 rounded-ha-2xl border backdrop-blur-md text-[15px] leading-snug text-text-primary ${
                       message.role === 'home'
-                        ? `self-start bg-surface-low/85 border-ha-blue/30 ${lastOfGroup ? 'rounded-bl-md' : ''}`
-                        : `self-end bg-surface-mid/85 border-border-default ${lastOfGroup ? 'rounded-br-md' : ''}`
+                        ? `self-start bg-surface-low/85 border-ha-blue/30 ${lastOfGroup ? 'rounded-bl-ha-md' : ''}`
+                        : `self-end bg-surface-mid/85 border-border-default ${lastOfGroup ? 'rounded-br-ha-md' : ''}`
                     }`}
                   >
                     {message.text}
@@ -416,7 +412,7 @@ export function AssistantOverlay() {
                 );
               })}
               {busy && (
-                <div className="self-start flex items-center gap-1.5 px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-md bg-surface-low/85 border border-ha-blue/30 backdrop-blur-md animate-in fade-in duration-300">
+                <div className="self-start flex items-center gap-1.5 px-ha-4 py-ha-3 rounded-ha-2xl rounded-bl-ha-md bg-surface-low/85 border border-ha-blue/30 backdrop-blur-md animate-in fade-in duration-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-text-secondary animate-bounce motion-reduce:animate-none [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-text-secondary animate-bounce motion-reduce:animate-none [animation-delay:150ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-text-secondary animate-bounce motion-reduce:animate-none [animation-delay:300ms]" />
@@ -430,7 +426,7 @@ export function AssistantOverlay() {
             visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}>
             <form
-              className="w-full max-w-lg mx-auto flex items-center gap-ha-2 h-12 px-ha-4 rounded-ha-pill bg-surface-low/85 backdrop-blur-md focus-within:bg-surface-mid/85 transition-colors"
+              className="w-full max-w-lg mx-auto flex items-center gap-ha-2 h-12 px-ha-4 rounded-full bg-surface-low/85 backdrop-blur-md focus-within:bg-surface-mid/85 transition-colors"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSend();

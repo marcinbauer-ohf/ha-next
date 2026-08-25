@@ -69,7 +69,7 @@ export function ToolbarPrimaryButton({ label, onClick, className = '' }: {
     <button
       type="button"
       onClick={onClick}
-      className={`h-11 px-6 rounded-ha-pill bg-white font-semibold text-sm transition-all hover:bg-white/90 active:scale-95 ${className}`}
+      className={`h-11 px-6 rounded-full bg-white font-semibold text-sm transition-all hover:bg-white/90 active:scale-95 ${className}`}
       style={{ color: TOOLBAR_ACCENT }}
     >
       {label}

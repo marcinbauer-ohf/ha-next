@@ -5,7 +5,8 @@
 // gesture. One component, two skins: an icon tile for the desktop rail's
 // bottom slot and a compact labeled chip for the mobile sheet header.
 
-import { Icon } from './Icon';
+import { Button } from './Button';
+import { IconButton } from './IconButton';
 import { mdiPencilOutline } from '@mdi/js';
 
 interface EditItemsButtonProps {
@@ -25,27 +26,22 @@ export function EditItemsButton({
 }: EditItemsButtonProps) {
   if (variant === 'rail') {
     return (
-      <button
-        type="button"
-        aria-label="Edit sidebar"
+      <IconButton
+        icon={mdiPencilOutline}
+        label="Edit sidebar"
+        tone="quiet"
+        shape="square"
+        exact
         onClick={onClick}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
-        className="w-12 h-10 rounded-ha-xl transition-colors flex items-center justify-center text-text-disabled hover:bg-surface-low hover:text-text-primary"
-      >
-        <Icon path={mdiPencilOutline} size={17} exact />
-      </button>
+      />
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full h-11 rounded-ha-xl bg-surface-low text-text-secondary hover:text-text-primary text-sm font-semibold flex items-center justify-center gap-ha-2 active:scale-[0.98] transition-transform"
-    >
-      <Icon path={mdiPencilOutline} size={16} exact />
+    <Button icon={mdiPencilOutline} onClick={onClick} block>
       Edit
-    </button>
+    </Button>
   );
 }

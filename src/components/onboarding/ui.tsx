@@ -12,19 +12,31 @@ export const StepActionsHostContext = createContext<HTMLElement | null>(null);
 
 /**
  * Step CTAs render here, portalled out of the step body into the flow's footer
- * slot — so they hold one fixed position no matter how tall the step is. On
- * mobile that slot is exactly where the app's bottom nav sits, so finishing the
- * flow fades these out onto the nav; on desktop it's anchored below the page
- * centre. Buttons stack upward from the anchor.
+ * slot. Two FIXED rows: the primary sits at the same screen position on every
+ * step — the pointer is already over it when the next step arrives — and the
+ * secondary row keeps its height whether or not a step fills it, so nothing
+ * below shoves the primary around either.
+ *
+ * The secondary slot also takes a one-line hint (RoomsStep) — anything that
+ * belongs under the CTA without moving it.
  *
  * Deliberately unanimated: consecutive steps render the same Continue pill in
  * the same place, so any mount fade reads as a flash on every step change.
  */
-export function StepActions({ children }: { children: React.ReactNode }) {
+export function StepActions({
+  primary,
+  secondary,
+}: {
+  primary: React.ReactNode;
+  secondary?: React.ReactNode;
+}) {
   const host = useContext(StepActionsHostContext);
   if (!host) return null;
   return createPortal(
-    <div className="pointer-events-auto flex flex-col items-center gap-ha-2">{children}</div>,
+    <div className="pointer-events-auto flex flex-col items-center gap-ha-2">
+      <div className="flex items-center justify-center min-h-[56px]">{primary}</div>
+      <div className="flex items-center justify-center min-h-[44px]">{secondary}</div>
+    </div>,
     host,
   );
 }
@@ -88,7 +100,7 @@ export function PrimaryPill({
       disabled={disabled}
       aria-disabled={busy || disabled}
       // 56px tall so it fills the same band as the app's bottom-nav tab strip.
-      className="group inline-flex items-center justify-center gap-ha-2 h-14 min-h-[56px] px-8 rounded-ha-pill bg-ha-blue text-white text-base font-semibold shadow-md shadow-ha-blue/20 transition-all hover:brightness-110 active:scale-[0.97] disabled:bg-surface-low disabled:text-text-disabled disabled:shadow-none disabled:cursor-not-allowed aria-disabled:cursor-wait"
+      className="group inline-flex items-center justify-center gap-ha-2 h-14 min-h-[56px] px-8 rounded-full bg-ha-blue text-white text-base font-semibold shadow-md shadow-ha-blue/20 transition-all hover:brightness-110 active:scale-[0.98] disabled:bg-surface-low disabled:text-text-disabled disabled:shadow-none disabled:cursor-not-allowed aria-disabled:cursor-wait"
     >
       {children}
       {withArrow && !busy && (
@@ -123,7 +135,7 @@ export function QuietButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="h-11 px-4 rounded-ha-pill text-[15px] font-medium text-text-secondary hover:text-text-primary hover:bg-surface-low/70 transition-colors disabled:opacity-40"
+      className="h-11 px-4 rounded-full text-[15px] font-medium text-text-secondary hover:text-text-primary hover:bg-surface-low/70 transition-colors disabled:opacity-40"
     >
       {children}
     </button>

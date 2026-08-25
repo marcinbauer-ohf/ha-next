@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 import { CountBadge } from './CountBadge';
 import { Chip } from './Chip';
 import { ModalSheet } from '../layout/ModalSheet';
@@ -754,14 +755,7 @@ export function DataListView<T>({ items, config }: { items: T[]; config: DataLis
           <div className="px-ha-4 pb-ha-6">
             <div className="mb-ha-4 flex items-center justify-between gap-ha-2">
               <div className="flex min-w-0 items-center gap-ha-2">
-                <button
-                  type="button"
-                  aria-label="Close"
-                  onClick={() => setSheetOpen(false)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-ha-lg text-text-secondary hover:bg-surface-low"
-                >
-                  <Icon path={mdiClose} size={18} />
-                </button>
+                <IconButton icon={mdiClose} label="Close" size="sm" shape="square" onClick={() => setSheetOpen(false)} />
                 <h3 className="text-sm font-semibold text-text-primary">Filters</h3>
               </div>
               {activeFilterCount > 0 && (

@@ -37,6 +37,7 @@ import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
 import { RingShaderBackground, useRingOrigin } from './RingShaderBackground';
 import { ScreensaverPulseLog } from './ScreensaverPulseLog';
 import { EnergyGlance, SummaryGlance } from '../glances';
+import { SheetGrabber } from './SheetGrabber';
 import {
   areScreensaverDataEqual,
   selectScreensaverData,
@@ -106,7 +107,7 @@ function isAlerting(status: ActivityStatus, nowMs: number): boolean {
 // label as the dashboard StatusBar pills. Only the palette differs — these sit
 // on the screensaver's dark backdrop, so surface/text tokens become white
 // alphas and the semantic colours lighten a step.
-const PILL = 'relative flex items-center gap-ha-3 rounded-ha-pill px-ha-3 h-12';
+const PILL = 'relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12';
 const PILL_TONE = {
   neutral: TRANSLUCENT_CHIP_FILL,
   good: 'bg-green-500/15 border border-green-500/30',
@@ -486,7 +487,7 @@ function ScreensaverActivityPills({
       {pills.length > MOBILE_PILL_LIMIT && (
         <div
           key="more"
-          className="hidden max-md:portrait:flex items-center justify-center self-center h-8 px-ha-4 rounded-ha-pill bg-black/40 border border-white/15 text-[13px] font-medium text-white/70"
+          className="hidden max-md:portrait:flex items-center justify-center self-center h-8 px-ha-4 rounded-full bg-black/40 border border-white/15 text-[13px] font-medium text-white/70"
         >
           +{pills.length - MOBILE_PILL_LIMIT} more
         </div>
@@ -1036,7 +1037,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             const hasWorkspace = typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches;
             router.push(hasWorkspace ? '/settings?section=home-center' : '/settings/home-center');
           }}
-          className={`flex items-center gap-ha-2 lg:gap-ha-3 rounded-ha-pill px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 transition-all hover:brightness-110 active:scale-95 ${TRANSLUCENT_CHIP_FILL}`}
+          className={`flex items-center gap-ha-2 lg:gap-ha-3 rounded-full px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 transition-all hover:brightness-110 active:scale-95 ${TRANSLUCENT_CHIP_FILL}`}
         >
           {/* Compact below lg — the desktop pill reads oversized on a phone */}
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" className="lg:hidden" />
@@ -1075,7 +1076,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             e.stopPropagation();
             setVoiceMode(true);
           }}
-          className="relative w-full max-w-lg mx-auto flex items-center gap-ha-2 min-h-12 py-ha-2 px-ha-4 rounded-ha-pill bg-white/8 border border-white/12 backdrop-blur-md transition-colors hover:bg-white/12 hover:border-white/20 active:scale-[0.99]"
+          className="relative w-full max-w-lg mx-auto flex items-center gap-ha-2 min-h-12 py-ha-2 px-ha-4 rounded-full bg-white/8 border border-white/12 backdrop-blur-md transition-colors hover:bg-white/12 hover:border-white/20 active:scale-[0.98]"
         >
           {summaryLoading ? (
             <span className="flex-1 flex items-center gap-ha-3 text-left">
@@ -1114,7 +1115,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
         className="lg:hidden pointer-events-none absolute inset-x-0 flex justify-center"
         style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
       >
-        <div className="h-1 w-10 rounded-full bg-white/35" />
+        <SheetGrabber tone="light" />
       </div>
 
       </div>

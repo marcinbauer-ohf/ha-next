@@ -96,10 +96,11 @@ export function AnalyticsStep({ state, update, next }: StepProps) {
         })}
       </ul>
 
-      <StepActions>
-        <PrimaryPill onClick={next}>Continue</PrimaryPill>
-        <QuietButton onClick={shareNothing}>Share nothing</QuietButton>
-      </StepActions>
+      {/* The last press of the flow, so it says where you are going. */}
+      <StepActions
+        primary={<PrimaryPill onClick={next}>Welcome home</PrimaryPill>}
+        secondary={<QuietButton onClick={shareNothing}>Share nothing</QuietButton>}
+      />
     </div>
   );
 }

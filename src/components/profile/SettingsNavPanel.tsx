@@ -20,6 +20,7 @@ import {
   type SettingsSlug,
 } from './settingsNavigation';
 import { mdiRestart, mdiRestartAlert, mdiPower } from '@mdi/js';
+import { SectionLabel } from '../ui/SectionLabel';
 
 // Most common Home Assistant system power commands — mirrors the power menu on
 // HA's own Settings → System page. Reboot/shutdown are Supervisor services
@@ -38,6 +39,10 @@ interface SettingsNavPanelProps {
   bg?: 'surface-lower' | 'surface-default';
   /** Scroll the active item into view on mount/active change (mobile bottom-sheet). */
   autoScrollActiveIntoView?: boolean;
+  /** Drop the card chrome (own background, border, shadow) from every group —
+      for the desktop rail, which already sits on its own column and would
+      otherwise read as surfaces stacked inside surfaces. */
+  flat?: boolean;
 }
 
 function NavItem({
@@ -53,8 +58,10 @@ function NavItem({
   onSelect: () => void;
   accent: string;
 }) {
-  // Sections without their own built-out UI render only the haPath stub — gray
-  // them out so it reads as "not built yet" while still being reachable.
+  // Sections without their own built-out UI render only the haPath stub. They
+  // read as fully live rows — accent icon, normal label, hover, clickable — and
+  // only the chevron greys out to say "there's nothing further in here yet".
+  // Dimming the whole row instead made half the list look broken.
   const empty = !settingsHasContent(item.slug);
   // Active row: faint accent-tinted background + solid accent icon tile and
   // accent label/chevron. No left bar.
@@ -70,21 +77,19 @@ function NavItem({
       className={clsx(
         'group w-full flex items-center gap-ha-3 px-ha-4 text-left transition-colors border-b border-surface-low/40 last:border-0 py-ha-2',
         subtitle && 'min-h-[48px]',
-        empty && 'opacity-45 cursor-not-allowed',
         isActive ? 'bg-surface-mid' : 'hover:bg-surface-mid/50 active:bg-surface-mid',
       )}
     >
-      {/* Bare icon — accent-colored, no background tile. Muted gray for
-          sections with no content yet. */}
+      {/* Bare icon — accent-colored, no background tile. */}
       <div
         className="w-8 h-8 flex items-center justify-center flex-shrink-0"
-        style={empty ? undefined : { color: accent }}
+        style={{ color: accent }}
       >
-        <Icon path={item.icon} size={18} className={empty ? 'text-text-tertiary' : undefined} />
+        <Icon path={item.icon} size={18} />
       </div>
       <div className="flex-1 min-w-0">
         <p
-          className={`text-sm font-semibold leading-tight ${empty ? 'text-text-secondary' : accentActive ? '' : 'text-text-primary'}`}
+          className={`text-sm font-semibold leading-tight ${accentActive ? '' : 'text-text-primary'}`}
           style={accentActive ? { color: accent } : undefined}
         >
           {item.label}
@@ -94,8 +99,10 @@ function NavItem({
         )}
       </div>
       <span
-        className={accentActive ? undefined : isActive ? 'text-text-secondary' : 'text-text-disabled'}
-        style={accentActive ? { color: accent } : undefined}
+        className={clsx(
+          empty ? 'text-text-disabled opacity-50' : accentActive ? undefined : isActive ? 'text-text-secondary' : 'text-text-disabled',
+        )}
+        style={accentActive && !empty ? { color: accent } : undefined}
       >
         <NavChevron size={16} />
       </span>
@@ -103,7 +110,7 @@ function NavItem({
   );
 }
 
-export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', autoScrollActiveIntoView = false }: SettingsNavPanelProps) {
+export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', autoScrollActiveIntoView = false, flat = false }: SettingsNavPanelProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const { haUrl, connected, demoMode, callService, currentUser, isAdmin, previewAsNonAdmin, setPreviewAsNonAdmin } = useHomeAssistant();
   const { devices, services } = useDeviceStructure();
@@ -188,6 +195,11 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
   const navCardSections = visibleSections.filter((s) => s.title !== 'Developer Tools');
   const devToolsSection = visibleSections.find((s) => s.title === 'Developer Tools');
 
+  // One card treatment for every group, so `flat` strips them all at once.
+  const groupClass = flat
+    ? 'py-ha-1'
+    : 'bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden py-ha-2';
+
   return (
     <div ref={rootRef}>
       {/* Search — sticky at top, pinned with no drift. Mirrors DataListView's
@@ -219,8 +231,12 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
         type="button"
         onClick={() => onSelect('profile')}
         data-settings-slug="profile"
-        className={`group w-full text-left flex items-center gap-ha-4 rounded-ha-3xl p-ha-5 border border-surface-lower shadow-[0_18px_42px_-30px_rgba(15,23,42,0.32)] mb-ha-4 transition-colors ${
-          activeSlug === 'profile' ? 'bg-surface-mid' : 'bg-surface-default hover:bg-surface-low active:bg-surface-mid'
+        className={`group w-full text-left flex items-center gap-ha-4 transition-colors ${
+          flat
+            ? 'rounded-ha-2xl px-ha-3 py-ha-3 mb-ha-2'
+            : 'rounded-ha-3xl p-ha-5 border border-surface-lower shadow-[0_18px_42px_-30px_rgba(15,23,42,0.32)] mb-ha-4'
+        } ${
+          activeSlug === 'profile' ? 'bg-surface-mid' : flat ? 'hover:bg-surface-mid/50 active:bg-surface-mid' : 'bg-surface-default hover:bg-surface-low active:bg-surface-mid'
         }`}
       >
         <Avatar src={user.picture} initials={user.initials} size="lg" className="ring-4 ring-surface-mid shadow flex-shrink-0" />
@@ -241,7 +257,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setPreviewAsNonAdmin(!previewAsNonAdmin); }}
-          className="w-full flex items-center justify-between gap-ha-3 px-ha-4 py-ha-2 mb-ha-4 rounded-ha-xl border border-surface-lower bg-surface-default hover:bg-surface-low transition-colors"
+          className={`w-full flex items-center justify-between gap-ha-3 px-ha-4 py-ha-2 rounded-ha-xl transition-colors ${flat ? 'mb-ha-2 hover:bg-surface-mid/50' : 'mb-ha-4 border border-surface-lower bg-surface-default hover:bg-surface-low'}`}
         >
           <span className="text-[13px] font-medium text-text-secondary">Preview as non-admin</span>
           <span
@@ -257,7 +273,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
         {visibleSections.length === 0 ? (
           <p className="text-sm text-text-tertiary text-center py-ha-6">No results for &ldquo;{searchQuery}&rdquo;</p>
         ) : navCardSections.length > 0 && (
-          <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden py-ha-2">
+          <div className={groupClass}>
             {navCardSections.map((section, idx) => {
               const accent = categoryAccents[section.title] ?? '#64748b';
               return (
@@ -283,10 +299,8 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
           Still searchable, so it follows the filtered `devToolsSection`. */}
       {devToolsSection && (
         <div className="pb-ha-4">
-          <p className="text-[13px] font-semibold uppercase tracking-wide text-text-tertiary px-ha-3 pb-ha-2">
-            {devToolsSection.title}
-          </p>
-          <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden py-ha-2">
+          <SectionLabel inset className="pb-ha-2">{devToolsSection.title}</SectionLabel>
+          <div className={groupClass}>
             {devToolsSection.items.map((item) => (
               <NavItem
                 key={item.slug}
@@ -304,10 +318,8 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
       {/* System power controls — admin-only in real HA; hidden while searching too. */}
       {isAdmin && !searchQuery.trim() && (
         <div className="pb-ha-4">
-          <p className="text-[13px] font-semibold uppercase tracking-wide text-text-tertiary px-ha-3 pb-ha-2">
-            System
-          </p>
-          <div className="bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden py-ha-2">
+          <SectionLabel inset className="pb-ha-2">System</SectionLabel>
+          <div className={groupClass}>
             {SYSTEM_COMMANDS.map((cmd) => (
               <button
                 key={cmd.key}

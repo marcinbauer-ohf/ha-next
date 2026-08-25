@@ -12,12 +12,43 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OnboardingFlow } from '@/components/onboarding';
+import { FinaleStep } from '@/components/onboarding/steps/FinaleStep';
 import { resetOnboarding } from '@/lib/onboarding';
+
+/**
+ * /dev/ bypasses AppShell, so the dashboard the finale reveals doesn't exist
+ * here — this iframe stands in for it. Dev preview only.
+ */
+function AppBehind() {
+  return (
+    <iframe
+      src="/"
+      title="Dashboard behind the flow"
+      aria-hidden
+      tabIndex={-1}
+      // Same handle the real shell carries, so the finale's dolly (globals.css)
+      // moves this stand-in too — otherwise the preview can't show it.
+      data-app-shell
+      className="fixed inset-0 w-full h-full border-0 pointer-events-none"
+    />
+  );
+}
 
 export default function OnboardingPreviewPage() {
   const router = useRouter();
   const [runId, setRunId] = useState(0);
   const [finished, setFinished] = useState(false);
+  // Iterating on the finale without replaying nine steps first.
+  const [finaleOnly, setFinaleOnly] = useState(false);
+
+  if (finaleOnly) {
+    return (
+      <div data-mode="dark" className="fixed inset-0 bg-surface-default text-text-primary">
+        <AppBehind />
+        <FinaleStep key={runId} onFinish={() => setRunId((n) => n + 1)} />
+      </div>
+    );
+  }
 
   if (finished) {
     return (
@@ -34,7 +65,7 @@ export default function OnboardingPreviewPage() {
               setFinished(false);
               setRunId((n) => n + 1);
             }}
-            className="h-11 px-ha-5 rounded-ha-pill bg-ha-blue text-white text-sm font-semibold hover:brightness-110 transition-all"
+            className="h-11 px-ha-5 rounded-full bg-ha-blue text-white text-sm font-semibold hover:brightness-110 transition-all"
           >
             Play again
           </button>
@@ -44,7 +75,7 @@ export default function OnboardingPreviewPage() {
               resetOnboarding();
               router.push('/');
             }}
-            className="h-11 px-ha-5 rounded-ha-pill bg-surface-low text-text-primary text-sm font-semibold hover:bg-surface-mid transition-colors"
+            className="h-11 px-ha-5 rounded-full bg-surface-low text-text-primary text-sm font-semibold hover:bg-surface-mid transition-colors"
           >
             Reset gate &amp; open app
           </button>
@@ -53,5 +84,17 @@ export default function OnboardingPreviewPage() {
     );
   }
 
-  return <OnboardingFlow key={runId} resume={false} onDone={() => setFinished(true)} />;
+  return (
+    <>
+      <AppBehind />
+      <OnboardingFlow key={runId} resume={false} onDone={() => setFinished(true)} />
+      <button
+        type="button"
+        onClick={() => setFinaleOnly(true)}
+        className="fixed bottom-ha-3 left-ha-3 z-[200] h-8 px-ha-3 rounded-full bg-black/50 text-white/70 text-xs"
+      >
+        Replay the finale
+      </button>
+    </>
+  );
 }

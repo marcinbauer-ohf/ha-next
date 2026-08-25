@@ -2,6 +2,7 @@
 
 import { Fragment } from 'react';
 import { ModalSheet } from '@/components/layout/ModalSheet';
+import { SectionLabel } from './SectionLabel';
 import {
   SHORTCUTS,
   formatKeycaps,
@@ -93,9 +94,7 @@ export function ShortcutList({
     <div className="space-y-ha-6">
       {groups.map((group) => (
         <section key={group}>
-          <h3 className="text-xs font-medium uppercase tracking-wider text-text-tertiary mb-ha-2">
-            {group}
-          </h3>
+          <SectionLabel className="mb-ha-2">{group}</SectionLabel>
           <ul className="divide-y divide-surface-lower">
             {SHORTCUTS.filter((s) => s.group === group).map((shortcut) => {
               const label = <span className="text-sm text-text-primary">{shortcut.label}</span>;

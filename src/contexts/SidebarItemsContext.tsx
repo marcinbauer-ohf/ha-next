@@ -255,7 +255,7 @@ function resolveAppStatus(addon?: HaAddon, update?: AddonUpdateState): AppStatus
 const ADDON_POLL_MS = 60_000;
 
 export function SidebarItemsProvider({ children }: { children: ReactNode }) {
-  const { connected, demoMode } = useHomeAssistant();
+  const { connected, demoMode, demoEmpty } = useHomeAssistant();
   const addonUpdates = useHomeAssistantSelector(selectAddonUpdates, areAddonUpdatesEqual);
   const [addons, setAddons] = useState<Record<string, HaAddon>>({});
   const [refreshTick, setRefreshTick] = useState(0);
@@ -278,11 +278,14 @@ export function SidebarItemsProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setError(null);
 
+      // The emptied demo is a fresh install: the stock panels are there, but the
+      // extra dashboards and add-on panels nobody has created yet are not.
       if (demoMode) {
-        applyResult([
-          ...cloneBaseSidebarItems(),
-          ...demoSidebarItems.map((item) => ({ ...item })),
-        ]);
+        applyResult(
+          demoEmpty
+            ? cloneBaseSidebarItems()
+            : [...cloneBaseSidebarItems(), ...demoSidebarItems.map((item) => ({ ...item }))],
+        );
         return;
       }
 
@@ -326,7 +329,7 @@ export function SidebarItemsProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [connected, demoMode]);
+  }, [connected, demoMode, demoEmpty]);
 
   useEffect(() => {
     if (!connected || demoMode) return;

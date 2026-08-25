@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../ui/Icon';
+import { IconButton } from '../ui/IconButton';
 import {
   type AutomationNode,
   type NodeKind,
@@ -287,15 +288,7 @@ export function AutomationNodeCanvas({
         </div>
 
         {/* Reset view — clears drag + pan. */}
-        <button
-          type="button"
-          onClick={resetView}
-          aria-label="Reset layout"
-          title="Reset layout"
-          className="absolute bottom-ha-4 left-ha-4 z-10 flex h-10 w-10 items-center justify-center rounded-ha-xl border border-surface-lower bg-surface-default text-text-secondary shadow-sm transition-colors hover:bg-surface-low hover:text-text-primary"
-        >
-          <Icon path={mdiCrosshairsGps} size={18} />
-        </button>
+        <IconButton icon={mdiCrosshairsGps} label="Reset layout" shape="square" filled onClick={resetView} />
       </div>
 
       {/* Config sidebar — slides in when a node is selected. The panel brings its

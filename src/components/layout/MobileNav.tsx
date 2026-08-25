@@ -21,9 +21,10 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Icon } from '../ui/Icon';
+import { IconButton } from '../ui/IconButton';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { SearchField } from '../ui/SearchField';
-import { Avatar } from '../ui/Avatar';
+import { SettingsGlyph } from '../ui/SettingsGlyph';
 import { HALogo } from '../ui/HALogo';
 import { MdiIcon } from '../ui/MdiIcon';
 import { AppStatusBadge, appStatusDimmed } from '../ui/AppStatusBadge';
@@ -49,6 +50,9 @@ import { subscribeStatusPulse } from '@/lib/statusPulseBus';
 import { isNavAutoHideFrozen, subscribeNavAutoHideFrozen } from '@/lib/navAutoHideBus';
 import { setMobileNavOpen } from '@/lib/mobileNavOpenBus';
 import { haptic } from '@/lib/haptics';
+import { SheetGrabber } from '../ui/SheetGrabber';
+import { Button } from '../ui';
+import { SectionLabel } from '../ui/SectionLabel';
 import {
   areEntitySearchMatchesEqual,
   selectMatchingEntities,
@@ -72,7 +76,6 @@ import {
   mdiPrinter3d,
   mdiViewDashboardOutline,
   mdiStarFourPoints,
-  mdiMenu,
   mdiMinus,
   mdiPlus,
   mdiCheck,
@@ -302,6 +305,8 @@ interface MobileNavProps {
   connectionStatus?: ConnectionStatusType;
   onNavAutoHiddenChange?: (progress: number) => void;
   editModeFade?: boolean;
+  /** Leave settings when the settings item is tapped from inside it. */
+  onSettingsToggle?: () => void;
 }
 
 function getDashboardScrollableForPath(pathname: string): HTMLElement | null {
@@ -332,7 +337,7 @@ function isNavItemActive(currentPath: string, itemPath: string): boolean {
   );
 }
 
-export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoHiddenChange, editModeFade }: MobileNavProps) {
+export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoHiddenChange, editModeFade, onSettingsToggle }: MobileNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { haUrl, callService } = useHomeAssistant();
@@ -906,14 +911,16 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
   // Tapping the settings entry while already on the settings root scrolls that
   // page back to the top (a no-op push wouldn't). From anywhere else it just
   // navigates there.
+  // Tapping settings from inside settings leaves it again — same toggle the
+  // desktop avatar and the S shortcut do.
   const handleSettingsTap = useCallback(() => {
-    if (pathname === '/settings') {
+    if (pathname.startsWith('/settings')) {
       closeExpandedSurface();
-      getDashboardScrollableForPath('/settings')?.scrollTo({ top: 0, behavior: 'smooth' });
+      onSettingsToggle?.();
       return;
     }
     navigateFromSurface('/settings');
-  }, [pathname, closeExpandedSurface, navigateFromSurface]);
+  }, [pathname, closeExpandedSurface, navigateFromSurface, onSettingsToggle]);
 
   const openExpandedSurface = useCallback(
     (tab: BottomSurfaceTab) => {
@@ -1137,16 +1144,6 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
   ]);
 
 
-
-  const userAvatar = useMemo(() => {
-    if (activityData.user) {
-      return {
-        picture: resolveEntityPictureUrl(haUrl, activityData.user.picture),
-        initials: activityData.user.initials,
-      };
-    }
-    return { picture: undefined, initials: 'U' };
-  }, [activityData.user, haUrl]);
 
   // Per-type lists come from the activity ledger: relevance-sorted, ended
   // items lingering in their final state, persisted dismissals filtered out —
@@ -1490,17 +1487,16 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                         <span className="text-[13px] truncate text-text-secondary">{hiddenItem.title}</span>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      aria-label={`Show ${hiddenItem.title}`}
+                    <IconButton
+                      icon={mdiPlus}
+                      label={`Show ${hiddenItem.title}`}
+                      size="sm"
+                      exact
                       onClick={() => {
                         haptic('impact');
                         restoreItem(hiddenItem.id);
                       }}
-                      className="ha-arrange-badge absolute -top-1.5 -right-1.5 z-10 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-md shadow-black/30 ring-2 ring-surface-default"
-                    >
-                      <Icon path={mdiPlus} size={13} exact />
-                    </button>
+                    />
                   </div>
                 ))}
             </div>
@@ -1509,14 +1505,9 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
               full-width bottom placement as the desktop rail, thumb-reachable. */}
           <div className="mt-ha-4">
             {arranging ? (
-              <button
-                type="button"
-                onClick={exitArrange}
-                className="w-full h-11 rounded-ha-xl bg-ha-blue text-white text-sm font-semibold flex items-center justify-center gap-ha-2 active:scale-[0.98] transition-transform"
-              >
-                <Icon path={mdiCheck} size={18} />
+              <Button variant="primary" icon={mdiCheck} onClick={exitArrange} block>
                 Done
-              </button>
+              </Button>
             ) : (
               <EditItemsButton variant="bar" onClick={enterArrange} />
             )}
@@ -1555,9 +1546,9 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
 
           {!showSearchEmptyState && (
             <div className="space-y-ha-2">
-              <p className="text-[13px] font-bold text-text-tertiary uppercase tracking-wider px-ha-2">
+              <SectionLabel inset>
                 {expandedSearchQuery.trim() ? 'Results' : 'Suggestions'}
-              </p>
+              </SectionLabel>
               <div className="bg-surface-low rounded-ha-2xl border border-surface-low/80 overflow-hidden">
                 {expandedSearchItems.map(result => {
                   const content = (
@@ -1634,7 +1625,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                   </div>
                 ))}
               </div>
-              <button
+              <Button
                 onClick={() => {
                   const remaining = visibleReleaseNotes.filter((note) => note.entityId !== activeRelease.entityId);
                   // Persisted + shared with the desktop dock; never reposts
@@ -1650,10 +1641,11 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                   setSelectedReleaseId(null);
                   closeExpandedSurface();
                 }}
-                className="w-full h-11 rounded-ha-xl bg-green-600 text-white text-xs font-bold uppercase tracking-wider active:scale-95 transition-transform"
+                variant="primary"
+                block
               >
-                Dismiss Notes
-              </button>
+                Dismiss notes
+              </Button>
             </div>
           </div>
         );
@@ -1673,10 +1665,9 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
               <div className="p-ha-4">
                 <h4 className="text-sm font-bold text-text-primary mb-1">{activeCamera.name}</h4>
                 <p className="text-xs text-red-500 font-bold uppercase tracking-tight mb-4">{activeCamera.event}</p>
-                <button className="w-full h-12 rounded-ha-xl bg-ha-blue text-white text-sm font-bold uppercase tracking-wider flex items-center justify-center gap-2">
-                  <Icon path={mdiMicrophone} size={18} />
+                <Button variant="primary" icon={mdiMicrophone} block>
                   Talk to Doors
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -1705,9 +1696,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                   <span className="text-[13px] font-bold text-text-disabled uppercase">Time Left</span>
                   <span className="text-sm font-mono font-bold text-text-primary">{activePrinter.remainingTime}</span>
                 </div>
-                <button className="h-10 px-4 bg-red-500/10 text-red-500 rounded-ha-lg font-bold text-xs uppercase transition-colors hover:bg-red-500 hover:text-white">
-                  Stop
-                </button>
+                <Button variant="danger" size="sm">Stop</Button>
               </div>
             </div>
           </div>
@@ -1748,9 +1737,9 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                   <span className="text-sm font-bold text-text-primary">{activeVacuum.fanSpeed || 'Auto'}</span>
                 </div>
               </div>
-              <button className="w-full h-11 rounded-ha-xl bg-red-500/10 text-red-500 font-bold text-xs uppercase tracking-wider transition-colors hover:bg-red-500 hover:text-white active:scale-95">
+              <Button variant="danger" block>
                 Stop &amp; Dock
-              </button>
+              </Button>
             </div>
           </div>
         );
@@ -1771,7 +1760,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
               <div className="w-full flex items-center justify-center gap-ha-6 mb-ha-2">
                 <Icon path={mdiSkipPrevious} size={28} className="text-text-primary" />
                 <button
-                  className="w-14 h-14 rounded-full bg-ha-blue text-white flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                  className="w-14 h-14 rounded-full bg-ha-blue text-white flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                   onClick={() =>
                     callService({
                       domain: 'media_player',
@@ -1818,21 +1807,22 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                 </div>
               </div>
               {activeTimer.status.phase === 'ended' ? (
-                <button
+                <Button
+                  variant="primary"
+                  block
                   onClick={() => {
                     dismissActivity(activeTimer.entityId, endedDismissKey(activeTimer.status));
                     closeExpandedSurface();
                   }}
-                  className="w-full h-11 rounded-ha-xl bg-green-600 text-white font-bold text-xs uppercase tracking-wider active:scale-95 transition-transform"
                 >
                   Dismiss
-                </button>
+                </Button>
               ) : (
                 <div className="grid grid-cols-2 gap-ha-3 w-full">
-                  <button className="h-11 rounded-ha-xl bg-surface-mid text-text-secondary font-bold text-xs uppercase tracking-wider">Cancel</button>
-                  <button className={`h-11 rounded-ha-xl font-bold text-xs uppercase tracking-wider text-white ${activeTimer.isPaused ? 'bg-ha-blue' : 'bg-yellow-500'}`}>
+                  <Button>Cancel</Button>
+                  <Button variant="primary">
                     {activeTimer.isPaused ? 'Resume' : 'Pause'}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -1992,14 +1982,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                       placeholder="Search or ask anything..."
                       className="flex-1"
                     />
-                    <button
-                      type="button"
-                      aria-label="Close search"
-                      onClick={closeExpandedSurface}
-                      className="w-11 h-11 rounded-ha-xl border border-surface-low/80 bg-surface-low flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-mid/40 transition-colors"
-                    >
-                      <Icon path={mdiClose} size={20} />
-                    </button>
+                    <IconButton icon={mdiClose} label="Close search" size="lg" shape="square" filled onClick={closeExpandedSurface} />
                   </div>
                 )}
                 <div className="relative flex-1 min-h-0">
@@ -2051,7 +2034,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
             type="button"
             onClick={() => openAssistant()}
             aria-label="Ask your home"
-            className="flex-1 min-w-0 h-10 flex items-center gap-ha-2 bg-surface-low rounded-ha-pill px-ha-3 active:scale-95 transition-transform"
+            className="flex-1 min-w-0 h-10 flex items-center gap-ha-2 bg-surface-low rounded-full px-ha-3 active:scale-95 transition-transform"
           >
             <span className="text-sm text-text-disabled truncate flex-1 text-left">
               Ask <span className="text-text-tertiary/60 capitalize">{
@@ -2561,12 +2544,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                 isSettingsActive ? 'opacity-100' : 'opacity-90 hover:opacity-100'
               }`}
             >
-              <div className="relative flex items-center justify-center">
-                <Icon path={mdiMenu} size={28} className="absolute -left-3 text-text-secondary z-0" />
-                <div className="relative z-10 rounded-full ring-[3px] ring-surface-low bg-surface-low">
-                  <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" />
-                </div>
-              </div>
+              <SettingsGlyph hover={false} />
               <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
                 isSettingsActive ? 'opacity-100' : 'opacity-0'
               }`} />
@@ -2642,7 +2620,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
             <div className="relative bg-surface-default w-full rounded-t-ha-sheet shadow-2xl animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[70vh]">
               {/* Handle */}
               <div className="flex justify-center pt-ha-3 pb-ha-1 flex-shrink-0" onClick={() => setActivityListType(null)}>
-                <div className="w-10 h-1.5 rounded-full bg-surface-low/60" />
+                <SheetGrabber />
               </div>
               {/* Header — the shared one */}
               <SheetHeader
@@ -2700,7 +2678,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                               e.stopPropagation();
                               dismissActivity(item.entityId, endedDismissKey(item.status!));
                             }}
-                            className="p-1.5 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-mid transition-colors flex-shrink-0"
+                            className="p-1.5 rounded-full text-text-secondary hover:text-text-primary hover:bg-surface-low transition-colors flex-shrink-0"
                           >
                             <Icon path={mdiClose} size={16} />
                           </span>

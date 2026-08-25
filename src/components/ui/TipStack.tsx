@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { mdiClose } from '@mdi/js';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 
 export interface TipStackAction {
   label: string;
@@ -123,13 +124,7 @@ export function TipStack({ tips }: { tips: TipStackTip[] }) {
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={front.onDismiss}
-                      aria-label="Dismiss tip"
-                      className="text-text-tertiary hover:text-text-secondary transition-colors shrink-0 p-0.5"
-                    >
-                      <Icon path={mdiClose} size={16} />
-                    </button>
+                    <IconButton icon={mdiClose} label="Dismiss tip" size="sm" tone="quiet" onClick={front.onDismiss} />
                   </div>
                 </TipSurface>
               </motion.div>

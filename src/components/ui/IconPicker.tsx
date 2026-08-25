@@ -22,6 +22,7 @@ import {
   mdiMicrowave, mdiToaster, mdiDishwasher, mdiIron, mdiTumbleDryer, mdiHairDryer,
 } from '@mdi/js';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 import { SearchField } from './SearchField';
 import { mdiClose, mdiEmoticonOutline } from '@mdi/js';
 
@@ -201,14 +202,7 @@ export function IconPicker({ value, onChange, placeholderPath = mdiEmoticonOutli
                 >
                   <div className="mb-ha-3 flex items-center gap-ha-2">
                     <SearchField value={query} onChange={setQuery} onClear={() => setQuery('')} placeholder="Search icons…" autoFocus className="flex-1" />
-                    <button
-                      type="button"
-                      onClick={() => setOpen(false)}
-                      aria-label="Close"
-                      className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-ha-2xl text-text-secondary transition-colors hover:bg-surface-mid"
-                    >
-                      <Icon path={mdiClose} size={20} />
-                    </button>
+                    <IconButton icon={mdiClose} label="Close" size="lg" shape="square" onClick={() => setOpen(false)} />
                   </div>
 
                   <div className="max-h-[320px] overflow-y-auto">

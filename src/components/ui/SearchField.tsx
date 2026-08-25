@@ -3,6 +3,7 @@
 import type { ReactNode, Ref } from 'react';
 import { clsx } from 'clsx';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 import { mdiMagnify, mdiClose } from '@mdi/js';
 
 interface SearchFieldProps {
@@ -100,14 +101,7 @@ export function SearchField({
       />
       {trailing}
       {value && onClear && (
-        <button
-          type="button"
-          onClick={onClear}
-          aria-label="Clear search"
-          className="flex-shrink-0 -mr-1 p-1 text-text-tertiary hover:text-text-secondary transition-colors"
-        >
-          <Icon path={mdiClose} size={18} />
-        </button>
+        <IconButton icon={mdiClose} label="Clear search" size="sm" tone="quiet" onClick={onClear} />
       )}
     </div>
   );

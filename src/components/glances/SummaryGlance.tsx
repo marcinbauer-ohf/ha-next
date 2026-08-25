@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { SummaryCard } from '../cards/SummaryCard';
 import { ModalSheet } from '../layout/ModalSheet';
 import { BatteryDetail, ClimateDetail, LightsDetail, ModeDetail, PeopleDetail, SecurityDetail, WeatherDetail } from './summaryDetails';
+import { SummaryScopeProvider, type SummaryScope } from './summaryScope';
 import type { GlanceId, SummaryCardProps } from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,12 +39,15 @@ export function SummaryGlance({
   variant,
   size,
   translucent,
+  scope,
 }: {
   item: SummaryGlanceItem;
   compact?: boolean;
   variant?: SummaryCardProps['variant'];
   size?: SummaryCardProps['size'];
   translucent?: boolean;
+  /** Set on an area page — the dialog then describes that room, not the home. */
+  scope?: SummaryScope;
 }) {
   const [open, setOpen] = useState(false);
   const Panel = item.id ? PANELS[item.id] : undefined;
@@ -64,9 +68,13 @@ export function SummaryGlance({
         onClick={Panel ? (e) => { e.stopPropagation(); setOpen(true); } : undefined}
       />
       {Panel && (
-        <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={640}>
+        <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={640} contained>
           {/* Mounted only while open, so nothing fetches history behind a closed sheet. */}
-          {open && <Panel onClose={() => setOpen(false)} />}
+          {open && (
+            <SummaryScopeProvider value={scope ?? null}>
+              <Panel onClose={() => setOpen(false)} />
+            </SummaryScopeProvider>
+          )}
         </ModalSheet>
       )}
     </>

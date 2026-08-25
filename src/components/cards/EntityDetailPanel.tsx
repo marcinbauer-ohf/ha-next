@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { mdiPencilOutline, mdiPower, mdiStar, mdiStarOutline, mdiCogOutline, mdiChevronRight, mdiDotsVertical, mdiDevices, mdiMapMarkerOutline, mdiAccountVoice, mdiRobotOutline, mdiEyeOffOutline, mdiTuneVariant, mdiChartLine, mdiInformation, mdiInformationOutline, mdiOpenInNew } from '@mdi/js';
+import { mdiPencilOutline, mdiStar, mdiStarOutline, mdiCogOutline, mdiChevronRight, mdiDotsVertical, mdiDevices, mdiMapMarkerOutline, mdiAccountVoice, mdiRobotOutline, mdiEyeOffOutline, mdiTuneVariant, mdiChartLine, mdiInformation, mdiInformationOutline, mdiOpenInNew, mdiFormatListBulleted } from '@mdi/js';
 import { clsx } from 'clsx';
-import { CircularProgress, Icon, ListSection, RollingNumericValue, SectionLabel, SegmentedControl, Dropdown, HALoader, ToggleSwitch } from '../ui';
-import { SheetHeader, SHEET_PAD, sheetHeaderButton } from './dialogKit';
+import { CircularProgress, Icon, IconButton, ListSection, RollingNumericValue, SectionLabel, SegmentedControl, Dropdown, HALoader, ToggleSwitch } from '../ui';
+import { SheetHeader, SHEET_PAD } from './dialogKit';
+import { SummaryCard } from './SummaryCard';
 import { ContextMenu } from '../ui/ContextMenu';
 import { useToast } from '@/contexts/ToastContext';
 import { StateTimeline, type StateSegment } from '../ui/StateTimeline';
@@ -15,6 +16,7 @@ import { DeviceThumbnailPicker, type DeviceThumbnailPickerProps } from './Device
 import { useEntity, useHomeAssistant, peekEntities } from '@/hooks/useHomeAssistant';
 import { useDeviceInfo } from '@/hooks/useDevices';
 import { useIdleMarquee } from '@/hooks/useIdleMarquee';
+import { useEdgeFade } from '@/hooks/useEdgeFade';
 import { stateParts } from '@/lib/homeassistant/entityHelpers';
 import type { HistoryPoint, StatisticValue } from '@/lib/homeassistant/types';
 
@@ -184,14 +186,6 @@ export interface EntityDetailPanelProps {
   /** Which hero arrangement to draw — see `HERO_LAYOUTS`. */
   heroLayout?: HeroLayout;
 }
-
-/**
- * A reading the rolling digits should animate: a figure plus at most a short
- * unit ("21.4 °C", "4.271kWh", "-63dBm"). Deliberately not "starts with a
- * digit" — a firmware string like "2026.7.1-beta.3 (build 41f9c2)" does too, and
- * rendering it character by character eats the spaces between its words.
- */
-const READING_RE = /^-?\d[\d.,]*\s?\S{0,4}$/;
 
 // ── Detail body — history fetch + render ─────────────────────────────────────
 
@@ -1172,18 +1166,17 @@ const PANEL_TABS = [
 ];
 
 /**
- * Height of the closed "On this device" shelf — its 8px top padding, the 24px
- * heading row and the 16px padding under it. The hero is sized to the frame
- * minus this, so with the shelf shut the heading lands exactly on the panel's
- * bottom edge: nothing to scroll, nothing sliced, and the chevron is what says
- * there's more.
+ * Height of the "On this device" chip row — its 8px top padding, the 40px chips
+ * (the dashboard's summary chip) and the 16px padding under it. The hero is sized to the frame minus this, so
+ * the row lands exactly on the panel's bottom edge: nothing to scroll, nothing
+ * sliced, and every entity the device has is one tap away.
  */
-const SHELF_PEEK = 48;
+const SHELF_PEEK = 64;
 
-/** Where the panel sits when the hero is "landed": hero fully shown, shelf shut under it. */
-function heroLanding(el: HTMLElement, hero: HTMLElement | null): number {
+/** Where the panel sits when the hero is "landed": hero fully shown, chip row under it. */
+function heroLanding(el: HTMLElement, hero: HTMLElement | null, peek: number): number {
   if (!hero) return 0;
-  return Math.max(0, hero.offsetTop + hero.offsetHeight + SHELF_PEEK - el.clientHeight);
+  return Math.max(0, hero.offsetTop + hero.offsetHeight + peek - el.clientHeight);
 }
 
 export function EntityDetailPanel({
@@ -1207,17 +1200,20 @@ export function EntityDetailPanel({
   // Overflow menu anchor (null = closed). Placeholder actions for now — each
   // just confirms itself with a toast so nothing is silently inert.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
-  // "On this device" is an accordion: shut, it's one heading row on the panel's
-  // bottom edge and the hero has the whole frame. Open, the full list is there to
-  // scroll. Every device opens shut — the hero is what you came for.
-  const [shelfOpen, setShelfOpen] = useState(false);
+  // The chip row's overflow menu (null = closed) — every entity on the device as
+  // a plain list, for the ones the row has scrolled out of reach.
+  const [listAt, setListAt] = useState<{ x: number; y: number } | null>(null);
   const { showToast } = useToast();
+  // A one-entity device has nothing to switch between: no chip row, no menu, and
+  // the hero takes the whole frame instead of leaving a gap for a row of one.
+  const showShelf = entities.length > 1;
+  const shelfPeek = showShelf ? SHELF_PEEK : 0;
 
   // Focus the clicked entity (and reset tab) whenever a new card is opened
   useEffect(() => {
     setTab('main');
     setFocusedEntityId(initialEntityId);
-    setShelfOpen(false);
+    setListAt(null);
   }, [initialEntityId]);
 
   const focusedEntity = entities.find(e => e.entityId === focusedEntityId) ?? entities[0];
@@ -1228,6 +1224,8 @@ export function EntityDetailPanel({
   const heroScrollRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   useIdleMarquee(heroScrollRef, true);
+  // The chip row's sideways scroll fades (the app-wide scrollable-list pattern).
+  const { ref: chipsRef, onScroll: onChipsScroll, style: chipsFadeStyle } = useEdgeFade(32);
 
   // Releases the landing pin below — the title's "jump to the list" must not be
   // yanked back by a late resize.
@@ -1299,7 +1297,7 @@ export function EntityDetailPanel({
   useEffect(() => {
     const el = heroScrollRef.current;
     if (!el) return;
-    const toHero = () => { el.scrollTop = heroLanding(el, heroRef.current); };
+    const toHero = () => { el.scrollTop = heroLanding(el, heroRef.current, shelfPeek); };
     toHero();
     // History arrives a moment after the switch and grows the region, so one
     // scroll isn't enough — follow the content until it settles, and let go the
@@ -1312,27 +1310,11 @@ export function EntityDetailPanel({
     releasePin.current = stop;
     const t = setTimeout(stop, 1200);
     return () => { clearTimeout(t); stop(); };
-  }, [initialEntityId]);
+  }, [initialEntityId, shelfPeek]);
 
-  // Open the shelf and ride up to it. The list mounts in the same commit as the
-  // state change, so the scroll waits a frame for it to have a height to scroll
-  // to. Open lands at the very top — the hero has collapsed to a pinned band, so
-  // the list already starts right under it. Closing goes the other way — back
-  // onto the hero.
-  const setShelf = (open: boolean) => {
-    setShelfOpen(open);
-    releasePin.current();
-    requestAnimationFrame(() => {
-      const el = heroScrollRef.current;
-      if (!el) return;
-      const top = open ? 0 : heroLanding(el, heroRef.current);
-      el.scrollTo({ top, behavior: 'smooth' });
-    });
-  };
-
-  // Picking a row never scrolls: it swaps the hero above and leaves you where you
-  // were in the list, so you can run down it changing focus without the panel
-  // moving under your finger. The chevron (or the title) is how you go back up.
+  // Picking a chip never scrolls: it swaps the hero above and leaves the row
+  // exactly where it was, so you can run along the device changing focus without
+  // the panel moving under your finger.
 
   // Product render used as the dialog's backdrop. Same render-adjust pattern as
   // the card: a hand-placed PNG that 404s drops out instead of leaving a broken
@@ -1354,56 +1336,9 @@ export function EntityDetailPanel({
   const splitDiagnostics = allDiagnostics.length > 0 && allDiagnostics.length < entities.length;
   const mainEntities = splitDiagnostics ? entities.filter(e => e.category !== 'diagnostic') : entities;
   const diagnosticEntities = splitDiagnostics ? allDiagnostics : [];
-
-  const renderEntityRow = (entity: PanelEntity) => {
-    // Selected = currently shown in the hero.
-    const isSelected = entity.entityId === focusedEntityId;
-    return (
-      <div
-        key={entity.entityId}
-        onClick={() => setFocusedEntityId(entity.entityId)}
-        aria-pressed={isSelected}
-        className={clsx(
-          'flex items-center gap-ha-3 px-ha-4 py-ha-2 cursor-pointer transition-colors',
-          isSelected ? 'bg-ha-blue/10' : 'hover:bg-surface-low',
-        )}
-      >
-        <div className={clsx(
-          'w-7 h-7 flex items-center justify-center shrink-0',
-          isSelected ? 'text-ha-blue' : entity.active && entity.toggleable ? 'text-green-500' : 'text-text-tertiary',
-        )}>
-          <Icon path={entity.icon} size={16} />
-        </div>
-        <span className={clsx('ha-card-marquee min-w-0 flex-1 text-sm truncate', isSelected ? 'font-medium text-ha-blue' : 'text-text-primary')}>
-          <span data-marquee>{entity.name}</span>
-        </span>
-        {entity.toggleable && entity.onToggle ? (
-          <ToggleSwitch on={entity.active} onToggle={entity.onToggle} />
-        ) : entity.pressable && entity.onToggle ? (
-          <button
-            onClick={(e) => { e.stopPropagation(); entity.onToggle!(); }}
-            className="flex items-center justify-center shrink-0 w-11 h-[26px] rounded-full bg-surface-mid hover:bg-surface-lower transition-colors"
-          >
-            <Icon path={mdiPower} size={12} className="text-text-secondary" />
-          </button>
-        ) : READING_RE.test(entity.state) ? (
-          <RollingNumericValue
-            value={entity.state}
-            className="text-sm font-medium font-mono shrink-0 text-text-secondary"
-          />
-        ) : (
-          // Wordy readings (a firmware build, a media title) can be longer than
-          // the row: give them a fixed share of it and let the marquee reveal
-          // the tail. Rolling digits would drop the spaces between words.
-          // The width has to be definite — `.ha-card-marquee` is an inline-size
-          // container, so a content-sized box collapses to nothing.
-          <span className="ha-card-marquee w-[45%] shrink-0 truncate text-right font-mono text-sm font-medium text-text-secondary">
-            <span data-marquee>{entity.state}</span>
-          </span>
-        )}
-      </div>
-    );
-  };
+  // The chip row runs main entities first, diagnostics after — same order the
+  // list had, minus the heading a single row has no room for.
+  const shelfEntities = [...mainEntities, ...diagnosticEntities];
 
   return (
     // One height for every device: a fixed frame, not a content-sized box. The
@@ -1416,7 +1351,7 @@ export function EntityDetailPanel({
     <div
       ref={panelRef}
       className="h-[min(70dvh,760px)] lg:h-[min(88vh,900px)] flex flex-col overflow-hidden"
-      style={{ '--panel-shelf-peek': `${SHELF_PEEK}px` } as CSSProperties}
+      style={{ '--panel-shelf-peek': `${shelfPeek}px` } as CSSProperties}
     >
       {/* Header — the shared one. Where it lives (room ▸ device) is the eyebrow,
           the focused entity is the title, and tapping it jumps to "On this
@@ -1426,42 +1361,40 @@ export function EntityDetailPanel({
         eyebrow={[deviceMeta?.areaName, deviceName].filter(Boolean).join(' ▸ ') || undefined}
         title={focusedEntity?.name ?? deviceName ?? ''}
         onClose={onClose}
-        onTitleClick={() => setShelf(true)}
-        titleHint="Show everything on this device"
+        onTitleClick={showShelf ? (e) => { const r = e.currentTarget.getBoundingClientRect(); setListAt({ x: r.left, y: r.bottom }); } : undefined}
+        titleHint={showShelf ? 'Show everything on this device' : undefined}
         // Favorite and pencil sit bare; everything rarer (settings included)
         // is behind the overflow dots.
         actions={
           <>
             {onToggleFavorite && (
-              <button
-                className={clsx(sheetHeaderButton, isFavorite && 'text-amber-500')}
+              <IconButton
+                icon={isFavorite ? mdiStar : mdiStarOutline}
+                label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                size="lg"
+                // `!` so the starred amber beats the button's own resting colour
+                // whichever order Tailwind emits the two utilities in.
+                className={isFavorite ? '!text-amber-500' : undefined}
                 onClick={onToggleFavorite}
-                title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 aria-pressed={isFavorite}
-              >
-                <Icon path={isFavorite ? mdiStar : mdiStarOutline} size={24} />
-              </button>
+              />
             )}
             {onEditCard && (
-              <button className={sheetHeaderButton} onClick={onEditCard} title="Edit card">
-                <Icon path={mdiPencilOutline} size={24} />
-              </button>
+              <IconButton icon={mdiPencilOutline} label="Edit card" size="lg" onClick={onEditCard} />
             )}
             {/* Overflow — the less-used contextual actions, HA's more-info menu.
                 Settings is not in here any more: it has its own place in the nav. */}
-            <button
-              className={sheetHeaderButton}
-              onClick={(e) => {
+            <IconButton
+              icon={mdiDotsVertical}
+              label="More options"
+              size="lg"
+              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                 const r = e.currentTarget.getBoundingClientRect();
                 setMenuAt({ x: r.right - 200, y: r.bottom + 6 });
               }}
-              title="More options"
-              aria-label="More options"
               aria-haspopup="menu"
               aria-expanded={!!menuAt}
-            >
-              <Icon path={mdiDotsVertical} size={24} />
-            </button>
+            />
           </>
         }
       />
@@ -1480,6 +1413,22 @@ export function EntityDetailPanel({
           ].map(a => ({
             ...a,
             onSelect: () => showToast({ title: a.label, subtitle: 'Not wired up yet', icon: a.icon }),
+          }))}
+        />
+      )}
+
+      {listAt && (
+        <ContextMenu
+          x={listAt.x}
+          y={listAt.y}
+          onClose={() => setListAt(null)}
+          actions={shelfEntities.map((entity, i) => ({
+            label: entity.name,
+            icon: entity.icon,
+            // One divider where the diagnostics start, so the menu still says
+            // which readings are the device talking about itself.
+            separator: diagnosticEntities.length > 0 && i === mainEntities.length,
+            onSelect: () => setFocusedEntityId(entity.entityId),
           }))}
         />
       )}
@@ -1527,14 +1476,8 @@ export function EntityDetailPanel({
               // shut shelf, so its heading and chevron sit on the panel's bottom
               // edge instead of being invisible until you find them.
               'relative z-[2] flex flex-col justify-end',
-              // Shelf open — you're running the list, and what you picked must
-              // stay on screen: the hero collapses to its band (no controls, no
-              // chart — see the props below) and pins to the top of the
-              // scrollport while every row scrolls under it. Content-height, so
-              // the list gets the rest of the frame whatever the device is.
-              shelfOpen
-                ? 'sticky top-0 bg-surface-lower'
-                : clsx('min-h-[calc(100%-var(--panel-shelf-peek))]', showBackdrop && 'pt-[116px]'),
+              'min-h-[calc(100%-var(--panel-shelf-peek))]',
+              showBackdrop && 'pt-[116px]',
             )}>
               <EntityDetailBody
                 key={focusedEntity.entityId}
@@ -1549,11 +1492,8 @@ export function EntityDetailPanel({
                 // is one place, the History tab, which keeps the same hero
                 // (scrubbing still moves the reading) and gives the chart and
                 // its log all the room the controls were using.
-                // Both off while the shelf is open: the pinned hero above is
-                // then always one band tall, so it fits any frame and the list
-                // keeps the room it needs.
-                historyView={tab === 'history' && !shelfOpen ? 'full' : 'none'}
-                showControls={tab !== 'history' && !shelfOpen}
+                historyView={tab === 'history' ? 'full' : 'none'}
+                showControls={tab !== 'history'}
                 pastTab={pastTab}
                 onPastTabChange={setPastTab}
                 heroLayout={heroLayout}
@@ -1564,55 +1504,59 @@ export function EntityDetailPanel({
           {/* Every entity on the device, focused one marked — this is what makes
               the card's "one device, many entities" model visible, and it anchors
               what the cog (entity scope) is configuring. It also paints the
-              panel's ground so the sticky headings can inherit it (`bg-inherit`)
-              instead of guessing at a surface token.
+              panel's ground so the hero above can inherit it.
 
-              An accordion, shut on open: the heading rides the panel's bottom
-              edge (see SHELF_PEEK) and the hero keeps the whole frame. Always
-              rendered, never gated on a count: the shelf being in the same place
-              on every device is the point, and it holds everything the device
-              still has (hidden entities included — only disabling one takes it
-              out, see panelEntitiesForDevice). */}
-          <div className="relative z-[1] bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
-              {/* The heading is the handle — a 24px row (SHELF_PEEK is measured
-                  from it), with the chevron turning down as it opens. Not
-                  "entities": the list is everything this device can show or do,
-                  in the words someone who owns the device would use. */}
-              <button
-                type="button"
-                onClick={() => setShelf(!shelfOpen)}
-                aria-expanded={shelfOpen}
-                className="flex h-6 w-full items-center gap-ha-2 px-ha-4 text-text-tertiary transition-colors hover:text-text-secondary"
-              >
-                <SectionLabel>On this device</SectionLabel>
-                <span className="text-xs font-medium tabular-nums text-text-disabled">
-                  {mainEntities.length + diagnosticEntities.length}
-                </span>
-                <Icon
-                  path={mdiChevronRight}
-                  size={16}
-                  className={clsx('ml-auto transition-transform duration-200', shelfOpen && 'rotate-90')}
-                />
-              </button>
-              {/* The whole list, however long: no inner scrollport and no row cap,
-                  so scrolling the panel reviews every entity the device has. */}
-              {shelfOpen && (
-                <div className="mt-ha-2">
-                  <ListSection>
-                    {mainEntities.map(renderEntityRow)}
-                    {/* Registry diagnostics (signal, battery, firmware…) keep their
-                        own heading, as a row inside the card — it sticks to the top
-                        of the panel's scrollport as you pass it. */}
-                    {diagnosticEntities.length > 0 && (
-                      <div className="sticky top-0 z-[1] bg-surface-low px-ha-4 py-1 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-                        Diagnostics
-                      </div>
-                    )}
-                    {diagnosticEntities.map(renderEntityRow)}
-                  </ListSection>
-                </div>
-              )}
+              One row of chips — icon and name, nothing else — scrolled sideways
+              with the app's edge fades, always in the same place on every device
+              and always the same height (SHELF_PEEK), so the hero keeps the rest
+              of the frame whether the device has two entities or twenty. The list
+              button at the end opens all of them as a menu, for the ones the row
+              has pushed out of reach. Holds everything the device still has
+              (hidden entities included — only disabling one takes it out, see
+              panelEntitiesForDevice). */}
+          {showShelf && (
+          <div className="relative z-[1] flex items-center gap-ha-2 bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
+            <div
+              ref={chipsRef}
+              onScroll={onChipsScroll}
+              style={chipsFadeStyle}
+              className="flex min-w-0 flex-1 items-center gap-ha-2 overflow-x-auto scrollbar-hide"
+            >
+              {shelfEntities.map((entity) => {
+                // Selected = currently shown in the hero.
+                const isSelected = entity.entityId === focusedEntityId;
+                return (
+                  // The dashboard's summary chip, name only: same pill, same
+                  // height, same press — the row reads as the chips at the top
+                  // of the home dashboard rather than a second chip style.
+                  <SummaryCard
+                    key={entity.entityId}
+                    compact
+                    icon={entity.icon}
+                    title={entity.name}
+                    color={isSelected ? 'primary' : entity.active && entity.toggleable ? 'success' : 'default'}
+                    className={clsx('shrink-0', isSelected && 'ring-2 ring-inset ring-ha-blue')}
+                    onClick={() => setFocusedEntityId(entity.entityId)}
+                  />
+                );
+              })}
+            </div>
+            {/* Opens at the button and gets clamped into the viewport by the menu
+                itself, so a bottom-edge anchor rises instead of running off. */}
+            <button
+              type="button"
+              aria-label="All entities on this device"
+              aria-expanded={!!listAt}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setListAt(listAt ? null : { x: r.left, y: r.bottom });
+              }}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-surface-mid hover:text-text-primary"
+            >
+              <Icon path={mdiFormatListBulleted} size={18} />
+            </button>
           </div>
+          )}
 
           </div>
         </>

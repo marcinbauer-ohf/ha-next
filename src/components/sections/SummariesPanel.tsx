@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
-import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities, useEdgeFade } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities, useHomeIsEmpty, useEdgeFade } from '@/hooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   mdiAccountMultiple,
@@ -29,18 +29,59 @@ import { EnergyGlance, AutomationsGlance, SummaryGlance } from '../glances';
 import { PeopleDetail } from '../glances/summaryDetails';
 import { ModalSheet } from '../layout/ModalSheet';
 import { useHomeMode } from '@/lib/homeMode';
-import { batteryEntities, batteryLevel, climateSensors, lowBatteryAt, securityEntities, temperatureOf, useSummaryConfig, weatherSource } from '@/lib/summaryConfig';
-import type { GlanceId } from '@/types';
+import { batteryEntities, batteryLevel, climateSensors, lowBatteryAt, securityEntities, temperatureOf, useSummaryConfig, weatherSource, type SummaryConfig } from '@/lib/summaryConfig';
+import type { SummaryScope } from '../glances/summaryScope';
+import type { GlanceId, HassEntities } from '@/types';
+import type { SummaryGlanceItem } from '../glances';
 
-export function useLiveSummaryItems() {
-  const entities = useHomeAssistantEntities();
+// A home with literally nothing in it: every chip is an invitation to its own
+// intro screen, which is otherwise unreachable — you can't click a chip that
+// isn't there. Not a demo row: no readings, no numbers, nothing that could pass
+// for the user's own home. Lights, people and automations are missing on purpose
+// — there's nothing to set up behind them, so they'd be dead ends.
+const INVITATIONS: SummaryGlanceItem[] = [
+  { id: 'climate', icon: mdiThermometer, title: 'Climate', state: 'Set up', color: 'primary' },
+  { id: 'security', icon: mdiShieldHome, title: 'Security', state: 'Set up', color: 'default' },
+  { id: 'weather', icon: mdiWeatherPartlyCloudy, title: 'Weather', state: 'Set up', color: 'default' },
+  { id: 'battery', icon: mdiBattery, title: 'Batteries', state: 'Set up', color: 'default' },
+  { id: 'mode', icon: mdiTuneVariant, title: 'Mode', state: 'Set up', color: 'violet' },
+];
+
+/**
+ * The summary chips. With no argument they describe the whole home; give it an
+ * area's entities and every reading is that room's instead — which is the only
+ * honest thing to show above one room's devices ("3 lights on" over a room with
+ * one light is a number that argues with the cards under it).
+ *
+ * Scoped, the home-only chips drop out: weather and home mode have no room
+ * meaning, and the home-wide picks are ignored in favour of what the room
+ * actually has (see useScopedEntities in summaryDetails).
+ */
+export function useLiveSummaryItems(areaEntities?: HassEntities) {
+  const home = useHomeAssistantEntities();
+  const entities = areaEntities ?? home;
+  const scoped = areaEntities !== undefined;
   const homeMode = useHomeMode();
+  // Connected, and the home really is empty — as opposed to still loading,
+  // which shows nothing at all rather than a row of invitations that vanish.
+  const homeIsEmpty = useHomeIsEmpty();
   // Which sensors count is the user's call, made in each chip's dialog — the
   // chip and the dialog have to read the same ones or they'd disagree. An
   // unconfigured home falls back to the sane default (see summaryConfig).
-  const config = useSummaryConfig();
+  const stored = useSummaryConfig();
+  // Same rule as the dialogs: inside a room, which sensors count as "the home"
+  // is beside the point; the threshold is a preference, so it carries over.
+  const config = useMemo<SummaryConfig>(
+    () => (scoped
+      ? { climate: [], humidity: [], security: [], weather: [], battery: [], batteryLow: stored.batteryLow }
+      : stored),
+    [scoped, stored],
+  );
   return useMemo(() => {
     const all = Object.values(entities);
+    // An empty room is an empty room — there is nothing to invite you to set up,
+    // so it shows no row at all rather than the fresh-install invitations.
+    if (homeIsEmpty) return scoped ? [] : INVITATIONS;
 
     const lights = all.filter(e => e.entity_id.startsWith('light.'));
     const lightsOn = lights.filter(e => e.state === 'on').length;
@@ -64,7 +105,7 @@ export function useLiveSummaryItems() {
     const items = [
       // Home mode leads the row when a helper is configured — it's the
       // "state of the whole home" so it reads first. Display-only.
-      ...(homeMode ? [{
+      ...(homeMode && !scoped ? [{
         id: 'mode' as GlanceId,
         // A fixed "mode" glyph, not the per-option icon — the chip's job is to
         // say "this is the home's mode"; the value below it says which one.
@@ -73,18 +114,20 @@ export function useLiveSummaryItems() {
         state: homeMode.current,
         color: 'violet' as const,
       }] : []),
-      {
+      ...(lights.length > 0 ? [{
         id: 'lights' as GlanceId,
         icon: mdiLightbulbGroup,
         title: 'Lights',
-        state: lights.length > 0 ? `${lightsOn} on` : '—',
+        state: `${lightsOn} on`,
         color: 'yellow' as const,
-      },
+      }] : []),
       ...(avgTemp ? [{
         id: 'climate' as GlanceId,
         icon: mdiThermometer,
         title: 'Climate',
-        state: `${avgTemp}°C avg`,
+        // "avg" only when there is something to average — one room with one
+        // thermometer just reads the temperature.
+        state: temps.length > 1 ? `${avgTemp}°C avg` : `${avgTemp}°C`,
         color: 'primary' as const,
       }] : []),
       ...(locks.length > 0 ? [{
@@ -94,7 +137,7 @@ export function useLiveSummaryItems() {
         state: allLocked ? 'All locked' : `${locksLocked}/${locks.length} locked`,
         color: (allLocked ? 'success' : 'default') as 'success' | 'default',
       }] : []),
-      ...(weather ? [{
+      ...(weather && !scoped ? [{
         id: 'weather' as GlanceId,
         icon: mdiWeatherPartlyCloudy,
         title: 'Weather',
@@ -112,15 +155,8 @@ export function useLiveSummaryItems() {
       }] : []),
     ];
 
-    // Fallback if no real data yet
-    if (items.every(i => i.state === '—') && all.length === 0) {
-      return [
-        { id: 'lights' as GlanceId, icon: mdiLightbulbGroup, title: 'Lights', state: '—', color: 'yellow' as const },
-        { id: 'climate' as GlanceId, icon: mdiThermometer, title: 'Climate', state: '—', color: 'primary' as const },
-      ];
-    }
     return items;
-  }, [entities, homeMode, config]);
+  }, [entities, homeMode, config, homeIsEmpty, scoped]);
 }
 
 const tips = [
@@ -247,15 +283,21 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
   // Use variant if provided, otherwise fallback to compact prop
   const isCompact = variant ? variant === 'compact' : compact;
 
+  // No person entities means no presence to report — like every other glance,
+  // the chip stays out of the row rather than reading "? 0 home".
+  const noPeople = peopleHome.length === 0 && peopleAway.length === 0;
+
   // Opens the People dialog, like every other chip in the row.
   const [detailOpen, setDetailOpen] = useState(false);
   const peopleDialog = (
-    <ModalSheet open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth={640}>
+    <ModalSheet open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth={640} contained>
       {detailOpen && <PeopleDetail onClose={() => setDetailOpen(false)} />}
     </ModalSheet>
   );
   // Over the screensaver, a click that isn't stopped dismisses it.
   const openDetail = (e: React.MouseEvent) => { e.stopPropagation(); setDetailOpen(true); };
+
+  if (noPeople) return null;
 
   if (isCompact) {
     // Mobile: stacked avatars + count
@@ -265,7 +307,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
         type="button"
         onClick={openDetail}
         className={clsx(
-        'flex items-center rounded-ha-pill whitespace-nowrap flex-shrink-0 transition-all cursor-pointer hover:brightness-110 active:scale-95',
+        'flex items-center rounded-full whitespace-nowrap flex-shrink-0 transition-all cursor-pointer hover:brightness-110 active:scale-95',
         translucent ? TRANSLUCENT_CHIP_FILL : 'bg-surface-low',
         // sm matches SummaryCard's compact chip: same fixed height and padding.
         isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-2.5' : 'gap-ha-2 px-ha-2 h-10'
@@ -399,6 +441,38 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
     </button>
     {peopleDialog}
     </>
+  );
+}
+
+/**
+ * The summary row above one room's devices. Same chips as the dashboard, every
+ * reading scoped to this area — and the dialogs behind them scoped too, so
+ * "Lights" opens this room's lights rather than the whole house's.
+ *
+ * Unlike the dashboard row this shows on phones as well: there is no Home Center
+ * copy of a single room's summary to fall back to. It renders nothing when the
+ * room has nothing worth summarising.
+ */
+export function AreaSummaryRow({ entities, areaName }: { entities: HassEntities; areaName: string }) {
+  const items = useLiveSummaryItems(entities);
+  const { ref, onScroll, style } = useEdgeFade();
+  const scope = useMemo<SummaryScope>(() => ({ entities, areaName }), [entities, areaName]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <div
+      ref={ref}
+      onScroll={onScroll}
+      style={style}
+      className="mb-ha-4 -mx-ha-1 overflow-x-auto overscroll-x-contain scrollbar-hide px-ha-1 lg:overflow-visible"
+    >
+      <div className="flex w-max items-center gap-ha-2 lg:w-full lg:flex-wrap">
+        {items.map((item) => (
+          <SummaryGlance key={item.title} item={item} scope={scope} compact />
+        ))}
+      </div>
+    </div>
   );
 }
 

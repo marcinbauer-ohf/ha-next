@@ -141,6 +141,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   // mode). Touch fires click after the press ends, so the click is swallowed at
   // the card's own capture phase, before the hero, a switch or a row sees it.
   const longPressFired = useRef(false);
+  // The primary's on/off switch sits at the right end of the top row, which is
+  // also where the product render wants to be on desktop. Only one of them can
+  // have that edge, so the flag gates both.
+  const hasPrimaryControl = !isUnavailable && !!primary.toggleable && !!primary.onToggle;
 
   // Read-only text block (area eyebrow → prominent name → state / unavailable /
   // hover-scrubbed value). Takes the card's full width — the product render has
@@ -266,22 +270,41 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
       onPointerUp={cancelLongPress}
       onPointerLeave={cancelLongPress}
       onPointerCancel={cancelLongPress}
+      // The grow band's paint: a tinted card grows in its own tint, everything
+      // else in the hover surface the rule already defaults to.
+      style={
+        isUnavailable
+          ? { '--ha-card-grow': 'rgb(245 158 11 / 0.11)' } as React.CSSProperties
+          : !editMode && primary.active && primary.toggleable
+            ? { '--ha-card-grow': 'rgb(34 197 94 / 0.16)' } as React.CSSProperties
+            : undefined
+      }
       className={clsx(
-        'group/card relative rounded-ha-2xl overflow-hidden bg-surface-default transition-[box-shadow]',
-        editMode && 'cursor-grab active:cursor-grabbing select-none',
+        // The hover grow: a 4px box-shadow spread, coloured to match whatever the
+        // card's hover background is, so the card's edge moves out 4px on every
+        // side and nothing inside it moves or resizes. A transform would have
+        // scaled the text and the render with it, and a margin would have shoved
+        // the neighbours around; a shadow is outside layout entirely, and
+        // `transition-[box-shadow]` was already here to animate it. The masonry
+        // gutter is 16px, so there is room to grow into.
+        //
+        // It has to live on THIS element, not on the primary block that owns the
+        // hover backgrounds: that block sits inside this one's `overflow-hidden`,
+        // which clips a child's outward shadow to nothing. An element's own
+        // shadow is never clipped by its own overflow.
+        //
+        // `ha-card-grow` carries the shadow itself (globals.css); the paint comes
+        // from `--ha-card-grow` in the style below.
+        'group/card ha-card-grow relative rounded-ha-2xl overflow-hidden bg-surface-default transition-[box-shadow]',
+        editMode && 'ha-card-grow-ring cursor-grab active:cursor-grabbing select-none',
         selected && 'ha-selected',
         !selected && lastOpened && 'ha-last-opened',
         isUnavailable && 'ring-2 ring-inset ring-amber-500/40',
         className,
       )}
     >
-      {/* Edit mode: full-card ring + pencil on hover */}
-      {editMode && (
-        <div
-          className="absolute inset-0 rounded-ha-2xl ring-2 ring-inset ring-ha-blue/30 pointer-events-none z-10 opacity-0 group-hover/card:opacity-100 transition-opacity duration-150"
-          aria-hidden
-        />
-      )}
+      {/* Edit mode: the hover ring is part of the grow shadow (`ha-card-grow-ring`
+          in globals.css) so it sits on the grown edge; here, just the pencil. */}
       {editMode && (
         // A plain pencil button in the corner — the same round icon button the
         // dialogs use. Shown the whole time editing, not on hover: hover is the
@@ -334,7 +357,13 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             // `lg:min-h-0` clears both the phone floor and the automatic minimum
             // a flex item gets from its content — either one would out-vote the
             // height and hand the card back to the render.
-            : 'min-h-[var(--dct-min-h,140px)] lg:min-h-0 lg:h-[var(--dct-min-h,116px)]',
+            // md, not lg: the tablet lays out two columns like the phone, but at
+            // twice the width — so the square render was ~160px wide and *it* was
+            // setting the card's height, well past the 140px floor. Anywhere a
+            // card is wide enough for its render to out-measure the floor needs
+            // the definite height, and that starts at the tablet.
+            : 'min-h-[var(--dct-min-h,140px)] md:min-h-0 md:h-[var(--dct-min-h,116px)]',
+          //
           editMode
             ? 'bg-surface-default hover:bg-surface-low'
             : isUnavailable
@@ -364,7 +393,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
 
         {/* Two stacked blocks, no overlap between them:
               row 1 — icon + name/state, across the CARD's full width
-              row 2 — control on the left, product render on the right
+              row 2 — product render, on the right
             The render used to be an absolute layer centred on the right edge, so
             the text block had to reserve ~44% of its width to clear it. On a
             phone that leaves a two-column card with barely half a line for the
@@ -378,15 +407,24 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             reserves that width, because a ~263px card has enough left over for
             the name. */}
 
-        {/* Top row, HA tile-card order: icon badge left, name/state beside it. */}
+        {/* Top row, HA tile-card order: icon badge left, name/state, control right. */}
         <div className={clsx(
           'relative z-[2] flex items-center gap-3',
           // Same token the render's width comes from, so the two can't drift
-          // apart; only reserved when there's actually a render to clear.
-          showThumb && !showFeed && 'lg:pr-[calc(var(--dct-thumb-w,34%)+12px)]',
+          // apart; only reserved when there's actually a render to clear — and
+          // only when the render is the desktop right-hand column. With a
+          // control on this row the render stays in the bottom row at every
+          // size, so there is nothing up here to clear.
+          showThumb && !showFeed && !hasPrimaryControl && 'lg:pr-[calc(var(--dct-thumb-w,34%)+12px)]',
         )}>
           {iconBadge}
           {renderNameState()}
+          {/* The primary control rides the top row, on the card's right edge and
+              centred against the name/state block — the same icon → label →
+              switch line the secondary rows and the dialog already read as. */}
+          {hasPrimaryControl && (
+            <ToggleSwitch on={primary.active} onToggle={primary.onToggle!} />
+          )}
         </div>
 
         {/* Sparkline — sensor entities only. Out of flow (see the card-height
@@ -400,19 +438,13 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           </div>
         )}
 
-        {/* Bottom row: control left, render right. Takes the slack the top row
-            leaves, so the render is as tall as the card allows and both cells
-            sit on the card's bottom edge. Either cell may be empty — a
-            read-only device has no control, a camera has no render. */}
+        {/* Bottom row: the product render, on the right. Takes the slack the top
+            row leaves, so the render is as tall as the card allows and sits on the
+            card's bottom edge. Empty for a camera, which has no render. */}
         {/* `lg:static` so the render below can position against the whole card
             instead of this row. z-index still applies — a flex item takes part in
             stacking whether it's positioned or not. */}
-        <div className="relative z-[2] mt-auto flex flex-1 min-h-0 items-end justify-between gap-ha-2 lg:static">
-          <div className="flex items-center">
-            {!isUnavailable && primary.toggleable && primary.onToggle && (
-              <ToggleSwitch on={primary.active} onToggle={primary.onToggle} />
-            )}
-          </div>
+        <div className="relative z-[2] mt-auto flex flex-1 min-h-0 items-end justify-end gap-ha-2 lg:static">
           {showThumb && !showFeed && (
             <img
               src={primary.thumbnail!}
@@ -428,7 +460,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                 // card's own padding, so the render uses the whole 96px the card
                 // has rather than the 56px the bottom row leaves it. `h-auto`
                 // because the insets set its height now.
-                'lg:absolute lg:inset-y-[var(--dct-pad,10px)] lg:right-[var(--dct-pad,10px)] lg:h-auto lg:w-[var(--dct-thumb-w,34%)]',
+                // Not when the primary has a control: that column runs the height
+                // of the card, straight through the switch now sitting in the top
+                // row. The render gives way and keeps its in-flow bottom cell.
+                !hasPrimaryControl && 'lg:absolute lg:inset-y-[var(--dct-pad,10px)] lg:right-[var(--dct-pad,10px)] lg:h-auto lg:w-[var(--dct-thumb-w,34%)]',
                 isUnavailable && 'grayscale',
               )}
               style={{
@@ -478,10 +513,18 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                   />
                 )}
 
+                {/* `min-w-[40%]` is load-bearing, not a nicety. The value to the
+                    right is `shrink-0`, so a long reading (a firmware build) drives
+                    the row's free space negative — and `.ha-card-marquee` is an
+                    inline-size container, which zeroes the box's min-content
+                    contribution, so the usual `min-width: auto` floor can't hold it
+                    up. Without the floor the name collapses to 0: clipped to
+                    nothing on screen, and marqueeing its full width because the
+                    container it measures against is narrower than its own text. */}
                 <span
                   style={entity.size === 'sm' ? undefined : { fontSize: 'var(--dct-row-size, 15px)' }}
                   className={clsx(
-                    'flex-1 truncate ha-card-marquee',
+                    'flex-1 min-w-[40%] truncate ha-card-marquee',
                     entity.size === 'sm' ? 'text-xs text-text-secondary' : 'text-text-primary',
                   )}
                 >

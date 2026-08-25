@@ -50,7 +50,7 @@ export function NameStep({ state, update, next }: StepProps) {
                   type="button"
                   aria-pressed={selected}
                   onClick={() => update({ homeName: selected ? '' : s })}
-                  className={`h-9 px-ha-4 rounded-ha-pill text-sm font-medium border transition-colors ${
+                  className={`h-9 px-ha-4 rounded-full text-sm font-medium border transition-colors ${
                     selected
                       ? 'bg-ha-blue border-ha-blue text-white shadow-md shadow-ha-blue/20'
                       : 'bg-surface-low/70 border-surface-lower text-text-secondary hover:text-text-primary hover:bg-surface-low'
@@ -64,9 +64,7 @@ export function NameStep({ state, update, next }: StepProps) {
 
           {/* Portalled out of the form, so it advances by hand — Enter in the
               field still goes through onSubmit. */}
-          <StepActions>
-            <PrimaryPill onClick={next}>Continue</PrimaryPill>
-          </StepActions>
+          <StepActions primary={<PrimaryPill onClick={next}>Continue</PrimaryPill>} />
         </form>
       </div>
     </div>

@@ -16,7 +16,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { mdiArrowLeft, mdiPencil, mdiPlus } from '@mdi/js';
-import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { getConnection, getPanels } from '@/lib/homeassistant';
 import { DockBar, DockSlotIcon, SLOT_PX } from './DockBar';
@@ -350,14 +350,7 @@ export function DockApp() {
               // A sub-page keeps its header no matter the scroll position — it's
               // the only way back out.
               <div className="pointer-events-auto mt-1 flex min-w-0 items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setArea(null)}
-                  aria-label="Back to dashboard"
-                  className="-ml-2 shrink-0 rounded-full p-2 text-neutral-500 transition-colors hover:bg-white/70 hover:text-neutral-800"
-                >
-                  <Icon path={mdiArrowLeft} size={22} />
-                </button>
+                <IconButton icon={mdiArrowLeft} label="Back to dashboard" onClick={() => setArea(null)} />
                 <h1 className="truncate text-[28px] font-normal leading-none tracking-tight text-neutral-500">
                   {area.name}
                 </h1>
@@ -375,20 +368,8 @@ export function DockApp() {
             )}
             <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-white p-2 shadow-[0_4px_14px_rgba(0,0,0,0.08)]">
               {/* Both no-ops for now — the dock is what this prototype is about. */}
-              <button
-                type="button"
-                aria-label="Add"
-                className="rounded-full p-1.5 text-neutral-600 transition-colors hover:bg-neutral-100"
-              >
-                <Icon path={mdiPlus} size={22} />
-              </button>
-              <button
-                type="button"
-                aria-label="Edit dashboard"
-                className="rounded-full p-1.5 text-neutral-600 transition-colors hover:bg-neutral-100"
-              >
-                <Icon path={mdiPencil} size={22} />
-              </button>
+              <IconButton icon={mdiPlus} label="Add" size="sm" />
+              <IconButton icon={mdiPencil} label="Edit dashboard" size="sm" />
             </div>
           </header>
           <AnimatePresence>

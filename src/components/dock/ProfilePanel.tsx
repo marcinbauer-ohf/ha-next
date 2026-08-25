@@ -15,6 +15,7 @@ import {
 } from '@mdi/js';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
 import { HaPageFrame } from '@/components/layout/HaPageFrame';
 import { useHomeAssistant, useHomeAssistantSelector } from '@/hooks/useHomeAssistant';
@@ -536,14 +537,7 @@ export function ProfilePanel({
         )}
         {/* Back only where the sub view actually covers the list. */}
         {view && menuShown && (
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Back to menu"
-            className="pointer-events-auto -ml-1.5 shrink-0 rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 md:hidden"
-          >
-            <Icon path={mdiArrowLeft} size={20} />
-          </button>
+          <IconButton icon={mdiArrowLeft} label="Back to menu" size="sm" onClick={onBack} />
         )}
         <div
           className={clsx(
@@ -570,14 +564,7 @@ export function ProfilePanel({
             </>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          className="pointer-events-auto shrink-0 rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800"
-        >
-          <Icon path={mdiClose} size={20} />
-        </button>
+        <IconButton icon={mdiClose} label="Close" size="sm" onClick={onClose} />
       </header>
     </motion.div>
   );

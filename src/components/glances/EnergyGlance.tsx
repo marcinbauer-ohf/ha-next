@@ -5,7 +5,7 @@ import { mdiFlash } from '@mdi/js';
 import { SummaryCard } from '../cards/SummaryCard';
 import { ModalSheet } from '../layout/ModalSheet';
 import { EnergyDetailPanel } from '../cards/EnergyDetailPanel';
-import { useEnergyMetrics, useEntities } from '@/hooks';
+import { useEnergyMetrics, useEntities, useHomeIsEmpty } from '@/hooks';
 import { isEnergyConfigured, sumKwh, sumWatts, useEnergyConfig } from '@/lib/energyConfig';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -35,11 +35,15 @@ export function EnergyGlance({ compact, variant, size, translucent }: EnergyGlan
   const configured = isEnergyConfigured(config);
   const powerEntities = useEntities(config.power);
   const todayEntities = useEntities(config.today);
-  // Only used to decide whether this home measures power at all.
-  const { powerSensors } = useEnergyMetrics();
+  // Only used to decide whether this home measures energy at all — a house
+  // with just a daily kWh meter and no live-power sensor still counts.
+  const { powerSensors, energyToday } = useEnergyMetrics();
+  // A home with nothing in it keeps the chip as an invitation — hiding it there
+  // would leave the one summary most worth setting up unreachable.
+  const homeIsEmpty = useHomeIsEmpty();
   const [open, setOpen] = useState(false);
 
-  if (!configured && powerSensors.length === 0) return null;
+  if (!configured && powerSensors.length === 0 && !energyToday && !homeIsEmpty) return null;
 
   const watts = sumWatts(powerEntities);
   const kwhToday = sumKwh(todayEntities);
@@ -70,7 +74,7 @@ export function EnergyGlance({ compact, variant, size, translucent }: EnergyGlan
       />
 
       {/* Same frame as the device and automation dialogs. */}
-      <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={640}>
+      <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={640} contained>
         <EnergyDetailPanel onClose={() => setOpen(false)} />
       </ModalSheet>
     </>

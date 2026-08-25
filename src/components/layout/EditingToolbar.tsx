@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useEditMode } from '@/contexts';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
 import { EditorToolbarShell, ToolbarPrimaryButton } from './EditorToolbarShell';
 import { ResetDashboardDialog } from './ResetDashboardDialog';
 import {
@@ -83,19 +84,9 @@ export function EditingToolbar() {
         <EditorToolbarShell
           mobile={
             <div className="flex items-center gap-ha-2">
-              <button aria-label="Undo" className="w-11 h-11 rounded-full flex items-center justify-center text-text-disabled opacity-40 cursor-default">
-                <Icon path={mdiUndo} size={20} />
-              </button>
-              <button aria-label="Redo" className="w-11 h-11 rounded-full flex items-center justify-center text-text-disabled opacity-40 cursor-default">
-                <Icon path={mdiRedo} size={20} />
-              </button>
-              <button
-                aria-label="Reset dashboard"
-                onClick={() => setResetOpen(true)}
-                className="w-11 h-11 rounded-full flex items-center justify-center text-text-secondary hover:text-text-primary active:bg-surface-mid transition-colors"
-              >
-                <Icon path={mdiBackupRestore} size={20} />
-              </button>
+              <IconButton icon={mdiUndo} label="Undo" size="lg" tone="quiet" disabled />
+              <IconButton icon={mdiRedo} label="Redo" size="lg" tone="quiet" disabled />
+              <IconButton icon={mdiBackupRestore} label="Reset dashboard" size="lg" onClick={() => setResetOpen(true)} />
 
               <div className="flex-1" />
 
@@ -114,19 +105,9 @@ export function EditingToolbar() {
 
               <div className="w-px h-6 bg-border-default mx-ha-1" />
 
-              <button aria-label="Undo" className="w-11 h-11 rounded-full flex items-center justify-center text-text-disabled opacity-40 cursor-default">
-                <Icon path={mdiUndo} size={20} />
-              </button>
-              <button aria-label="Redo" className="w-11 h-11 rounded-full flex items-center justify-center text-text-disabled opacity-40 cursor-default">
-                <Icon path={mdiRedo} size={20} />
-              </button>
-              <button
-                aria-label="Reset dashboard"
-                onClick={() => setResetOpen(true)}
-                className="w-11 h-11 rounded-full flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-surface-mid transition-colors"
-              >
-                <Icon path={mdiBackupRestore} size={20} />
-              </button>
+              <IconButton icon={mdiUndo} label="Undo" size="lg" tone="quiet" disabled />
+              <IconButton icon={mdiRedo} label="Redo" size="lg" tone="quiet" disabled />
+              <IconButton icon={mdiBackupRestore} label="Reset dashboard" size="lg" onClick={() => setResetOpen(true)} />
 
               <ToolbarPrimaryButton label="Done" onClick={exitEditMode} className="ml-ha-1" />
             </>

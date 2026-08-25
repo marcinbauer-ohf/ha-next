@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, CSSProperties } from 'react';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import {
@@ -14,7 +13,7 @@ import {
   useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { mdiHomeAssistant, mdiViewGrid, mdiCube, mdiAutoFix, mdiStar, mdiViewAgenda, mdiViewGridOutline, mdiMapOutline, mdiViewListOutline, mdiImageOffOutline } from '@mdi/js';
+import { mdiHomeAssistant, mdiAutoFix, mdiStar, mdiViewAgenda, mdiViewGridOutline, mdiMapOutline, mdiViewListOutline, mdiImageOffOutline } from '@mdi/js';
 import { flashHud } from '@/lib/hudFlashBus';
 import { CONTENT_MAX, CONTENT_GUTTER } from '@/lib/layout';
 import { clsx } from 'clsx';
@@ -29,7 +28,7 @@ import { DeferredCard } from '@/components/cards/DeferredCard';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { ModalSheet } from '@/components/layout/ModalSheet';
-import { MobileSummaryRow, DeviceGridSkeleton } from '@/components/sections';
+import { MobileSummaryRow, DeviceGridSkeleton, EmptyDashboard } from '@/components/sections';
 import { ApplicationViewNotice } from '@/components/layout/ApplicationViewNotice';
 import { DashboardEditBorder } from '@/components/layout';
 import { ImmersiveDogEar } from '@/components/layout/ImmersiveDogEar';
@@ -39,19 +38,20 @@ import { PullToRevealPanel } from '@/components/sections';
 import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, useFeatureFlags, useFavorites, useFastScrollLabels, useIdleMarquee, useSectionCrumb, useScrollToEdges, useMasonryCols, MASONRY_COLS_DESKTOP, MASONRY_COLS_MOBILE, MASONRY_GRID_CLASS } from '@/hooks';
 import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
 import { usePullToRevealContext, useHeader, useEditMode, useToast, useDebugFlags } from '@/contexts';
-import { NavChevron } from '@/components/ui';
 import { TipStack, type TipStackTip } from '@/components/ui/TipStack';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { OffscreenChangeHints } from '@/components/ui/OffscreenChangeHints';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import {
-  entityDomain, friendlyName, entityLabel, stateLabel, stateExtras, isOn, TOGGLEABLE, primaryCornerBadge,
+  entityDomain, entityLabel, stateLabel, stateExtras, isOn, TOGGLEABLE, primaryCornerBadge,
   domainIcon, deviceThumbnail, deviceFeedEntity, SECTION_ORDER, SECTION_TITLES,
   entityCategory, CATEGORY_ORDER, CATEGORY_TITLES,
   AREA_ICON, domainTypeIcon, CATEGORY_ICONS, type DeviceCategory,
   PRESSABLE, panelEntitiesForDevice,
 } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
+import { SectionHeader } from '@/components/sections/SectionHeader';
+import { PendingDeviceSection } from '@/components/profile/DiscoveredDevices';
 
 // ── Section ───────────────────────────────────────────────────────────────────
 
@@ -70,16 +70,7 @@ function Section({ sectionKey, title, count, href, children }: { sectionKey: str
       // fade is h-12 (3rem) anchored at --app-topbar-clear, so clear both.
       style={{ scrollMarginTop: 'calc(var(--app-topbar-clear, 0px) + var(--dashboard-sticky-top, 0px) + 3rem + var(--ha-space-2))' }}
     >
-      <div className="-mx-ha-1 px-ha-1 py-ha-2 mb-ha-1" data-section-header>
-        {href ? (
-          <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
-            <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
-            <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
-          </Link>
-        ) : (
-          <span className="text-xl font-semibold text-text-primary">{title}</span>
-        )}
-      </div>
+      <SectionHeader title={title} href={href} />
       {children}
     </div>
   );
@@ -950,9 +941,7 @@ export default function DashboardPage() {
                   {loading && <DeviceGridSkeleton />}
 
                   {!loading && visibleSections.length === 0 && (
-                    <p className="text-sm text-text-secondary text-center py-ha-8">
-                      No devices found. Connect to Home Assistant to see your devices.
-                    </p>
+                    <EmptyDashboard />
                   )}
 
                   {/* Favorites band + grouped sections share one DndContext so
@@ -1069,6 +1058,9 @@ export default function DashboardPage() {
                       </Section>
                     );
                   })}
+                  {/* Last, and only in view mode: these carry no saved order and
+                      no slots to drag into, so they sit outside the edit canvas. */}
+                  {!isEditing && <PendingDeviceSection columns={masonryCols} />}
                   </div>
                   </DndContext>
                   )}

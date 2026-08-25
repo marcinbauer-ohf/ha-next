@@ -13,7 +13,7 @@ interface PathStepProps extends StepProps {
 }
 
 const CARD_CLASS =
-  'group w-full flex items-center gap-ha-4 text-left rounded-ha-3xl border border-surface-lower bg-surface-low/70 backdrop-blur-sm px-ha-5 py-ha-5 transition-all hover:bg-surface-low hover:border-fill-primary-normal hover:shadow-lg active:scale-[0.985]';
+  'group w-full flex items-center gap-ha-4 text-left rounded-ha-3xl border border-surface-lower bg-surface-low/70 backdrop-blur-sm px-ha-5 py-ha-5 transition-all hover:bg-surface-low hover:border-fill-primary-normal hover:shadow-lg active:scale-[0.98]';
 
 export function PathStep({ onConnect, onDemo }: PathStepProps) {
   return (

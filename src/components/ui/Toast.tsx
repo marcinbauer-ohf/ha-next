@@ -50,7 +50,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
       tabIndex={clickable ? 0 : undefined}
       onClick={onClick}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!(); } } : undefined}
-      className={`w-full px-ha-2 py-ha-2 lg:px-ha-4 lg:py-ha-3 rounded-ha-2xl lg:rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50${clickable ? ' cursor-pointer hover:bg-surface-lower/95 active:scale-[0.99] transition-[background-color,transform]' : ''}`}
+      className={`w-full px-ha-2 py-ha-2 lg:px-ha-4 lg:py-ha-3 rounded-ha-2xl lg:rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50${clickable ? ' cursor-pointer hover:bg-surface-lower/95 active:scale-[0.98] transition-[background-color,transform]' : ''}`}
     >
       <div className="flex items-center gap-ha-2 lg:gap-ha-3">
         <div className="shrink-0 relative w-8 h-8 lg:w-11 lg:h-11">
@@ -102,7 +102,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
             animate={{ opacity: 1 }}
             transition={{ ...FADE, delay: 0.26 }}
             onClick={(e) => { e.stopPropagation(); action.onClick(); }}
-            className="relative shrink-0 h-7 lg:h-8 px-ha-2 lg:px-ha-3 rounded-ha-pill bg-surface-mid hover:bg-surface-lower text-[11px] lg:text-xs font-semibold text-text-primary transition-colors active:scale-95 before:absolute before:-inset-2 before:content-['']"
+            className="relative shrink-0 h-7 lg:h-8 px-ha-2 lg:px-ha-3 rounded-full bg-surface-mid hover:bg-surface-lower text-[11px] lg:text-xs font-semibold text-text-primary transition-colors active:scale-95 before:absolute before:-inset-2 before:content-['']"
           >
             {action.label}
           </motion.button>
@@ -114,7 +114,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
             transition={{ ...FADE, delay: 0.32 }}
             onClick={(e) => { e.stopPropagation(); onClose(); }}
             aria-label="Dismiss"
-            className="relative shrink-0 w-8 h-8 lg:w-10 lg:h-10 -mr-0.5 lg:-mr-1.5 rounded-ha-pill flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-surface-mid transition-colors active:scale-95 before:absolute before:-inset-3 before:content-['']"
+            className="relative shrink-0 w-8 h-8 lg:w-10 lg:h-10 -mr-0.5 lg:-mr-1.5 rounded-full flex items-center justify-center text-text-tertiary hover:text-text-primary hover:bg-surface-mid transition-colors active:scale-95 before:absolute before:-inset-3 before:content-['']"
           >
             <Icon path={mdiClose} size={18} />
           </motion.button>
@@ -131,7 +131,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
           {details.map((d, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 rounded-ha-pill bg-surface-mid px-2 py-1 text-[11px] leading-none"
+              className="inline-flex items-center gap-1 rounded-full bg-surface-mid px-2 py-1 text-[11px] leading-none"
             >
               {d.icon && <Icon path={d.icon} size={12} className="text-text-tertiary" />}
               {d.label && <span className="text-text-tertiary">{d.label}</span>}

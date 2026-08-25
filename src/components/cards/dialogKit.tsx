@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { clsx } from 'clsx';
-import { mdiArrowLeft, mdiCheck, mdiClose, mdiCogOutline } from '@mdi/js';
+import { mdiArrowLeft, mdiCheck, mdiClose, mdiCogOutline, mdiRestart } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
-import { Dropdown, HALoader, ListSection, RollingNumericValue, SectionLabel, SelectChip, ToggleSwitch } from '../ui';
+import { Button, Dropdown, HALoader, IconButton, iconButtonClass, ListSection, RollingNumericValue, SectionLabel, SelectChip, ToggleSwitch } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
 import { useHomeAssistant } from '@/hooks';
 import { useScrollFades } from '@/hooks/useScrollFades';
+import { useContainedSheet } from '../layout/containedSheet';
 import { mergeStatistics, type EnergyBucket } from '@/lib/energyStatistics';
 import type { SelectChipOption } from '../ui/SelectChip';
 
@@ -18,11 +19,15 @@ import type { SelectChipOption } from '../ui/SelectChip';
 // object with different contents rather than six lookalikes drifting apart.
 //
 //   SheetHeader   the one header every sheet/dialog/panel wears
-//   DialogFrame   fixed-height shell: close left, eyebrow + title, action right
+//   DialogFrame   fixed-height shell: close left, optional title, action right,
+//                 and on lg a second column for the charts
 //   DialogHero    the band: what it is, what it reads, what you can do about it
 //   DialogTile    one figure with its label — the row of numbers under the hero
 //   DetailRows    the entities behind the figure, with their live state
+//   IntroStep     the empty state a summary opens on before it has anything:
+//                 one big glyph, what it's for, and the way in
 //   SetupStep     "which of your things feed this", one SelectChip per slot
+//   DialogConfigureButton  the way into that setup, spelled out, at the bottom
 //   StatsChart    the past, from long-term statistics, in the standard slot
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -31,8 +36,7 @@ import type { SelectChipOption } from '../ui/SelectChip';
  * surface. Exported so a caller's extra action can't drift from the close X
  * sitting a few pixels away.
  */
-export const sheetHeaderButton =
-  'shrink-0 rounded-full p-2 lg:p-2.5 text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary';
+export const sheetHeaderButton = iconButtonClass({ size: 'lg' });
 
 /** The horizontal inset every sheet uses — header and body on the same edge. */
 export const SHEET_PAD = 'px-ha-4';
@@ -61,24 +65,22 @@ export function SheetHeader({
   onClose: () => void;
   /** Drilled a level in: the leading button becomes a back arrow. */
   onBack?: () => void;
-  /** Makes the title a button — used where it reveals what else is in here. */
-  onTitleClick?: () => void;
+  /** Makes the title a button — used where it reveals what else is in here. The
+   *  event comes through so a caller can anchor a menu to the title. */
+  onTitleClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   titleHint?: string;
-  /** The right side. Wrap each in `sheetHeaderButton`. */
+  /** The right side. Use <IconButton size="lg"> (or `sheetHeaderButton` for a link). */
   actions?: React.ReactNode;
   className?: string;
 }) {
   return (
     <div className={clsx('flex shrink-0 items-start justify-between gap-ha-2 pb-ha-2 pt-ha-2 lg:pt-ha-4', SHEET_PAD, className)}>
-      <button
-        type="button"
+      <IconButton
+        icon={onBack ? mdiArrowLeft : mdiClose}
+        label={onBack ? 'Back' : 'Close'}
+        size="lg"
         onClick={onBack ?? onClose}
-        aria-label={onBack ? 'Back' : 'Close'}
-        title={onBack ? 'Back' : 'Close'}
-        className={sheetHeaderButton}
-      >
-        <Icon path={onBack ? mdiArrowLeft : mdiClose} size={24} />
-      </button>
+      />
       <div className="min-w-0 flex-1">
         {eyebrow && <p className="mb-0.5 truncate text-sm leading-none text-text-tertiary">{eyebrow}</p>}
         {/* An empty title is a deliberate one: the store puts its name in the big
@@ -104,26 +106,29 @@ export function SheetHeader({
 /** The dialog shell — one height for every dialog, a scrolling middle. */
 export function DialogFrame({
   eyebrow,
-  title,
+  title = '',
   onClose,
   onBack,
-  onConfigure,
   action,
   size = 'default',
   headerless = false,
   stickyTop,
+  aside,
   children,
 }: {
-  eyebrow: string;
-  title: string;
+  /**
+   * Both optional, and the summary dialogs pass neither: a chip you just tapped
+   * doesn't need the dialog to repeat its own name back at you. The header stays
+   * as the control strip — close on the left, the cog on the right.
+   */
+  eyebrow?: string;
+  title?: string;
   onClose: () => void;
   /**
    * Drilled into something inside the dialog (a store item, say): the leftmost
    * button becomes a back arrow to the level above instead of the close X.
    */
   onBack?: () => void;
-  /** Shows the cog; opens whatever setup step the dialog owns. */
-  onConfigure?: () => void;
   /** Anything else for the header's right side (a link out, say). */
   action?: React.ReactNode;
   /**
@@ -143,39 +148,40 @@ export function DialogFrame({
    * `position: sticky` inside it, so nothing shows through above them.
    */
   stickyTop?: React.ReactNode;
+  /**
+   * The charts. On lg they get a column of their own beside the cards, because a
+   * chart read at the full width of a panel-wide sheet is a smear; below lg they
+   * fall in under the body. Omit it and the body keeps the single column.
+   */
+  aside?: React.ReactNode;
   children: React.ReactNode;
 }) {
   // The house scroll treatment: content fades out at whichever edge it runs past.
   const { attach, showTop, showBottom } = useScrollFades<HTMLDivElement>();
+  // One height for every dialog — except in the contained sheet, which already
+  // caps itself against the panel. Holding the fixed height there just parks a
+  // slab of empty surface under a two-column body.
+  const inSheet = useContainedSheet();
   return (
     <div
       className={clsx(
-        'flex h-[min(70dvh,760px)] flex-col overflow-hidden',
-        size === 'large' ? 'lg:h-[min(90vh,1000px)]' : 'lg:h-[min(85vh,780px)]',
+        'flex flex-col overflow-hidden',
+        inSheet
+          ? 'h-auto max-h-full'
+          : clsx('h-[min(70dvh,760px)]', size === 'large' ? 'lg:h-[min(90vh,1000px)]' : 'lg:h-[min(85vh,780px)]'),
       )}
     >
-      {!headerless && (
+      {/* A header only when it has something to say. Give it no words, no way
+          back and no actions — every summary dialog — and there is no bar at all:
+          Escape, the scrim and a pull on the grabber all still close it, and the
+          reading is the first thing you see instead of its own name. */}
+      {!headerless && (eyebrow || title || onBack || action) && (
         <SheetHeader
           eyebrow={eyebrow}
           title={title}
           onClose={onClose}
           onBack={onBack}
-          actions={(action || onConfigure) && (
-            <>
-              {action}
-              {onConfigure && (
-                <button
-                  type="button"
-                  onClick={onConfigure}
-                  aria-label="Change what this reads"
-                  title="Change what this reads"
-                  className={sheetHeaderButton}
-                >
-                  <Icon path={mdiCogOutline} size={24} />
-                </button>
-              )}
-            </>
-          )}
+          actions={action}
         />
       )}
 
@@ -215,7 +221,21 @@ export function DialogFrame({
             SHEET_PAD,
           )}
         >
-          <div className="flex w-full flex-col gap-ha-2">{children}</div>
+          <div
+            className={clsx(
+              'flex w-full flex-col gap-ha-2',
+              // items-start so the chart column keeps its own height instead of
+              // stretching to match a long list beside it.
+              aside && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-ha-3',
+            )}
+          >
+            {aside ? <div className="flex min-w-0 flex-col gap-ha-2">{children}</div> : children}
+            {aside && (
+              // Sticky: the list on the left is the long one, and the chart is
+              // what you're comparing it against — it shouldn't scroll away.
+              <div className="flex min-w-0 flex-col gap-ha-2 lg:sticky lg:top-0">{aside}</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -235,6 +255,7 @@ export function DialogHero({
   unit,
   meta,
   right,
+  onConfigure,
   highlight,
   stamp,
 }: {
@@ -244,6 +265,12 @@ export function DialogHero({
   unit?: string;
   meta?: string;
   right?: React.ReactNode;
+  /**
+   * Shows the cog on the band's right edge and opens the dialog's setup step.
+   * It lives here rather than in a header because what it changes is this
+   * reading — which sensors it's made of — and the dialogs have no header.
+   */
+  onConfigure?: () => void;
   /** Tint the band — the group is in a state worth noticing. */
   highlight?: string;
   /**
@@ -272,8 +299,27 @@ export function DialogHero({
         {meta && <span className="max-w-full truncate text-xs text-text-tertiary">{meta}</span>}
       </div>
       {right}
+      {onConfigure && (
+        <IconButton
+          icon={mdiCogOutline}
+          label="Change what this reads"
+          size="sm"
+          onClick={onConfigure}
+          className="shrink-0"
+        />
+      )}
     </div>
   );
+}
+
+/**
+ * The way into a dialog's setup step, spelled out. The hero's cog is there for
+ * anyone who already knows it, but nothing about a glyph says what it changes —
+ * so every configurable dialog also ends on this, the same full-width action
+ * the Home Center's desktop pop-up ends on. Last child of the body.
+ */
+export function DialogConfigureButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return <Button variant="neutral" icon={mdiCogOutline} block onClick={onClick}>{label}</Button>;
 }
 
 export interface DialogTileSpec {
@@ -400,6 +446,55 @@ function Slot({ slot, onToggle }: { slot: SetupSlot; onToggle: (id: string) => v
  * multi-select throughout: one sensor is just a list of one, so nothing needs a
  * second kind of picker.
  */
+/**
+ * What a summary looks like before it is anything: no readings, no rows, no
+ * numbers to explain — one big glyph, what this summary would tell you, and the
+ * button that starts picking. It's the first screen on an instance with nothing
+ * set up yet, and the screen "Start over" in the setup step comes back to.
+ */
+export function IntroStep({
+  icon,
+  iconClass = 'text-ha-blue',
+  eyebrow,
+  headline,
+  blurb,
+  cta = 'Set it up',
+  onStart,
+}: {
+  icon: string;
+  iconClass?: string;
+  eyebrow: string;
+  /** The value proposition, in one line — what you get out of setting this up. */
+  headline: string;
+  /** How it gets there, in a sentence or two. */
+  blurb: string;
+  cta?: string;
+  onStart: () => void;
+}) {
+  // In a sheet it shrinks to its own (short) content rather than parking a
+  // dialog-sized slab of empty surface under three lines of text.
+  const inSheet = useContainedSheet();
+  return (
+    <div className={clsx('flex flex-col overflow-hidden', inSheet ? 'h-auto max-h-full' : 'h-[min(70dvh,760px)] lg:h-[min(85vh,780px)]')}>
+      <div className={clsx('flex min-h-0 flex-1 flex-col items-center justify-center gap-ha-4 py-ha-6 text-center', SHEET_PAD)}>
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-surface-low">
+          <Icon path={icon} size={44} className={iconClass} />
+        </div>
+        <div className="flex flex-col items-center gap-ha-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{eyebrow}</span>
+          {/* No full stop — it's a display heading (see the house rule). */}
+          <h2 className="text-2xl font-bold leading-tight text-text-primary">{headline}</h2>
+          <p className="max-w-sm text-sm text-text-secondary">{blurb}</p>
+        </div>
+      </div>
+
+      <div className={clsx('shrink-0 pb-ha-4 pt-ha-2', SHEET_PAD)}>
+        <Button variant="primary" size="lg" icon={mdiCogOutline} block onClick={onStart}>{cta}</Button>
+      </div>
+    </div>
+  );
+}
+
 export function SetupStep({
   eyebrow,
   title = 'Set it up',
@@ -407,7 +502,8 @@ export function SetupStep({
   slots,
   onToggle,
   onSave,
-  onClose,
+  onBack,
+  onRestart,
   canSave = true,
   saveLabel = 'Save',
   blockedLabel,
@@ -419,7 +515,10 @@ export function SetupStep({
   slots: SetupSlot[];
   onToggle: (slotKey: string, id: string) => void;
   onSave: () => void;
-  onClose: () => void;
+  /** Back to the dialog this belongs to, dropping the draft. */
+  onBack: () => void;
+  /** Back to the intro screen — "what is this for again?", from the middle of picking. */
+  onRestart?: () => void;
   canSave?: boolean;
   saveLabel?: string;
   /** What the button says while `canSave` is false — why it can't be pressed. */
@@ -429,7 +528,9 @@ export function SetupStep({
 }) {
   return (
     <div className="flex h-[min(70dvh,760px)] flex-col overflow-hidden lg:h-[min(85vh,780px)]">
-      <SheetHeader eyebrow={eyebrow} title={title} onClose={onClose} />
+      {/* The one screen that keeps its words: it has to say what you're picking
+          sensors for, and the arrow goes back to the reading, not out. */}
+      <SheetHeader eyebrow={eyebrow} title={title} onClose={onBack} onBack={onBack} />
 
       <div className={clsx('min-h-0 flex-1 overflow-y-auto scrollbar-hide py-ha-2', SHEET_PAD)}>
         <div className="flex w-full flex-col gap-ha-2">
@@ -441,7 +542,7 @@ export function SetupStep({
         </div>
       </div>
 
-      <div className="shrink-0 px-ha-4 pb-ha-4 pt-ha-2">
+      <div className="flex shrink-0 flex-col gap-ha-1 px-ha-4 pb-ha-4 pt-ha-2">
         <button
           type="button"
           disabled={!canSave}
@@ -449,13 +550,16 @@ export function SetupStep({
           className={clsx(
             'flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl text-sm font-semibold transition-colors',
             canSave
-              ? 'bg-ha-blue text-white hover:brightness-110 active:scale-[0.99]'
+              ? 'bg-ha-blue text-white hover:brightness-110 active:scale-[0.98]'
               : 'cursor-not-allowed bg-surface-low text-text-tertiary',
           )}
         >
           <Icon path={mdiCheck} size={18} />
           {canSave ? saveLabel : blockedLabel ?? saveLabel}
         </button>
+        {onRestart && (
+          <Button variant="ghost" icon={mdiRestart} block onClick={onRestart}>Start over</Button>
+        )}
       </div>
     </div>
   );
@@ -475,7 +579,9 @@ const STATS_SPANS = [
  * hour/day buckets already line up across entities). Same fixed slot as every
  * other dialog's history, so nothing moves when the span changes.
  */
-export function StatsChart({ ids, unit, label }: { ids: string[]; unit?: string; label: string }) {
+export function StatsChart({ ids, unit, label, divided = true }: { ids: string[]; unit?: string; label: string;
+  /** Off when the chart is a card of its own rather than the tail of one. */
+  divided?: boolean }) {
   const { getStatistics } = useHomeAssistant();
   const [hours, setHours] = useState('24');
   const [series, setSeries] = useState<EnergyBucket[]>([]);
@@ -513,7 +619,7 @@ export function StatsChart({ ids, unit, label }: { ids: string[]; unit?: string;
     : label;
 
   return (
-    <div className="flex w-full flex-col gap-ha-1 border-t border-surface-mid pt-ha-2">
+    <div className={clsx('flex w-full flex-col gap-ha-1', divided && 'border-t border-surface-mid pt-ha-2')}>
       <div className="flex w-full items-center gap-ha-2">
         <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{stamp}</span>
         <Dropdown className="ml-auto shrink-0" options={STATS_SPANS} value={hours} onChange={setHours} />

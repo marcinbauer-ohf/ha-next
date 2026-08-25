@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Icon } from '../ui/Icon';
+import { IconButton } from '../ui/IconButton';
 import { mdiCrosshairsGps, mdiMinus, mdiPlus, mdiVectorPolygon } from '@mdi/js';
 import {
   type AreaShape,
@@ -865,39 +866,15 @@ export function AreaMapCanvas({
         onPointerDown={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col overflow-hidden rounded-ha-xl border border-surface-lower bg-surface-default shadow-sm">
-          <button
-            type="button"
-            onClick={() => zoomByButton(1.2)}
-            aria-label="Zoom in"
-            title="Zoom in"
-            className="flex h-10 w-10 items-center justify-center text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-          >
-            <Icon path={mdiPlus} size={18} />
-          </button>
+          <IconButton icon={mdiPlus} label="Zoom in" onClick={() => zoomByButton(1.2)} />
           <div className="h-px bg-surface-lower" />
-          <button
-            type="button"
-            onClick={() => zoomByButton(1 / 1.2)}
-            aria-label="Zoom out"
-            title="Zoom out"
-            className="flex h-10 w-10 items-center justify-center text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
-          >
-            <Icon path={mdiMinus} size={18} />
-          </button>
+          <IconButton icon={mdiMinus} label="Zoom out" onClick={() => zoomByButton(1 / 1.2)} />
         </div>
-        <button
-          type="button"
-          onClick={resetView}
-          aria-label="Reset view"
-          title="Reset view"
-          className="flex h-10 w-10 items-center justify-center rounded-ha-xl border border-surface-lower bg-surface-default text-text-secondary shadow-sm transition-colors hover:bg-surface-low hover:text-text-primary"
-        >
-          <Icon path={mdiCrosshairsGps} size={18} />
-        </button>
+        <IconButton icon={mdiCrosshairsGps} label="Reset view" shape="square" filled onClick={resetView} />
       </div>
 
       {drawingActive && (
-        <div className="pointer-events-none absolute left-1/2 top-ha-4 z-10 -translate-x-1/2 rounded-ha-pill border border-surface-lower bg-surface-default/95 px-ha-4 py-ha-2 text-[13px] font-medium text-text-secondary shadow-sm">
+        <div className="pointer-events-none absolute left-1/2 top-ha-4 z-10 -translate-x-1/2 rounded-full border border-surface-lower bg-surface-default/95 px-ha-4 py-ha-2 text-[13px] font-medium text-text-secondary shadow-sm">
           <span className="inline-flex items-center gap-ha-2">
             <Icon path={mdiVectorPolygon} size={16} className="text-ha-blue" />
             {draft.length === 0

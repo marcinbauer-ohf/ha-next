@@ -22,6 +22,8 @@ import { EnergyGlance, AutomationsGlance, SummaryGlance } from '@/components/gla
 import { areActivityDataEqual, selectActivityData } from '@/lib/homeassistant/selectors';
 import { formatBackupAge, HOME_CENTER_SECTION_MAP, type HomeCenterSectionId } from '@/lib/homeCenter';
 import { mdiArrowRight, mdiCheckCircleOutline } from '@mdi/js';
+import { SheetGrabber } from './SheetGrabber';
+import { SectionLabel } from './SectionLabel';
 
 /** One thing asking for attention, folded up from a Home Center section. */
 interface AttentionGroup {
@@ -97,7 +99,7 @@ export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => 
       {/* ── Needs you / Happening now ───────────────────────────── */}
       <section className="grid grid-cols-1 gap-ha-3 lg:grid-cols-2">
         <div className={`${CARD} p-ha-2`}>
-          <h4 className="px-ha-2 pb-ha-2 pt-ha-1 text-xs font-bold uppercase tracking-wider text-text-secondary">Needs you</h4>
+          <SectionLabel className="px-ha-2 pb-ha-2 pt-ha-1">Needs you</SectionLabel>
           {groups.length === 0 ? (
             <p className="flex items-center gap-ha-2 px-ha-2 pb-ha-2 text-sm text-text-tertiary">
               <Icon path={mdiCheckCircleOutline} size={18} className="shrink-0" />
@@ -133,7 +135,7 @@ export function HomeCenterBento({ onNavigate }: { onNavigate: (path: string) => 
             onClick={() => onNavigate('/settings?section=activity')}
             className="group flex w-full items-center gap-ha-2 px-ha-2 pb-ha-2 pt-ha-1"
           >
-            <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary group-hover:text-text-primary">Happening now</h4>
+            <SectionLabel className="group-hover:text-text-primary">Happening now</SectionLabel>
             <NavChevron size={16} className="ml-auto text-text-disabled group-hover:text-text-secondary" />
           </button>
           {feed.length > 0 ? (
@@ -291,7 +293,7 @@ export function HomeCenterOverlay() {
           {...sheetDrag.handleProps}
           className={`relative h-ha-5 shrink-0 ${isDesktop ? '' : 'touch-none cursor-grab active:cursor-grabbing'}`}
         >
-          <div className="absolute left-1/2 top-ha-3 -translate-x-1/2 w-10 h-1 rounded-full bg-text-secondary/30" />
+          <SheetGrabber className="absolute inset-x-0 top-ha-3" />
         </div>
 
         {/* Scrollable bento body with top/bottom scroll fades */}
@@ -324,10 +326,10 @@ export function HomeCenterOverlay() {
           <button
             type="button"
             onClick={() => handleNavigate('/settings?section=home-center')}
-            // Solid blue: this is the way through, not a selected state (those wear
-            // the blue *tint* — chips, segmented controls). Matches the store's
-            // "Add to my home".
-            className="flex h-13 w-full items-center justify-center gap-ha-2 rounded-ha-2xl bg-ha-blue text-sm font-semibold text-white transition-[filter] hover:brightness-105 active:brightness-95"
+            // Neutral, not solid blue: you're already in the Home Center, so this
+            // is a sideways step into its settings rather than the one thing the
+            // sheet is for. Same fill as Button's `neutral`.
+            className="flex h-13 w-full items-center justify-center gap-ha-2 rounded-ha-2xl bg-surface-low text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:bg-surface-mid"
           >
             Open Home Center
             <Icon path={mdiArrowRight} size={18} />

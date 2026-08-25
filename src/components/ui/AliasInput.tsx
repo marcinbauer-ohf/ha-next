@@ -2,6 +2,7 @@
 
 import { useState, type KeyboardEvent } from 'react';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 import { mdiClose, mdiPlus } from '@mdi/js';
 
 interface AliasInputProps {
@@ -68,14 +69,7 @@ export function AliasInput({ value, onChange, placeholder = 'Add an alias…' }:
         className="min-w-[120px] flex-1 bg-transparent py-1 text-sm text-text-primary placeholder-text-tertiary outline-none"
       />
       {draft.trim() && (
-        <button
-          type="button"
-          onClick={() => commit(draft)}
-          aria-label="Add alias"
-          className="flex h-7 w-7 items-center justify-center rounded-full text-ha-blue transition-colors hover:bg-fill-primary-quiet"
-        >
-          <Icon path={mdiPlus} size={16} exact />
-        </button>
+        <IconButton icon={mdiPlus} label="Add alias" size="sm" tone="accent" exact onClick={() => commit(draft)} />
       )}
     </div>
   );

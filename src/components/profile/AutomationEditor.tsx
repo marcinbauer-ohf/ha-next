@@ -5,7 +5,8 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from '../ui/Icon';
 import { EditorToolbarShell, ToolbarPrimaryButton, TOOLBAR_SURFACE_RESET } from '../layout/EditorToolbarShell';
-import { ToggleSwitch, ConfirmDialog, Sidebar, HALoader } from '../ui';
+import { SidePanel } from '../layout/SidePanel';
+import { Button, ToggleSwitch, ConfirmDialog, Sidebar, HALoader } from '../ui';
 import {
   listAutomationTraces,
   getAutomationTrace,
@@ -15,7 +16,6 @@ import {
 import { Tooltip } from '../ui/Tooltip';
 import { useMobileToolbar } from '@/contexts';
 import { formatLastTriggered, type AutomationSummary } from '@/hooks/useAutomations';
-import { recede, useSheetStack } from '@/hooks/useSheetStack';
 import {
   mdiAlertCircleOutline,
   mdiCancel,
@@ -222,14 +222,9 @@ function NodeConfigPanel({
           <ToggleSwitch on={node.enabled} onToggle={() => onChange({ ...node, enabled: !node.enabled })} />
         </div>
 
-        <button
-          type="button"
-          onClick={onDelete}
-          className="flex w-full items-center justify-center gap-ha-2 rounded-ha-xl border border-red-500/20 bg-red-500/10 px-ha-3 py-ha-2 text-sm font-medium text-red-500 transition-colors hover:bg-red-500/15"
-        >
-          <Icon path={mdiTrashCanOutline} size={16} />
+        <Button variant="danger" icon={mdiTrashCanOutline} onClick={onDelete} block>
           Delete {KIND_LABEL[node.kind].toLowerCase()}
-        </button>
+        </Button>
       </div>
   );
 }
@@ -1154,7 +1149,6 @@ export function AutomationEditor({
 
   // The phone sheet joins the dialog stack: when a confirm opens over it, it
   // sits back and keeps its top edge showing instead of going dark.
-  const { above: sheetAbove } = useSheetStack(!!selected || infoOpen);
 
   const addNode = (kind: NodeKind, def: NodeTypeDef) => {
     const id = `${kind}-${nextNodeId.current++}`;
@@ -1274,22 +1268,19 @@ export function AutomationEditor({
         })}
       </div>
 
-      {/* Right sidebar (lg+), sticky below the pinned title: the node config form
-          while a node is selected, otherwise the "Info" panel when toggled open
-          from the top bar. Hidden entirely when neither applies so the flow column
-          expands to fill the width. */}
-      {!nodeView && (selected || infoOpen) && (
-        <Sidebar
+      {/* Node config while a node is selected, otherwise the "Info" panel when
+          toggled open from the top bar: a docked rail beside the flow on a
+          desktop, the same panel as a bottom sheet on a phone. Hidden entirely
+          when neither applies so the flow column expands to fill the width. */}
+      {!nodeView && (
+        <SidePanel
+          open={!!selected || infoOpen}
+          onClose={() => (selected ? setSelectedId(null) : onCloseInfo?.())}
+          header={panelHeader}
           resizable
-          {...panelHeader}
-          className="ha-pane-in sticky z-20 hidden flex-shrink-0 lg:flex"
-          style={{
-            top: 'calc(var(--settings-header-h, 0px) + 4px)',
-            maxHeight: 'calc(100vh - var(--settings-header-h, 0px) - 24px)',
-          }}
         >
           {panelBody}
-        </Sidebar>
+        </SidePanel>
       )}
 
       {/* Node-graph view — a dotted canvas with draggable cards + bezier noodles,
@@ -1306,45 +1297,6 @@ export function AutomationEditor({
           />
         </div>,
         document.getElementById('app-surface-root') as HTMLElement,
-      )}
-
-      {/* Below lg the same panel rises as a bottom sheet (node config when a node
-          is selected, otherwise the Info panel). Portaled to the body — the
-          pane-transition wrapper above is transformed during its animation, which
-          would otherwise clip this fixed overlay to the page. */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {(selected || infoOpen) && (
-            <>
-              <motion.div
-                key="sheet-scrim"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="lg:hidden fixed inset-0 z-[100] bg-black/70"
-                onClick={() => (selected ? setSelectedId(null) : onCloseInfo?.())}
-              />
-              <motion.div
-                key="sheet"
-                initial={{ y: '100%' }}
-                animate={recede(sheetAbove)}
-                exit={{ y: '100%' }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                className="lg:hidden fixed inset-x-0 bottom-0 z-[100] px-ha-2"
-                style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)', transformOrigin: 'top center' }}
-              >
-                <div className="flex justify-center pb-ha-2">
-                  <div className="h-1.5 w-9 rounded-full bg-white/40" />
-                </div>
-                <Sidebar {...panelHeader} className="flex max-h-[82vh]">
-                  {panelBody}
-                </Sidebar>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>,
-        document.body,
       )}
 
       {/* Floating editor toolbar (only when the host wires up an exit). */}

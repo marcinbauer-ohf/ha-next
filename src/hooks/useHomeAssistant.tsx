@@ -59,6 +59,10 @@ import { emitHomePulse, PULSE_COLORS, type PulseColor, type PulseMeta } from '@/
 const LS_URL_KEY = 'ha_url';
 const LS_TOKEN_KEY = 'ha_token';
 const LS_DEMO_MODE_KEY = 'ha_demo_mode';
+// The demo home with every device taken out of it — a brand-new installation to
+// walk through (empty dashboard, summaries as invitations) without touching a
+// real instance. Demo-only: with live credentials it changes nothing.
+const LS_DEMO_EMPTY_KEY = 'ha_demo_empty';
 const LS_PREVIEW_NON_ADMIN_KEY = 'ha_dev_preview_non_admin';
 const EMPTY_ENTITIES: HassEntities = {};
 
@@ -75,6 +79,8 @@ interface HomeAssistantContextValue {
   haUrl: string;
   configured: boolean;
   demoMode: boolean;
+  /** Demo mode, stripped of its devices — the fresh-install preview. */
+  demoEmpty: boolean;
   hydrated: boolean;
   currentUser: HassUser | null;
   /** Single source of truth for gating admin-only UI — never true for a real non-admin user. */
@@ -112,6 +118,8 @@ interface HomeAssistantContextValue {
   reconnect: () => Promise<void>;
   saveCredentials: (url: string, token: string) => Promise<void>;
   enableDemoMode: () => void;
+  /** Empty out the demo home, or fill it back up. No-op against a live instance. */
+  setDemoEmpty: (value: boolean) => void;
   clearCredentials: () => void;
   setMockEntity: (entityId: string, entity: HassEntity | null) => void;
 }
@@ -360,6 +368,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
   const [haUrl, setHaUrl] = useState('');
   const [haToken, setHaToken] = useState('');
   const [demoMode, setDemoMode] = useState(false);
+  const [demoEmpty, setDemoEmptyState] = useState(false);
   const [configured, setConfigured] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -380,11 +389,13 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     let storedToken = '';
     let storedDemoMode = false;
     let storedPreviewNonAdmin = false;
+    let storedDemoEmpty = false;
     try {
       storedUrl = localStorage.getItem(LS_URL_KEY) || '';
       storedToken = localStorage.getItem(LS_TOKEN_KEY) || '';
       storedDemoMode = localStorage.getItem(LS_DEMO_MODE_KEY) === '1';
       storedPreviewNonAdmin = localStorage.getItem(LS_PREVIEW_NON_ADMIN_KEY) === '1';
+      storedDemoEmpty = localStorage.getItem(LS_DEMO_EMPTY_KEY) === '1';
     } catch {
       /* storage unreadable — fall through to demo defaults */
     }
@@ -404,7 +415,8 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     setDemoMode(shouldUseDemoMode);
     setConfigured(shouldUseDemoMode || hasStoredCredentials);
     setLiveEntities(EMPTY_ENTITIES);
-    setMockEntities(shouldUseDemoMode ? createDemoEntities() : EMPTY_ENTITIES);
+    setDemoEmptyState(storedDemoEmpty);
+    setMockEntities(shouldUseDemoMode && !storedDemoEmpty ? createDemoEntities() : EMPTY_ENTITIES);
     setCurrentUser(shouldUseDemoMode ? DEMO_USER : null);
     setPreviewAsNonAdminState(storedPreviewNonAdmin);
     setHydrated(true);
@@ -507,9 +519,22 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     setConnecting(false);
     setError(null);
     setLiveEntities(EMPTY_ENTITIES);
-    setMockEntities(createDemoEntities());
+    // Reloading the demo keeps whichever home you were looking at — the full
+    // one, or the empty install.
+    setMockEntities(demoEmpty ? EMPTY_ENTITIES : createDemoEntities());
     setCurrentUser(DEMO_USER);
     hasAutoConnected.current = false;
+  }, [demoEmpty]);
+
+  const setDemoEmpty = useCallback((value: boolean) => {
+    try {
+      localStorage.setItem(LS_DEMO_EMPTY_KEY, value ? '1' : '0');
+    } catch {
+      /* storage blocked — applies for this session anyway */
+    }
+    setDemoEmptyState(value);
+    // Only the mock store moves; a live instance's entities are never touched.
+    setMockEntities(value ? EMPTY_ENTITIES : createDemoEntities());
   }, []);
 
   const clearCredentials = useCallback(() => {
@@ -643,6 +668,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     haUrl,
     configured,
     demoMode,
+    demoEmpty,
     hydrated,
     currentUser,
     isAdmin,
@@ -679,6 +705,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     reconnect,
     saveCredentials,
     enableDemoMode,
+    setDemoEmpty,
     clearCredentials,
     setMockEntity,
   }), [
@@ -688,6 +715,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     haUrl,
     configured,
     demoMode,
+    demoEmpty,
     hydrated,
     currentUser,
     isAdmin,
@@ -724,6 +752,7 @@ export function HomeAssistantProvider({ children }: HomeAssistantProviderProps) 
     reconnect,
     saveCredentials,
     enableDemoMode,
+    setDemoEmpty,
     clearCredentials,
     setMockEntity,
   ]);
@@ -765,6 +794,23 @@ export function useHomeAssistantEntities(): HassEntities {
     getEntityStoreSnapshot,
     getEmptyEntityStoreSnapshot
   );
+}
+
+// Stable identity — the selector cache keys off the function itself.
+const selectNothingReported = (entities: HassEntities) => Object.keys(entities).length === 0;
+
+/**
+ * Connected to a home that reports nothing at all — a brand-new instance with no
+ * devices yet, as opposed to one that simply hasn't loaded. What the empty-state
+ * surfaces key off: the dashboard's "nothing here yet", and the summary chips
+ * that become invitations rather than hiding.
+ */
+export function useHomeIsEmpty(): boolean {
+  // The demo counts as a home: it never opens a socket, so `connected` stays
+  // false, and the emptied demo is exactly the case this exists to describe.
+  const { connected, demoMode } = useHomeAssistant();
+  const nothingReported = useHomeAssistantSelector(selectNothingReported);
+  return (connected || demoMode) && nothingReported;
 }
 
 export function useHomeAssistantSelector<T>(

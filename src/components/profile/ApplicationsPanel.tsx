@@ -380,7 +380,7 @@ export function ApplicationDetailView({ application }: { application: Applicatio
         )}
       </section>
 
-      <div className="space-y-ha-3">
+      <div className="space-y-ha-2">
         <SectionLabel inset>Details</SectionLabel>
         <div className="grid grid-cols-2 gap-ha-3">
           <FactCard label="Version" value={app.version ?? 'Not installed'} />
@@ -392,7 +392,7 @@ export function ApplicationDetailView({ application }: { application: Applicatio
         </div>
       </div>
 
-      <div className="space-y-ha-3">
+      <div className="space-y-ha-2">
         <SectionLabel inset>Health</SectionLabel>
         <div className="flex items-center gap-ha-3 rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-3">
           <Icon
@@ -408,7 +408,7 @@ export function ApplicationDetailView({ application }: { application: Applicatio
         </div>
       </div>
 
-      <div className="space-y-ha-3">
+      <div className="space-y-ha-2">
         <SectionLabel inset>Configuration</SectionLabel>
         <div className="flex items-center gap-ha-2 rounded-ha-2xl border border-surface-lower bg-surface-low px-ha-4 py-ha-3">
           <Icon path={mdiOpenInNew} size={15} className="flex-shrink-0 text-text-tertiary" />

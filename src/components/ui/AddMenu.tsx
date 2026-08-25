@@ -12,6 +12,7 @@ import { useAddContext, useCloseOnScreensaver } from '@/contexts';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { useHomeAssistant } from '@/hooks';
 import { addableSettingsItems, isAdminOnlySlug, type AddableSettingsItem } from '@/components/profile/settingsNavigation';
+import { SheetGrabber } from './SheetGrabber';
 
 interface Props {
   isOpen: boolean;
@@ -233,7 +234,7 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
               className="flex justify-center pt-ha-3 pb-ha-1 touch-none cursor-grab active:cursor-grabbing"
               onPointerDown={(e) => dragControls.start(e)}
             >
-              <div className="w-8 h-1 rounded-full bg-text-secondary/30" />
+              <SheetGrabber />
             </div>
             <SheetHeader eyebrow="Your home" title="Add" onClose={onClose} />
             <div className={`${SHEET_PAD} pb-ha-3`}>

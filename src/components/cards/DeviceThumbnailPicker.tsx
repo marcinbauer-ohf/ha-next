@@ -5,6 +5,7 @@ import { mdiAutoFix, mdiCheck, mdiChevronDown, mdiImageOffOutline } from '@mdi/j
 import { clsx } from 'clsx';
 import { Icon } from '../ui/Icon';
 import { DEVICE_THUMBNAIL_GROUPS, deviceThumbnailPath } from '@/lib/deviceThumbnails';
+import { SectionLabel } from '../ui/SectionLabel';
 
 // Catalog label keyed by /devices/*.png path — labels the auto pick and the
 // current selection in the collapsed row.
@@ -108,7 +109,7 @@ export function DeviceThumbnailPicker({ value, auto, iconPath, onChange }: Devic
           {/* Catalog, grouped. */}
           {DEVICE_THUMBNAIL_GROUPS.map(({ group, items }) => (
             <div key={group} className="flex flex-col gap-ha-1">
-              <p className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider px-0.5">{group}</p>
+              <SectionLabel>{group}</SectionLabel>
               <div className="flex flex-wrap gap-ha-2">
                 {items.map(({ file, label }) => {
                   const path = deviceThumbnailPath(file);

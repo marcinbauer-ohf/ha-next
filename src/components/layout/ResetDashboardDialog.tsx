@@ -8,6 +8,7 @@ import { haptic } from '@/lib/haptics';
 import { Icon } from '@/components/ui/Icon';
 import { ListSection } from '@/components/ui';
 import { mdiCheck, mdiBackupRestore } from '@mdi/js';
+import { Button } from '../ui';
 
 // Each option maps a human choice to the localStorage keys it clears. Reset is
 // destructive (edit mode saves on the spot — there's no cancel buffer), so the
@@ -145,19 +146,15 @@ export function ResetDashboardDialog({ open, onClose }: { open: boolean; onClose
             </div>
 
             <div className="flex gap-ha-2 p-ha-4 pt-ha-3">
-              <button
-                onClick={onClose}
-                className="flex-1 h-11 rounded-ha-xl bg-surface-low hover:bg-surface-mid text-text-primary text-sm font-semibold transition-colors"
-              >
-                Cancel
-              </button>
-              <button
+              <Button onClick={onClose} className="flex-1">Cancel</Button>
+              <Button
+                variant="danger"
                 onClick={handleConfirm}
                 disabled={!anySelected}
-                className="flex-1 h-11 rounded-ha-xl text-white text-sm font-semibold transition-colors bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-default disabled:hover:bg-red-500"
+                className="flex-1"
               >
                 Reset
-              </button>
+              </Button>
             </div>
           </motion.div>
         </motion.div>

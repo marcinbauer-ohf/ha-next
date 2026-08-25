@@ -28,16 +28,19 @@ import { HALoader, ListSection, SectionLabel } from '../ui';
 import {
   DetailRows,
   DialogCard,
+  DialogConfigureButton,
   DialogFrame,
   DialogHero,
   DialogTiles,
+  IntroStep,
   SetupStep,
   StatsChart,
   type DetailRow,
   type DialogTileSpec,
   type SetupSlot,
 } from '../cards/dialogKit';
-import { useHomeAssistant, useHomeAssistantEntities, useEntitiesByDomain } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantEntities } from '@/hooks';
+import { useSummaryScope, type SummaryScope } from './summaryScope';
 import { friendlyName, stateLabel } from '@/lib/homeassistant/entityHelpers';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
@@ -81,15 +84,20 @@ type ListKey = { [K in keyof SummaryConfig]: SummaryConfig[K] extends string[] ?
 
 function useSetupDraft(config: SummaryConfig, single: ListKey[] = []) {
   const [open, setOpen] = useState(false);
+  // Asked for on purpose ("start over"), as opposed to the intro a summary with
+  // nothing in it shows anyway — same screen, two ways to land on it.
+  const [atIntro, setAtIntro] = useState(false);
   const [draft, setDraft] = useState<SummaryConfig>(config);
 
   return {
     open,
+    atIntro,
     draft,
     setDraft,
-    start: () => { setDraft(config); setOpen(true); },
+    start: () => { setDraft(config); setAtIntro(false); setOpen(true); },
+    toIntro: () => { setOpen(false); setAtIntro(true); },
     cancel: () => setOpen(false),
-    save: () => { setSummaryConfig(draft); setOpen(false); },
+    save: () => { setSummaryConfig(draft); setOpen(false); setAtIntro(false); },
     toggle: (key: string, id: string) =>
       setDraft((d) => {
         const slot = key as ListKey;
@@ -100,6 +108,31 @@ function useSetupDraft(config: SummaryConfig, single: ListKey[] = []) {
   };
 }
 
+/**
+ * The entities a dialog is about, and how it should describe them. In an area
+ * the room's own sensors are the answer, and the home-wide picks are ignored:
+ * "which thermometers are the home" has no bearing on what the Kitchen reads.
+ * The battery threshold is a preference, not a selection, so it carries over.
+ */
+function useScopedEntities(config: SummaryConfig): {
+  entities: Record<string, HassEntity>;
+  /** The config the summary helpers should use — defaults inside an area. */
+  config: SummaryConfig;
+  scope: SummaryScope | null;
+} {
+  const home = useHomeAssistantEntities();
+  const scope = useSummaryScope();
+  return useMemo(() => (
+    scope
+      ? {
+          entities: scope.entities,
+          config: { climate: [], humidity: [], security: [], weather: [], battery: [], batteryLow: config.batteryLow },
+          scope,
+        }
+      : { entities: home, config, scope: null }
+  ), [home, scope, config]);
+}
+
 /** "3 of 12" style qualifier, built once so every dialog phrases it the same. */
 function ofLine(count: number, total: number, noun: string): string {
   return `${count} of ${total} ${noun}`;
@@ -108,7 +141,12 @@ function ofLine(count: number, total: number, noun: string): string {
 // ── Lights ───────────────────────────────────────────────────────────────────
 
 export function LightsDetail({ onClose }: { onClose: () => void }) {
-  const lights = useEntitiesByDomain('light');
+  const home = useHomeAssistantEntities();
+  const scope = useSummaryScope();
+  const lights = useMemo(
+    () => (Object.values(scope ? scope.entities : home) as HassEntity[]).filter((e) => e.entity_id.startsWith('light.')),
+    [home, scope],
+  );
   const { toggleEntity, callService } = useHomeAssistant();
 
   const on = lights.filter((e) => e.state === 'on');
@@ -129,7 +167,7 @@ export function LightsDetail({ onClose }: { onClose: () => void }) {
   ), [lights, toggleEntity]);
 
   return (
-    <DialogFrame eyebrow="Lights" title={on.length > 0 ? 'Some lights are on' : 'All lights are off'} onClose={onClose}>
+    <DialogFrame onClose={onClose}>
       <DialogCard>
         <DialogHero
           icon={mdiLightbulbGroup}
@@ -143,7 +181,7 @@ export function LightsDetail({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={() => callService({ domain: 'light', service: 'turn_off', target: { entity_id: on.map((e) => e.entity_id) } })}
-            className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.99]"
+            className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.98]"
           >
             <Icon path={mdiLightbulbOff} size={18} className="text-ha-blue" />
             Turn them all off
@@ -158,9 +196,9 @@ export function LightsDetail({ onClose }: { onClose: () => void }) {
 // ── Climate ──────────────────────────────────────────────────────────────────
 
 export function ClimateDetail({ onClose }: { onClose: () => void }) {
-  const entities = useHomeAssistantEntities();
-  const config = useSummaryConfig();
-  const setup = useSetupDraft(config);
+  const stored = useSummaryConfig();
+  const { entities, config, scope } = useScopedEntities(stored);
+  const setup = useSetupDraft(stored);
 
   const sensors = climateSensors(entities, config);
   const humidity = humiditySensors(entities, config);
@@ -200,7 +238,22 @@ export function ClimateDetail({ onClose }: { onClose: () => void }) {
         slots={slots}
         onToggle={setup.toggle}
         onSave={setup.save}
-        onClose={onClose}
+        onBack={setup.cancel}
+        onRestart={setup.toIntro}
+      />
+    );
+  }
+
+  // Nothing to average yet (or asked for the intro again): say what this is for
+  // rather than showing a dialog full of dashes.
+  if (!scope && (setup.atIntro || readings.length === 0)) {
+    return (
+      <IntroStep
+        icon={mdiThermometer}
+        eyebrow="Climate"
+        headline="Know how warm your home is"
+        blurb="Pick the thermometers you think of as rooms and this becomes one number — your home's average, with the warmest and coolest room behind it."
+        onStart={setup.start}
       />
     );
   }
@@ -209,7 +262,8 @@ export function ClimateDetail({ onClose }: { onClose: () => void }) {
     ...(warmest ? [{ label: 'Warmest', value: warmest.value.toFixed(1), unit, icon: mdiWhiteBalanceSunny }] : []),
     ...(coolest ? [{ label: 'Coolest', value: coolest.value.toFixed(1), unit, icon: mdiSnowflake }] : []),
     ...(humidityAvg !== null ? [{ label: 'Humidity', value: humidityAvg.toFixed(0), unit: '%', icon: mdiWaterPercent }] : []),
-    { label: 'Rooms', value: String(readings.length), icon: mdiHomeThermometerOutline },
+    // In a room they aren't rooms — they're the sensors in this one.
+    { label: scope ? 'Sensors' : 'Rooms', value: String(readings.length), icon: mdiHomeThermometerOutline },
   ];
 
   const rows: DetailRow[] = [...readings]
@@ -222,22 +276,36 @@ export function ClimateDetail({ onClose }: { onClose: () => void }) {
     }));
 
   return (
-    <DialogFrame eyebrow="Climate" title="How warm it is" onClose={onClose} onConfigure={setup.start}>
+    <DialogFrame
+      onClose={onClose}
+      aside={sensors.length > 0 && (
+        <DialogCard>
+          <StatsChart ids={sensors.map((e) => e.entity_id)} unit={unit} label="Average, over time" divided={false} />
+        </DialogCard>
+      )}
+    >
       <DialogCard>
         <DialogHero
+          onConfigure={scope ? undefined : setup.start}
           icon={mdiThermometer}
           iconClass="text-ha-blue"
           value={average !== null ? average.toFixed(1) : '—'}
           unit={unit}
           meta={[
-            warmest && coolest && `${coolest.value.toFixed(1)}–${warmest.value.toFixed(1)}${unit} across the home`,
+            // A range needs two ends: one thermometer has no spread, and in a
+            // room the spread is across the room, not "across the home".
+            warmest && coolest && warmest.value !== coolest.value
+              && `${coolest.value.toFixed(1)}–${warmest.value.toFixed(1)}${unit} across ${scope ? scope.areaName : 'the home'}`,
             humidityAvg !== null && `${humidityAvg.toFixed(0)}% humidity`,
-          ].filter(Boolean).join(' ・ ') || 'Average of every room'}
+          ].filter(Boolean).join(' ・ ')
+            || (scope
+              ? `${readings.length} thermometer${readings.length === 1 ? '' : 's'} in ${scope.areaName}`
+              : 'Average of every room')}
         />
         <DialogTiles tiles={tiles} />
-        {sensors.length > 0 && <StatsChart ids={sensors.map((e) => e.entity_id)} unit={unit} label="Average, over time" />}
       </DialogCard>
-      <DetailRows title="Room by room" rows={rows} empty="No thermometers picked — open the settings above." />
+      <DetailRows title={scope ? 'What it reads' : 'Room by room'} rows={rows} empty="No thermometers picked yet." />
+      {!scope && <DialogConfigureButton label="Configure your climate" onClick={setup.start} />}
     </DialogFrame>
   );
 }
@@ -247,9 +315,9 @@ export function ClimateDetail({ onClose }: { onClose: () => void }) {
 const OPEN_STATES = new Set(['on', 'open', 'unlocked', 'opening', 'triggered', 'pending']);
 
 export function SecurityDetail({ onClose }: { onClose: () => void }) {
-  const entities = useHomeAssistantEntities();
-  const config = useSummaryConfig();
-  const setup = useSetupDraft(config);
+  const stored = useSummaryConfig();
+  const { entities, config, scope } = useScopedEntities(stored);
+  const setup = useSetupDraft(stored);
   const { toggleEntity, callService } = useHomeAssistant();
 
   const watched = securityEntities(entities, config);
@@ -277,7 +345,21 @@ export function SecurityDetail({ onClose }: { onClose: () => void }) {
         slots={slots}
         onToggle={setup.toggle}
         onSave={setup.save}
-        onClose={onClose}
+        onBack={setup.cancel}
+        onRestart={setup.toIntro}
+      />
+    );
+  }
+
+  if (!scope && (setup.atIntro || watched.length === 0)) {
+    return (
+      <IntroStep
+        icon={mdiShieldHome}
+        iconClass="text-green-500"
+        eyebrow="Security"
+        headline="Leave the house without wondering"
+        blurb="Pick the locks, doors and windows worth counting. This then answers one question — is everything shut — and locks whatever isn't."
+        onStart={setup.start}
       />
     );
   }
@@ -305,14 +387,10 @@ export function SecurityDetail({ onClose }: { onClose: () => void }) {
     }));
 
   return (
-    <DialogFrame
-      eyebrow="Security"
-      title={allSecure ? 'Everything is shut' : open.length > 0 ? 'Something is open' : 'Something is unlocked'}
-      onClose={onClose}
-      onConfigure={setup.start}
-    >
+    <DialogFrame onClose={onClose}>
       <DialogCard>
         <DialogHero
+          onConfigure={scope ? undefined : setup.start}
           icon={mdiShieldHome}
           iconClass={allSecure ? 'text-green-500' : 'text-amber-500'}
           highlight={allSecure ? 'bg-green-500/15' : 'bg-amber-500/15'}
@@ -327,7 +405,7 @@ export function SecurityDetail({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={() => callService({ domain: 'lock', service: 'lock', target: { entity_id: unlocked.map((e) => e.entity_id) } })}
-            className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.99]"
+            className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.98]"
           >
             <Icon path={mdiLock} size={18} className="text-ha-blue" />
             Lock everything
@@ -335,7 +413,8 @@ export function SecurityDetail({ onClose }: { onClose: () => void }) {
         )}
         <DialogTiles tiles={tiles} />
       </DialogCard>
-      <DetailRows title="Doors and locks" rows={rows} empty="Nothing picked — open the settings above." />
+      <DetailRows title="Doors and locks" rows={rows} empty="Nothing picked yet." />
+      {!scope && <DialogConfigureButton label="Configure your security" onClick={setup.start} />}
     </DialogFrame>
   );
 }
@@ -373,18 +452,22 @@ export function WeatherDetail({ onClose }: { onClose: () => void }) {
         slots={slots}
         onToggle={setup.toggle}
         onSave={setup.save}
-        onClose={onClose}
+        onBack={setup.cancel}
+        onRestart={setup.toIntro}
       />
     );
   }
 
-  if (!weather) {
+  if (setup.atIntro || !weather) {
     return (
-      <DialogFrame eyebrow="Weather" title="No forecast" onClose={onClose} onConfigure={setup.start}>
-        <p className="rounded-ha-2xl bg-surface-low px-ha-4 py-ha-4 text-center text-sm text-text-tertiary">
-          Home Assistant has no weather service set up yet.
-        </p>
-      </DialogFrame>
+      <IntroStep
+        icon={mdiWeatherPartlyCloudy}
+        eyebrow="Weather"
+        headline="Your forecast where you already look"
+        blurb="Homes often end up with several forecasts. Pick the one you trust and it sits beside everything else — today's temperature now, the week underneath."
+        cta="Choose a weather service"
+        onStart={setup.start}
+      />
     );
   }
 
@@ -415,9 +498,10 @@ export function WeatherDetail({ onClose }: { onClose: () => void }) {
   }));
 
   return (
-    <DialogFrame eyebrow="Weather" title={friendlyName(weather)} onClose={onClose} onConfigure={setup.start}>
+    <DialogFrame onClose={onClose}>
       <DialogCard>
         <DialogHero
+          onConfigure={setup.start}
           icon={mdiWeatherPartlyCloudy}
           iconClass="text-ha-blue"
           value={temperature !== null ? temperature.toFixed(0) : stateLabel(weather)}
@@ -427,6 +511,7 @@ export function WeatherDetail({ onClose }: { onClose: () => void }) {
         <DialogTiles tiles={tiles} />
       </DialogCard>
       {rows.length > 0 && <DetailRows title="Next few days" rows={rows} />}
+      <DialogConfigureButton label="Configure your weather" onClick={setup.start} />
     </DialogFrame>
   );
 }
@@ -440,6 +525,7 @@ export function ModeDetail({ onClose }: { onClose: () => void }) {
   const { getLogbook } = useHomeAssistant();
 
   const [setupOpen, setSetupOpen] = useState(false);
+  const [atIntro, setAtIntro] = useState(false);
   const [draft, setDraft] = useState(entityId);
   const [events, setEvents] = useState<LogbookEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -471,8 +557,26 @@ export function ModeDetail({ onClose }: { onClose: () => void }) {
         intro="The home's mode is read from one of your helpers — this only shows it. Changing what each mode does stays with your automations."
         slots={slots}
         onToggle={(_key, id) => setDraft((d) => (d === id ? '' : id))}
-        onSave={() => { setHomeModeEntityId(draft); setSetupOpen(false); }}
-        onClose={onClose}
+        onSave={() => { setHomeModeEntityId(draft); setSetupOpen(false); setAtIntro(false); }}
+        onBack={() => setSetupOpen(false)}
+        onRestart={() => { setSetupOpen(false); setAtIntro(true); }}
+      />
+    );
+  }
+
+  // Gate on the mode itself, not on the stored id: a helper that was picked and
+  // has since gone leaves an id pointing at nothing, and that's still "nothing
+  // to show" — the same test every other summary makes against its readings.
+  if (atIntro || !homeMode) {
+    return (
+      <IntroStep
+        icon={mdiTune}
+        iconClass="text-violet-500"
+        eyebrow="Mode"
+        headline="Show what your home is set to"
+        blurb="Point this at the dropdown helper your automations already switch — Home, Away, Night — and the whole home's mode reads at a glance, with a log of when it last changed."
+        cta="Pick a helper"
+        onStart={() => { setDraft(entityId); setAtIntro(false); setSetupOpen(true); }}
       />
     );
   }
@@ -487,19 +591,15 @@ export function ModeDetail({ onClose }: { onClose: () => void }) {
   }));
 
   return (
-    <DialogFrame
-      eyebrow="Mode"
-      title={homeMode ? homeMode.current : 'Not set up'}
-      onClose={onClose}
-      onConfigure={() => { setDraft(entityId); setSetupOpen(true); }}
-    >
+    <DialogFrame onClose={onClose}>
       <DialogCard>
         <DialogHero
+          onConfigure={() => { setDraft(entityId); setAtIntro(false); setSetupOpen(true); }}
           icon={homeMode?.icon ?? mdiTune}
           iconClass="text-violet-500"
           highlight="bg-violet-500/15"
           value={homeMode?.current ?? '—'}
-          meta={options.length > 0 ? `One of ${options.length} modes` : 'Pick a helper in the settings above'}
+          meta={options.length > 0 ? `One of ${options.length} modes` : 'No helper picked yet'}
         />
       </DialogCard>
       {rows.length > 0 && <DetailRows title="Every mode" rows={rows} />}
@@ -525,6 +625,7 @@ export function ModeDetail({ onClose }: { onClose: () => void }) {
           </ListSection>
         </div>
       </div>
+      <DialogConfigureButton label="Configure your home mode" onClick={() => { setDraft(entityId); setAtIntro(false); setSetupOpen(true); }} />
     </DialogFrame>
   );
 }
@@ -575,9 +676,9 @@ function batteryIcon(level: number, low: number): string {
 }
 
 export function BatteryDetail({ onClose }: { onClose: () => void }) {
-  const entities = useHomeAssistantEntities();
-  const config = useSummaryConfig();
-  const setup = useSetupDraft(config);
+  const stored = useSummaryConfig();
+  const { entities, config, scope } = useScopedEntities(stored);
+  const setup = useSetupDraft(stored);
 
   const low = lowBatteryAt(config);
   const readings = batteryEntities(entities, config)
@@ -606,7 +707,8 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
         slots={slots}
         onToggle={setup.toggle}
         onSave={setup.save}
-        onClose={onClose}
+        onBack={setup.cancel}
+        onRestart={setup.toIntro}
       >
         <div className="flex w-full items-center gap-ha-3 rounded-ha-2xl bg-surface-default p-ha-3">
           <Icon path={mdiBatteryAlertVariantOutline} size={20} className="shrink-0 text-text-tertiary" />
@@ -627,6 +729,19 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
           />
         </div>
       </SetupStep>
+    );
+  }
+
+  if (!scope && (setup.atIntro || readings.length === 0)) {
+    return (
+      <IntroStep
+        icon={mdiBattery}
+        iconClass="text-green-500"
+        eyebrow="Batteries"
+        headline="Change the battery before it dies"
+        blurb="Every sensor that reports a charge, sorted by what runs out first — so a cell draining fast beats one that has been sitting at 22% for a year."
+        onStart={setup.start}
+      />
     );
   }
 
@@ -662,13 +777,21 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
 
   return (
     <DialogFrame
-      eyebrow="Batteries"
-      title={readings.length === 0 ? 'Nothing to watch' : flat.length === 0 ? 'All healthy' : flat.length === 1 ? 'One is low' : `${flat.length} are low`}
       onClose={onClose}
-      onConfigure={setup.start}
+      aside={readings.length > 0 && (
+        <DialogCard>
+          <StatsChart
+            ids={readings.slice(0, FORECAST_LIMIT).map((r) => r.entity.entity_id)}
+            unit="%"
+            label="Emptiest batteries, over time"
+            divided={false}
+          />
+        </DialogCard>
+      )}
     >
       <DialogCard>
         <DialogHero
+          onConfigure={scope ? undefined : setup.start}
           icon={readings.length > 0 ? batteryIcon(readings[0].level, low) : mdiBattery}
           iconClass={flat.length > 0 ? 'text-amber-500' : 'text-green-500'}
           highlight={flat.length > 0 ? 'bg-amber-500/15' : undefined}
@@ -678,17 +801,15 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
             readings.length > 0 && `lowest of ${readings.length}`,
             flat.length > 0 && `${flat.length} below ${low}%`,
             soonest && `${soonest.label} runs out in ${soonest.state}`,
-          ].filter(Boolean).join(' ・ ') || 'No batteries picked — open the settings above'}
+          ].filter(Boolean).join(' ・ ') || 'No batteries picked yet'}
         />
         <DialogTiles tiles={tiles} />
-        {readings.length > 0 && (
-          <StatsChart ids={readings.slice(0, FORECAST_LIMIT).map((r) => r.entity.entity_id)} unit="%" label="Emptiest batteries, over time" />
-        )}
       </DialogCard>
       {running.length > 0 && (
         <DetailRows title="Runs out first" rows={running} />
       )}
       <DetailRows title="Every battery" rows={rows} empty="Nothing in this home reports a battery level." />
+      {!scope && <DialogConfigureButton label="Configure your batteries" onClick={setup.start} />}
     </DialogFrame>
   );
 }
@@ -723,7 +844,7 @@ export function PeopleDetail({ onClose }: { onClose: () => void }) {
   }));
 
   return (
-    <DialogFrame eyebrow="People" title={home.length === people.length ? 'Everyone is home' : home.length === 0 ? 'Nobody is home' : 'Some are home'} onClose={onClose}>
+    <DialogFrame onClose={onClose}>
       <DialogCard>
         <DialogHero
           icon={mdiAccountMultiple}

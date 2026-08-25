@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Icon } from './Icon';
+import { IconButton } from './IconButton';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { friendlyConnectionError } from '@/lib/friendlyConnectionError';
 import { normalizeHaUrl } from '@/lib/normalizeHaUrl';
 import { mdiHomeAssistant, mdiArrowRight, mdiChevronDown, mdiCreation, mdiClose } from '@mdi/js';
+import { Button } from './Button';
 
 interface SetupScreenProps {
   onSave: (url: string, token: string) => Promise<void>;
@@ -51,14 +53,7 @@ export function SetupScreen({ onSave, onUseDemo, error, connecting, onClose, ope
             </h1>
           </div>
           {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-ha-1 -mr-ha-1 rounded-full text-text-secondary hover:bg-surface-low transition-colors"
-              aria-label="Close"
-            >
-              <Icon path={mdiClose} size={20} />
-            </button>
+            <IconButton icon={mdiClose} label="Close" size="sm" onClick={onClose} />
           )}
         </div>
 
@@ -143,24 +138,25 @@ export function SetupScreen({ onSave, onUseDemo, error, connecting, onClose, ope
             </div>
           )}
 
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            block
+            iconTrailing={connecting ? undefined : mdiArrowRight}
             disabled={!url.trim() || !token.trim() || connecting}
-            className="w-full flex items-center justify-center gap-ha-2 py-3 px-4 rounded-ha-xl bg-ha-blue text-white font-medium hover:bg-ha-blue/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {connecting ? 'Connecting…' : 'Connect'}
-            {!connecting && <Icon path={mdiArrowRight} size={18} />}
-          </button>
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            icon={mdiCreation}
+            block
             onClick={onUseDemo}
             disabled={connecting}
-            className="w-full flex items-center justify-center gap-ha-2 py-3 px-4 rounded-ha-xl bg-surface-default border border-fill-primary-normal text-text-primary font-medium hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="border border-fill-primary-normal"
           >
-            <Icon path={mdiCreation} size={18} />
             Explore the demo home instead
-          </button>
+          </Button>
         </form>
       </div>
     </ModalSheet>

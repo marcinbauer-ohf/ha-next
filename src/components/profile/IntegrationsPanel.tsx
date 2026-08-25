@@ -8,6 +8,17 @@ import type { IntegrationSummary, IntegrationStatus, IntegrationFlags } from '@/
 import { useIntegrations } from '@/hooks';
 import { useAddContext } from '@/contexts';
 import { useIntegrationCatalog, useAddedBrands, type CatalogBrand } from '@/hooks/useIntegrationCatalog';
+import {
+  DiscoveredShelf,
+  IgnoredDiscoveries,
+  usePendingRows,
+  PendingListRow,
+  PendingTile,
+  PendingNameCell,
+  PENDING_GROUP,
+  IGNORED_GROUP,
+  type PendingRow,
+} from './DiscoveredDevices';
 import type { StoreItem, StoreFilter } from '../ui';
 import {
   mdiCheckCircle,
@@ -188,6 +199,21 @@ function IntegrationTile({
  * DataListConfig and lets the generic DataListView handle search / sort / group /
  * filter / layout — the same pattern other big lists (entities, people…) can adopt.
  */
+// Same two kinds of row as the devices list: what is set up, and what is
+// waiting to be. A discovery *is* an integration that hasn't been agreed to yet,
+// so it belongs in this list rather than in a shelf above it.
+type IntegrationListRow = IntegrationSummary | PendingRow;
+const isPending = (row: IntegrationListRow): row is PendingRow => 'kind' in row;
+
+const rowName = (r: IntegrationListRow) => (isPending(r) ? r.title : r.name);
+const rowCategory = (r: IntegrationListRow) => (isPending(r) ? '\uFFFF' : r.category);
+// Pending rows count nothing but sort to the top: a "most devices" sort should
+// still leave the things you have to act on where you can see them.
+const count = (r: IntegrationListRow, key: 'deviceCount' | 'entityCount') =>
+  isPending(r) ? Infinity : r[key];
+/** Waiting first, dismissed last, whichever grouping is chosen. */
+const pendingRank = (key: string) => (key === PENDING_GROUP.key ? -1 : key === IGNORED_GROUP.key ? 1 : 0);
+
 export function IntegrationsTable({
   integrations,
   onSelect,
@@ -197,21 +223,32 @@ export function IntegrationsTable({
   onSelect: (id: string) => void;
   lastOpenedId?: string | null;
 }) {
-  const config = useMemo<DataListConfig<IntegrationSummary>>(() => ({
-    keyOf: (i) => i.id,
-    searchText: (i) => `${i.name} ${i.category}`,
+  const pending = usePendingRows();
+  const rows = useMemo<IntegrationListRow[]>(() => [...pending, ...integrations], [pending, integrations]);
+
+  const config = useMemo<DataListConfig<IntegrationListRow>>(() => ({
+    keyOf: (i) => (isPending(i) ? i.id : i.id),
+    searchText: (i) =>
+      isPending(i)
+        ? `${i.title} ${i.subtitle} ${i.foundBy} ${i.kind === 'found' ? 'found discovered new' : 'ignored not mine'}`
+        : `${i.name} ${i.category}`,
     searchPlaceholder: 'Search integrations…',
     sortOptions: [
-      { id: 'name', label: 'Name', compare: (a, b) => a.name.localeCompare(b.name) },
-      { id: 'devices', label: 'Devices', compare: (a, b) => b.deviceCount - a.deviceCount || a.name.localeCompare(b.name) },
-      { id: 'entities', label: 'Entities', compare: (a, b) => b.entityCount - a.entityCount || a.name.localeCompare(b.name) },
+      { id: 'name', label: 'Name', compare: (a, b) => rowName(a).localeCompare(rowName(b)) },
+      { id: 'devices', label: 'Devices', compare: (a, b) => count(b, 'deviceCount') - count(a, 'deviceCount') || rowName(a).localeCompare(rowName(b)) },
+      { id: 'entities', label: 'Entities', compare: (a, b) => count(b, 'entityCount') - count(a, 'entityCount') || rowName(a).localeCompare(rowName(b)) },
     ],
     groupOptions: [
       {
         id: 'category',
         label: 'Category',
-        groupOf: (i) => ({ key: i.category, title: i.category }),
+        groupOf: (i) =>
+          isPending(i)
+            ? (i.kind === 'found' ? PENDING_GROUP : IGNORED_GROUP)
+            : { key: i.category, title: i.category },
         compareGroups: (a, b) => {
+          const rank = pendingRank(a.key) - pendingRank(b.key);
+          if (rank !== 0) return rank;
           const ai = CATEGORY_ORDER.indexOf(a.key);
           const bi = CATEGORY_ORDER.indexOf(b.key);
           return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.title.localeCompare(b.title);
@@ -220,8 +257,13 @@ export function IntegrationsTable({
       {
         id: 'status',
         label: 'Status',
-        groupOf: (i) => ({ key: i.status, title: STATUS_LABEL[i.status] }),
-        compareGroups: (a, b) => STATUS_RANK[a.key as IntegrationStatus] - STATUS_RANK[b.key as IntegrationStatus],
+        groupOf: (i) =>
+          isPending(i)
+            ? (i.kind === 'found' ? PENDING_GROUP : IGNORED_GROUP)
+            : { key: i.status, title: STATUS_LABEL[i.status] },
+        compareGroups: (a, b) =>
+          pendingRank(a.key) - pendingRank(b.key) ||
+          (STATUS_RANK[a.key as IntegrationStatus] ?? 0) - (STATUS_RANK[b.key as IntegrationStatus] ?? 0),
       },
     ],
     defaultGroupId: 'category',
@@ -231,58 +273,64 @@ export function IntegrationsTable({
         mode: 'facet',
         label: 'Status',
         chips: [
-          { id: 'active', label: 'Active', predicate: (i) => i.status === 'active', defaultActive: true },
-          { id: 'disabled', label: 'Disabled', predicate: (i) => i.status === 'disabled' },
-          { id: 'ignored', label: 'Ignored', predicate: (i) => i.status === 'ignored' },
+          { id: 'active', label: 'Active', predicate: (i) => !isPending(i) && i.status === 'active', defaultActive: true },
+          // On by default: something waiting to be let in is the one row on this
+          // page with anything to do.
+          { id: 'found', label: 'Found', predicate: (i) => isPending(i) && i.kind === 'found', defaultActive: true },
+          { id: 'disabled', label: 'Disabled', predicate: (i) => !isPending(i) && i.status === 'disabled' },
+          { id: 'ignored', label: 'Ignored', predicate: (i) => (isPending(i) ? i.kind === 'ignored' : i.status === 'ignored') },
         ],
       },
     ],
-    renderRow: (i) => <IntegrationRow integration={i} onSelect={onSelect} />,
-    renderCard: (i) => <IntegrationTile integration={i} onSelect={onSelect} />,
+    renderRow: (i) => (isPending(i) ? <PendingListRow row={i} /> : <IntegrationRow integration={i} onSelect={onSelect} />),
+    renderCard: (i) => (isPending(i) ? <PendingTile row={i} /> : <IntegrationTile integration={i} onSelect={onSelect} />),
     columns: [
       {
         id: 'name',
         header: 'Integration',
-        sortAccessor: (i) => i.name.toLowerCase(),
-        cell: (i) => (
-          <div className="flex items-center gap-ha-3">
-            <IntegrationLogo
-              domain={i.id}
-              fallbackIcon={i.icon}
-              tileClass="w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 overflow-hidden"
-              iconSize={16}
-            />
-            <span className="min-w-0 flex items-center gap-ha-2">
-              <span className="font-semibold text-text-primary truncate">{i.name}</span>
-              <StatusPill status={i.status} />
-            </span>
-          </div>
-        ),
+        sortAccessor: (i) => rowName(i).toLowerCase(),
+        cell: (i) =>
+          isPending(i) ? (
+            <PendingNameCell row={i} />
+          ) : (
+            <div className="flex items-center gap-ha-3">
+              <IntegrationLogo
+                domain={i.id}
+                fallbackIcon={i.icon}
+                tileClass="w-8 h-8 flex items-center justify-center rounded-ha-lg flex-shrink-0 overflow-hidden"
+                iconSize={16}
+              />
+              <span className="min-w-0 flex items-center gap-ha-2">
+                <span className="font-semibold text-text-primary truncate">{i.name}</span>
+                <StatusPill status={i.status} />
+              </span>
+            </div>
+          ),
       },
-      { id: 'category', header: 'Category', sortAccessor: (i) => i.category.toLowerCase(), cell: (i) => i.category, hideBelow: 'sm' },
+      { id: 'category', header: 'Category', sortAccessor: (i) => rowCategory(i).toLowerCase(), cell: (i) => (isPending(i) ? i.subtitle || '—' : i.category), hideBelow: 'sm' },
       {
         id: 'devices',
         header: 'Devices',
         align: 'right',
         hideBelow: 'md',
-        sortAccessor: (i) => i.deviceCount,
-        cell: (i) => <span className="tabular-nums">{i.deviceCount}</span>,
+        sortAccessor: (i) => count(i, 'deviceCount'),
+        cell: (i) => (isPending(i) ? <span className="text-text-disabled">—</span> : <span className="tabular-nums">{i.deviceCount}</span>),
       },
       {
         id: 'entities',
         header: 'Entities',
         align: 'right',
-        sortAccessor: (i) => i.entityCount,
-        cell: (i) => <span className="tabular-nums">{i.entityCount}</span>,
+        sortAccessor: (i) => count(i, 'entityCount'),
+        cell: (i) => (isPending(i) ? <span className="text-text-disabled">—</span> : <span className="tabular-nums">{i.entityCount}</span>),
       },
       {
         id: 'flags',
         header: 'Flags',
         hideBelow: 'lg',
-        cell: (i) => <IntegrationFlagIcons flags={i.flags} />,
+        cell: (i) => (isPending(i) ? null : <IntegrationFlagIcons flags={i.flags} />),
       },
     ],
-    onRowClick: (i) => onSelect(i.id),
+    onRowClick: (i) => { if (!isPending(i)) onSelect(i.id); },
     storageId: 'integrations',
     fillHeight: true,
     defaultLayout: 'list',
@@ -295,7 +343,7 @@ export function IntegrationsTable({
   // already hoists "Integration" while this section is open.
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <DataListView items={integrations} config={config} />
+      <DataListView items={rows} config={config} />
       <IntegrationStore />
     </div>
   );
@@ -345,7 +393,7 @@ export function IntegrationDetailView({ integration }: { integration: Integratio
       </section>
 
       {/* Devices */}
-      <div className="space-y-ha-3">
+      <div className="space-y-ha-2">
         <SectionLabel inset>Devices</SectionLabel>
         {integration.devices.length === 0 ? (
           <div className="rounded-ha-2xl border border-surface-lower bg-surface-default px-ha-4 py-ha-5 text-center text-sm text-text-tertiary">
@@ -376,7 +424,7 @@ export function IntegrationDetailView({ integration }: { integration: Integratio
       </div>
 
       {/* Configure (placeholder — production opens HA's config-entry page) */}
-      <div className="space-y-ha-3">
+      <div className="space-y-ha-2">
         <SectionLabel inset>Configuration</SectionLabel>
         <div className="flex items-center gap-ha-2 px-ha-4 py-ha-3 bg-surface-low rounded-ha-2xl border border-surface-lower">
           <Icon path={mdiOpenInNew} size={15} className="text-text-tertiary flex-shrink-0" />
@@ -546,6 +594,10 @@ export function IntegrationStore() {
       filters={filters}
       itemsLabel="Brands"
       suggestions={SUGGESTED_SEARCHES}
+      // What the home found comes before what you could look for; what you
+      // dismissed comes after everything, folded away.
+      shelf={<DiscoveredShelf onSetUp={(d) => { if (d.domain) addBrand(d.domain); }} />}
+      footer={<IgnoredDiscoveries />}
     />
   );
 }

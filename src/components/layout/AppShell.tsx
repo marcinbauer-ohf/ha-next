@@ -5,7 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Sidebar, StatusBar, MobileNav, TopBar, EditingToolbar } from '@/components/layout';
 import { useFeatureFlags, useHomeAssistant, useImmersiveMode, useSidebarItems, useSidebarExpanded, useDesktopImmersivePageLayout, useTheme, useStandaloneMode, useVacuumSimulator, useDashboardThumbnailCapture } from '@/hooks';
 import { PulseWallpaper } from '@/components/layout/PulseWallpaper';
-import { useSearchContext, useHeader, useEditMode, useToast, useAssistantContext, useDebugFlags, useMobileToolbar } from '@/contexts';
+import { useSearchContext, useHeader, useEditMode, useToast, useAssistantContext, useMobileToolbar, useDebugFlags, RailSlotContext } from '@/contexts';
 import { mdiConnection, mdiCheckCircle, mdiAlertCircle, mdiCellphoneArrowDown, mdiRoundedCorner } from '@mdi/js';
 import { friendlyConnectionError } from '@/lib/friendlyConnectionError';
 import { SearchOverlay } from '@/components/ui/SearchOverlay';
@@ -20,7 +20,6 @@ import { SetupScreen } from '@/components/ui/SetupScreen';
 import { Preloader } from '@/components/ui/Preloader';
 import { OnboardingFlow } from '@/components/onboarding';
 import { isOnboardingActive, useOnboardingGate } from '@/lib/onboarding';
-import { emitSettingsReset } from '@/lib/settingsResetBus';
 import { RouteTransition } from '@/components/layout/RouteTransition';
 import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -74,13 +73,21 @@ function AppShellContent({ children }: AppShellProps) {
   const { contentStyle: immersiveContentStyle, contentTransitionClasses, isImmersiveFixed } = useDesktopImmersivePageLayout();
   const { toggleSearch, openSearch } = useSearchContext();
   const { toggleAssistant } = useAssistantContext();
-  const { title, subtitle } = useHeader();
+  const { title, subtitle, breadcrumbs } = useHeader();
   const { isEditing, toggleEditMode, previewViewport, previewOrientation } = useEditMode();
   // Dashboard edit mode and the in-page editors (automation, areas & floors —
-  // both mount an EditorToolbarShell) share one focus treatment: chrome dimmed,
-  // accent border round the surface, glow rising from the toolbar.
-  const { toolbarActive } = useMobileToolbar();
+  // both mount an EditorToolbarShell) share one focus treatment: accent border
+  // round the surface, glow rising from the toolbar.
+  //
+  // Pushing the shell's navigation back on top of that is a separate call, and
+  // one an editor can decline: the areas & floors editor does, because you keep
+  // moving between floors and other settings while laying a home out.
+  const { toolbarActive, toolbarDimsChrome } = useMobileToolbar();
+  // Prototyping switch: off puts the settings list back inside the page content
+  // as a second column, and this rail column collapses to nothing.
+  const { settingsRailEnabled } = useDebugFlags();
   const editorFocus = isEditing || toolbarActive;
+  const chromeDimmed = isEditing || toolbarDimsChrome;
   const { isToastVisible, showToast, dismissToast } = useToast();
   const { items: sidebarItems } = useSidebarItems();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useSidebarExpanded();
@@ -95,6 +102,9 @@ function AppShellContent({ children }: AppShellProps) {
   const searchParams = useSearchParams();
   const splitFlagCollapsePendingRef = useRef(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(null);
+  // Left rail slot node — settings portals its section list in here. Captured
+  // via the ref callback so the portal target is known without an effect.
+  const [railSlot, setRailSlot] = useState<HTMLElement | null>(null);
   // First-run onboarding covers the shell; while it's up the boot preloader is
   // redundant (both are opaque), so it never mounts and the shell settles
   // behind the flow — finishing onboarding fades straight into a ready
@@ -297,6 +307,23 @@ function AppShellContent({ children }: AppShellProps) {
   // tuned card layout survives reloads even while the panel stays closed.
   useEffect(() => initCardTuner(), []);
 
+  // Settings toggle, shared by the status bar avatar, the sidebar's, the mobile
+  // nav's and the S shortcut. Settings is a place you drop into and back out of,
+  // so re-invoking it from anywhere under /settings returns to the route you came
+  // from rather than sitting there. `router.back()` won't do: section switches
+  // don't push history, but drilling into a detail does, so back could land you
+  // mid-settings. Remember the departure route instead, defaulting home for a
+  // cold load straight onto /settings.
+  const preSettingsRoute = useRef('/');
+  const toggleSettings = useCallback(() => {
+    if (pathname.startsWith('/settings')) {
+      router.push(preSettingsRoute.current);
+      return;
+    }
+    preSettingsRoute.current = pathname;
+    router.push('/settings');
+  }, [pathname, router]);
+
   // Squircle corners are a subtle change, so confirm every toggle (keyboard,
   // debug switch, or command palette all flip the same flag) with a toast.
   // Track the previous value rather than a mount flag so a spurious toast never
@@ -380,15 +407,12 @@ function AppShellContent({ children }: AppShellProps) {
       }
       if (matchShortcut(e, 'global.settings')) {
         e.preventDefault();
-        // Mirror the StatusBar avatar: re-invoking from /settings resets the
-        // workspace to its default section instead of a no-op navigation.
-        if (pathname === '/settings') emitSettingsReset();
-        else router.push('/settings');
+        toggleSettings();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleSearch, openSearch, toggleAssistant, toggleEditMode, toggleSidebar, isEditing, pathname, router, onboardingActive]);
+  }, [toggleSearch, openSearch, toggleAssistant, toggleEditMode, toggleSidebar, toggleSettings, isEditing, pathname, router, onboardingActive]);
 
   // Reset preloader when user logs out so it shows again on next login
   useEffect(() => {
@@ -413,9 +437,18 @@ function AppShellContent({ children }: AppShellProps) {
     '--mobile-topbar-translate': `${-4 * mobileTopBarHideProgress}px`,
     '--mobile-topbar-margin': `${-64 * mobileTopBarHideProgress}px`,
   } as CSSProperties), [mobileTopBarHideProgress]);
+  // Width of the left rail column. The shell owns it (rather than the route)
+  // because the top bar has to indent its heading by the same amount — the rail
+  // spans the top-bar row, so the heading would otherwise sit underneath it.
+  // Settings is the only route with a rail today, and only at its section roots.
+  // Drilling into a detail (a device, an automation) puts a breadcrumb trail and
+  // a back arrow in the bar and wants the full width, so a trail is what closes
+  // the rail — as does a focused editor.
+  const railWidth = settingsRailEnabled && pathname === '/settings' && !chromeDimmed && !breadcrumbs?.length ? 328 : 0;
   const layoutStyle = useMemo(() => ({
     '--mobile-ui-hidden-padding': `${mobileHiddenPaddingProgress}`,
-  } as CSSProperties), [mobileHiddenPaddingProgress]);
+    '--app-rail-w': `${railWidth}px`,
+  } as CSSProperties), [mobileHiddenPaddingProgress, railWidth]);
 
   const handleWorkspaceSplitStart = useCallback((side: SplitSide, anchor: SplitMenuAnchor) => {
     if (!desktopSplitViewEnabled) return;
@@ -487,16 +520,6 @@ function AppShellContent({ children }: AppShellProps) {
     if (nextPathname && nextPathname !== pathname) {
       router.push(nextPathname);
     }
-  }, [pathname, router]);
-
-  // Settings entry, shared by the status bar avatar and — when the bottom bar
-  // is hidden by the debug flag — the sidebar's. Already on the two-column
-  // workspace → the URL won't change, so reset its active section via the bus.
-  // From a deep /settings/<slug> route (or anywhere else) a plain push lands on
-  // the workspace root, which picks its own default section.
-  const openSettings = useCallback(() => {
-    if (pathname === '/settings') emitSettingsReset();
-    else router.push('/settings');
   }, [pathname, router]);
 
   const sidebarNavigate = useCallback((href: string, options?: { openInSplit?: boolean }) => {
@@ -646,8 +669,9 @@ function AppShellContent({ children }: AppShellProps) {
       {/* Main app shell — fades in as preloader exits. While onboarding covers
           it the whole subtree is inert so Tab can't wander into invisible UI. */}
       <div
+        data-app-shell
         inert={onboardingActive || undefined}
-        className={`relative ${isStandalone ? 'h-screen' : 'h-[100dvh]'} lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_1fr] lg:pt-[calc(var(--ha-edge-padding)+env(safe-area-inset-top,0px))] lg:pl-edge transition-opacity duration-700 ${
+        className={`relative ${isStandalone ? 'h-screen' : 'h-[100dvh]'} lg:h-screen flex flex-col lg:grid lg:grid-rows-[auto_1fr_auto] lg:grid-cols-[auto_0px_1fr] xl:grid-cols-[auto_var(--app-rail-w,0px)_1fr] lg:pt-[calc(var(--ha-edge-padding)+env(safe-area-inset-top,0px))] lg:pl-edge transition-opacity duration-700 ${
           showPreloader ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
         style={layoutStyle}
@@ -655,22 +679,35 @@ function AppShellContent({ children }: AppShellProps) {
         {/* Sidebar - Desktop only, spans top bar and content rows. The rail
             itself animates between icon-only and expanded (labels) widths;
             the auto grid column follows it. */}
-        <div className={`hidden lg:block lg:row-span-2 relative z-10 transition-opacity duration-300 ease-out ${
-          hideDesktopChrome ? 'opacity-0 pointer-events-none' : editorFocus ? 'opacity-30 pointer-events-none' : 'opacity-100'
+        <div className={`hidden lg:block lg:col-start-1 lg:row-start-1 lg:row-span-2 relative z-10 transition-opacity duration-300 ease-out ${
+          hideDesktopChrome ? 'opacity-0 pointer-events-none' : chromeDimmed ? 'opacity-30 pointer-events-none' : 'opacity-100'
         }`}>
           <Sidebar
             onNavigate={sidebarNavigate}
             splitNavigationEnabled={desktopSplitViewEnabled}
             expanded={sidebarExpanded}
             onToggleExpanded={toggleSidebar}
-            onProfileToggle={openSettings}
+            onProfileToggle={toggleSettings}
           />
         </div>
+
+        {/* Left rail — a route's secondary nav column (settings' section list).
+            Spans the top-bar row so its search starts level with the global
+            one; sits above the top bar, which spans this column too so the
+            centered search doesn't shift when the rail opens. Zero-width and
+            empty on every other route. */}
+        <div
+          ref={setRailSlot}
+          inert={railWidth === 0 || undefined}
+          className={`hidden xl:block lg:col-start-2 lg:row-start-1 lg:row-span-2 relative z-20 overflow-hidden transition-opacity duration-300 ease-out ${
+            hideDesktopChrome ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
+        />
 
         {/* TopBar - Desktop & Mobile persistent header */}
         <div
           data-component="MobileTopBar"
-          className={`h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] lg:h-16 lg:pt-0 bg-surface-lower lg:bg-transparent px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 pointer-events-auto ${desktopTopBarStateClass}`}
+          className={`h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] lg:h-16 lg:pt-0 bg-surface-lower lg:bg-transparent px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 lg:col-start-2 lg:col-span-2 lg:row-start-1 pointer-events-auto ${desktopTopBarStateClass}`}
           style={mobileTopBarStyle}
         >
             {/* Mobile backdrop: the solid fill sits on THIS element, not on an
@@ -695,7 +732,7 @@ function AppShellContent({ children }: AppShellProps) {
         </div>
 
         {/* Content area */}
-        <div className="flex-1 min-h-0 overflow-hidden relative z-0" id="dashboard-content-area">
+        <div className="flex-1 min-h-0 overflow-hidden relative z-0 lg:col-start-3 lg:row-start-2" id="dashboard-content-area">
           <div
             className="h-full relative transition-[max-width,margin] duration-300 ease-out"
             style={
@@ -727,7 +764,9 @@ function AppShellContent({ children }: AppShellProps) {
               />
             ) : (
               <>
-                <RouteTransition>{children}</RouteTransition>
+                <RailSlotContext.Provider value={railSlot}>
+                  <RouteTransition>{children}</RouteTransition>
+                </RailSlotContext.Provider>
                 {desktopSplitViewEnabled && <DesktopSplitHotspots onSplit={handleWorkspaceSplitStart} />}
                 {desktopSplitViewEnabled && rootSplitMenu && (
                   <DesktopSplitViewMenu
@@ -801,8 +840,8 @@ function AppShellContent({ children }: AppShellProps) {
         {/* Status bar row - Desktop only */}
         <StatusBar
           connectionStatus={connectionStatus}
-          editModeFade={editorFocus}
-          onProfileToggle={openSettings}
+          editModeFade={chromeDimmed}
+          onProfileToggle={toggleSettings}
         />
       </div>
 
@@ -811,6 +850,7 @@ function AppShellContent({ children }: AppShellProps) {
         <MobileNav
           connectionStatus={connectionStatus}
           onNavAutoHiddenChange={handleMobileNavAutoHiddenChange}
+          onSettingsToggle={toggleSettings}
           editModeFade={isEditing}
           freezeAutoHide={isToastVisible}
         />
