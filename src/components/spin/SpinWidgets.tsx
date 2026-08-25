@@ -24,6 +24,7 @@ import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { useHomeAssistantEntities } from '@/hooks/useHomeAssistant';
 import { useEnergyMetrics } from '@/hooks/useEnergyMetrics';
 import { useEdgeFade } from '@/hooks/useEdgeFade';
+import { presenceLabel } from '@/lib/presence';
 import {
   SPIN_CATEGORY_MAP,
   activeEntities,
@@ -132,7 +133,7 @@ function useCategorySummaries(): SummaryValue[] {
       },
       {
         id: 'presence' as const,
-        value: `${home.length} home`,
+        value: presenceLabel(home.length),
         detail: home.length ? home.map((p) => entityName(p)).slice(0, 3).join(', ') : `${people.length - home.length} away`,
         live: home.length > 0,
       },

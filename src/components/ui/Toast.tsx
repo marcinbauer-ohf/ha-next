@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { mdiClose } from '@mdi/js';
@@ -144,6 +144,36 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
   );
 }
 
+/** Upward drag (px) or flick velocity past which the front toast is dismissed. */
+const SWIPE_DISMISS_OFFSET = 48;
+const SWIPE_DISMISS_VELOCITY = 400;
+
+/**
+ * Mobile banner wrapper: drag the front toast up to throw it away. Down is
+ * near-rigid so the card can't be pulled into the page; releasing short of the
+ * threshold springs it back. A drag never counts as a tap, so swiping a
+ * whole-card-clickable toast doesn't also open what it points at.
+ */
+function SwipeAwayToast(props: ToastStackItem) {
+  const dragged = useRef(false);
+  return (
+    <motion.div
+      drag="y"
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={{ top: 0.9, bottom: 0.04 }}
+      dragMomentum={false}
+      onDragStart={() => { dragged.current = true; }}
+      onDragEnd={(_, info) => {
+        if (info.offset.y < -SWIPE_DISMISS_OFFSET || info.velocity.y < -SWIPE_DISMISS_VELOCITY) props.onClose?.();
+        // Let the suppressed click land first, then allow taps again.
+        setTimeout(() => { dragged.current = false; }, 0);
+      }}
+    >
+      <Toast {...props} onClick={props.onClick ? () => { if (!dragged.current) props.onClick!(); } : undefined} />
+    </motion.div>
+  );
+}
+
 export interface ToastStackItem extends ToastProps {
   id: number;
 }
@@ -208,7 +238,7 @@ export function ToastStack({ toasts }: { toasts: ToastStackItem[] }) {
           className={`${root ? 'absolute' : 'fixed'} corner-toast z-[65] pointer-events-auto`}
         >
           <div className={`transition-opacity duration-150 ease-out ${hideForNav ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <StackedCards toasts={toasts} />
+            <StackedCards toasts={toasts} swipeToDismiss={!isDesktop} />
           </div>
         </motion.div>
       )}
@@ -218,7 +248,7 @@ export function ToastStack({ toasts }: { toasts: ToastStackItem[] }) {
   return root ? createPortal(node, root) : node;
 }
 
-function StackedCards({ toasts }: { toasts: ToastStackItem[] }) {
+function StackedCards({ toasts, swipeToDismiss }: { toasts: ToastStackItem[]; swipeToDismiss: boolean }) {
   const front = toasts[0];
   const peekCount = Math.min(Math.max(toasts.length - 1, 0), MAX_PEEK);
 
@@ -256,7 +286,7 @@ function StackedCards({ toasts }: { toasts: ToastStackItem[] }) {
           exit={{ y: -10, scale: 0.98, opacity: 0 }}
           transition={SPRING_STACK}
         >
-          {front && <Toast {...front} />}
+          {front && (swipeToDismiss ? <SwipeAwayToast {...front} /> : <Toast {...front} />)}
         </motion.div>
       </AnimatePresence>
     </motion.div>

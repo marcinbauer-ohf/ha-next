@@ -7,7 +7,7 @@ import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { mdiChevronDown, mdiLayers } from '@mdi/js';
 import { clsx } from 'clsx';
 import { Icon } from './Icon';
-import { SheetHeader, SHEET_PAD } from '@/components/cards/dialogKit';
+import { SHEET_PAD } from '@/components/cards/dialogKit';
 import { useAddContext, useCloseOnScreensaver } from '@/contexts';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { useHomeAssistant } from '@/hooks';
@@ -76,12 +76,15 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
   // the rest behind a "Show more options" row.
   const items = useMemo<AddMenuRow[]>(() => {
     const allowed = addableSettingsItems.filter((i) => isAdmin || !isAdminOnlySlug(i.slug));
-    const hit = contextSlug ? allowed.find((i) => i.slug === contextSlug) : undefined;
+    // Integrations and devices are one store (see IntegrationsPanel), so the
+    // integrations section hoists the same single row.
+    const wanted = contextSlug === 'integrations' ? 'devices' : contextSlug;
+    const hit = wanted ? allowed.find((i) => i.slug === wanted) : undefined;
     if (hit) {
-      const rest = allowed.filter((i) => i.slug !== contextSlug);
+      const rest = allowed.filter((i) => i.slug !== wanted);
       return [...expandRow(hit, true), ...rest.flatMap((i) => expandRow(i, false))];
     }
-    const hoisted = ['integrations', 'devices', 'automations', 'scenes'];
+    const hoisted = ['devices', 'automations', 'scenes'];
     const priority = hoisted
       .map((slug) => allowed.find((i) => i.slug === slug))
       .filter((i): i is AddableSettingsItem => Boolean(i));
@@ -236,8 +239,9 @@ export function AddMenu({ isOpen, onClose, anchorRef }: Props) {
             >
               <SheetGrabber />
             </div>
-            <SheetHeader eyebrow="Your home" title="Add" onClose={onClose} />
-            <div className={`${SHEET_PAD} pb-ha-3`}>
+            {/* No header: the grabber says "sheet" and every row starts with a
+                verb, so a title bar and an ✕ would only cost a screenful of list. */}
+            <div className={`${SHEET_PAD} pt-ha-2 pb-ha-3`}>
               <div className="relative">
                 <div className={clsx('absolute top-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-b from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', sheetTop ? 'opacity-100' : 'opacity-0')} />
                 <div className={clsx('absolute bottom-0 left-0 right-0 h-8 pointer-events-none bg-gradient-to-t from-surface-default via-surface-default/60 to-transparent z-10 transition-opacity duration-300', sheetBottom ? 'opacity-100' : 'opacity-0')} />

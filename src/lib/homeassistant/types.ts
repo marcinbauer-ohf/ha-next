@@ -124,6 +124,10 @@ export interface AreaRegistryEntry {
   picture?: string | null;
   aliases?: string[];
   labels?: string[];
+  /** The sensor that speaks for this area's temperature (HA 2025.2+). */
+  temperature_entity_id?: string | null;
+  /** The sensor that speaks for this area's humidity (HA 2025.2+). */
+  humidity_entity_id?: string | null;
 }
 
 export interface FloorRegistryEntry {

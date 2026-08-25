@@ -45,8 +45,8 @@
 
 :root {
   /* HA Edge Padding - outer edges of the application */
-  --ha-edge-padding: 12px;
-  --ha-edge-padding-mobile: 12px;
+  --ha-edge-padding: calc(12px * var(--ha-density, 1));
+  --ha-edge-padding-mobile: calc(12px * var(--ha-density, 1));
 
   /* Mobile bottom-nav pill outer radius. Tuned to read as concentric with the
      phone's physical screen corner: pill ≈ device-screen-radius − edge gap
@@ -71,6 +71,32 @@
   --ha-color-surface-low: #f3f3f3;
   --ha-color-surface-mid: #ebebeb;
   --ha-color-surface-lower: #e6e6e6;
+
+  /* ── The fill a chip sits on ────────────────────────────────────────────────
+     A chip has to read as an object against its HOST, and which step of the
+     surface ramp does that depends on where it landed. On the page (surface-
+     lower) a chip is surface-default. Inside a sheet or panel that *is*
+     surface-default — the Home Center bento, the desktop summary aside, the
+     mobile nav's expanded panel — surface-default is invisible and the chip has
+     to step up again. The chip can't know which, and asking every call site to
+     pass the right fill is how they drift.
+
+     So the fill is one variable the host declares and every chip reads. The
+     value here is the default: a chip on the page. Any container that grounds
+     content on surface-default overrides it once —
+
+       className="bg-surface-default [--ha-chip-fill:var(--ha-color-surface-mid)]"
+
+     — and every chip inside is correct without knowing where it is. Deliberately
+     a fill and not a hairline: an edge means "selected" everywhere else in the
+     system, so borrowing it here would say the wrong thing.
+
+     Note it's declared as a `var()` reference, not a literal: it resolves
+     against the element that uses it, so the ~20 themes that repaint
+     --ha-color-surface-* are all carried for free. Consume it through
+     OPAQUE_CHIP_FILL in SummaryCard.tsx, which also points the hover-grow band
+     at it so the grown edge can't come out a different colour than the chip. */
+  --ha-chip-fill: var(--ha-color-surface-default);
 
   /* HA Text Colors */
   --ha-color-text-primary: #141414;
@@ -97,16 +123,21 @@
   --ha-color-green-500: #2aa361;
   --ha-color-green-600: #208a4e;
 
-  /* HA Spacing (0-8 scale) */
+  /* HA Spacing (0-8 scale). Every step is a multiple of --ha-density, so the
+     Appearance -> Density choice (compact / default / spacious) scales every gap
+     and padding in the app from one knob. Deliberately NOT wired to Tailwind's
+     own --spacing: that scale also drives the w-, h- and inset- utilities, so touching it would
+     resize icons and controls, not just the space between them. */
+  --ha-density: 1;
   --ha-space-0: 0px;
-  --ha-space-1: 4px;
-  --ha-space-2: 8px;
-  --ha-space-3: 12px;
-  --ha-space-4: 16px;
-  --ha-space-5: 20px;
-  --ha-space-6: 24px;
-  --ha-space-7: 28px;
-  --ha-space-8: 32px;
+  --ha-space-1: calc(4px * var(--ha-density));
+  --ha-space-2: calc(8px * var(--ha-density));
+  --ha-space-3: calc(12px * var(--ha-density));
+  --ha-space-4: calc(16px * var(--ha-density));
+  --ha-space-5: calc(20px * var(--ha-density));
+  --ha-space-6: calc(24px * var(--ha-density));
+  --ha-space-7: calc(28px * var(--ha-density));
+  --ha-space-8: calc(32px * var(--ha-density));
 
   /* HA Border Radius */
   --ha-radius-md: 8px;
@@ -121,6 +152,11 @@
      no per-theme override needed. */
   --ha-radius-sheet: calc(var(--ha-radius-3xl) + 8px);
 }
+
+/* Density (Appearance -> Density). One multiplier feeds every --ha-space-* step
+   and the edge padding above. */
+:root[data-density="compact"] { --ha-density: 0.75; }
+:root[data-density="spacious"] { --ha-density: 1.4; }
 
 /* ── Squircle corner smoothing ──────────────────────────────────────────────
    iOS-style superellipse ("squircle") corners on every radiused element.
@@ -207,6 +243,10 @@
    choice rather than a warmth); each step is a shade deeper than the last so
    the tint arrives with the depth instead of sitting flat over everything. */
 [data-theme="default-tinted"] {
+  /* Onest is this theme's own face — the tint gets a matching typographic
+     temperature instead of borrowing `default`'s Hyperlegible Sans. */
+  --ha-font-family-base: var(--font-onest), "Onest", system-ui, sans-serif;
+
   /* The top of the ramp stays pure white in light mode: it is the app's own
      ground (the sheet the sidebar and top bar sit on) and every dashboard card,
      and a tint there reads as a dirty white rather than a blue one. The tint
@@ -1924,6 +1964,11 @@ html[data-theme="eink"] label {
   letter-spacing: 0;
 }
 
+/* Onest sits slightly wide at UI sizes; its designers' tracking is negative. */
+html[data-theme="default-tinted"] body {
+  letter-spacing: -0.008em;
+}
+
 html[data-theme="fallout"] body,
 html[data-theme="fallout"] button,
 html[data-theme="fallout"] input,
@@ -2004,6 +2049,47 @@ html {
 /* Custom easing for smooth transitions */
 .ease-in-out-quint {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Pulse loader ───────────────────────────────────────────────────────────
+   The in-page "this bit is still loading" indicator (HALoader): a node echoing
+   the boot logo's, breathing, with rings leaving it.
+
+   CSS keyframes rather than a JS animation, because these sit inside panels that
+   are loading — fetching history, opening a dialog, scanning for devices — and a
+   loader that stutters on the work it is reporting is worse than none.
+   transform/opacity keyframes run on the compositor instead of queueing behind
+   that work. Also means the indicator costs nothing while idle. */
+.ha-pulse-loader-dot {
+  animation: ha-pulse-loader-breathe 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes ha-pulse-loader-breathe {
+  0%, 100% { transform: scale(1);    opacity: 0.9; }
+  50%      { transform: scale(1.15); opacity: 1; }
+}
+
+/* Rings leave the node and fade out. Two of them half a cycle apart (the second
+   carries an inline animation-delay), so one is always in flight and the pulse
+   never reads as having stopped. */
+.ha-pulse-loader-ring {
+  animation: ha-pulse-loader-ring 1.8s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+@keyframes ha-pulse-loader-ring {
+  /* Fades across the whole travel. Spending it by 70% left the ring under 0.05
+     opacity for the last third, which read as nothing leaving the node at all. */
+  0%   { transform: scale(1);   opacity: 0.55; }
+  100% { transform: scale(3.4); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep a sign of life — a loader with nothing moving reads as hung — but drop
+     the travel: opacity alone, and no rings. */
+  .ha-pulse-loader-dot { animation: ha-pulse-loader-hold 1.8s ease-in-out infinite; }
+  .ha-pulse-loader-ring { animation: none; opacity: 0; }
+  @keyframes ha-pulse-loader-hold {
+    0%, 100% { opacity: 0.5; }
+    50%      { opacity: 1; }
+  }
 }
 
 /* Preloader bottom lockup tone by mode */

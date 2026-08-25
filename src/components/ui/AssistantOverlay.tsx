@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Icon } from './Icon';
 import { IconButton } from './IconButton';
 import { SectionLabel } from './SectionLabel';
-import { VoiceWaveBackground, type VoiceVisualState } from './VoiceWaveBackground';
+import { type VoiceVisualState } from './VoiceWaveBackground';
 import { useAssistantContext } from '@/contexts/AssistantContext';
 import { useCloseOnScreensaver } from '@/contexts';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
@@ -43,11 +43,10 @@ function useIsDarkMode(): boolean {
 }
 
 // ── Assistant overlay ─────────────────────────────────────────────────────────
-// The dashboard's ask sheet, restyled to the screensaver voice mode's family:
-// the same dot-wave scene, the same mic-orb face, the same glass chat bubbles
-// and input pill — so talking to the home looks identical whether you start
-// from the lock screen or the dashboard. Sheet mechanics (drag-dismiss, panel
-// containment on desktop, focus trap) are unchanged.
+// The dashboard's ask sheet: a regular app sheet — same surface, radii and
+// border as every other one — carrying the screensaver voice mode's mic-orb
+// face, chat bubbles and input pill. No dot-wave scene behind it. Sheet
+// mechanics (drag-dismiss, panel containment on desktop, focus trap) unchanged.
 
 const suggestions = [
   { icon: mdiLightbulbOnOutline, label: 'Turn off all lights' },
@@ -306,16 +305,15 @@ export function AssistantOverlay() {
       {/* Panel - slides up from the bottom of the dialog's bounds (viewport on
           mobile, the dashboard panel on desktop). Contained variant floats
           inset from the panel edges by the same margin as the corner toast
-          (1.5rem / ha-6), instead of sitting flush against them. The surface
-          follows the app's theme: the same dot-wave scene, painted on paper in
-          light mode instead of forcing the lock screen's night. */}
+          (1.5rem / ha-6), instead of sitting flush against them. Plain sheet
+          surface — same as every other sheet in the app. */}
       <div
         // Slide only, and past the bottom margin — same as Home Center: fading
         // while it travels showed the dashboard through the sheet mid-flight,
         // and translate-y-full alone left the last 24px inside the clip.
-        className={`relative mt-auto overflow-hidden bg-surface-default text-text-primary transition-transform duration-300 ease-out ${
+        className={`relative mt-auto overflow-hidden bg-surface-lower text-text-primary transition-transform duration-300 ease-out ${
           contained
-            ? 'mx-ha-6 mb-ha-6 rounded-ha-3xl border border-border-default shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.15)]'
+            ? 'mx-ha-6 mb-ha-6 rounded-ha-3xl border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.15)]'
             : 'w-full rounded-t-ha-sheet border-t border-white/10'
         }`}
         style={{
@@ -324,14 +322,6 @@ export function AssistantOverlay() {
           ...sheetDrag.dragStyle,
         }}
       >
-        {/* The voice scene — same reactive dot wave as the screensaver's face */}
-        <div className="absolute inset-0" aria-hidden>
-          <VoiceWaveBackground state={visualState} levelRef={levelRef} light={!dark} className="absolute inset-0" />
-          {/* Legibility scrim over the lower half, same as voice mode — the
-              sheet's own surface colour, so it works either way up. */}
-          <div className="absolute inset-x-0 bottom-0 h-[60%] bg-[linear-gradient(to_top,var(--ha-color-surface-default),transparent)] opacity-80" />
-        </div>
-
         <div className="relative flex flex-col" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
           {/* Drag indicator + close. This row doubles as the drag handle. */}
           <div

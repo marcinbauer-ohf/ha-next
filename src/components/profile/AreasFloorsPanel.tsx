@@ -1,9 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clsx } from 'clsx';
-import { AnimatePresence, motion } from 'framer-motion';
 import {
   DndContext,
   PointerSensor,
@@ -20,263 +18,15 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import {
   mdiPlus, mdiPencil, mdiTrashCanOutline, mdiDragHorizontalVariant, mdiMapMarkerOutline, mdiLayers,
-  mdiHomeFloorNegative1, mdiTagOutline, mdiAlertCircleOutline, mdiClose,
+  mdiHomeFloorNegative1, mdiTagOutline, mdiAlertCircleOutline,
 } from '@mdi/js';
 import { useAreasFloors, type AreaWithCounts, type FloorWithAreas } from '@/hooks';
 import { useAddContext } from '@/contexts';
 import type { LabelRegistryEntry } from '@/lib/homeassistant';
 import {
-  Icon, SectionLabel, ListSection, IconPicker, iconPathFor, AliasInput, Dropdown, ConfirmDialog, IconButton,
+  Icon, SectionLabel, ListSection, IconPicker, iconPathFor, AliasInput, ConfirmDialog, IconButton,
 } from '@/components/ui';
-
-// ── Editor modal scaffold ────────────────────────────────────────────────────
-// Centered card on desktop, bottom sheet on mobile. Mirrors ConfirmDialog's
-// portal + AnimatePresence approach so it layers above the settings workspace.
-
-function EditorModal({
-  open,
-  title,
-  onClose,
-  onSave,
-  saving,
-  error,
-  canSave,
-  saveLabel = 'Save',
-  children,
-}: {
-  open: boolean;
-  title: string;
-  onClose: () => void;
-  onSave: () => void;
-  saving: boolean;
-  error: string | null;
-  canSave: boolean;
-  saveLabel?: string;
-  children: ReactNode;
-}) {
-  if (typeof document === 'undefined') return null;
-  return createPortal(
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            className="fixed inset-0 z-[110] bg-black/70"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            className="fixed inset-x-0 bottom-0 z-[111] mx-auto w-full max-w-[480px] rounded-t-ha-sheet border border-surface-lower bg-surface-default p-ha-5 shadow-[0_-20px_60px_-24px_rgba(15,23,42,0.5)] sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-ha-3xl"
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 40 }}
-          >
-            <div className="mb-ha-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
-              <IconButton icon={mdiClose} label="Close" size="sm" shape="square" onClick={onClose} />
-            </div>
-
-            <div className="space-y-ha-4">{children}</div>
-
-            {error && (
-              <div className="mt-ha-4 flex items-start gap-ha-2 rounded-ha-xl bg-red-500/10 px-ha-3 py-ha-2 text-[13px] text-red-600">
-                <Icon path={mdiAlertCircleOutline} size={16} className="mt-0.5 flex-shrink-0" exact />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div className="mt-ha-5 flex justify-end gap-ha-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-ha-xl px-ha-4 py-ha-2 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-mid"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={onSave}
-                disabled={!canSave || saving}
-                className="rounded-ha-xl bg-ha-blue px-ha-4 py-ha-2 text-sm font-semibold text-white transition-colors hover:bg-ha-blue/90 disabled:opacity-40"
-              >
-                {saving ? 'Saving…' : saveLabel}
-              </button>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>,
-    document.body,
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-ha-1 block text-[13px] font-semibold text-text-secondary">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-const textInputClass =
-  'w-full rounded-ha-2xl border border-surface-lower bg-surface-low px-ha-4 py-ha-3 text-sm text-text-primary placeholder-text-tertiary outline-none transition-colors focus:border-ha-blue/40 focus:ring-1 focus:ring-ha-blue/20';
-
-// ── Label multi-select ───────────────────────────────────────────────────────
-
-function LabelMultiSelect({
-  all,
-  selected,
-  onChange,
-}: {
-  all: LabelRegistryEntry[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-}) {
-  const toggle = (id: string) =>
-    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
-
-  if (all.length === 0) {
-    return <p className="text-[13px] text-text-tertiary">No labels defined yet. Create labels in Home Assistant to tag areas.</p>;
-  }
-  return (
-    <div className="flex flex-wrap gap-ha-2">
-      {all.map((l) => {
-        const on = selected.includes(l.label_id);
-        return (
-          <button
-            key={l.label_id}
-            type="button"
-            onClick={() => toggle(l.label_id)}
-            className={`inline-flex items-center gap-ha-1 rounded-full px-ha-3 py-1 text-[13px] font-medium transition-colors ${
-              on ? 'bg-surface-mid text-text-primary ha-selected' : 'bg-surface-mid text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            <Icon path={iconPathFor(l.icon) ?? mdiTagOutline} size={14} exact />
-            {l.name}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Area editor ──────────────────────────────────────────────────────────────
-
-interface AreaDraft {
-  name: string;
-  icon: string | null;
-  floor_id: string | null;
-  aliases: string[];
-  labels: string[];
-}
-
-function AreaEditorModal({
-  open,
-  initial,
-  floors,
-  labels,
-  onClose,
-  onSubmit,
-}: {
-  open: boolean;
-  /** null ⇒ create; otherwise edit existing. */
-  initial: AreaWithCounts | null;
-  floors: FloorWithAreas[];
-  labels: LabelRegistryEntry[];
-  onClose: () => void;
-  onSubmit: (draft: AreaDraft) => Promise<void>;
-}) {
-  const [draft, setDraft] = useState<AreaDraft>(() => emptyAreaDraft());
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Re-seed the form whenever the modal opens for a (different) target.
-  const seedKey = `${open}:${initial?.area_id ?? 'new'}`;
-  const [lastSeed, setLastSeed] = useState('');
-  if (open && seedKey !== lastSeed) {
-    setLastSeed(seedKey);
-    setDraft(
-      initial
-        ? {
-            name: initial.name,
-            icon: initial.icon ?? null,
-            floor_id: initial.floor_id ?? null,
-            aliases: initial.aliases ?? [],
-            labels: initial.labels ?? [],
-          }
-        : emptyAreaDraft(),
-    );
-    setError(null);
-    setSaving(false);
-  }
-
-  const floorOptions = useMemo(
-    () => [{ value: '', label: 'No floor' }, ...floors.map((f) => ({ value: f.floor_id, label: f.name }))],
-    [floors],
-  );
-
-  const submit = async () => {
-    setSaving(true);
-    setError(null);
-    try {
-      await onSubmit(draft);
-      onClose();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save area.');
-      setSaving(false);
-    }
-  };
-
-  return (
-    <EditorModal
-      open={open}
-      title={initial ? 'Edit area' : 'New area'}
-      onClose={onClose}
-      onSave={submit}
-      saving={saving}
-      error={error}
-      canSave={draft.name.trim().length > 0}
-      saveLabel={initial ? 'Save' : 'Create'}
-    >
-      <Field label="Name">
-        <div className="flex items-center gap-ha-3">
-          <IconPicker value={draft.icon} onChange={(icon) => setDraft((d) => ({ ...d, icon }))} placeholderPath={mdiMapMarkerOutline} label="Area icon" />
-          <input
-            autoFocus
-            value={draft.name}
-            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-            placeholder="Living Room"
-            className={textInputClass}
-          />
-        </div>
-      </Field>
-
-      <Field label="Floor">
-        <Dropdown
-          options={floorOptions}
-          value={draft.floor_id ?? ''}
-          onChange={(v) => setDraft((d) => ({ ...d, floor_id: v || null }))}
-          align="left"
-          className="w-full"
-        />
-      </Field>
-
-      <Field label="Aliases">
-        <AliasInput value={draft.aliases} onChange={(aliases) => setDraft((d) => ({ ...d, aliases }))} placeholder="Lounge, Front room…" />
-      </Field>
-
-      <Field label="Labels">
-        <LabelMultiSelect all={labels} selected={draft.labels} onChange={(labelsSel) => setDraft((d) => ({ ...d, labels: labelsSel }))} />
-      </Field>
-    </EditorModal>
-  );
-}
-
-function emptyAreaDraft(): AreaDraft {
-  return { name: '', icon: null, floor_id: null, aliases: [], labels: [] };
-}
+import { AreaEditorModal, EditorModal, Field, textInputClass, type AreaDraft } from '@/components/areas/AreaEditorModal';
 
 // ── Floor editor ─────────────────────────────────────────────────────────────
 
@@ -782,7 +532,15 @@ export function AreasFloorsPanel() {
   };
 
   const submitArea = async (draft: AreaDraft) => {
-    const fields = { name: draft.name.trim(), icon: draft.icon, floor_id: draft.floor_id, aliases: draft.aliases, labels: draft.labels };
+    const fields = {
+      name: draft.name.trim(),
+      icon: draft.icon,
+      floor_id: draft.floor_id,
+      aliases: draft.aliases,
+      labels: draft.labels,
+      temperature_entity_id: draft.temperature_entity_id,
+      humidity_entity_id: draft.humidity_entity_id,
+    };
     if (edit?.kind === 'area' && edit.area) await model.updateArea(edit.area.area_id, fields);
     else await model.createArea(fields);
   };
@@ -879,6 +637,7 @@ export function AreasFloorsPanel() {
         initial={areaInitial}
         floors={floors}
         labels={labels}
+        editable={editable}
         onClose={() => setEdit(null)}
         onSubmit={async (draft) => {
           // Seed the floor when adding from a floor's "Add area" button.

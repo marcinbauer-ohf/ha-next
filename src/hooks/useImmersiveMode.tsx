@@ -14,7 +14,7 @@ interface ImmersiveModeContextType {
 const ImmersiveModeContext = createContext<ImmersiveModeContextType | null>(null);
 
 export function ImmersiveModeProvider({ children }: { children: ReactNode }) {
-  const [immersiveMode, setImmersiveMode] = useState(true); // always on by default; desktop turns off after mount
+  const [immersiveMode, setImmersiveMode] = useState(true); // mobile default; the breakpoint effect below settles it
   const [isDesktop, setIsDesktop] = useState(true);
 
   // Animation phases:
@@ -24,19 +24,20 @@ export function ImmersiveModeProvider({ children }: { children: ReactNode }) {
   // collapsing → normal (back to grid flow, chrome fades in)
   const [immersivePhase, setImmersivePhase] = useState<ImmersivePhase>('normal');
 
+  // Immersive is the mobile layout, full stop: below lg it is always on, and
+  // desktop starts out of it. matchMedia (not resize) so this only fires when
+  // the window actually crosses the breakpoint — a desktop user who turned
+  // immersive on by hand keeps it while resizing inside desktop widths.
   useEffect(() => {
-    const handleResize = () => {
-      const desktop = window.innerWidth >= 1024;
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const apply = (desktop: boolean) => {
       setIsDesktop(desktop);
+      setImmersiveMode(!desktop);
     };
-
-    // On first mount: turn off immersive on desktop
-    if (window.innerWidth >= 1024) {
-      setImmersiveMode(false);
-    }
-    setIsDesktop(window.innerWidth >= 1024);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    apply(mql.matches);
+    const onChange = (e: MediaQueryListEvent) => apply(e.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
   }, []);
 
   useEffect(() => {

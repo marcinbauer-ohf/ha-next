@@ -17,6 +17,8 @@ export const THEMES = ['default', 'default-tinted', 'glass', 'teenage', 'cyberpu
 export type Theme = (typeof THEMES)[number];
 export type ColorMode = 'light' | 'dark' | 'system';
 export type Background = 'gradient' | 'image' | 'solid' | 'none' | 'pulse';
+/** How much air sits between elements app-wide; drives --ha-density in globals.css. */
+export type Density = 'compact' | 'default' | 'spacious';
 
 /**
  * Accessibility preferences — surfaced by the top bar's accessibility button
@@ -46,6 +48,7 @@ interface ThemeContextType {
   background: Background;
   /** Superellipse ("squircle") corner smoothing on every radiused element. */
   squircle: boolean;
+  density: Density;
   toggleTheme: () => void;
   toggleMode: () => void;
   toggleBackground: () => void;
@@ -54,6 +57,7 @@ interface ThemeContextType {
   setMode: (mode: ColorMode) => void;
   setBackground: (bg: Background) => void;
   setSquircle: (on: boolean) => void;
+  setDensity: (density: Density) => void;
   a11y: A11yPrefs;
   toggleA11y: (key: keyof A11yPrefs) => void;
 }
@@ -106,6 +110,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [squircle, setSquircleState] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem('ha-squircle-pref') !== '0';
+  });
+
+  const [density, setDensityState] = useState<Density>(() => {
+    if (typeof window === 'undefined') return 'default';
+    const stored = localStorage.getItem('ha-density-pref');
+    return stored === 'compact' || stored === 'spacious' ? stored : 'default';
   });
 
   const [a11y, setA11y] = useState<A11yPrefs>(() => {
@@ -178,6 +188,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute('data-squircle', squircle ? 'on' : 'off');
   }, [squircle]);
 
+  // Density → data-density attribute; globals.css scales --ha-density off it.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-density', density);
+  }, [density]);
+
   const setTheme = useCallback((newTheme: Theme) => {
     triggerTransition();
     setThemeState(newTheme);
@@ -199,6 +214,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setSquircle = useCallback((on: boolean) => {
     setSquircleState(on);
     localStorage.setItem('ha-squircle-pref', on ? '1' : '0');
+  }, []);
+
+  const setDensity = useCallback((next: Density) => {
+    triggerTransition();
+    setDensityState(next);
+    localStorage.setItem('ha-density-pref', next);
   }, []);
 
   const toggleSquircle = useCallback(() => {
@@ -271,7 +292,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [toggleMode, toggleSquircle, setTheme, mode, theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, mode, background, squircle, toggleTheme, toggleMode, toggleBackground, toggleSquircle, setTheme, setMode, setBackground, setSquircle, a11y, toggleA11y }}>
+    <ThemeContext.Provider value={{ theme, mode, background, squircle, density, toggleTheme, toggleMode, toggleBackground, toggleSquircle, setTheme, setMode, setBackground, setSquircle, setDensity, a11y, toggleA11y }}>
       {/* 'user' defers to the OS setting, so the app-level toggle only ever adds
           reduced motion on top of it — it never overrides someone's OS choice. */}
       <MotionConfig reducedMotion={a11y.reduceMotion ? 'always' : 'user'}>

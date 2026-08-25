@@ -448,6 +448,8 @@ export interface AreaWriteFields {
   picture?: string | null;
   aliases?: string[];
   labels?: string[];
+  temperature_entity_id?: string | null;
+  humidity_entity_id?: string | null;
 }
 
 export async function createArea(fields: AreaWriteFields): Promise<AreaRegistryEntry> {

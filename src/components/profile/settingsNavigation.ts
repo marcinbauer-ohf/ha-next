@@ -156,8 +156,8 @@ export const settingsNavSections: SettingsNavSection[] = [
   {
     title: 'Devices',
     items: [
-      { slug: 'integrations', icon: mdiPuzzle, label: 'Integrations', description: 'Connected services and platforms', haPath: '/config/integrations', addLabel: 'Integration' },
-      { slug: 'devices', icon: mdiDevices, label: 'Devices & Services', description: 'All registered devices and services', haPath: '/config/devices', addLabel: 'Device' },
+      { slug: 'integrations', icon: mdiPuzzle, label: 'Integrations', description: 'Connected services and platforms', haPath: '/config/integrations' },
+      { slug: 'devices', icon: mdiDevices, label: 'Devices & Services', description: 'All registered devices and services', haPath: '/config/devices', addLabel: 'Device or service' },
       { slug: 'entities', icon: mdiShape, label: 'Entities', description: 'Every sensor and control in your home', haPath: '/config/entities' },
       { slug: 'helpers', icon: mdiWrench, label: 'Helpers', description: 'Extra controls like timers, toggles and counters', haPath: '/config/helpers', addLabel: 'Helper' },
     ],

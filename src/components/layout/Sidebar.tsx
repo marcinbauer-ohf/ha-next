@@ -560,7 +560,7 @@ export function Sidebar({
     <>
       <aside
         className={clsx(
-          'hidden lg:flex flex-col items-center py-ha-2 h-full overflow-hidden transition-[width] duration-300 ease-out',
+          'group/rail hidden lg:flex flex-col items-center py-ha-2 h-full overflow-hidden transition-[width] duration-300 ease-out',
           // Icon-only rail vs expanded rail with labels — the auto grid
           // column in AppShell follows this width as it animates.
           expanded ? 'w-56' : 'w-16'
@@ -762,7 +762,9 @@ export function Sidebar({
             rail's icon axis (and centring it in the full slot would swing it out
             to the middle of the expanded rail). */}
         {!arranging && (
-          <div className="flex-shrink-0 mt-ha-2 w-full px-2">
+          // Secondary affordances: faded out until the rail is hovered (or one
+          // of them takes keyboard focus), so the resting rail stays quiet.
+          <div className="flex-shrink-0 mt-ha-2 w-full px-2 opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 focus-within:opacity-100">
             <span className="w-12 flex justify-center">
             <EditItemsButton
               variant="rail"
@@ -776,7 +778,7 @@ export function Sidebar({
           </div>
         )}
         {!arranging && onToggleExpanded && (
-          <div className="flex-shrink-0 mt-ha-1 w-full px-2">
+          <div className="flex-shrink-0 mt-ha-1 w-full px-2 opacity-0 transition-opacity duration-200 group-hover/rail:opacity-100 focus-within:opacity-100">
             <button
               type="button"
               aria-label={expanded ? 'Collapse sidebar' : 'Expand sidebar'}

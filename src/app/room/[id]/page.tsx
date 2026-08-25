@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect, useRef, useMemo } from 'react';
+import { use, useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { mdiArrowLeft } from '@mdi/js';
 import { clsx } from 'clsx';
 import Link from 'next/link';
@@ -14,7 +14,8 @@ import { Icon } from '@/components/ui/Icon';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
 import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
 import { usePullToRevealContext, useHeader } from '@/contexts';
-import { useDevices, useDesktopImmersivePageLayout, useFeatureFlags, useFastScrollLabels, useIdleMarquee, useSectionCrumb, useScrollToEdges } from '@/hooks';
+import { useDevices, useAreasFloors, useDesktopImmersivePageLayout, useFeatureFlags, useFastScrollLabels, useIdleMarquee, useSectionCrumb, useScrollToEdges } from '@/hooks';
+import { AreaEditorModal } from '@/components/areas/AreaEditorModal';
 import { entityDomain, SECTION_ORDER, SECTION_TITLES, domainTypeIcon } from '@/lib/homeassistant/entityHelpers';
 import type { HassDevice } from '@/hooks';
 import type { HassEntities } from '@/types';
@@ -67,9 +68,20 @@ export default function RoomPage({ params }: RoomPageProps) {
 
   const areaName = areas.get(id) ?? id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
+  // The top bar's pencil edits what this page is about: the area itself.
+  const { areas: areaEntries, floors, labels, editable, updateArea } = useAreasFloors();
+  const area = useMemo(() => areaEntries.find(a => a.area_id === id) ?? null, [areaEntries, id]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+
   useEffect(() => {
-    setHeader({ title: areaName, subtitle: 'Home', contentGutter: true });
-  }, [setHeader, areaName]);
+    setHeader({
+      title: areaName,
+      subtitle: 'Home',
+      contentGutter: true,
+      editAction: area ? { label: `${areaName} settings`, onClick: openSettings } : undefined,
+    });
+  }, [setHeader, areaName, area, openSettings]);
 
   // Devices in this area, grouped into sections by device type
   const sections = useMemo(
@@ -156,7 +168,13 @@ export default function RoomPage({ params }: RoomPageProps) {
               <div className={CONTENT_SHELL}>
                 <ApplicationViewNotice />
 
-                {!loading && <AreaSummaryRow entities={areaEntities} areaName={areaName} />}
+                {!loading && (
+                  <AreaSummaryRow
+                    entities={areaEntities}
+                    areaName={areaName}
+                    areaSensors={{ temperature: area?.temperature_entity_id, humidity: area?.humidity_entity_id }}
+                  />
+                )}
 
                 {loading && <DeviceGridSkeleton />}
 
@@ -178,6 +196,27 @@ export default function RoomPage({ params }: RoomPageProps) {
           </div>
         </div>
       </div>
+
+      <AreaEditorModal
+        open={settingsOpen}
+        initial={area}
+        floors={floors}
+        labels={labels}
+        editable={editable}
+        onClose={() => setSettingsOpen(false)}
+        onSubmit={async (draft) => {
+          if (!area) return;
+          await updateArea(area.area_id, {
+            name: draft.name.trim(),
+            icon: draft.icon,
+            floor_id: draft.floor_id,
+            aliases: draft.aliases,
+            labels: draft.labels,
+            temperature_entity_id: draft.temperature_entity_id,
+            humidity_entity_id: draft.humidity_entity_id,
+          });
+        }}
+      />
     </>
   );
 }

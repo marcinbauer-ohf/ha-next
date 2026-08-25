@@ -223,17 +223,17 @@ export function DialogFrame({
         >
           <div
             className={clsx(
-              'flex w-full flex-col gap-ha-2',
+              'flex w-full flex-col gap-ha-4',
               // items-start so the chart column keeps its own height instead of
               // stretching to match a long list beside it.
-              aside && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-ha-3',
+              aside && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-ha-4',
             )}
           >
-            {aside ? <div className="flex min-w-0 flex-col gap-ha-2">{children}</div> : children}
+            {aside ? <div className="flex min-w-0 flex-col gap-ha-4">{children}</div> : children}
             {aside && (
               // Sticky: the list on the left is the long one, and the chart is
               // what you're comparing it against — it shouldn't scroll away.
-              <div className="flex min-w-0 flex-col gap-ha-2 lg:sticky lg:top-0">{aside}</div>
+              <div className="flex min-w-0 flex-col gap-ha-4 lg:sticky lg:top-0">{aside}</div>
             )}
           </div>
         </div>
@@ -242,28 +242,101 @@ export function DialogFrame({
   );
 }
 
-/** The card everything sits on — hero, numbers and the past, hairline-divided. */
+/**
+ * A group, held together by being close rather than by a surface of its own: the
+ * hero and the numbers that follow from it. It used to be a card, which put a
+ * third ground (sheet → card → hero) behind a reading that only ever needed
+ * two — so it's tight spacing now, and the body gap does the separating.
+ */
 export function DialogCard({ children }: { children: React.ReactNode }) {
-  return <div className="flex w-full flex-col gap-ha-2 rounded-ha-2xl bg-surface-low p-ha-2">{children}</div>;
+  return <div className="flex w-full flex-col gap-ha-1">{children}</div>;
 }
 
-/** The band: glyph, the reading in the middle, the control (if any) on the right. */
+// ── Tone ─────────────────────────────────────────────────────────────────────
+
+/**
+ * The one colour language every summary dialog speaks. Colour here says *how
+ * this reading is doing*, never *what it is about* — the glyph already says
+ * what it is about, and a hue per subject is what left nine dialogs wearing
+ * seven unrelated colours (yellow lights, violet mode, amber energy…) with the
+ * same tint meaning "fine" in one and "look at me" in the next.
+ *
+ *   neutral  nothing wants you — the resting state of most dialogs
+ *   active   something is on, running, drawing or present
+ *   good     the question you opened this to ask answers yes
+ *   warn     something wants you
+ *
+ * Ink only, from the themed ramp: `fill-*` and `yellow-95` are *paper* tokens
+ * that some themes flatten to plain white (see the INK vs PAPER note in
+ * globals.css), so a tone painted as a fill would come out identical across all
+ * four in the default light theme.
+ */
+export type DialogTone = 'neutral' | 'active' | 'good' | 'warn';
+
+const TONE_INK: Record<DialogTone, string> = {
+  neutral: 'text-text-tertiary',
+  active: 'text-ha-blue',
+  good: 'text-green-500',
+  warn: 'text-yellow-500',
+};
+
+/** The rail down the hero's leading edge. Only the two tones worth a glance. */
+const TONE_RAIL: Partial<Record<DialogTone, string>> = {
+  good: 'bg-green-500',
+  warn: 'bg-yellow-500',
+};
+
+/**
+ * The reading, at the top of every summary dialog.
+ *
+ * Left-aligned and display-scale, because it is the headline of the sheet: it
+ * used to be a centred 26px figure floating in a full-width tinted band, which
+ * at panel width put the one thing you opened the dialog for in the middle of
+ * two empty gutters — and the band's `/15` wash came out as sludge on dark and
+ * as nothing at all on the themes that flatten fills. Status is the glyph's ink
+ * plus a rail on the leading edge instead.
+ *
+ * `subject` is the dialog's own name. The summary dialogs are headerless (a chip
+ * you just tapped shouldn't have its name read back at you in a title bar) —
+ * which left the Climate dialog never saying the word "climate" anywhere. The
+ * eyebrow puts it back where it costs nothing.
+ */
 export function DialogHero({
   icon,
-  iconClass = 'text-text-tertiary',
+  tone = 'neutral',
+  subject,
   value,
+  numeric = false,
   unit,
   meta,
+  action,
   right,
   onConfigure,
-  highlight,
   stamp,
 }: {
   icon: string;
-  iconClass?: string;
+  /** How this reading is doing. See DialogTone — never used for identity. */
+  tone?: DialogTone;
+  /** The dialog's own name, as an eyebrow over the reading. */
+  subject?: string;
   value: string;
+  /**
+   * True for a *measurement* (°, %, W, kWh) — those get the mono face, same as
+   * a device card's state line, so readings look like readings. Counts and
+   * words ("3 on", "Secure", "Away") are not measurements: mono makes them read
+   * as terminal output rather than as the sentence they are.
+   */
+  numeric?: boolean;
   unit?: string;
   meta?: string;
+  /**
+   * The one thing this dialog lets you do about the reading — "turn them all
+   * off", "lock everything". It rides the hero's right edge on a wide sheet,
+   * where it fills the space beside the headline and stays button-sized; below
+   * lg there is no room beside anything, so the panel renders its own
+   * full-width copy underneath instead (`lg:hidden`).
+   */
+  action?: React.ReactNode;
   right?: React.ReactNode;
   /**
    * Shows the cog on the band's right edge and opens the dialog's setup step.
@@ -271,33 +344,45 @@ export function DialogHero({
    * reading — which sensors it's made of — and the dialogs have no header.
    */
   onConfigure?: () => void;
-  /** Tint the band — the group is in a state worth noticing. */
-  highlight?: string;
   /**
    * The moment being scrubbed on the chart below, in the accent so "this is not
-   * now" reads at a glance. Out of flow and fading in, so arriving on the chart
-   * can't nudge the reading off centre.
+   * now" reads at a glance. It takes the meta line's place rather than stacking
+   * under it — both are one line of context about the figure above, and swapping
+   * them keeps the reading from shifting as the finger arrives on the chart.
    */
   stamp?: string | null;
 }) {
+  const rail = TONE_RAIL[tone];
   return (
-    <div className={clsx(
-      'relative flex w-full items-center gap-ha-3 rounded-ha-2xl px-ha-3 py-ha-2 transition-colors',
-      highlight ?? 'bg-surface-default',
-    )}>
-      <Icon path={icon} size={28} className={clsx('shrink-0', iconClass)} />
-      <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
-        <span className="relative flex min-w-0 items-baseline">
-          <RollingNumericValue value={value} className="font-mono text-2xl font-bold capitalize text-text-primary" />
-          {unit && <span className="ml-1 font-mono text-sm text-text-secondary">{unit}</span>}
-          {stamp && (
-            <span className="ha-scrub-stamp-in absolute inset-x-0 top-full whitespace-nowrap pt-0.5 text-center text-[11px] font-semibold leading-none text-ha-blue">
-              {stamp}
-            </span>
-          )}
+    <div className="relative flex w-full items-start gap-ha-3 overflow-hidden rounded-ha-2xl bg-surface-default px-ha-4 py-ha-4">
+      {rail && <span aria-hidden className={clsx('absolute inset-y-ha-3 left-0 w-1 rounded-r-full transition-colors', rail)} />}
+      <Icon path={icon} size={26} className={clsx('mt-1 shrink-0 transition-colors', TONE_INK[tone])} />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {subject && (
+          <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{subject}</span>
+        )}
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <RollingNumericValue
+            value={value}
+            className={clsx(
+              'text-3xl font-bold leading-tight capitalize text-text-primary lg:text-4xl',
+              numeric && 'font-mono',
+            )}
+          />
+          {unit && <span className="shrink-0 text-base font-medium text-text-secondary">{unit}</span>}
         </span>
-        {meta && <span className="max-w-full truncate text-xs text-text-tertiary">{meta}</span>}
+        {(stamp || meta) && (
+          <span className={clsx(
+            'mt-1 truncate text-sm',
+            stamp ? 'font-semibold text-ha-blue' : 'text-text-secondary',
+          )}>
+            {stamp || meta}
+          </span>
+        )}
       </div>
+
+      {action && <div className="hidden shrink-0 self-center lg:block">{action}</div>}
       {right}
       {onConfigure && (
         <IconButton
@@ -311,7 +396,6 @@ export function DialogHero({
     </div>
   );
 }
-
 /**
  * The way into a dialog's setup step, spelled out. The hero's cog is there for
  * anyone who already knows it, but nothing about a glyph says what it changes —
@@ -326,19 +410,32 @@ export interface DialogTileSpec {
   label: string;
   value: string;
   unit?: string;
-  icon: string;
+  /** Numbers only — see DialogHero's `numeric`. */
+  numeric?: boolean;
+  /** The one figure in the strip that is the reason you're looking. */
+  tone?: DialogTone;
 }
 
-export function DialogTile({ label, value, unit, icon }: DialogTileSpec) {
+/**
+ * The figures behind the reading. One strip, not a row of separate boxes: four
+ * free-floating cards under a card read as four things of equal weight, when
+ * they are one thing — the breakdown of the number above them. The hairline
+ * grid is a gap over a darker ground, so it survives every theme's fills.
+ *
+ * Nothing in here should restate the hero. If the strip's first figure is the
+ * same number as the headline, the strip is one figure shorter than it thinks.
+ */
+export function DialogTile({ label, value, unit, numeric = true, tone }: DialogTileSpec) {
   return (
-    <div className="flex min-w-0 flex-col gap-1 rounded-ha-xl bg-surface-default px-ha-3 py-ha-2">
-      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-        <Icon path={icon} size={13} className="shrink-0" />
-        <span className="truncate">{label}</span>
-      </span>
+    <div className="flex min-w-0 flex-col gap-0.5 bg-surface-default px-ha-3 py-ha-3">
+      <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{label}</span>
       <span className="flex items-baseline gap-1">
-        <span className="truncate font-mono text-xl font-bold text-text-primary">{value}</span>
-        {unit && <span className="shrink-0 font-mono text-xs text-text-secondary">{unit}</span>}
+        <span className={clsx(
+          'truncate text-xl font-bold',
+          numeric && 'font-mono tabular-nums',
+          tone ? TONE_INK[tone] : 'text-text-primary',
+        )}>{value}</span>
+        {unit && <span className="shrink-0 text-xs font-medium text-text-secondary">{unit}</span>}
       </span>
     </div>
   );
@@ -347,7 +444,12 @@ export function DialogTile({ label, value, unit, icon }: DialogTileSpec) {
 export function DialogTiles({ tiles }: { tiles: DialogTileSpec[] }) {
   if (tiles.length === 0) return null;
   return (
-    <div className="grid w-full grid-cols-2 gap-ha-1 lg:grid-cols-4">
+    <div className={clsx(
+      // gap-px over surface-mid draws the dividers; the cells paint the rest.
+      'grid w-full gap-px overflow-hidden rounded-ha-2xl bg-surface-mid',
+      tiles.length === 1 ? 'grid-cols-1' : tiles.length === 3 ? 'grid-cols-3' : 'grid-cols-2',
+      tiles.length >= 4 && 'lg:grid-cols-4',
+    )}>
       {tiles.map((tile) => <DialogTile key={tile.label} {...tile} />)}
     </div>
   );
@@ -366,6 +468,12 @@ export interface DetailRow {
   onToggle?: () => void;
 }
 
+/**
+ * A row's state is mono only when it is a *reading* — "100%", "22.3°", "3 days".
+ * "Off", "Home", "Docked" are words, and words set in mono read as log output.
+ */
+const READING = /^[-+]?[0-9]/;
+
 /** The entities behind the figure. Rides the dialog's own scroll — no nested scrollport. */
 export function DetailRows({ title, rows, empty }: { title: string; rows: DetailRow[]; empty?: string }) {
   return (
@@ -383,7 +491,10 @@ export function DetailRows({ title, rows, empty }: { title: string; rows: Detail
                 <Icon path={row.icon ?? ''} size={18} className={clsx('shrink-0', row.active ? 'text-ha-blue' : 'text-text-tertiary')} />
               )}
               <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{row.label}</span>
-              <span className="shrink-0 font-mono text-sm capitalize text-text-secondary">{row.state}</span>
+              <span className={clsx(
+                'shrink-0 text-sm capitalize text-text-secondary',
+                READING.test(row.state) && 'font-mono tabular-nums',
+              )}>{row.state}</span>
               {row.onToggle && <ToggleSwitch on={!!row.active} onToggle={row.onToggle} size="sm" />}
             </div>
           ))}
@@ -433,7 +544,7 @@ function Slot({ slot, onToggle }: { slot: SetupSlot; onToggle: (id: string) => v
           onSelect={onToggle}
         />
       ) : (
-        <p className="rounded-ha-xl bg-surface-low px-ha-3 py-2 text-xs text-text-secondary">
+        <p className="px-ha-1 text-xs text-text-secondary">
           {slot.emptyHint ?? 'Nothing in your home reports this yet.'}
         </p>
       )}
@@ -454,7 +565,7 @@ function Slot({ slot, onToggle }: { slot: SetupSlot; onToggle: (id: string) => v
  */
 export function IntroStep({
   icon,
-  iconClass = 'text-ha-blue',
+  tone = 'active',
   eyebrow,
   headline,
   blurb,
@@ -462,7 +573,7 @@ export function IntroStep({
   onStart,
 }: {
   icon: string;
-  iconClass?: string;
+  tone?: DialogTone;
   eyebrow: string;
   /** The value proposition, in one line — what you get out of setting this up. */
   headline: string;
@@ -478,7 +589,7 @@ export function IntroStep({
     <div className={clsx('flex flex-col overflow-hidden', inSheet ? 'h-auto max-h-full' : 'h-[min(70dvh,760px)] lg:h-[min(85vh,780px)]')}>
       <div className={clsx('flex min-h-0 flex-1 flex-col items-center justify-center gap-ha-4 py-ha-6 text-center', SHEET_PAD)}>
         <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-surface-low">
-          <Icon path={icon} size={44} className={iconClass} />
+          <Icon path={icon} size={44} className={TONE_INK[tone]} />
         </div>
         <div className="flex flex-col items-center gap-ha-2">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{eyebrow}</span>
@@ -579,9 +690,7 @@ const STATS_SPANS = [
  * hour/day buckets already line up across entities). Same fixed slot as every
  * other dialog's history, so nothing moves when the span changes.
  */
-export function StatsChart({ ids, unit, label, divided = true }: { ids: string[]; unit?: string; label: string;
-  /** Off when the chart is a card of its own rather than the tail of one. */
-  divided?: boolean }) {
+export function StatsChart({ ids, unit, label }: { ids: string[]; unit?: string; label: string }) {
   const { getStatistics } = useHomeAssistant();
   const [hours, setHours] = useState('24');
   const [series, setSeries] = useState<EnergyBucket[]>([]);
@@ -619,9 +728,15 @@ export function StatsChart({ ids, unit, label, divided = true }: { ids: string[]
     : label;
 
   return (
-    <div className={clsx('flex w-full flex-col gap-ha-1', divided && 'border-t border-surface-mid pt-ha-2')}>
+    // On a card of its own: the chart used to sit bare on the sheet's ground
+    // with a 11px label floating above it, which at panel width read as a stray
+    // caption over an empty rectangle rather than as the dialog's second half.
+    <div className="flex w-full flex-col gap-ha-2 rounded-ha-2xl bg-surface-default px-ha-3 py-ha-3">
       <div className="flex w-full items-center gap-ha-2">
-        <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{stamp}</span>
+        <span className={clsx(
+          'truncate text-sm',
+          hoveredBucket ? 'font-semibold text-ha-blue' : 'font-medium text-text-secondary',
+        )}>{stamp}</span>
         <Dropdown className="ml-auto shrink-0" options={STATS_SPANS} value={hours} onChange={setHours} />
       </div>
       <div className="flex h-[132px] w-full flex-col overflow-hidden lg:h-[168px]">

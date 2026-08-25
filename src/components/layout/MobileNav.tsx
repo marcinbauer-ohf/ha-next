@@ -97,6 +97,15 @@ function parseTime(time: string): number {
 // keep the sheet height and getDragRangePx() reading the same number.
 const SHEET_TOP_INSET_REM = 20;
 
+/**
+ * One duration and one curve for everything the pull-up sheet moves — the
+ * sheet's own height, the activity row folding away, the grabber appearing, the
+ * tab strip, the pill's width. They used to run at 0.3s, 0.32s, 0.42s and 0.5s
+ * against the same tap, so nothing landed together and the open read as a
+ * scramble rather than one object growing.
+ */
+const SHEET_EASE = '0.42s cubic-bezier(0.22,1,0.36,1)';
+
 const appPalettes = [
   { text: 'text-ha-blue' },
   { text: 'text-red-600' },
@@ -1249,7 +1258,12 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
   const hasTopRowContent =
     showReleaseWidget || showMediaWidget || showTimerWidget || showCameraWidget ||
     showPrinterWidget || showVacuumWidget || hasActivityOverflow;
-  const topRowVisibleRatio = hasTopRowContent ? baseTopRowVisibleRatio : 0;
+  // The auto-hide takes this row with it. Without that, "hidden" meant two
+  // different things: a nub on the settings routes (where the row is collapsed
+  // anyway) and a full-width 52px activity strip everywhere else — including the
+  // home dashboard, which is where you see it most. One tuck-away for every
+  // route; a scroll up or a touch brings the whole bar back.
+  const topRowVisibleRatio = hasTopRowContent ? baseTopRowVisibleRatio * (1 - effectiveHideProgress) : 0;
   const isTopRowHidden = topRowVisibleRatio <= 0.02;
 
   // Handle media widget fade in/out
@@ -1840,7 +1854,10 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
 
     if (expandedSurfaceTab === 'homecenter') {
       return (
-        <div className="space-y-ha-5 pb-8">
+        // The pill grounds this on surface-default, same as the Home Center
+        // sheet, so the bento's chips step up a notch to stay visible against
+        // it. See --ha-chip-fill in globals.css.
+        <div className="space-y-ha-5 pb-8 [--ha-chip-fill:var(--ha-color-surface-mid)]">
           <HomeCenterBento onNavigate={navigateFromSurface} />
         </div>
       );
@@ -1930,7 +1947,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
             maxWidth: isTopRowHidden && !isSheetVisible
               ? `${60 + 500 * (1 - effectiveHideProgress)}px`
               : undefined,
-            transition: 'max-width 0.42s cubic-bezier(0.22,1,0.36,1)',
+            transition: `max-width ${SHEET_EASE}`,
           }}
         >
           <div className="relative rounded-[calc(var(--mobile-nav-radius)_-_1px)] bg-surface-default/95">
@@ -1949,7 +1966,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                   type="button"
                   aria-label={sheetOpenProgress > 0.5 ? 'Collapse bottom panel' : 'Expand bottom panel'}
                   onClick={() => (statusExpanded ? closeExpandedSurface() : openExpandedSurface(expandedSurfaceTab))}
-                  className={`w-32 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none transition-[height,margin,opacity] duration-300 ease-out ${
+                  className={`w-32 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing select-none transition-[height,margin,opacity] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
                     hideHandle
                       ? 'h-0 my-0 opacity-0 pointer-events-none'
                       : statusExpanded
@@ -1969,20 +1986,28 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                   opacity: Math.max(0, Math.min(1, sheetOpenProgress * 1.5)),
                   transition: isBottomSheetDragging
                     ? 'none'
-                    : 'height 0.5s cubic-bezier(0.22,1,0.36,1), opacity 0.5s cubic-bezier(0.22,1,0.36,1)',
+                    : `height ${SHEET_EASE}, opacity ${SHEET_EASE}`,
                 }}
+              >
+              {/* Fixed at the open height, so the growing box above only clips it
+                  instead of re-laying out the whole sheet — search field, scroll
+                  area, dashboard grid — on every frame of the animation. That
+                  per-frame layout was the stutter in the open. */}
+              <div
+                className="flex min-h-0 flex-col"
+                style={{ height: `calc(100svh - ${SHEET_TOP_INSET_REM}rem)` }}
               >
                 {/* Search header stays pinned above the scroll area — only the
                     results list scrolls, fading under the top gradient. */}
                 {expandedSurfaceTab === 'search' && (
-                  <div className="shrink-0 flex items-center gap-ha-3 px-ha-1 pt-ha-3 pb-ha-2">
+                  <div className="shrink-0 px-ha-1 pt-ha-3 pb-ha-2">
+                    {/* No ✕: the sheet closes by dragging it down or tapping the
+                        nav again, same as every other bottom surface. */}
                     <SearchField
                       value={expandedSearchQuery}
                       onChange={setExpandedSearchQuery}
                       placeholder="Search or ask anything..."
-                      className="flex-1"
                     />
-                    <IconButton icon={mdiClose} label="Close search" size="lg" shape="square" filled onClick={closeExpandedSurface} />
                   </div>
                 )}
                 <div className="relative flex-1 min-h-0">
@@ -2004,6 +2029,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                   </div>
                 </div>
               </div>
+              </div>
         {/* Top row: Ask your home + Media + Timer + Status. Collapses away while
             the pull-up sheet is open on a nav surface — see topRowVisibleRatio. */}
         <div
@@ -2014,7 +2040,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
             pointerEvents: isTopRowHidden ? 'none' : 'auto',
             transition: isBottomSheetDragging
               ? 'none'
-              : 'max-height 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.3s cubic-bezier(0.22,1,0.36,1)',
+              : `max-height ${SHEET_EASE}, opacity ${SHEET_EASE}`,
           }}
         >
         <div className="flex items-center gap-ha-2 shrink-0">
@@ -2463,8 +2489,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         <div
           className="overflow-hidden shrink-0"
           style={{
-            transition:
-              'max-height 0.42s cubic-bezier(0.22,1,0.36,1), margin-top 0.42s cubic-bezier(0.22,1,0.36,1), opacity 0.32s ease-out, transform 0.42s cubic-bezier(0.22,1,0.36,1)',
+            transition: `max-height ${SHEET_EASE}, margin-top ${SHEET_EASE}, opacity ${SHEET_EASE}, transform ${SHEET_EASE}`,
             maxHeight: `${48 * bottomRowVisibleRatio}px`,
             // The tab strip sits an even 8px in from the pill on all sides. When
             // the drag handle shows (non-settings) its band already fills that 8px

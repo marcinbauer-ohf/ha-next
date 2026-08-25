@@ -316,7 +316,11 @@ export function HomeCenterOverlay() {
             // No opacity of its own: the sheet it rides on already carries the
             // whole surface in and out, and a second fade on the contents was
             // what made them ghost over the dashboard on the way out.
-            className={`h-full overflow-y-auto ${SHEET_PAD} pb-ha-6 pt-ha-1 space-y-ha-5 custom-scrollbar`}
+            //
+            // This sheet is surface-default, so the summary chips step up a
+            // notch — otherwise they paint their default fill and vanish into
+            // the surface. See --ha-chip-fill in globals.css.
+            className={`h-full overflow-y-auto ${SHEET_PAD} pb-ha-6 pt-ha-1 space-y-ha-5 custom-scrollbar [--ha-chip-fill:var(--ha-color-surface-mid)]`}
           >
             <HomeCenterBento onNavigate={handleNavigate} />
           </div>

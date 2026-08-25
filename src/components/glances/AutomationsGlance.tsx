@@ -93,11 +93,13 @@ export function AutomationsGlance({ compact, variant, size, translucent }: Autom
             <DialogCard>
               <DialogHero
                 icon={mdiRobot}
-                iconClass="text-violet-500"
-                highlight={running ? 'bg-violet-500/15' : undefined}
+                subject="Automations"
+                tone={running ? 'active' : 'neutral'}
                 value={String(activeToday)}
                 unit="ran today"
-                meta={`${enabled} of ${automations.length} enabled`}
+                meta={running
+                  ? 'One is running right now'
+                  : `${enabled} of ${automations.length} enabled`}
               />
             </DialogCard>
             <AutomationActivityChart onOpenAutomation={setDetailId} />

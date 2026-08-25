@@ -24,7 +24,7 @@ import {
 
 export function TopBar() {
   const { theme } = useTheme();
-  const { title, subtitle, breadcrumbs, primaryAction, onBack, hideBack, sectionCrumb, sectionCrumbReverse } = useHeader();
+  const { title, subtitle, breadcrumbs, primaryAction, editAction, onBack, hideBack, sectionCrumb, sectionCrumbReverse } = useHeader();
   const { isRevealed, toggle } = usePullToRevealContext();
   const { isEditing, toggleEditMode } = useEditMode();
   const { openSearch } = useSearchContext();
@@ -35,6 +35,12 @@ export function TopBar() {
   const pathname = usePathname();
   const isMac = useIsMacPlatform();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  // Desktop search pill: say "Ask" once on load, then tuck the word away.
+  const [showAskLabel, setShowAskLabel] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setShowAskLabel(false), 1800);
+    return () => clearTimeout(t);
+  }, []);
   const desktopAddButtonRef = useRef<HTMLButtonElement | null>(null);
 
   // Energy has its own read-only view; all other dashboard paths support edit mode
@@ -188,11 +194,18 @@ export function TopBar() {
 
   // Edit affordance sits next to the heading (both breakpoints), sized and
   // coloured like the sidebar's arrange pencil rather than the 24px actions.
-  const editPencil = isDashboardPage && !isEditing && (
-    <IconButton icon={pencilIcon} label="Edit dashboard" size="sm" tone="quiet" shape="square" exact onClick={toggleEditMode} />
+  // One pencil, two jobs: on a dashboard it toggles layout edit mode; on a page
+  // that claims it (a room → its area settings) it opens that page's editor.
+  const pencilTarget = editAction
+    ? { icon: mdiPencil, label: editAction.label, onClick: editAction.onClick }
+    : isDashboardPage && !isEditing
+      ? { icon: pencilIcon, label: pencilLabel === 'Edit' ? 'Edit dashboard' : pencilLabel, onClick: toggleEditMode }
+      : null;
+  const editPencil = pencilTarget && !isEditing && (
+    <IconButton icon={pencilTarget.icon} label={pencilTarget.label} size="sm" tone="quiet" shape="square" exact onClick={pencilTarget.onClick} />
   );
   return (
-    <header className="relative h-full py-ha-2 px-ha-0" data-component="TopBar">
+    <header className="group/bar relative h-full py-ha-2 px-ha-0" data-component="TopBar">
       {/* Left inset: the shell's rail column (settings' section list) spans this
           row, so the row inside starts where the content column does. Its shell
           then centres on that same column — which is what makes the heading and
@@ -236,10 +249,18 @@ export function TopBar() {
             type="button"
             onClick={() => openAssistant()}
             aria-label="Ask your home"
-            className="flex-shrink-0 flex h-7 items-center gap-ha-1 pl-ha-2 pr-ha-3 rounded-ha-lg bg-surface-lower text-text-secondary text-[13px] font-medium leading-none hover:bg-surface-mid hover:text-text-primary transition-colors"
+            className="flex-shrink-0 flex h-7 items-center px-ha-2 rounded-ha-lg bg-surface-lower text-text-secondary text-[13px] font-medium leading-none hover:bg-surface-mid hover:text-text-primary transition-colors"
           >
             <Icon path={mdiCreation} size={15} exact />
-            Ask
+            {/* The word introduces the button on first load, then collapses
+                away to the bare sparkle. Grid columns so it slides shut on its
+                own width without measuring anything. */}
+            <span
+              className="grid transition-[grid-template-columns,opacity] duration-500 ease-out"
+              style={{ gridTemplateColumns: showAskLabel ? '1fr' : '0fr', opacity: showAskLabel ? 1 : 0 }}
+            >
+              <span className="overflow-hidden min-w-0 whitespace-nowrap pl-ha-1 pr-ha-1">Ask</span>
+            </span>
           </button>
         </div>
       )}
@@ -346,9 +367,13 @@ export function TopBar() {
         )}
         {desktopTitleContent}
         {editPencil && (
-          <Tooltip content="Edit dashboard" shortcut="E" placement="bottom">
-            {editPencil}
-          </Tooltip>
+          // Desktop: the pencil is a secondary affordance, so it stays faded
+          // out until the bar is hovered (or it takes keyboard focus).
+          <span className="opacity-0 transition-opacity duration-200 group-hover/bar:opacity-100 focus-within:opacity-100">
+            <Tooltip content={pencilTarget!.label} shortcut={editAction ? undefined : 'E'} placement="bottom">
+              {editPencil}
+            </Tooltip>
+          </span>
         )}
       </div>
 

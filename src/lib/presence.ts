@@ -32,3 +32,12 @@ export function isTrackable(person: HassEntity): boolean {
 export function trackedPeople(people: HassEntity[]): HassEntity[] {
   return people.filter(isTrackable);
 }
+
+/**
+ * The people chip's value. "0 home" reads like a counter that failed rather
+ * than an answer, so the empty house says it in words. Everything above zero
+ * keeps the count, which is the thing you're actually scanning for.
+ */
+export function presenceLabel(atHome: number): string {
+  return atHome === 0 ? 'Nobody home' : `${atHome} home`;
+}

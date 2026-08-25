@@ -319,7 +319,6 @@ export function EnergyDetailPanel({ onClose }: { onClose: () => void }) {
     return (
       <IntroStep
         icon={mdiFlash}
-        iconClass="text-amber-500"
         eyebrow="Energy"
         headline="See what your home is using"
         blurb="Point this at your meter or the plugs you care about and it reads what the house draws right now, what today cost, and which devices account for it."
@@ -359,12 +358,13 @@ export function EnergyDetailPanel({ onClose }: { onClose: () => void }) {
   const dailyTotal = series.reduce((sum, b) => sum + b.value, 0);
 
   const tiles: DialogTileSpec[] = [
-    ...(kwhToday !== null ? [{ label: 'Used today', value: fmtKwh(kwhToday), unit: 'kWh', icon: mdiHomeLightningBoltOutline }] : []),
-    ...(kwhToday !== null && config.price > 0 ? [{ label: 'Cost today', value: fmtMoney(kwhToday * config.price), icon: mdiCashMultiple }] : []),
-    ...(solarToday !== null ? [{ label: 'Solar today', value: fmtKwh(solarToday), unit: 'kWh', icon: mdiSolarPower }] : []),
-    ...(exportedToday !== null ? [{ label: 'Sent back', value: fmtKwh(exportedToday), unit: 'kWh', icon: mdiTransmissionTower }] : []),
-    ...(Number.isFinite(batteryPct) ? [{ label: 'Battery', value: String(Math.round(batteryPct)), unit: '%', icon: mdiBatteryCharging }] : []),
+    ...(kwhToday !== null ? [{ label: 'Used today', value: fmtKwh(kwhToday), unit: 'kWh' }] : []),
+    ...(kwhToday !== null && config.price > 0 ? [{ label: 'Cost today', value: fmtMoney(kwhToday * config.price) }] : []),
+    ...(solarToday !== null ? [{ label: 'Solar today', value: fmtKwh(solarToday), unit: 'kWh' }] : []),
+    ...(exportedToday !== null ? [{ label: 'Sent back', value: fmtKwh(exportedToday), unit: 'kWh' }] : []),
+    ...(Number.isFinite(batteryPct) ? [{ label: 'Battery', value: String(Math.round(batteryPct)), unit: '%' }] : []),
   ];
+
 
   return (
     <DialogFrame
@@ -431,7 +431,7 @@ export function EnergyDetailPanel({ onClose }: { onClose: () => void }) {
         {powerEntities[0] && (
           <div className="w-full">
             <SectionLabel inset>Where it goes</SectionLabel>
-            <div className="mt-ha-2 rounded-ha-2xl bg-surface-low p-ha-2">
+            <div className="mt-ha-2">
               {breakdown ? (
                 <PowerAttributionChart meter={powerEntities[0]} />
               ) : (
@@ -454,7 +454,11 @@ export function EnergyDetailPanel({ onClose }: { onClose: () => void }) {
         <DialogHero
           onConfigure={() => setView('setup')}
           icon={mdiFlash}
-          iconClass="text-amber-500"
+          subject="Energy"
+          // Not amber-because-energy-is-amber: the glyph already says energy.
+          // Blue while the house is actually drawing, quiet when it isn't.
+          tone={watts !== null && watts > 0 ? 'active' : 'neutral'}
+          numeric
           value={heroValue}
           unit={heroUnit}
           meta={metaLine}

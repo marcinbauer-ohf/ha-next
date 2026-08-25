@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { CHIP_PRESS, TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
+import { CHIP_PRESS, OPAQUE_CHIP_FILL, TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
 import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities, useEdgeFade } from '@/hooks';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,11 +29,18 @@ import { EnergyGlance, AutomationsGlance, SummaryGlance } from '../glances';
 import { PeopleDetail } from '../glances/summaryDetails';
 import { ModalSheet } from '../layout/ModalSheet';
 import { useHomeMode } from '@/lib/homeMode';
+import { presenceLabel } from '@/lib/presence';
 import { batteryEntities, batteryLevel, climateSensors, lowBatteryAt, securityEntities, temperatureOf, useSummaryConfig, weatherSource, type SummaryConfig } from '@/lib/summaryConfig';
 import type { SummaryScope } from '../glances/summaryScope';
 import type { GlanceId, HassEntities } from '@/types';
 
-export function useLiveSummaryItems(areaEntities?: HassEntities) {
+/** The sensors an area nominates as its own (HA area registry). */
+export interface AreaSensors {
+  temperature?: string | null;
+  humidity?: string | null;
+}
+
+export function useLiveSummaryItems(areaEntities?: HassEntities, areaSensors?: AreaSensors) {
   const home = useHomeAssistantEntities();
   const entities = areaEntities ?? home;
   const scoped = areaEntities !== undefined;
@@ -47,11 +54,19 @@ export function useLiveSummaryItems(areaEntities?: HassEntities) {
   const stored = useSummaryConfig();
   // Same rule as the dialogs: inside a room, which sensors count as "the home"
   // is beside the point; the threshold is a preference, so it carries over.
+  // Inside a room, the area's own nominated sensors win over averaging every
+  // thermometer that happens to sit there (HA's area temperature/humidity).
+  const areaTemperature = areaSensors?.temperature ?? null;
+  const areaHumidity = areaSensors?.humidity ?? null;
   const config = useMemo<SummaryConfig>(
     () => (scoped
-      ? { climate: [], humidity: [], security: [], weather: [], battery: [], batteryLow: stored.batteryLow }
+      ? {
+          climate: areaTemperature ? [areaTemperature] : [],
+          humidity: areaHumidity ? [areaHumidity] : [],
+          security: [], weather: [], battery: [], batteryLow: stored.batteryLow,
+        }
       : stored),
-    [scoped, stored],
+    [scoped, stored, areaTemperature, areaHumidity],
   );
   return useMemo(() => {
     const all = Object.values(entities);
@@ -278,8 +293,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
         className={clsx(
         'flex items-center rounded-full whitespace-nowrap flex-shrink-0',
         CHIP_PRESS,
-        translucent ? TRANSLUCENT_CHIP_FILL
-          : 'bg-surface-default [--ha-hover-grow:var(--ha-color-surface-default)]',
+        translucent ? TRANSLUCENT_CHIP_FILL : OPAQUE_CHIP_FILL,
         // sm matches SummaryCard's compact chip: same fixed height and padding.
         isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-2.5' : 'gap-ha-2 px-ha-2 h-10'
       )}>
@@ -324,7 +338,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
             translucent ? 'text-white' : 'text-text-primary',
             isLg ? 'text-xl' : isMd ? 'text-base' : 'text-[13px]'
           )}>
-            {resolvedPeopleHome.length} home
+            {presenceLabel(resolvedPeopleHome.length)}
           </span>
         </div>
       </button>
@@ -339,14 +353,14 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
     <button
       type="button"
       onClick={openDetail}
-      className={`flex w-full items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-default border border-surface-lower [--ha-hover-grow:var(--ha-color-surface-default)] [--ha-hover-grow-edge:var(--ha-color-surface-lower)] text-left ${CHIP_PRESS}`}
+      className={`flex w-full items-center gap-ha-3 p-ha-3 rounded-ha-xl border border-surface-lower [--ha-hover-grow-edge:var(--ha-color-surface-lower)] text-left ${OPAQUE_CHIP_FILL} ${CHIP_PRESS}`}
     >
       <div className="flex-shrink-0 text-ha-blue">
         <Icon path={mdiAccountMultiple} size={24} />
       </div>
       <div className="flex flex-col items-start min-w-0 flex-1">
         <span className="text-sm font-medium text-text-primary text-left">People</span>
-        <span className="text-xs text-text-secondary text-left">{resolvedPeopleHome.length} home</span>
+        <span className="text-xs text-text-secondary text-left">{presenceLabel(resolvedPeopleHome.length)}</span>
       </div>
       <div className="flex items-center gap-ha-2 flex-shrink-0">
         <AnimatePresence mode="popLayout" initial={false}>
@@ -424,8 +438,8 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
  * copy of a single room's summary to fall back to. It renders nothing when the
  * room has nothing worth summarising.
  */
-export function AreaSummaryRow({ entities, areaName }: { entities: HassEntities; areaName: string }) {
-  const items = useLiveSummaryItems(entities);
+export function AreaSummaryRow({ entities, areaName, areaSensors }: { entities: HassEntities; areaName: string; areaSensors?: AreaSensors }) {
+  const items = useLiveSummaryItems(entities, areaSensors);
   const { ref, onScroll, style } = useEdgeFade();
   const scope = useMemo<SummaryScope>(() => ({ entities, areaName }), [entities, areaName]);
 
@@ -643,7 +657,9 @@ export function SummariesPanel({ onToggleImmersive, onToggleDarkMode, onToggleSc
 
   return (
     <aside className={clsx(
-      "hidden lg:block bg-surface-default rounded-ha-2xl h-fit transition-all duration-300",
+      // Grounded on surface-default, so the chips inside step up a notch —
+      // see --ha-chip-fill in globals.css.
+      "hidden lg:block bg-surface-default [--ha-chip-fill:var(--ha-color-surface-mid)] rounded-ha-2xl h-fit transition-all duration-300",
       isCompact ? "w-[260px] p-ha-4" : "w-80 xl:w-96 p-ha-5"
     )}>
       <h2 className="text-lg font-semibold text-text-primary mb-ha-4">Summary</h2>

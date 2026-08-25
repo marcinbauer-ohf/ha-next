@@ -24,7 +24,7 @@ export function EmptyDashboard() {
   const { connected, demoMode } = useHomeAssistant();
   const hasHome = connected || demoMode;
 
-  // The same jump the top-bar "+" makes for "Add Device" — straight into the
+  // The same jump the top-bar "+" makes for "Device or service" — straight into the
   // brand store rather than a settings page you then have to find your way out of.
   const addDevice = () => {
     requestAdd('devices');
@@ -32,7 +32,10 @@ export function EmptyDashboard() {
   };
 
   return (
-    <div className="flex w-full flex-col items-center gap-ha-4 px-ha-4 py-ha-8 text-center">
+    // ponytail: a 76svh box centres this within ~a dozen px of the real content
+    // area on both breakpoints. The dashboard scroller isn't a flex parent, so
+    // there's no flex-1 to take; swap in an exact calc if the chrome changes.
+    <div className="flex min-h-[76svh] w-full flex-col items-center justify-center gap-ha-4 px-ha-4 py-ha-8 text-center">
       <div className="flex h-20 w-20 items-center justify-center rounded-full bg-surface-low">
         <Icon path={mdiDevices} size={44} className="text-ha-blue" />
       </div>

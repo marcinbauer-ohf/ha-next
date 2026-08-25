@@ -11,21 +11,16 @@ import {
   mdiAccountCircleOutline,
   mdiCalendarClock,
   mdiCellphoneLink,
-  mdiCounter,
   mdiDoorOpen,
   mdiHistory,
-  mdiHomeThermometerOutline,
   mdiLightbulbGroup,
   mdiLightbulbOff,
   mdiLock,
   mdiShieldHome,
-  mdiSnowflake,
   mdiThermometer,
   mdiTune,
   mdiWaterPercent,
   mdiWeatherPartlyCloudy,
-  mdiWeatherWindy,
-  mdiWhiteBalanceSunny,
 } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { Button, HALoader, ListSection, SectionLabel } from '../ui';
@@ -177,27 +172,33 @@ export function LightsDetail({ onClose }: { onClose: () => void }) {
       }))
   ), [lights, toggleEntity]);
 
+  const allOff = (
+    <Button
+      variant="primary"
+      size="lg"
+      icon={mdiLightbulbOff}
+      block
+      onClick={() => callService({ domain: 'light', service: 'turn_off', target: { entity_id: on.map((e) => e.entity_id) } })}
+    >
+      Turn them all off
+    </Button>
+  );
+
   return (
     <DialogFrame onClose={onClose}>
       <DialogCard>
         <DialogHero
           icon={mdiLightbulbGroup}
-          iconClass={on.length > 0 ? 'text-yellow-500' : 'text-text-tertiary'}
-          highlight={on.length > 0 ? 'bg-yellow-500/15' : undefined}
+          subject="Lights"
+          action={on.length > 0 ? allOff : undefined}
+          tone={on.length > 0 ? 'active' : 'neutral'}
           value={String(on.length)}
           unit="on"
-          meta={ofLine(on.length, lights.length, 'lights')}
+          // Not ofLine: "3 on / 3 of 4 lights" says the three twice. The
+          // headline is the count, the line under it is what it's out of.
+          meta={`of ${lights.length} ${lights.length === 1 ? 'light' : 'lights'}`}
         />
-        {on.length > 0 && (
-          <button
-            type="button"
-            onClick={() => callService({ domain: 'light', service: 'turn_off', target: { entity_id: on.map((e) => e.entity_id) } })}
-            className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.98]"
-          >
-            <Icon path={mdiLightbulbOff} size={18} className="text-ha-blue" />
-            Turn them all off
-          </button>
-        )}
+        {on.length > 0 && <div className="lg:hidden">{allOff}</div>}
       </DialogCard>
       <DetailRows title="Every light" rows={rows} empty="This home has no lights yet." />
     </DialogFrame>
@@ -269,12 +270,12 @@ export function ClimateDetail({ onClose }: { onClose: () => void }) {
     );
   }
 
+  // No "Rooms" count: the list directly below this strip *is* the rooms, and a
+  // figure that restates what you can already see costs a column for nothing.
   const tiles: DialogTileSpec[] = [
-    ...(warmest ? [{ label: 'Warmest', value: warmest.value.toFixed(1), unit, icon: mdiWhiteBalanceSunny }] : []),
-    ...(coolest ? [{ label: 'Coolest', value: coolest.value.toFixed(1), unit, icon: mdiSnowflake }] : []),
-    ...(humidityAvg !== null ? [{ label: 'Humidity', value: humidityAvg.toFixed(0), unit: '%', icon: mdiWaterPercent }] : []),
-    // In a room they aren't rooms — they're the sensors in this one.
-    { label: scope ? 'Sensors' : 'Rooms', value: String(readings.length), icon: mdiHomeThermometerOutline },
+    ...(warmest ? [{ label: 'Warmest', value: warmest.value.toFixed(1), unit }] : []),
+    ...(coolest ? [{ label: 'Coolest', value: coolest.value.toFixed(1), unit }] : []),
+    ...(humidityAvg !== null ? [{ label: 'Humidity', value: humidityAvg.toFixed(0), unit: '%' }] : []),
   ];
 
   const rows: DetailRow[] = [...readings]
@@ -291,7 +292,7 @@ export function ClimateDetail({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       aside={sensors.length > 0 && (
         <DialogCard>
-          <StatsChart ids={sensors.map((e) => e.entity_id)} unit={unit} label="Average, over time" divided={false} />
+          <StatsChart ids={sensors.map((e) => e.entity_id)} unit={unit} label="Average, over time" />
         </DialogCard>
       )}
     >
@@ -299,19 +300,20 @@ export function ClimateDetail({ onClose }: { onClose: () => void }) {
         <DialogHero
           onConfigure={scope ? undefined : setup.start}
           icon={mdiThermometer}
-          iconClass="text-ha-blue"
+          subject={scope ? scope.areaName : 'Climate'}
+          // A temperature is neither good nor bad — it's just the reading.
+          tone="neutral"
+          numeric
           value={average !== null ? average.toFixed(1) : '—'}
           unit={unit}
-          meta={[
-            // A range needs two ends: one thermometer has no spread, and in a
-            // room the spread is across the room, not "across the home".
-            warmest && coolest && warmest.value !== coolest.value
-              && `${coolest.value.toFixed(1)}–${warmest.value.toFixed(1)}${unit} across ${scope ? scope.areaName : 'the home'}`,
-            humidityAvg !== null && `${humidityAvg.toFixed(0)}% humidity`,
-          ].filter(Boolean).join(' ・ ')
-            || (scope
+          // One fact, not a ・-chain: humidity has its own column in the strip
+          // below, so this line is free to be the spread and nothing else.
+          // A range needs two ends: one thermometer has no spread.
+          meta={warmest && coolest && warmest.value !== coolest.value
+            ? `${coolest.value.toFixed(1)}–${warmest.value.toFixed(1)}${unit} across ${scope ? scope.areaName : 'the home'}`
+            : scope
               ? `${readings.length} thermometer${readings.length === 1 ? '' : 's'} in ${scope.areaName}`
-              : 'Average of every room')}
+              : 'Average of every room'}
         />
         <DialogTiles tiles={tiles} />
       </DialogCard>
@@ -366,7 +368,6 @@ export function SecurityDetail({ onClose }: { onClose: () => void }) {
     return (
       <IntroStep
         icon={mdiShieldHome}
-        iconClass="text-green-500"
         eyebrow="Security"
         headline="Leave the house without wondering"
         blurb="Pick the locks, doors and windows worth counting. This then answers one question — is everything shut — and locks whatever isn't."
@@ -375,10 +376,20 @@ export function SecurityDetail({ onClose }: { onClose: () => void }) {
     );
   }
 
+  // Only the figure that is actually the problem wears the tone — a whole strip
+  // in amber says "everything is wrong" when one window is open.
   const tiles: DialogTileSpec[] = [
-    ...(locks.length > 0 ? [{ label: 'Locked', value: `${locks.length - unlocked.length}/${locks.length}`, icon: mdiLock }] : []),
-    ...(openings.length > 0 ? [{ label: 'Open', value: `${open.length}/${openings.length}`, icon: mdiDoorOpen }] : []),
-    ...(alarms.length > 0 ? [{ label: 'Alarm', value: stateLabel(alarms[0]), icon: mdiShieldHome }] : []),
+    ...(locks.length > 0 ? [{
+      label: 'Locked',
+      value: `${locks.length - unlocked.length}/${locks.length}`,
+      tone: unlocked.length > 0 ? ('warn' as const) : undefined,
+    }] : []),
+    ...(openings.length > 0 ? [{
+      label: 'Open',
+      value: `${open.length}/${openings.length}`,
+      tone: open.length > 0 ? ('warn' as const) : undefined,
+    }] : []),
+    ...(alarms.length > 0 ? [{ label: 'Alarm', value: stateLabel(alarms[0]), numeric: false }] : []),
   ];
 
   const rows: DetailRow[] = [...watched]
@@ -397,31 +408,39 @@ export function SecurityDetail({ onClose }: { onClose: () => void }) {
       onToggle: e.entity_id.startsWith('lock.') ? () => toggleEntity(e.entity_id, e.state) : undefined,
     }));
 
+  const lockAll = (
+    <Button
+      variant="primary"
+      size="lg"
+      icon={mdiLock}
+      block
+      onClick={() => callService({ domain: 'lock', service: 'lock', target: { entity_id: unlocked.map((e) => e.entity_id) } })}
+    >
+      Lock everything
+    </Button>
+  );
+
   return (
     <DialogFrame onClose={onClose}>
       <DialogCard>
         <DialogHero
           onConfigure={scope ? undefined : setup.start}
           icon={mdiShieldHome}
-          iconClass={allSecure ? 'text-green-500' : 'text-amber-500'}
-          highlight={allSecure ? 'bg-green-500/15' : 'bg-amber-500/15'}
+          subject={scope ? scope.areaName : 'Security'}
+          action={unlocked.length > 0 ? lockAll : undefined}
+          // The one dialog whose whole job is to answer yes or no, so it is the
+          // one that earns `good`.
+          tone={allSecure ? 'good' : 'warn'}
           value={allSecure ? 'Secure' : String(unlocked.length + open.length)}
           unit={allSecure ? undefined : 'to close'}
-          meta={[
-            locks.length > 0 && ofLine(locks.length - unlocked.length, locks.length, 'locks locked'),
-            openings.length > 0 && `${open.length} open`,
-          ].filter(Boolean).join(' ・ ') || 'Nothing being watched'}
+          // The counts moved into the strip below; this line names what's open,
+          // which is the part you can't get from a number.
+          meta={allSecure
+            ? `${watched.length} ${watched.length === 1 ? 'thing' : 'things'} watched, all shut`
+            : [...unlocked, ...open].slice(0, 3).map(friendlyName).join(', ')
+              + ([...unlocked, ...open].length > 3 ? ` and ${[...unlocked, ...open].length - 3} more` : '')}
         />
-        {unlocked.length > 0 && (
-          <button
-            type="button"
-            onClick={() => callService({ domain: 'lock', service: 'lock', target: { entity_id: unlocked.map((e) => e.entity_id) } })}
-            className="flex h-12 w-full items-center justify-center gap-ha-2 rounded-ha-xl bg-surface-default text-sm font-semibold text-text-primary transition-colors hover:bg-surface-mid active:scale-[0.98]"
-          >
-            <Icon path={mdiLock} size={18} className="text-ha-blue" />
-            Lock everything
-          </button>
-        )}
+        {unlocked.length > 0 && <div className="lg:hidden">{lockAll}</div>}
         <DialogTiles tiles={tiles} />
       </DialogCard>
       <DetailRows title="Doors and locks" rows={rows} empty="Nothing picked yet." />
@@ -488,10 +507,10 @@ export function WeatherDetail({ onClose }: { onClose: () => void }) {
   const temperature = num('temperature');
 
   const tiles: DialogTileSpec[] = [
-    ...(num('apparent_temperature') !== null ? [{ label: 'Feels like', value: num('apparent_temperature')!.toFixed(0), unit, icon: mdiThermometer }] : []),
-    ...(num('humidity') !== null ? [{ label: 'Humidity', value: num('humidity')!.toFixed(0), unit: '%', icon: mdiWaterPercent }] : []),
-    ...(num('wind_speed') !== null ? [{ label: 'Wind', value: num('wind_speed')!.toFixed(0), unit: (attrs.wind_speed_unit as string) ?? '', icon: mdiWeatherWindy }] : []),
-    ...(num('pressure') !== null ? [{ label: 'Pressure', value: num('pressure')!.toFixed(0), unit: (attrs.pressure_unit as string) ?? '', icon: mdiTune }] : []),
+    ...(num('apparent_temperature') !== null ? [{ label: 'Feels like', value: num('apparent_temperature')!.toFixed(0), unit }] : []),
+    ...(num('humidity') !== null ? [{ label: 'Humidity', value: num('humidity')!.toFixed(0), unit: '%' }] : []),
+    ...(num('wind_speed') !== null ? [{ label: 'Wind', value: num('wind_speed')!.toFixed(0), unit: (attrs.wind_speed_unit as string) ?? '' }] : []),
+    ...(num('pressure') !== null ? [{ label: 'Pressure', value: num('pressure')!.toFixed(0), unit: (attrs.pressure_unit as string) ?? '' }] : []),
   ];
 
   // Some integrations still publish the forecast as an attribute; the modern
@@ -514,7 +533,9 @@ export function WeatherDetail({ onClose }: { onClose: () => void }) {
         <DialogHero
           onConfigure={setup.start}
           icon={mdiWeatherPartlyCloudy}
-          iconClass="text-ha-blue"
+          subject="Weather"
+          tone="neutral"
+          numeric={temperature !== null}
           value={temperature !== null ? temperature.toFixed(0) : stateLabel(weather)}
           unit={temperature !== null ? unit : undefined}
           meta={weather.state.replace(/[_-]/g, ' ')}
@@ -582,7 +603,6 @@ export function ModeDetail({ onClose }: { onClose: () => void }) {
     return (
       <IntroStep
         icon={mdiTune}
-        iconClass="text-violet-500"
         eyebrow="Mode"
         headline="Show what your home is set to"
         blurb="Point this at the dropdown helper your automations already switch — Home, Away, Night — and the whole home's mode reads at a glance, with a log of when it last changed."
@@ -607,8 +627,9 @@ export function ModeDetail({ onClose }: { onClose: () => void }) {
         <DialogHero
           onConfigure={() => { setDraft(entityId); setAtIntro(false); setSetupOpen(true); }}
           icon={homeMode?.icon ?? mdiTune}
-          iconClass="text-violet-500"
-          highlight="bg-violet-500/15"
+          subject="Mode"
+          // Display-only: a mode is never "good" or "wrong", so it never tints.
+          tone="neutral"
           value={homeMode?.current ?? '—'}
           meta={options.length > 0 ? `One of ${options.length} modes` : 'No helper picked yet'}
         />
@@ -747,7 +768,6 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
     return (
       <IntroStep
         icon={mdiBattery}
-        iconClass="text-green-500"
         eyebrow="Batteries"
         headline="Change the battery before it dies"
         blurb="Every sensor that reports a charge, sorted by what runs out first — so a cell draining fast beats one that has been sitting at 22% for a year."
@@ -755,13 +775,6 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
       />
     );
   }
-
-  const tiles: DialogTileSpec[] = [
-    ...(readings.length > 0 ? [{ label: 'Lowest', value: String(Math.round(readings[0].level)), unit: '%', icon: mdiBatteryAlertVariantOutline }] : []),
-    ...(average !== null ? [{ label: 'Average', value: average.toFixed(0), unit: '%', icon: mdiBattery50 }] : []),
-    { label: 'Low', value: String(flat.length), icon: mdiBatteryAlertVariantOutline },
-    { label: 'Tracked', value: String(readings.length), icon: mdiCounter },
-  ];
 
   // The part worth opening this for: not what's low now, but what runs out
   // first. A cell at 30% shedding a percent a day beats one sitting at 22%.
@@ -776,6 +789,17 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
       active: forecast[r.entity.entity_id] < 14,
     }));
 
+  const soonest = running[0];
+
+  // No "Lowest" — that's the headline right above. No "Tracked" either: how many
+  // sensors were counted isn't a thing anyone opens this to find out. What's
+  // left is the three figures that say something the hero doesn't.
+  const tiles: DialogTileSpec[] = [
+    ...(average !== null ? [{ label: 'Average', value: average.toFixed(0), unit: '%' }] : []),
+    { label: 'Low', value: String(flat.length), tone: flat.length > 0 ? ('warn' as const) : undefined },
+    ...(soonest ? [{ label: 'Runs out', value: soonest.state, numeric: false }] : []),
+  ];
+
   const rows: DetailRow[] = readings.map((r) => ({
     id: r.entity.entity_id,
     icon: batteryIcon(r.level, low),
@@ -783,8 +807,6 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
     state: `${Math.round(r.level)}%`,
     active: r.level <= low,
   }));
-
-  const soonest = running[0];
 
   return (
     <DialogFrame
@@ -795,7 +817,6 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
             ids={readings.slice(0, FORECAST_LIMIT).map((r) => r.entity.entity_id)}
             unit="%"
             label="Emptiest batteries, over time"
-            divided={false}
           />
         </DialogCard>
       )}
@@ -804,15 +825,19 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
         <DialogHero
           onConfigure={scope ? undefined : setup.start}
           icon={readings.length > 0 ? batteryIcon(readings[0].level, low) : mdiBattery}
-          iconClass={flat.length > 0 ? 'text-amber-500' : 'text-green-500'}
-          highlight={flat.length > 0 ? 'bg-amber-500/15' : undefined}
+          subject="Batteries"
+          tone={flat.length > 0 ? 'warn' : 'good'}
+          numeric
           value={readings.length > 0 ? String(Math.round(readings[0].level)) : '—'}
           unit={readings.length > 0 ? '%' : undefined}
-          meta={[
-            readings.length > 0 && `lowest of ${readings.length}`,
-            flat.length > 0 && `${flat.length} below ${low}%`,
-            soonest && `${soonest.label} runs out in ${soonest.state}`,
-          ].filter(Boolean).join(' ・ ') || 'No batteries picked yet'}
+          // Leads on the cell that dies first, which is the reason to open this
+          // — it used to be third in a ・-chain behind two figures the strip
+          // below already carries.
+          meta={soonest
+            ? `${soonest.label} runs out in ${soonest.state}`
+            : readings.length > 0
+              ? `lowest of ${readings.length}`
+              : 'No batteries picked yet'}
         />
         <DialogTiles tiles={tiles} />
       </DialogCard>
@@ -907,7 +932,8 @@ export function PeopleDetail({ onClose }: { onClose: () => void }) {
           <DialogCard>
             <DialogHero
               icon={mdiAccountMultiple}
-              iconClass="text-ha-blue"
+              subject="People"
+              tone={home.length > 0 ? 'active' : 'neutral'}
               value={String(home.length)}
               unit="home"
               meta={trackable.length === 0

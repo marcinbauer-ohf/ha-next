@@ -16,6 +16,10 @@ interface HeaderContextType {
   breadcrumbs?: BreadcrumbItem[];
   icon?: string;
   primaryAction?: { icon: string; onClick: () => void };
+  /** What the top bar's pencil does on this page. Dashboards leave it unset and
+   *  keep the layout-edit toggle; detail pages (a room) point it at the thing
+   *  the page is about — "Living room settings". */
+  editAction?: { label: string; onClick: () => void };
   onBack?: () => void;
   /** Suppress the desktop back arrow even when a subtitle/eyebrow is shown
    *  (e.g. the settings section root, which has no meaningful "back"). */
@@ -38,7 +42,7 @@ interface HeaderContextType {
   setIcon: (icon: string | undefined) => void;
   setPrimaryAction: (action: { icon: string; onClick: () => void } | undefined) => void;
   setOnBack: (fn: (() => void) | undefined) => void;
-  setHeader: (data: { title: string; subtitle?: string; breadcrumbs?: BreadcrumbItem[]; icon?: string; primaryAction?: { icon: string; onClick: () => void }; onBack?: () => void; hideBack?: boolean; contentGutter?: boolean }) => void;
+  setHeader: (data: { title: string; subtitle?: string; breadcrumbs?: BreadcrumbItem[]; icon?: string; primaryAction?: { icon: string; onClick: () => void }; editAction?: { label: string; onClick: () => void }; onBack?: () => void; hideBack?: boolean; contentGutter?: boolean }) => void;
 }
 
 const HeaderContext = createContext<HeaderContextType | null>(null);
@@ -49,6 +53,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[] | undefined>(undefined);
   const [icon, setIcon] = useState<string | undefined>(undefined);
   const [primaryAction, setPrimaryAction] = useState<{ icon: string; onClick: () => void } | undefined>(undefined);
+  const [editAction, setEditAction] = useState<{ label: string; onClick: () => void } | undefined>(undefined);
   const [onBack, setOnBack] = useState<(() => void) | undefined>(undefined);
   const [hideBack, setHideBack] = useState<boolean | undefined>(undefined);
   const [contentGutter, setContentGutter] = useState<boolean | undefined>(undefined);
@@ -59,12 +64,13 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     if (reverse !== undefined) setSectionCrumbReverse(reverse);
   }, []);
 
-  const setHeader = useCallback((data: { title: string; subtitle?: string; breadcrumbs?: BreadcrumbItem[]; icon?: string; primaryAction?: { icon: string; onClick: () => void }; onBack?: () => void; hideBack?: boolean; contentGutter?: boolean }) => {
+  const setHeader = useCallback((data: { title: string; subtitle?: string; breadcrumbs?: BreadcrumbItem[]; icon?: string; primaryAction?: { icon: string; onClick: () => void }; editAction?: { label: string; onClick: () => void }; onBack?: () => void; hideBack?: boolean; contentGutter?: boolean }) => {
     setTitle(data.title);
     setSubtitle(data.subtitle);
     setBreadcrumbs(data.breadcrumbs);
     setIcon(data.icon);
     setPrimaryAction(data.primaryAction);
+    setEditAction(data.editAction);
     setOnBack(data.onBack ? () => data.onBack : undefined);
     setHideBack(data.hideBack);
     setContentGutter(data.contentGutter);
@@ -79,6 +85,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     breadcrumbs,
     icon,
     primaryAction,
+    editAction,
     onBack,
     hideBack,
     contentGutter,
@@ -91,7 +98,7 @@ export function HeaderProvider({ children }: { children: ReactNode }) {
     setPrimaryAction,
     setOnBack,
     setHeader,
-  }), [title, subtitle, breadcrumbs, icon, primaryAction, onBack, hideBack, contentGutter, sectionCrumb, sectionCrumbReverse, setSectionCrumb, setHeader]);
+  }), [title, subtitle, breadcrumbs, icon, primaryAction, editAction, onBack, hideBack, contentGutter, sectionCrumb, sectionCrumbReverse, setSectionCrumb, setHeader]);
 
   return (
     <HeaderContext.Provider value={value}>

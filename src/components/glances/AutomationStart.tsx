@@ -143,7 +143,6 @@ export function AutomationsIntro({ onStart }: { onStart: () => void }) {
   return (
     <IntroStep
       icon={mdiRobot}
-      iconClass="text-violet-500"
       eyebrow="Automations"
       headline="Let your home do it for you"
       blurb="An automation is a rule your home follows on its own: when this happens, do that. Lights that come on at sunset, a heater that goes off when everyone leaves."

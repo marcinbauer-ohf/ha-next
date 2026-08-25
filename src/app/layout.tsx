@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Poppins, Quantico, Roboto, Geist, VT323, Noto_Sans, IBM_Plex_Sans, Source_Sans_3, Figtree, Atkinson_Hyperlegible } from 'next/font/google';
+import { Inter, Poppins, Quantico, Roboto, Geist, VT323, Noto_Sans, IBM_Plex_Sans, Source_Sans_3, Figtree, Atkinson_Hyperlegible, Onest } from 'next/font/google';
 import './globals.css';
 import { HomeAssistantProvider } from '@/hooks/useHomeAssistant';
 import { FeatureFlagsProvider } from '@/hooks/useFeatureFlags';
@@ -71,6 +71,12 @@ const figtree = Figtree({
   variable: '--font-figtree',
 });
 
+// Clean modern grotesk — backs the `default-tinted` theme.
+const onest = Onest({
+  subsets: ['latin', 'latin-ext', 'cyrillic'],
+  variable: '--font-onest',
+});
+
 const atkinson = Atkinson_Hyperlegible({
   subsets: ['latin', 'latin-ext'],
   weight: ['400', '700'],
@@ -110,7 +116,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${poppins.variable} ${quantico.variable} ${roboto.variable} ${geist.variable} ${vt323.variable} ${notoSans.variable} ${ibmPlexSans.variable} ${sourceSans.variable} ${figtree.variable} ${atkinson.variable} antialiased`} suppressHydrationWarning>
+      <body className={`${inter.variable} ${poppins.variable} ${quantico.variable} ${roboto.variable} ${geist.variable} ${vt323.variable} ${notoSans.variable} ${ibmPlexSans.variable} ${sourceSans.variable} ${figtree.variable} ${atkinson.variable} ${onest.variable} antialiased`} suppressHydrationWarning>
         <ThemeProvider>
           <DogEarConfigProvider>
           <FontProvider>

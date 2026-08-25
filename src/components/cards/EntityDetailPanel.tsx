@@ -13,6 +13,7 @@ import { StateTimeline, type StateSegment } from '../ui/StateTimeline';
 import { Sparkline } from '../ui/Sparkline';
 import { DomainControls } from './DeviceControls';
 import { DeviceThumbnailPicker, type DeviceThumbnailPickerProps } from './DeviceThumbnailPicker';
+import { useDebugFlags } from '@/contexts';
 import { useEntity, useHomeAssistant, peekEntities } from '@/hooks/useHomeAssistant';
 import { useDeviceInfo } from '@/hooks/useDevices';
 import { useIdleMarquee } from '@/hooks/useIdleMarquee';
@@ -263,6 +264,7 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
   onPastTabChange?: (view: 'history' | 'log') => void;
 }) {
   const { getEntityHistory, getStatistics, connected, demoMode, haUrl } = useHomeAssistant();
+  const { hideCardImagesEnabled } = useDebugFlags();
   // Product-render thumbnail, shown inside the tappable hero card. Hidden if the
   // hand-dropped PNG 404s (render-adjust pattern, same as DeviceCardV2).
   const [thumb, setThumb] = useState<{ src?: string | null; ok: boolean }>({ src: thumbnail, ok: true });
@@ -494,7 +496,9 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
   // click on it toggles (the ToggleSwitch stops propagation, so it fires once).
   const canToggle = !!(entity.toggleable && entity.onToggle && !entity.entityPicture) && !nearControl;
   const nameIsDuplicate = !!headerName && headerName.trim().toLowerCase() === entity.name.trim().toLowerCase();
-  const showThumb = !!thumbnail && thumb.ok && !entity.entityPicture;
+  // Same flag the device card reads: images off means no product render here
+  // either, so the dialog matches the cards it was opened from.
+  const showThumb = !hideCardImagesEnabled && !!thumbnail && thumb.ok && !entity.entityPicture;
   // Two-column hero (big product render | state or controls) whenever there's a
   // thumbnail. No surface behind it — the render carries the visual weight.
   // The value always sits on its own surface — in the dialog it floats over the
@@ -634,12 +638,10 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
         </div>
       )}
       <div className="flex flex-col items-center gap-ha-2 w-full">
-        {/* The device, as one card: what it reads, what you can set, and what it
-            did — one surface, hairline-divided, so the dialog is a single object
-            rather than a stack of panels. */}
-        <div className="flex w-full flex-col gap-ha-2 rounded-ha-2xl bg-surface-low p-ha-2">
-        {/* Tap-anywhere toggle card — thumb, name, switch and state grouped in one
-            surface. Clicking anywhere toggles a controllable entity. */}
+        {/* The reading and its switch stand on the panel's own ground, above
+            everything else — the main control is the biggest thing in the
+            dialog, not a row inside the settings panel. What you can *set*
+            (and what it did) stays on the surface below. */}
         {showHero && (heroLayout === 'surface' || heroLayout === 'plain') ? (
         /* ── Surface / Plain ── the value centred in its own column, the render
            (when there is one) beside it. 'plain' is the same arrangement with
@@ -690,7 +692,7 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
           {/* Fixed height so the hero doesn't jump between a tall toggle and a
               shorter text value when switching entities. */}
           <div className="flex w-full flex-col items-center justify-center gap-1.5 min-h-[64px]">
-            {renderControl(showThumb ? 'xl' : 'lg')}
+            {renderControl('xl')}
             <div className={clsx('flex w-full min-w-0 flex-col gap-1', showThumb && !entity.toggleable ? 'items-start' : 'items-center')}>
               {renderReading({ scale: 'lg', gauge: true })}
             </div>
@@ -795,6 +797,12 @@ export function EntityDetailBody({ entity, thumbnail, headerName, historyView = 
           </div>
         )}
 
+        {/* Everything you can set, plus what it did — one surface, hairline
+            divided. Hidden when every slot in it is empty — a bare on/off
+            switch has no settings and no history to show, and must not leave an
+            empty grey box under its hero. (`:empty` on the surface itself isn't
+            enough: the controls wrapper is always mounted, just blank.) */}
+        <div className="flex w-full flex-col gap-ha-2 rounded-ha-2xl bg-surface-low p-ha-2 [&:not(:has(>*:not(:empty)))]:hidden">
         {/* Domain controls — brightness/color, setpoint, position, transport…
             Rendered only for domains that have setters beyond on/off. Grouped on
             one surface so "everything you can set" reads as a single panel
@@ -1189,7 +1197,7 @@ export function EntityDetailPanel({
   isFavorite,
   onToggleFavorite,
   thumbnailPicker,
-  heroLayout = 'band',
+  heroLayout = 'plain',
 }: EntityDetailPanelProps) {
   // 'main' = hero, controls and the 24h band; 'history' = the full chart and its
   // log; 'info' = entity/device details and settings. See PANEL_TABS.
@@ -1322,9 +1330,10 @@ export function EntityDetailPanel({
   // Dropped when the focused entity brings its own image (camera feed, album
   // art, avatar): that picture is the hero's subject, and a stock product render
   // behind it is a second picture of the same device fighting the real one.
+  const { hideCardImagesEnabled } = useDebugFlags();
   const [backdrop, setBackdrop] = useState<{ src?: string | null; ok: boolean }>({ src: deviceMeta?.thumbnail, ok: true });
   if (backdrop.src !== deviceMeta?.thumbnail) setBackdrop({ src: deviceMeta?.thumbnail, ok: true });
-  const showBackdrop = !!deviceMeta?.thumbnail && backdrop.ok && tab === 'main' && !focusedEntity?.entityPicture;
+  const showBackdrop = !hideCardImagesEnabled && !!deviceMeta?.thumbnail && backdrop.ok && tab === 'main' && !focusedEntity?.entityPicture;
 
   // Header actions are the most-tapped controls in the dialog and sat at a 30px
   // target with 4px between them. Padded out to ~44px with real gaps so a thumb

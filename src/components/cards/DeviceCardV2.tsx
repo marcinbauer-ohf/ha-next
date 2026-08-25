@@ -272,11 +272,24 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
       onPointerCancel={cancelLongPress}
       // The grow band's paint: a tinted card grows in its own tint, everything
       // else in the hover surface the rule already defaults to.
+      //
+      // Flattened with color-mix rather than passed as the tint itself. The
+      // card's tint is translucent and sits on the card's own opaque
+      // surface-default, but the band is painted on the page behind the card —
+      // so the same `green-500/16` came out a different colour in the band than
+      // in the card body, and the "grown" edge read as a second layer around
+      // the card instead of as the card being bigger. Mixing the tint into
+      // surface-default here is what the body already composites to.
+      // Percentages track the `hover:` tints on the primary block below.
       style={
         isUnavailable
-          ? { '--ha-card-grow': 'rgb(245 158 11 / 0.11)' } as React.CSSProperties
+          // No --color-amber-500 mapping in the theme, so this is Tailwind's own
+          // amber-500 — the same value `bg-amber-500/[0.11]` resolves to.
+          ? { '--ha-card-grow': 'color-mix(in srgb, #f59e0b 11%, var(--ha-color-surface-default))' } as React.CSSProperties
           : !editMode && primary.active && primary.toggleable
-            ? { '--ha-card-grow': 'rgb(34 197 94 / 0.16)' } as React.CSSProperties
+            // Themed token, not a hard-coded green: `bg-green-500` resolves to
+            // --ha-color-green-500, which every theme repaints.
+            ? { '--ha-card-grow': 'color-mix(in srgb, var(--ha-color-green-500) 16%, var(--ha-color-surface-default))' } as React.CSSProperties
             : undefined
       }
       className={clsx(
@@ -407,16 +420,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             reserves that width, because a ~263px card has enough left over for
             the name. */}
 
-        {/* Top row, HA tile-card order: icon badge left, name/state, control right. */}
-        <div className={clsx(
-          'relative z-[2] flex items-center gap-3',
-          // Same token the render's width comes from, so the two can't drift
-          // apart; only reserved when there's actually a render to clear — and
-          // only when the render is the desktop right-hand column. With a
-          // control on this row the render stays in the bottom row at every
-          // size, so there is nothing up here to clear.
-          showThumb && !showFeed && !hasPrimaryControl && 'lg:pr-[calc(var(--dct-thumb-w,34%)+12px)]',
-        )}>
+        {/* Top row, HA tile-card order: icon badge left, name/state, control right.
+            Nothing to clear on the right: the render lives in the bottom row on
+            every card and at every size now, so the name gets the full width. */}
+        <div className="relative z-[2] flex items-center gap-3">
           {iconBadge}
           {renderNameState()}
           {/* The primary control rides the top row, on the card's right edge and
@@ -455,15 +462,13 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                 // Its own cell now, so no left-edge mask: nothing is behind it
                 // to keep legible. Shrinks with the row rather than overflowing
                 // a short card.
+                // One size for every card. A card with no control used to hand
+                // the render a full-height column on the card's right — twice
+                // the height of the in-flow cell a toggled card leaves it — so
+                // the same device drawn at two sizes depending on whether it
+                // happened to be switchable. It keeps the bottom-row cell now,
+                // which is what every toggled card beside it has.
                 'pointer-events-none select-none h-full max-h-full w-[var(--dct-thumb-w,44%)] shrink-0 object-contain object-right-bottom',
-                // Desktop: a full-height column on the card's right, inset by the
-                // card's own padding, so the render uses the whole 96px the card
-                // has rather than the 56px the bottom row leaves it. `h-auto`
-                // because the insets set its height now.
-                // Not when the primary has a control: that column runs the height
-                // of the card, straight through the switch now sitting in the top
-                // row. The render gives way and keeps its in-flow bottom cell.
-                !hasPrimaryControl && 'lg:absolute lg:inset-y-[var(--dct-pad,10px)] lg:right-[var(--dct-pad,10px)] lg:h-auto lg:w-[var(--dct-thumb-w,34%)]',
                 isUnavailable && 'grayscale',
               )}
               style={{

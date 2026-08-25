@@ -31,12 +31,22 @@ export const TRANSLUCENT_CHIP_FILL =
   'bg-black/55 border border-white/15 [--ha-hover-grow:rgba(0,0,0,0.55)] [--ha-hover-grow-edge:rgba(255,255,255,0.15)]';
 
 // The chip family's own fill on an opaque surface — the screensaver pill
-// translated: the card surface, one step up from the page it sits on, so the
-// chip is a defined object without an outline. No hairline: it would stay at the
-// old box while the hover band grows past it, and an edge means "selected"
-// everywhere else in the system.
-const OPAQUE_CHIP_FILL =
-  'bg-surface-default [--ha-hover-grow:var(--ha-color-surface-default)]';
+// translated: one step up from the surface it sits on, so the chip is a defined
+// object without an outline. No hairline: it would stay at the old box while the
+// hover band grows past it, and an edge means "selected" everywhere else in the
+// system.
+//
+// Which step that is depends on the host, so it comes from `--ha-chip-fill`
+// (declared in globals.css, where the host contract is written down) rather than
+// naming a surface here. This used to be a hard `bg-surface-default`, which is
+// correct on the page and invisible in any panel that is *itself*
+// surface-default. The hover-grow band reads the same variable, so the grown
+// edge can never come out a different colour than the chip it grew from.
+//
+// Exported because the People chip hand-rolls its own markup and has to stay on
+// this exact fill.
+export const OPAQUE_CHIP_FILL =
+  'bg-[var(--ha-chip-fill)] [--ha-hover-grow:var(--ha-chip-fill)]';
 
 // Pressable chips grow a hair under the pointer instead of brightening: on the
 // dashboard's own light surface a brightness step is invisible, and the growth

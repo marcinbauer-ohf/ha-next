@@ -29,7 +29,7 @@ import { AutomationEditor } from './AutomationEditor';
 import { HomeCenterSectionsBody } from './HomeCenterSectionEditor';
 import { TOGGLEABLE } from '@/lib/homeassistant/entityHelpers';
 import type { EntitySlot, EntitySection } from '@/hooks/useDeviceCardConfig';
-import { THEMES, type Background, type ColorMode, type Theme } from '@/hooks/useTheme';
+import { THEMES, type Background, type ColorMode, type Density, type Theme } from '@/hooks/useTheme';
 import { useDogEarConfig } from '@/hooks/useDogEarConfig';
 import { DOG_EAR_ACTIONS } from '@/lib/dogEarActions';
 import { areSimulationEntitiesEqual, selectSimulationEntities, selectWeatherOptions, areWeatherOptionsEqual, selectEntityDomains, areEntityDomainsEqual } from '@/lib/homeassistant/selectors';
@@ -631,7 +631,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     return () => setContextSlug(null);
   }, [slug, setContextSlug]);
   const { desktopSplitViewEnabled, toggleDesktopSplitView, offscreenChangeHintsEnabled, toggleOffscreenChangeHints, scrollIndexEnabled, toggleScrollIndex, wavyBackgroundEnabled, toggleWavyBackground, reactiveBackgroundEnabled, toggleReactiveBackground, reactiveTriggerKinds, toggleReactiveTriggerKind, reactiveTriggerDomains, toggleReactiveTriggerDomain, setReactiveTriggerDomains, reactiveIntensity, setReactiveIntensity, reactiveTriggerLabelsEnabled, toggleReactiveTriggerLabels, pulseWallpaperReactive, togglePulseWallpaperReactive, pulseMode, setPulseMode, weatherEntityId, setWeatherEntityId, fastScrollLabelsEnabled, toggleFastScrollLabels, assistVisualizationEnabled, toggleAssistVisualization } = useFeatureFlags();
-  const { theme, mode, background, squircle, setTheme, setMode, setBackground, toggleSquircle } = useTheme();
+  const { theme, mode, background, squircle, density, setTheme, setMode, setBackground, setDensity, toggleSquircle } = useTheme();
   const iconSet = useIconSet();
   const { font, fonts, setFont } = useFont();
   const { enabled: hapticsEnabled, setEnabled: setHapticsEnabled, supported: hapticsSupported } = useHaptics();
@@ -1089,6 +1089,16 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
             { value: 'light', label: 'Light', caption: 'Always bright' },
             { value: 'dark', label: 'Dark', caption: 'Always dim' },
             { value: 'system', label: 'System', caption: 'Follow device preference' },
+          ]}
+        />
+        <ChoiceGroup<Density>
+          label="Density"
+          value={density}
+          onChange={setDensity}
+          options={[
+            { value: 'compact', label: 'Compact', caption: 'Tighter — more on screen' },
+            { value: 'default', label: 'Default', caption: 'Balanced spacing' },
+            { value: 'spacious', label: 'Spacious', caption: 'More air around everything' },
           ]}
         />
         <ChoiceGroup<Theme>

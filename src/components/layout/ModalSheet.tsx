@@ -223,10 +223,16 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
           </motion.div>}
 
           {/* Bottom sheet — springs up; drag the grabber down to dismiss. The
-              contained variant is the same object flipped: it hangs off the
-              panel's top edge and drags upward to dismiss. Either way it
-              travels exactly its own height, so it fully clears the clip
-              instead of leaving a sliver behind to fade out in place. */}
+              contained variant is the same object flipped: it comes down from
+              the top of the dashboard panel and drags upward to dismiss.
+
+              Two elements, because the contained card floats inset from every
+              panel edge (Home Center's skin) and a card with a 24px top margin
+              only travels its own height on `y: -100%`, parking the last 24px
+              inside the clip. So the inset lives as *padding* on the animated
+              wrapper: its height is the card plus the gap, which is exactly the
+              distance the card has to move to clear the panel. No fudge factor,
+              no fade to hide a leftover sliver. */}
           <motion.div
             key="sheet"
             initial={{ y: asSheet ? '-100%' : '100%' }}
@@ -244,22 +250,29 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
               const away = asSheet ? -1 : 1;
               if (info.offset.y * away > 120 || info.velocity.y * away > 800) onClose();
             }}
-            // Hairline on the free edge: in dark mode the sheet's surface is
-            // close enough to the scrimmed page behind it that the rounded edge
-            // disappears.
             className={clsx(
-              'relative w-full bg-surface-lower overflow-hidden',
+              'relative flex w-full flex-col',
               !sheetOnDesktop && 'lg:hidden',
-              asSheet
-                // A drawer: flush with the panel's top edge, inset at the sides.
-                ? 'flex flex-col mx-ha-6 rounded-b-ha-3xl border-x border-b border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
-                : 'rounded-t-ha-sheet border-t border-white/10',
+              // The panel gap, as padding rather than margin — see above.
+              asSheet && 'px-ha-6 pt-ha-6',
             )}
             style={{
-              maxHeight: asSheet ? 'calc(92% - var(--ha-space-6))' : '82dvh',
-              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))',
+              maxHeight: asSheet ? '92%' : '82dvh',
               transformOrigin: asSheet ? 'bottom center' : 'top center',
             }}
+          >
+          {/* The card. Home Center's skin, value for value: floating, fully
+              rounded, one hairline border all the way round — in dark mode the
+              sheet's surface is close enough to the scrimmed page behind it
+              that the rounded edge would otherwise disappear. */}
+          <div
+            className={clsx(
+              'relative overflow-hidden bg-surface-lower',
+              asSheet
+                ? 'flex min-h-0 flex-col rounded-ha-3xl border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
+                : 'rounded-t-ha-sheet border-t border-white/10',
+            )}
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))' }}
           >
             {!asSheet && (
               <div
@@ -322,6 +335,7 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
                 <SheetGrabber />
               </div>
             )}
+          </div>
           </motion.div>
         </div>
       )}
