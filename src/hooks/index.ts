@@ -2,7 +2,6 @@ export {
   HomeAssistantProvider,
   useHomeAssistant,
   useHomeAssistantEntities,
-  useHomeIsEmpty,
   useHomeAssistantSelector,
   useEntity,
   useEntities,

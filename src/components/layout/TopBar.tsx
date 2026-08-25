@@ -245,13 +245,17 @@ export function TopBar() {
       )}
       {/* Mobile: Logo/Icon + Title with dropdown - Centered vertically on mobile */}
       <div className="relative flex items-center justify-between w-full lg:hidden h-full">
-        {/* When immersive mode is off the dashboard surface sits inside the grey
-            panel, whose content is inset by an extra px-ha-3 (12px) beyond the
-            top bar's px-edge gutter. Indent the title by that same amount so it
-            lines up with the content below. Skipped when a back arrow is present
-            (detail pages already push the title well past the content edge) and
-            in immersive mode (surface is full-bleed, so title already aligns). */}
-        <div className={`flex items-center gap-ha-3 transition-[padding] duration-300 ease-out ${!immersiveMode && !showBack ? 'pl-ha-3' : ''}`}>
+        {/* Indent the title onto the content's own left edge. Two parts, both
+            measured off what's under it: the section headings below carry the
+            card's inset (`--dct-pad`, same rule as SectionHeader), and when
+            immersive mode is off the surface also sits inside the grey panel,
+            one extra 12px in from the top bar's px-edge gutter. Skipped when a
+            back arrow is present — detail pages already push the title well
+            past the content edge. */}
+        <div
+          className="flex items-center gap-ha-3 transition-[padding] duration-300 ease-out"
+          style={{ paddingLeft: showBack ? undefined : `calc(${immersiveMode ? '0px' : 'var(--ha-space-3)'} + var(--dct-pad, 10px))` }}
+        >
           {showBack && (
             <button
               type="button"

@@ -11,6 +11,7 @@ import { Icon } from '../ui/Icon';
 import { useHomeAssistant } from '@/hooks';
 import { useHomeName, setHomeName } from '@/lib/homeName';
 import { HomeModeSettings } from './HomeModeSettings';
+import { useDebugFlags } from '@/contexts';
 import type { HaCoreConfig } from '@/lib/homeassistant';
 
 // Representative values so the page reads as a real home in demo mode (no live
@@ -74,6 +75,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
  */
 export function HomeInformation() {
   const { demoMode, connected, haUrl, getCoreConfig } = useHomeAssistant();
+  const { homeModeEnabled } = useDebugFlags();
   const homeName = useHomeName();
   const [nameDraft, setNameDraft] = useState(homeName);
   // Reconcile the editable field when the stored name changes elsewhere
@@ -163,7 +165,7 @@ export function HomeInformation() {
       </InfoCard>
 
       {/* Home Mode is app-local config, edited here directly. */}
-      <HomeModeSettings />
+      {homeModeEnabled && <HomeModeSettings />}
 
       {/* Location, regional and language settings are managed by Home Assistant
           itself — deep-link out rather than duplicate its editors. */}

@@ -134,7 +134,7 @@ function DeviceChip({
       style={{ left, top }}
       className={`absolute flex max-w-[180px] -translate-x-1/2 -translate-y-1/2 items-center gap-ha-2 rounded-ha-2xl bg-surface-default py-1 pl-1 pr-ha-2 transition-shadow outline-none focus-visible:ring-2 focus-visible:ring-ha-blue/60 ${
         selected
-          ? 'shadow-[0_8px_24px_-6px_rgba(24,188,242,0.75)]'
+          ? 'ring-2 ring-inset ring-text-primary/40 shadow-[0_8px_22px_-8px_rgba(15,23,42,0.55)]'
           : on
             ? 'shadow-[0_8px_22px_-8px_rgba(15,23,42,0.55)]'
             : 'shadow-[0_6px_18px_-12px_rgba(15,23,42,0.45)]'

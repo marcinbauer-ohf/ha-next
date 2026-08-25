@@ -211,7 +211,7 @@ export const settingsNavSections: SettingsNavSection[] = [
 // kept out of settingsNavSections so they don't appear in the settings sidebar —
 // they are reached from the Home Center page's section links.
 export const hiddenSettingsLinks: SettingsNavLink[] = [
-  { slug: 'home-information', icon: mdiHomeVariant, label: 'Home Information', description: 'Home name, location, regional settings and Home Mode' },
+  { slug: 'home-information', icon: mdiHomeVariant, label: 'Home Information', description: 'Home name, location and regional settings' },
   { slug: 'activity', icon: mdiPulse, label: 'Happening now', description: 'Live activity in progress across your home' },
   { slug: 'updates', icon: mdiUpdate, label: 'Updates', description: 'Available updates for integrations and add-ons' },
   { slug: 'repairs', icon: mdiWrench, label: 'Repairs', description: 'Suggested fixes for your setup' },
@@ -312,6 +312,7 @@ const IMPLEMENTED_SETTINGS_SLUGS = new Set<SettingsSlug>([
   'updates',
   'repairs',
   'connectivity',
+  'profile',
 ]);
 
 /** True when the section has its own built-out UI (not just the haPath stub). */

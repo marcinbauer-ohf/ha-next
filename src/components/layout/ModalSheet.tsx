@@ -25,10 +25,11 @@ interface ModalSheetProps {
    */
   label?: string;
   /**
-   * lg+ gets Home Center's sheet instead of the centered card: bottom-anchored
-   * and inset inside the dashboard panel. For the summary chips, whose dialogs
-   * are read rather than worked in. Falls back to the viewport-wide sheet where
-   * there is no panel to sit in (the screensaver).
+   * lg+ gets a sheet instead of the centered card: a drawer that drops out of
+   * the dashboard panel's top edge, where the summary chips that open it live.
+   * For dialogs that are read rather than worked in. Falls back to the
+   * viewport-wide bottom sheet where there is no panel to sit in (the
+   * screensaver).
    */
   contained?: boolean;
 }
@@ -172,8 +173,10 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
           aria-label={label}
           tabIndex={-1}
           className={clsx(
-            'flex items-end justify-center pointer-events-auto outline-none',
-            asSheet ? 'absolute dashboard-panel-clip' : 'fixed inset-0',
+            'flex justify-center pointer-events-auto outline-none',
+            // Contained: a drawer hanging off the panel's top edge, which is
+            // where the chips that open it are. Everywhere else: bottom sheet.
+            asSheet ? 'absolute dashboard-panel-clip items-start' : 'fixed inset-0 items-end',
             !sheetOnDesktop && 'lg:items-center',
           )}
           style={{ zIndex: 200 + below }}
@@ -219,45 +222,53 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             </div>
           </motion.div>}
 
-          {/* Mobile: bottom sheet — springs up; drag the grabber down to dismiss */}
+          {/* Bottom sheet — springs up; drag the grabber down to dismiss. The
+              contained variant is the same object flipped: it hangs off the
+              panel's top edge and drags upward to dismiss. Either way it
+              travels exactly its own height, so it fully clears the clip
+              instead of leaving a sliver behind to fade out in place. */}
           <motion.div
             key="sheet"
-            initial={{ y: '100%' }}
-            // Covered: narrower and a nudge higher, so its rounded top sticks
-            // out above the sheet that opened over it.
-            animate={recede(above)}
-            exit={{ y: '100%' }}
+            initial={{ y: asSheet ? '-100%' : '100%' }}
+            // Covered: narrower and a nudge away from its anchored edge, so its
+            // rounded free edge sticks out past the sheet that opened over it.
+            animate={recede(above, asSheet)}
+            exit={{ y: asSheet ? '-100%' : '100%' }}
             transition={SHEET_SPRING}
             drag="y"
             dragListener={false}
             dragControls={dragControls}
             dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={{ top: 0, bottom: 0.9 }}
+            dragElastic={asSheet ? { top: 0.9, bottom: 0 } : { top: 0, bottom: 0.9 }}
             onDragEnd={(_, info) => {
-              if (info.offset.y > 120 || info.velocity.y > 800) onClose();
+              const away = asSheet ? -1 : 1;
+              if (info.offset.y * away > 120 || info.velocity.y * away > 800) onClose();
             }}
-            // Top hairline: in dark mode the sheet's surface is close enough to
-            // the scrimmed page behind it that the rounded edge disappears.
+            // Hairline on the free edge: in dark mode the sheet's surface is
+            // close enough to the scrimmed page behind it that the rounded edge
+            // disappears.
             className={clsx(
               'relative w-full bg-surface-lower overflow-hidden',
               !sheetOnDesktop && 'lg:hidden',
               asSheet
-                // Home Center's contained skin, value for value.
-                ? 'flex flex-col mx-ha-6 mb-ha-6 rounded-ha-3xl border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
+                // A drawer: flush with the panel's top edge, inset at the sides.
+                ? 'flex flex-col mx-ha-6 rounded-b-ha-3xl border-x border-b border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
                 : 'rounded-t-ha-sheet border-t border-white/10',
             )}
             style={{
               maxHeight: asSheet ? 'calc(92% - var(--ha-space-6))' : '82dvh',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))',
-              transformOrigin: 'top center',
+              transformOrigin: asSheet ? 'bottom center' : 'top center',
             }}
           >
-            <div
-              className="flex justify-center pt-ha-2 pb-0 touch-none cursor-grab active:cursor-grabbing"
-              onPointerDown={(e) => dragControls.start(e)}
-            >
-              <SheetGrabber />
-            </div>
+            {!asSheet && (
+              <div
+                className="flex justify-center pt-ha-2 pb-0 touch-none cursor-grab active:cursor-grabbing"
+                onPointerDown={(e) => dragControls.start(e)}
+              >
+                <SheetGrabber />
+              </div>
+            )}
             {/* Overscroll hands the gesture to the sheet: keep pulling down once
                 the content is already at its top and the sheet comes with you,
                 so dismissing never means aiming for the little grabber. */}
@@ -301,6 +312,16 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
                 {content}
               </div>
             </div>
+            {/* The drawer's grab affordance sits on its free edge — the bottom
+                one, since this variant hangs from the top. */}
+            {asSheet && (
+              <div
+                className="flex shrink-0 justify-center pt-ha-1 pb-0 touch-none cursor-grab active:cursor-grabbing"
+                onPointerDown={(e) => dragControls.start(e)}
+              >
+                <SheetGrabber />
+              </div>
+            )}
           </motion.div>
         </div>
       )}

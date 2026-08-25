@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { mdiRobot, mdiChevronRight } from '@mdi/js';
 import { Icon } from '../ui/Icon';
-import { HALoader, IconButton} from '../ui';
+import { Dropdown, HALoader, IconButton, SectionLabel } from '../ui';
 import { useAutomations, type AutomationSummary } from '@/hooks';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { LogbookEntry } from '@/lib/homeassistant';
@@ -17,6 +17,31 @@ import type { LogbookEntry } from '@/lib/homeassistant';
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
+
+// ── How far back the bars go ─────────────────────────────────────────────────
+// Same three spans as every other history in the app (see StatsChart), but a
+// day of hourly bars and a month of hourly bars are not the same chart: past
+// 24h the buckets become days, or you get 720 hairlines nobody can hit.
+interface Span {
+  value: string;
+  label: string;
+  /** Hours of logbook to fetch. */
+  hours: number;
+  /** Width of one bar. */
+  bucketMs: number;
+  /** How many bars. */
+  buckets: number;
+}
+
+const SPANS: Span[] = [
+  { value: '24', label: '24 hours', hours: 24, bucketMs: HOUR_MS, buckets: 24 },
+  { value: '168', label: '7 days', hours: 168, bucketMs: DAY_MS, buckets: 7 },
+  { value: '720', label: '30 days', hours: 720, bucketMs: DAY_MS, buckets: 30 },
+];
+
+const SPAN_OPTIONS = SPANS.map((s) => ({ value: s.value, label: s.label }));
+
+const spanFor = (value: string): Span => SPANS.find((s) => s.value === value) ?? SPANS[0];
 
 // ── Per-automation colours ───────────────────────────────────────────────────
 // Categorical palette (mid-tone, readable on surface bg in light + dark). Each
@@ -49,13 +74,13 @@ function buildPalette(ids: string[]): Palette {
 
 interface HourBucket { total: number; segs: [string, number][] }
 
-/** Per-automation counts per hour for the last `hours`, oldest → newest. */
-function hourlyBreakdown(events: LogbookEntry[], hours: number): HourBucket[] {
-  const nowHour = Math.floor(Date.now() / HOUR_MS);
-  const maps = Array.from({ length: hours }, () => new Map<string, number>());
+/** Per-automation counts per bucket over the span, oldest → newest. */
+function breakdown(events: LogbookEntry[], span: Span): HourBucket[] {
+  const nowBucket = Math.floor(Date.now() / span.bucketMs);
+  const maps = Array.from({ length: span.buckets }, () => new Map<string, number>());
   for (const e of events) {
-    const idx = hours - 1 - (nowHour - Math.floor((e.when * 1000) / HOUR_MS));
-    if (idx < 0 || idx >= hours) continue;
+    const idx = span.buckets - 1 - (nowBucket - Math.floor((e.when * 1000) / span.bucketMs));
+    if (idx < 0 || idx >= span.buckets) continue;
     const key = e.entity_id ?? e.name ?? 'unknown';
     maps[idx].set(key, (maps[idx].get(key) ?? 0) + 1);
   }
@@ -68,15 +93,22 @@ function hourlyBreakdown(events: LogbookEntry[], hours: number): HourBucket[] {
 
 const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+const day = (ms: number) => new Date(ms).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+
 /** Time window + heading for the runs table, given the selected bar. */
-function windowFor(selectedHour: number | null): { start: number; end: number; label: string } {
+function windowFor(selected: number | null, span: Span): { start: number; end: number; label: string } {
   const now = Date.now();
-  if (selectedHour != null) {
-    const hour = Math.floor(now / HOUR_MS) - (23 - selectedHour);
-    const start = hour * HOUR_MS;
-    return { start, end: start + HOUR_MS, label: `Ran ${clock(start)}–${clock(start + HOUR_MS)}` };
+  if (selected != null) {
+    const bucket = Math.floor(now / span.bucketMs) - (span.buckets - 1 - selected);
+    const start = bucket * span.bucketMs;
+    const end = start + span.bucketMs;
+    return {
+      start,
+      end,
+      label: span.bucketMs === HOUR_MS ? `Ran ${clock(start)}–${clock(end)}` : `Ran on ${day(start)}`,
+    };
   }
-  return { start: now - DAY_MS, end: now, label: 'Ran in the last 24h' };
+  return { start: now - span.hours * HOUR_MS, end: now, label: `Ran in the last ${span.label}` };
 }
 
 interface RanRow { key: string; name: string; count: number; last: number }
@@ -118,18 +150,22 @@ function buildDemoEvents(autos: AutomationSummary[]): LogbookEntry[] {
 
 // ── Bars ─────────────────────────────────────────────────────────────────────
 
-function HourTicks({ count }: { count: number }) {
-  // Rolling window that ends "now"; label every 6h as hours-ago.
-  const labels = [];
-  for (let i = 0; i <= count; i += 6) labels.push(i);
+function SpanTicks({ span }: { span: Span }) {
+  // A rolling window that ends "now". Hours-ago reads well across a day; across
+  // weeks it doesn't ("-504h"), so the longer spans count back in days.
+  const { buckets, bucketMs } = span;
+  const every = bucketMs === HOUR_MS ? 6 : buckets > 10 ? 7 : 1;
+  const labels: number[] = [];
+  for (let i = 0; i <= buckets; i += every) labels.push(i);
   return (
     <div className="relative mt-1 h-3">
-      {labels.map((h) => {
-        const f = h / count;
+      {labels.map((i) => {
+        const f = i / buckets;
         const tx = f < 0.04 ? '0%' : f > 0.96 ? '-100%' : '-50%';
-        const label = h === count ? 'now' : `-${count - h}h`;
+        const back = buckets - i;
+        const label = i === buckets ? 'now' : bucketMs === HOUR_MS ? `-${back}h` : `-${back}d`;
         return (
-          <span key={h} className="absolute top-0 text-[10px] leading-none text-text-tertiary tabular-nums"
+          <span key={i} className="absolute top-0 text-[10px] leading-none text-text-tertiary tabular-nums"
             style={{ left: `${f * 100}%`, transform: `translateX(${tx})` }}>
             {label}
           </span>
@@ -139,18 +175,21 @@ function HourTicks({ count }: { count: number }) {
   );
 }
 
-function BarsView({ events, palette, selected, onSelect, highlightKey }: {
+function BarsView({ events, span, palette, selected, onSelect, highlightKey }: {
   events: LogbookEntry[];
+  span: Span;
   palette: Palette;
   selected: number | null;
   onSelect: (i: number | null) => void;
   highlightKey: string | null;
 }) {
-  const buckets = useMemo(() => hourlyBreakdown(events, 24), [events]);
+  const buckets = useMemo(() => breakdown(events, span), [events, span]);
   const max = Math.max(1, ...buckets.map((b) => b.total));
   return (
     <div>
-      <div className="flex h-24 items-end gap-px">
+      {/* Taller than it was: this is the surface's headline chart now, and a
+          month of daily bars needs the height to say anything. */}
+      <div className="flex h-32 items-end gap-px lg:h-40">
         {buckets.map((b, i) => {
           const active = selected === i;
           const dimmed = selected != null && !active;
@@ -165,6 +204,7 @@ function BarsView({ events, palette, selected, onSelect, highlightKey }: {
                 dimmed ? 'opacity-30' : 'opacity-100'
               }`}
               title={`${b.total} run${b.total === 1 ? '' : 's'} · tap to inspect`}
+              aria-label={`${b.total} runs, bucket ${i + 1} of ${span.buckets}`}
             >
               {segs.map(([key, c], si) => (
                 <div
@@ -183,7 +223,7 @@ function BarsView({ events, palette, selected, onSelect, highlightKey }: {
           );
         })}
       </div>
-      <HourTicks count={24} />
+      <SpanTicks span={span} />
     </div>
   );
 }
@@ -261,7 +301,9 @@ function RunsTable({ rows, label, selected, palette, highlightKey, onHighlight, 
 export function AutomationActivityChart({ onOpenAutomation }: { onOpenAutomation?: (id: string) => void } = {}) {
   const { automations } = useAutomations();
   const { connected, demoMode, getLogbook } = useHomeAssistant();
-  const [selectedHour, setSelectedHour] = useState<number | null>(null);
+  const [spanValue, setSpanValue] = useState('24');
+  const span = spanFor(spanValue);
+  const [selectedBucket, setSelectedBucket] = useState<number | null>(null);
   const [highlightKey, setHighlightKey] = useState<string | null>(null);
   const [events, setEvents] = useState<LogbookEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -286,39 +328,51 @@ export function AutomationActivityChart({ onOpenAutomation }: { onOpenAutomation
       setLoading(false);
       return;
     }
-    getLogbook(ids, 24).then((rows) => {
+    getLogbook(ids, span.hours).then((rows) => {
       if (cancelled) return;
       setEvents(rows);
       setLoading(false);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idsKey, connected, demoMode, getLogbook]);
+  }, [idsKey, connected, demoMode, getLogbook, span.hours]);
 
   const { rows, tableLabel } = useMemo(() => {
-    const w = windowFor(selectedHour);
+    const w = windowFor(selectedBucket, span);
     return { rows: runsInWindow(events, w.start, w.end, nameById), tableLabel: w.label };
-  }, [events, selectedHour, nameById]);
+  }, [events, selectedBucket, nameById, span]);
 
   if (automations.length === 0) return null;
 
   return (
     <div>
+      {/* The period control sits with the chart it changes, like every other
+          history in the app (see StatsChart's span dropdown). */}
+      <div className="mb-ha-2 flex items-center gap-ha-2">
+        <SectionLabel inset>When they ran</SectionLabel>
+        <Dropdown
+          className="ml-auto shrink-0"
+          options={SPAN_OPTIONS}
+          value={spanValue}
+          onChange={(next) => { setSpanValue(next); setSelectedBucket(null); }}
+        />
+      </div>
       {loading ? (
-        <div className="flex h-24 items-center justify-center"><HALoader size="sm" /></div>
+        <div className="flex h-32 items-center justify-center lg:h-40"><HALoader size="sm" /></div>
       ) : (
         <>
           <BarsView
             events={events}
+            span={span}
             palette={palette}
-            selected={selectedHour}
-            onSelect={setSelectedHour}
+            selected={selectedBucket}
+            onSelect={setSelectedBucket}
             highlightKey={highlightKey}
           />
           <RunsTable
             rows={rows}
             label={tableLabel}
-            selected={selectedHour != null}
+            selected={selectedBucket != null}
             palette={palette}
             highlightKey={highlightKey}
             onHighlight={setHighlightKey}

@@ -52,7 +52,7 @@ export function NameStep({ state, update, next }: StepProps) {
                   onClick={() => update({ homeName: selected ? '' : s })}
                   className={`h-9 px-ha-4 rounded-full text-sm font-medium border transition-colors ${
                     selected
-                      ? 'bg-ha-blue border-ha-blue text-white shadow-md shadow-ha-blue/20'
+                      ? 'bg-surface-low/70 border-transparent text-text-primary ha-selected'
                       : 'bg-surface-low/70 border-surface-lower text-text-secondary hover:text-text-primary hover:bg-surface-low'
                   }`}
                 >

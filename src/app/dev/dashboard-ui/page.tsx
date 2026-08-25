@@ -117,7 +117,7 @@ export default function DashboardUiPage() {
             </ControlGrid>
           </Spec>
 
-          <Spec name="ControlButton · pressed" rule="Active state is the blue fill, not a border swap.">
+          <Spec name="ControlButton · pressed" rule="Blue fill because it is the device's own state — picking in the UI is never blue.">
             <ControlGrid cols={3}>
               <ControlButton label="Auto" text="Auto" pressed onClick={() => {}} />
               <ControlButton label="Eco" text="Eco" onClick={() => {}} />
@@ -244,7 +244,7 @@ export default function DashboardUiPage() {
                 value="controls"
                 onChange={() => {}}
               />
-              <div className="flex w-full items-center gap-[2px] rounded-ha-xl bg-surface-mid p-[3px]">
+              <div className="flex w-full items-center gap-[2px] rounded-ha-xl border border-surface-lower bg-surface-default p-[3px]">
                 {['1h', '6h', '24h', '7d', '30d'].map(s => (
                   <button
                     key={s}
@@ -253,7 +253,7 @@ export default function DashboardUiPage() {
                     aria-pressed={span === s}
                     className={
                       'flex-1 rounded-ha-lg px-ha-3 py-1.5 text-xs font-medium transition-all duration-200 ' +
-                      (span === s ? 'bg-surface-default text-text-primary' : 'text-text-secondary hover:text-text-primary')
+                      (span === s ? 'bg-surface-mid text-text-primary' : 'text-text-secondary hover:bg-surface-low hover:text-text-primary')
                     }
                   >
                     {s}

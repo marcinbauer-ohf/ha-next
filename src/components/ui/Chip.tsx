@@ -2,9 +2,10 @@
 
 import type { ReactNode } from 'react';
 
-// Pill toggle used across filter rows and mobile filter sheets. Active state
-// echoes the brand accent; inactive sits quietly on the surface. Fixed h-10 so
-// every filter control (sort/group/facets/layout toggle) lines up at one height.
+// Pill toggle used across filter rows and mobile filter sheets. Active wears the
+// shared selection edge (thicker, higher contrast — never a blue fill); inactive
+// sits quietly on the surface. Fixed h-10 so every filter control
+// (sort/group/facets/layout toggle) lines up at one height.
 export function Chip({
   active,
   onClick,
@@ -25,7 +26,7 @@ export function Chip({
       onClick={onClick}
       className={`${fullWidth ? 'flex w-full' : 'inline-flex'} h-10 items-center gap-ha-2 rounded-ha-xl px-ha-3 text-sm font-semibold transition-colors ${
         active
-          ? 'bg-ha-blue/10 text-ha-blue'
+          ? 'bg-surface-low text-text-primary ha-selected'
           : 'bg-surface-low text-text-secondary hover:bg-surface-lower'
       }`}
     >

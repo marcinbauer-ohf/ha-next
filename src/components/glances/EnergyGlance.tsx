@@ -5,7 +5,7 @@ import { mdiFlash } from '@mdi/js';
 import { SummaryCard } from '../cards/SummaryCard';
 import { ModalSheet } from '../layout/ModalSheet';
 import { EnergyDetailPanel } from '../cards/EnergyDetailPanel';
-import { useEnergyMetrics, useEntities, useHomeIsEmpty } from '@/hooks';
+import { useEnergyMetrics, useEntities } from '@/hooks';
 import { isEnergyConfigured, sumKwh, sumWatts, useEnergyConfig } from '@/lib/energyConfig';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,12 +38,9 @@ export function EnergyGlance({ compact, variant, size, translucent }: EnergyGlan
   // Only used to decide whether this home measures energy at all — a house
   // with just a daily kWh meter and no live-power sensor still counts.
   const { powerSensors, energyToday } = useEnergyMetrics();
-  // A home with nothing in it keeps the chip as an invitation — hiding it there
-  // would leave the one summary most worth setting up unreachable.
-  const homeIsEmpty = useHomeIsEmpty();
   const [open, setOpen] = useState(false);
 
-  if (!configured && powerSensors.length === 0 && !energyToday && !homeIsEmpty) return null;
+  if (!configured && powerSensors.length === 0 && !energyToday) return null;
 
   const watts = sumWatts(powerEntities);
   const kwhToday = sumKwh(todayEntities);

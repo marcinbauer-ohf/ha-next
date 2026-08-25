@@ -65,7 +65,7 @@ export function AppShell({ children }: AppShellProps) {
 }
 
 function AppShellContent({ children }: AppShellProps) {
-  const { connecting, connected, error, configured, hydrated, demoMode, saveCredentials, enableDemoMode } = useHomeAssistant();
+  const { connecting, connected, error, configured, hydrated, demoMode, demoEmpty, saveCredentials, enableDemoMode } = useHomeAssistant();
   const { desktopSplitViewEnabled } = useFeatureFlags();
   const { background, squircle } = useTheme();
   const pulseWallpaper = background === 'pulse';
@@ -282,13 +282,16 @@ function AppShellContent({ children }: AppShellProps) {
   // more on demand.
   const discoveryShown = useRef(false);
   useEffect(() => {
-    if (showPreloader || onboardingActive || discoveryShown.current) return;
+    // The emptied demo announces nothing: a home with no devices shouldn't be
+    // told one just turned up. The palette's "Simulate device discovery" still
+    // works — that one is asked for.
+    if (showPreloader || onboardingActive || demoEmpty || discoveryShown.current) return;
     const timer = setTimeout(() => {
       discoveryShown.current = true;
       announceDiscovery(showToast, pickDiscoveries(1)[0]);
     }, 5000);
     return () => clearTimeout(timer);
-  }, [showPreloader, onboardingActive, showToast]);
+  }, [showPreloader, onboardingActive, demoEmpty, showToast]);
 
   // Dismiss any open toast when entering edit mode
   useEffect(() => {

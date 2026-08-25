@@ -35,13 +35,16 @@ const SIZE: Record<ButtonSize, { box: string; glyph: number }> = {
   lg: { box: 'h-12 px-ha-5 text-base gap-ha-2', glyph: 20 },
 };
 
+// Each variant names the paint for its grow band (`--ha-hover-grow`), so a
+// filled button grows seamlessly into its own colour. `ghost` leaves the
+// default — surface-low is already the fill its hover paints in.
 const VARIANT: Record<ButtonVariant, string> = {
   // Brightness rather than a second blue: one accent, lit on hover, so a primary
   // action looks the same whichever screen it lands on.
-  primary: 'bg-ha-blue text-white shadow-sm shadow-ha-blue/20 hover:brightness-110',
-  neutral: 'bg-surface-low text-text-primary hover:bg-surface-mid',
+  primary: 'bg-ha-blue text-white shadow-sm shadow-ha-blue/20 hover:brightness-110 [--ha-hover-grow:var(--ha-color-blue)]',
+  neutral: 'bg-surface-low text-text-primary hover:bg-surface-mid [--ha-hover-grow:var(--ha-color-surface-mid)]',
   ghost: 'bg-transparent text-text-secondary hover:bg-surface-low hover:text-text-primary',
-  danger: 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white',
+  danger: 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white [--ha-hover-grow:var(--color-red-500)]',
 };
 
 export function Button({
@@ -61,7 +64,10 @@ export function Button({
       type={type}
       className={clsx(
         'inline-flex items-center justify-center rounded-ha-xl font-semibold whitespace-nowrap outline-none',
-        'transition-[background-color,color,filter,transform] duration-150 ease-out',
+        'transition-[background-color,color,filter,transform,box-shadow] duration-150 ease-out',
+        // Hover grows the button's own edge outward rather than only tinting it
+        // — same reflex as the cards and chips. See `.ha-hover-grow`.
+        'ha-hover-grow',
         // Two press depths, picked by how big the thing being pressed is: a
         // hand-sized control can take the full 95%, but a full-width button
         // scaled that far throws its edges ~10px inward and reads as a glitch.

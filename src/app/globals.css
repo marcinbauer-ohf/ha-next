@@ -2017,10 +2017,27 @@ html {
 }
 
 
-/* Consistent selection ring — use .ha-selected on any selectable card */
+/* Persistent selection — one item out of a group stays picked until another is.
+   The signal is the edge, never a fill or a blue tint: colour belongs to live
+   device state, an edge to "this is the one you chose". Kept well under full
+   contrast — it has to read as "chosen", not as a hard frame drawn on top.
+
+   A box-shadow ring rather than an outline: a rounded outline is rasterised
+   with visibly coarser anti-aliasing than a shadow spread (which rounds its
+   corners with the box for free), and the jaggedness showed on every pill in
+   the prototype tools. Inset, so it never protrudes into a neighbour in a tight
+   grid or chip wrap, and nothing reflows when an item becomes selected. */
 .ha-selected {
-  outline: 2px solid var(--ha-color-blue);
-  outline-offset: 2px;
+  --ha-selection-edge: color-mix(in srgb, var(--ha-color-text-primary) 42%, transparent);
+  box-shadow: inset 0 0 0 2px var(--ha-selection-edge);
+}
+
+/* A selected card still grows on hover — `ha-card-grow` owns the same property,
+   so the two rings have to be declared together or hover drops the selection. */
+.ha-card-grow.ha-selected:hover {
+  box-shadow:
+    inset 0 0 0 2px var(--ha-selection-edge),
+    0 0 0 4px var(--ha-card-grow, var(--ha-color-surface-low));
 }
 
 /* Fast-scroll gist labels (prototype) — every DeviceCardV2 carries a hidden
@@ -2273,6 +2290,24 @@ html {
   .ha-card-grow { transition: none; }
 }
 
+/* Grow-on-hover for the small controls — chips, pills, buttons — the short twin
+   of `ha-card-grow` above. A band of paint on the control's outer edge, so the
+   box comes forward while the label and glyph stay exactly where they were:
+   scaling the element grows its text with it, which reads as a zoom rather than
+   as the control answering the pointer. `--ha-hover-grow` is the band's paint —
+   set it to whatever fill the control's hover lands on, so the band reads as
+   the control itself getting bigger rather than as a rim appearing around it.
+   The default suits anything whose hover fill is surface-low. A control that
+   wears a hairline also needs `--ha-hover-grow-edge` — its border stays at the
+   old box, so the hairline has to be redrawn on the grown edge or it reads as a
+   line floating inside the control (same split band as `ha-card-grow-ring`).
+   3px here against the cards' 4px: same idea, smaller object. */
+.ha-hover-grow:hover {
+  box-shadow:
+    0 0 0 3px var(--ha-hover-grow, var(--ha-color-surface-low)),
+    0 0 0 4px var(--ha-hover-grow-edge, transparent);
+}
+
 /* Card flash — pulses a glowing ring on the card a hint scrolled you to. */
 .ha-card-flash {
   animation: ha-card-flash 1200ms ease-out;
@@ -2497,6 +2532,17 @@ html {
   background: var(--ha-color-surface-mid);
 }
 
+/* The app renders at a fractional scale, so Leaflet's 256px tiles land on
+   230.4px while it still positions them 231px apart — a sub-pixel gap on every
+   seam, which reads as a grid drawn over the map. A pixel of overlap closes it;
+   the tiles are opaque, so overlapping costs nothing. */
+.ha-map-canvas .leaflet-tile {
+  /* Leaflet writes the size inline, so this needs the weight to win. Only the
+     drawn size changes — tileSize stays 256, so tile URLs are untouched. */
+  width: 257px !important;
+  height: 257px !important;
+}
+
 /* divIcon wrapper: strip Leaflet's default white box. */
 .ha-map-marker { background: transparent; border: 0; }
 
@@ -2518,6 +2564,14 @@ html {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6), 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 .ha-map-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* The off-screen version: smaller, so a cluster of people pinned along one edge
+   still reads as edge furniture rather than as markers on the map itself. */
+.ha-map-avatar--edge {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
 
 .ha-map-home {
   width: 36px;

@@ -1515,12 +1515,12 @@ export function EntityDetailPanel({
               (hidden entities included — only disabling one takes it out, see
               panelEntitiesForDevice). */}
           {showShelf && (
-          <div className="relative z-[1] flex items-center gap-ha-2 bg-surface-lower px-ha-4 pb-ha-4 pt-ha-2">
+          <div className="relative z-[1] flex items-center gap-ha-2 bg-surface-lower px-ha-4 pb-ha-3 pt-ha-1">
             <div
               ref={chipsRef}
               onScroll={onChipsScroll}
               style={chipsFadeStyle}
-              className="flex min-w-0 flex-1 items-center gap-ha-2 overflow-x-auto scrollbar-hide"
+              className="flex min-w-0 flex-1 items-center gap-ha-2 overflow-x-auto scrollbar-hide py-1"
             >
               {shelfEntities.map((entity) => {
                 // Selected = currently shown in the hero.
@@ -1535,7 +1535,7 @@ export function EntityDetailPanel({
                     icon={entity.icon}
                     title={entity.name}
                     color={isSelected ? 'primary' : entity.active && entity.toggleable ? 'success' : 'default'}
-                    className={clsx('shrink-0', isSelected && 'ring-2 ring-inset ring-ha-blue')}
+                    className={clsx('shrink-0', isSelected && 'ha-selected')}
                     onClick={() => setFocusedEntityId(entity.entityId)}
                   />
                 );

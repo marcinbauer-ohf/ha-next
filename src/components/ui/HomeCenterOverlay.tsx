@@ -269,19 +269,32 @@ export function HomeCenterOverlay() {
       />
 
       {/* Panel — slides up. Contained variant floats inset from the panel edges
-          (same margin as the corner toast / Assist), full sheet on mobile. */}
+          (same margin as the corner toast / Assist), full sheet on mobile.
+          Slide only, no fade: fading while it travels made the dashboard show
+          straight through the sheet at half-way, which read as a smear rather
+          than a sheet arriving or leaving. And the travel has to clear the
+          bottom margin too — a plain translate-y-full left the last 24px of the
+          sheet inside the clip, which is what the fade was hiding. */}
       <div
-        className={`relative mt-auto bg-surface-default transition-[transform,opacity] duration-300 ease-out flex flex-col ${
+        className={`relative mt-auto bg-surface-default transition-transform duration-300 ease-out flex flex-col ${
           contained
             ? 'mx-ha-6 mb-ha-6 rounded-ha-3xl border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]'
             // border-white/10 was invisible on the light themes — a token edge
             // plus an upward shadow so the sheet lifts off the page in both.
             : 'w-full rounded-t-ha-sheet border-t border-surface-mid shadow-[0_-16px_40px_-12px_rgba(0,0,0,0.45)]'
-        } ${visible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
-        style={{ maxHeight: contained ? 'calc(92% - var(--ha-space-6))' : '90dvh', paddingBottom: 'env(safe-area-inset-bottom)', ...sheetDrag.dragStyle }}
-        onTransitionEnd={() => {
+        }`}
+        style={{
+          maxHeight: contained ? 'calc(92% - var(--ha-space-6))' : '90dvh',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          transform: visible ? undefined : `translateY(calc(100% + ${contained ? 'var(--ha-space-6)' : '0px'}))`,
+          ...sheetDrag.dragStyle,
+        }}
+        onTransitionEnd={(e) => {
           // Unmount once the slide-out has finished, so the body's data hooks
-          // stop subscribing while the surface is closed.
+          // stop subscribing while the surface is closed. Own transition only:
+          // transitionend bubbles, so a child finishing a hover fade used to
+          // yank the sheet out of the DOM mid-slide.
+          if (e.target !== e.currentTarget) return;
           if (!homeCenterOpen && !visible) setMounted(false);
         }}
       >
@@ -300,9 +313,10 @@ export function HomeCenterOverlay() {
         <div className="relative flex-1 min-h-0">
           <div
             ref={setScrollNode}
-            className={`h-full overflow-y-auto ${SHEET_PAD} pb-ha-6 pt-ha-1 space-y-ha-5 custom-scrollbar transition-opacity duration-300 ${
-              visible ? 'opacity-100' : 'opacity-0'
-            }`}
+            // No opacity of its own: the sheet it rides on already carries the
+            // whole surface in and out, and a second fade on the contents was
+            // what made them ghost over the dashboard on the way out.
+            className={`h-full overflow-y-auto ${SHEET_PAD} pb-ha-6 pt-ha-1 space-y-ha-5 custom-scrollbar`}
           >
             <HomeCenterBento onNavigate={handleNavigate} />
           </div>

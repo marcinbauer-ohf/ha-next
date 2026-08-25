@@ -43,12 +43,6 @@ import {
   mdiToggleSwitchOutline,
 } from '@mdi/js';
 
-function countLabel(deviceCount: number, entityCount: number): string {
-  const d = `${deviceCount} ${deviceCount === 1 ? 'device' : 'devices'}`;
-  const e = `${entityCount} ${entityCount === 1 ? 'entity' : 'entities'}`;
-  return deviceCount > 0 ? `${d} · ${e}` : e;
-}
-
 const STATUS_LABEL: Record<IntegrationStatus, string> = {
   active: 'Active',
   disabled: 'Disabled',
@@ -142,9 +136,6 @@ function IntegrationRow({
           </p>
           <StatusPill status={integration.status} />
         </div>
-        <p className="text-[13px] text-text-secondary truncate mt-0.5">
-          {countLabel(integration.deviceCount, integration.entityCount)}
-        </p>
       </div>
       <IntegrationFlagIcons flags={integration.flags} />
       <NavChevron size={16} className="text-text-disabled flex-shrink-0" />
@@ -184,10 +175,7 @@ function IntegrationTile({
         </div>
         <NavChevron size={16} className="text-text-disabled flex-shrink-0" />
       </div>
-      <div className="mt-ha-3 flex items-center justify-between gap-ha-2">
-        <p className="text-[13px] text-text-secondary truncate">
-          {countLabel(integration.deviceCount, integration.entityCount)}
-        </p>
+      <div className="mt-ha-3 flex items-center justify-end gap-ha-2">
         <IntegrationFlagIcons flags={integration.flags} />
       </div>
     </button>

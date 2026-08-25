@@ -22,6 +22,10 @@ const LS_DASHBOARD_FILTER_KEY = 'ha-flag-dashboard-filter';
 // The mobile bottom nav hides itself on scroll-down and after 10s of
 // inactivity. Defaults ON — only an explicit '0' pins it.
 const LS_MOBILE_NAV_AUTOHIDE_KEY = 'ha-flag-mobile-nav-autohide';
+// Home Mode (the display-only chip fed by a dropdown helper) is off until asked
+// for: most homes have no such helper, and the ones that do rarely want a chip
+// spent on it. Opt-in — only an explicit '1' turns it on.
+const LS_HOME_MODE_KEY = 'ha-flag-home-mode';
 // Where the settings section list lives: the shell's own rail column beside the
 // sidebar (default), or back inside the page content as the first of two
 // columns. Defaults ON — only an explicit '0' puts it back in the page.
@@ -46,6 +50,9 @@ interface DebugFlagsContextValue {
   /** Settings list as a shell rail beside the sidebar; off puts it back in the page. */
   settingsRailEnabled: boolean;
   toggleSettingsRail: () => void;
+  /** Home Mode — the chip, the Home Center card and its settings picker. Off by default. */
+  homeModeEnabled: boolean;
+  toggleHomeMode: () => void;
 }
 
 const DebugFlagsContext = createContext<DebugFlagsContextValue | undefined>(undefined);
@@ -116,6 +123,20 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Opt-in, unlike its neighbours: '1' enables rather than '0' disabling.
+  const [homeModeEnabled, setHomeModeEnabledState] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(LS_HOME_MODE_KEY) === '1';
+  });
+
+  const toggleHomeMode = useCallback(() => {
+    setHomeModeEnabledState((prev) => {
+      const next = !prev;
+      localStorage.setItem(LS_HOME_MODE_KEY, next ? '1' : '0');
+      return next;
+    });
+  }, []);
+
   const [settingsRailEnabled, setSettingsRailEnabledState] = useState(() => {
     if (typeof window === 'undefined') return true;
     return localStorage.getItem(LS_SETTINGS_RAIL_KEY) !== '0';
@@ -144,6 +165,8 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
         toggleMobileNavAutoHide,
         settingsRailEnabled,
         toggleSettingsRail,
+        homeModeEnabled,
+        toggleHomeMode,
       }}
     >
       {children}

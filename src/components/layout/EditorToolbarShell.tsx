@@ -88,12 +88,25 @@ export function ToolbarPrimaryButton({ label, onClick, className = '' }: {
  * AnimatePresence — callers own mount/unmount (and portal when they need to
  * escape a transformed ancestor).
  */
-export function EditorToolbarShell({ mobile, desktop }: { mobile: ReactNode; desktop: ReactNode }) {
+export function EditorToolbarShell({ mobile, desktop, tone = 'accent' }: {
+  mobile: ReactNode;
+  desktop: ReactNode;
+  /**
+   * `accent` — the blue editor pill that takes over the screen (and, on mobile,
+   * the nav's slot). `neutral` — a plain card pill for toolbars you *browse*
+   * with rather than edit in (the energy dashboard's period navigator): page
+   * palette, no accent border, and on mobile it floats above the nav instead of
+   * replacing it.
+   */
+  tone?: 'accent' | 'neutral';
+}) {
   // The desktop offset clears the status bar. With the bottom bar hidden by the
   // prototyping flag there's nothing to clear, so the pill drops to the same
   // --ha-edge-padding inset as the dashboard surface's own bottom margin — and
   // the 1.5rem padding below keeps it off that edge either way.
   const { hideHomeCenterEnabled } = useDebugFlags();
+  const neutral = tone === 'neutral';
+  const pillStyle = neutral ? undefined : BLUE_PILL;
 
   return (
     <motion.div
@@ -101,7 +114,11 @@ export function EditorToolbarShell({ mobile, desktop }: { mobile: ReactNode; des
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 28, scale: 0.96 }}
       transition={TOOLBAR_SPRING}
-      className={`fixed z-[60] pointer-events-none inset-x-0 bottom-0 pb-edge lg:left-[76px] lg:right-0 lg:pb-6 ${hideHomeCenterEnabled ? 'lg:bottom-edge' : 'lg:bottom-20'}`}
+      className={`fixed z-[60] pointer-events-none inset-x-0 bottom-0 lg:left-[76px] lg:right-0 lg:pb-6 ${
+        // Neutral toolbars coexist with the mobile nav, so they sit one pill
+        // height above it rather than in its place.
+        neutral ? 'pb-[calc(5.25rem+var(--ha-edge-padding))]' : 'pb-edge'
+      } ${hideHomeCenterEnabled ? 'lg:bottom-edge' : 'lg:bottom-20'}`}
       style={TOKEN_ALIASES}
     >
       {/* Mobile: the same pill as MobileNav — identical radius, 1px gradient
@@ -109,13 +126,15 @@ export function EditorToolbarShell({ mobile, desktop }: { mobile: ReactNode; des
           nav on mobile, so matching them makes that swap read as one surface
           changing its contents rather than two different bars trading places. */}
       <div className="lg:hidden px-edge pointer-events-auto">
-        <div className="relative rounded-[var(--mobile-nav-radius)] bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)]">
+        <div className={`relative rounded-[var(--mobile-nav-radius)] p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] ${
+          neutral ? 'bg-surface-lower' : 'bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70'
+        }`}>
           {/* min-h-16 = the nav's 8px + 48px band + 8px, border-box, so both
               bars stand exactly as tall. Column flex so the caller's row still
               spans the full width. */}
           <div
-            className="relative flex min-h-16 flex-col justify-center rounded-[calc(var(--mobile-nav-radius)_-_1px)] px-ha-2 py-ha-2"
-            style={BLUE_PILL}
+            className={`relative flex min-h-16 flex-col justify-center rounded-[calc(var(--mobile-nav-radius)_-_1px)] px-ha-2 py-ha-2 ${neutral ? 'bg-surface-default' : ''}`}
+            style={pillStyle}
           >
             {mobile}
           </div>
@@ -125,8 +144,10 @@ export function EditorToolbarShell({ mobile, desktop }: { mobile: ReactNode; des
       {/* Desktop: centered floating pill */}
       <div className="hidden lg:flex justify-center pointer-events-auto">
         <div
-          className="px-ha-2 py-ha-2 rounded-ha-3xl shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] flex items-center gap-ha-1"
-          style={BLUE_PILL}
+          className={`px-ha-2 py-ha-2 rounded-ha-3xl shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] flex items-center gap-ha-1 ${
+            neutral ? 'bg-surface-default border border-surface-lower' : ''
+          }`}
+          style={pillStyle}
         >
           {desktop}
         </div>

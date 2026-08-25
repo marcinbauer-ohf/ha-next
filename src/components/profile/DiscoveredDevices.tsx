@@ -45,9 +45,13 @@ const SHELF_PREVIEW = 6;
  * What the home found. Real discovery flows from the connected instance, and the
  * demo stand-ins only when there is no instance to ask — a connected home shows
  * what it actually found, including nothing.
+ *
+ * The emptied demo finds nothing either: it stands for a box that was just
+ * plugged in, and stand-in hardware in it would be the one thing that isn't
+ * empty. Every discovery surface derives from here, so this is the only gate.
  */
 function useDiscoveries(): Discovery[] {
-  const { connected } = useHomeAssistant();
+  const { connected, demoEmpty } = useHomeAssistant();
   const [flows, setFlows] = useState<DiscoveryFlow[]>([]);
   // Names for the bare finds: a `cast` or `roborock` flow arrives with no
   // placeholders at all, and the catalogue is already loaded by the open store.
@@ -76,8 +80,9 @@ function useDiscoveries(): Discovery[] {
   return useMemo(() => {
     // The verdicts live outside React; bumping `version` is what re-derives them.
     void version;
-    return connected ? flows.map((f) => discoveryFromFlow(f, brandNames.get(f.handler))) : demoDiscoveries();
-  }, [connected, flows, brandNames, version]);
+    if (connected) return flows.map((f) => discoveryFromFlow(f, brandNames.get(f.handler)));
+    return demoEmpty ? [] : demoDiscoveries();
+  }, [connected, demoEmpty, flows, brandNames, version]);
 }
 
 /**

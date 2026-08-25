@@ -32,7 +32,7 @@ import { TalkWidgetGlow } from './TalkWidgetGlow';
 import { ScreensaverVoiceMode } from './ScreensaverVoiceMode';
 import { CircularProgress } from './CircularProgress';
 import { resolveEntityPictureUrl } from '@/lib/utils';
-import { TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
+import { CHIP_PRESS, TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
 import { PeopleBadge, useLiveSummaryItems } from '../sections/SummariesPanel';
 import { RingShaderBackground, useRingOrigin } from './RingShaderBackground';
 import { ScreensaverPulseLog } from './ScreensaverPulseLog';
@@ -1037,7 +1037,7 @@ export function ScreensaverClock({ visible, onDismiss }: ScreensaverClockProps) 
             const hasWorkspace = typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches;
             router.push(hasWorkspace ? '/settings?section=home-center' : '/settings/home-center');
           }}
-          className={`flex items-center gap-ha-2 lg:gap-ha-3 rounded-full px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 transition-all hover:brightness-110 active:scale-95 ${TRANSLUCENT_CHIP_FILL}`}
+          className={`flex items-center gap-ha-2 lg:gap-ha-3 rounded-full px-ha-3 py-ha-2 lg:px-ha-4 lg:py-ha-3 ${CHIP_PRESS} ${TRANSLUCENT_CHIP_FILL}`}
         >
           {/* Compact below lg — the desktop pill reads oversized on a phone */}
           <Avatar src={userAvatar.picture} initials={userAvatar.initials} size="sm" className="lg:hidden" />

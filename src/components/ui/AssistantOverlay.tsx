@@ -310,12 +310,19 @@ export function AssistantOverlay() {
           follows the app's theme: the same dot-wave scene, painted on paper in
           light mode instead of forcing the lock screen's night. */}
       <div
-        className={`relative mt-auto overflow-hidden bg-surface-default text-text-primary transition-[transform,opacity] duration-300 ease-out ${
+        // Slide only, and past the bottom margin — same as Home Center: fading
+        // while it travels showed the dashboard through the sheet mid-flight,
+        // and translate-y-full alone left the last 24px inside the clip.
+        className={`relative mt-auto overflow-hidden bg-surface-default text-text-primary transition-transform duration-300 ease-out ${
           contained
             ? 'mx-ha-6 mb-ha-6 rounded-ha-3xl border border-border-default shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.15)]'
             : 'w-full rounded-t-ha-sheet border-t border-white/10'
-        } ${visible ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
-        style={{ maxHeight: contained ? 'calc(85% - var(--ha-space-6))' : '85dvh', ...sheetDrag.dragStyle }}
+        }`}
+        style={{
+          maxHeight: contained ? 'calc(85% - var(--ha-space-6))' : '85dvh',
+          transform: visible ? undefined : `translateY(calc(100% + ${contained ? 'var(--ha-space-6)' : '0px'}))`,
+          ...sheetDrag.dragStyle,
+        }}
       >
         {/* The voice scene — same reactive dot wave as the screensaver's face */}
         <div className="absolute inset-0" aria-hidden>

@@ -226,7 +226,7 @@ export function IconPicker({ value, onChange, placeholderPath = mdiEmoticonOutli
                             onClick={() => { onChange(e.id); setOpen(false); }}
                             title={e.id.replace('mdi:', '')}
                             className={`flex aspect-square items-center justify-center rounded-ha-xl transition-colors ${
-                              active ? 'bg-ha-blue/15 text-ha-blue ring-1 ring-ha-blue/40' : 'text-text-secondary hover:bg-surface-mid hover:text-text-primary'
+                              active ? 'text-text-primary ha-selected' : 'text-text-secondary hover:bg-surface-mid hover:text-text-primary'
                             }`}
                           >
                             <Icon path={e.path} size={22} />

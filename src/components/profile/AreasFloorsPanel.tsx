@@ -150,7 +150,7 @@ function LabelMultiSelect({
             type="button"
             onClick={() => toggle(l.label_id)}
             className={`inline-flex items-center gap-ha-1 rounded-full px-ha-3 py-1 text-[13px] font-medium transition-colors ${
-              on ? 'bg-ha-blue/15 text-ha-blue ring-1 ring-ha-blue/40' : 'bg-surface-mid text-text-secondary hover:text-text-primary'
+              on ? 'bg-surface-mid text-text-primary ha-selected' : 'bg-surface-mid text-text-secondary hover:text-text-primary'
             }`}
           >
             <Icon path={iconPathFor(l.icon) ?? mdiTagOutline} size={14} exact />

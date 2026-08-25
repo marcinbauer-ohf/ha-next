@@ -140,19 +140,19 @@ function NodeRow({
       onClick={onSelect}
       aria-pressed={selected}
       className={`w-full flex items-center gap-ha-3 px-ha-4 py-ha-3 text-left transition-colors ${
-        selected ? 'bg-fill-primary-normal' : 'hover:bg-surface-mid/50 active:bg-surface-mid'
+        selected ? 'ha-selected' : 'hover:bg-surface-mid/50 active:bg-surface-mid'
       }`}
     >
       <span
         className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-ha-xl ${
-          selected ? 'bg-ha-blue/15 text-ha-blue' : 'bg-surface-mid text-text-secondary'
+          selected ? 'bg-surface-mid text-text-primary' : 'bg-surface-mid text-text-secondary'
         }`}
       >
         <Icon path={def.icon} size={18} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-ha-2 min-w-0">
-          <span className={`block truncate text-[13px] font-semibold leading-tight ${selected ? 'text-ha-blue' : 'text-text-primary'}`}>
+          <span className="block truncate text-[13px] font-semibold leading-tight text-text-primary">
             {def.summary(node.data)}
           </span>
           {!node.enabled && (
@@ -737,7 +737,7 @@ function RunPicker({ traces, activeId, onSelect }: { traces: AutomationTrace[]; 
             onClick={() => onSelect(trace.runId)}
             className={`inline-flex items-center gap-ha-2 rounded-ha-xl border px-ha-3 py-1.5 text-xs font-semibold transition-colors ${
               active
-                ? 'border-ha-blue/40 bg-fill-primary-normal text-ha-blue'
+                ? 'border-transparent bg-surface-default text-text-primary ha-selected'
                 : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low'
             }`}
           >

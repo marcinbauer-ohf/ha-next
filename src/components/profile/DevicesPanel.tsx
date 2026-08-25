@@ -43,10 +43,6 @@ import {
   mdiCheck,
 } from '@mdi/js';
 
-function entityCountLabel(count: number): string {
-  return `${count} ${count === 1 ? 'entity' : 'entities'}`;
-}
-
 const CATEGORY_RANK: Record<DeviceCategory, number> = {
   security: 0,
   entertainment: 1,
@@ -107,7 +103,7 @@ function DeviceIconTile({
 /** Secondary line: "Area · Integration" (whichever are known). */
 function deviceMeta(device: DeviceSummary): string {
   const parts = [device.areaName, device.integrationName].filter(Boolean) as string[];
-  return parts.length ? parts.join(' · ') : entityCountLabel(device.entityCount);
+  return parts.join(' · ');
 }
 
 /** A single device row — the renderRow for DataListView. */
@@ -137,7 +133,9 @@ function DeviceRow({
           </p>
           <AvailabilityPill available={device.available} />
         </div>
-        <p className="text-[13px] text-text-secondary truncate mt-0.5">{deviceMeta(device)}</p>
+        {deviceMeta(device) && (
+          <p className="text-[13px] text-text-secondary truncate mt-0.5">{deviceMeta(device)}</p>
+        )}
       </div>
       <NavChevron size={16} className="text-text-disabled flex-shrink-0" />
     </button>
@@ -182,9 +180,6 @@ function DeviceTile({
         <p className="text-[13px] text-text-secondary truncate">
           {device.integrationName ?? 'Device'}
         </p>
-        <span className="text-[13px] text-text-tertiary flex-shrink-0">
-          {entityCountLabel(device.entityCount)}
-        </span>
       </div>
     </button>
   );

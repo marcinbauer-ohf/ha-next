@@ -1,12 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import {
   mdiAccountMultiple,
   mdiBattery,
   mdiBattery50,
   mdiBatteryAlertVariantOutline,
+  mdiAccountCircleOutline,
   mdiCalendarClock,
+  mdiCellphoneLink,
   mdiCounter,
   mdiDoorOpen,
   mdiHistory,
@@ -24,7 +28,8 @@ import {
   mdiWhiteBalanceSunny,
 } from '@mdi/js';
 import { Icon } from '../ui/Icon';
-import { HALoader, ListSection, SectionLabel } from '../ui';
+import { Button, HALoader, ListSection, SectionLabel } from '../ui';
+import { COMPANION_APP_URL, trackedPeople } from '@/lib/presence';
 import {
   DetailRows,
   DialogCard,
@@ -41,6 +46,12 @@ import {
 } from '../cards/dialogKit';
 import { useHomeAssistant, useHomeAssistantEntities } from '@/hooks';
 import { useSummaryScope, type SummaryScope } from './summaryScope';
+// Leaflet touches `window` at import time, so the map can't be in the
+// server-rendered module graph (same treatment as the onboarding map).
+const PeopleMapPanel = dynamic(() => import('./PeopleMapPanel'), {
+  ssr: false,
+  loading: () => <div className="h-[260px] rounded-ha-2xl bg-surface-default lg:h-[340px]" />,
+});
 import { friendlyName, stateLabel } from '@/lib/homeassistant/entityHelpers';
 import { resolveEntityPictureUrl } from '@/lib/utils';
 import {
@@ -816,6 +827,46 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
 
 // ── People ───────────────────────────────────────────────────────────────────
 
+/**
+ * What this dialog says before anyone can be located. A person record with no
+ * device tracker never leaves "unknown", so "0 home" is honest but useless on
+ * its own — the useful thing is the two steps that fix it, in order.
+ */
+function PresenceSetup({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  return (
+    <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-ha-4 rounded-ha-2xl bg-surface-default px-ha-4 py-ha-6 text-center lg:min-h-[340px]">
+      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-low text-ha-blue">
+        <Icon path={mdiCellphoneLink} size={34} />
+      </span>
+      <div className="flex flex-col gap-ha-2">
+        {/* No full stop — display heading (see the house rule). */}
+        <h3 className="text-lg font-bold leading-tight text-text-primary">Nobody can be located yet</h3>
+        <p className="max-w-xs text-sm text-text-secondary">
+          Your home needs something that reports where you are. Install the Home Assistant app on your
+          phone, sign in, then add the tracker it creates to your profile.
+        </p>
+      </div>
+      <div className="flex flex-col items-stretch gap-ha-2">
+        <Button
+          variant="primary"
+          icon={mdiCellphoneLink}
+          onClick={() => window.open(COMPANION_APP_URL, '_blank', 'noopener,noreferrer')}
+        >
+          Get the app
+        </Button>
+        <Button
+          variant="neutral"
+          icon={mdiAccountCircleOutline}
+          onClick={() => { onClose(); router.push('/settings/profile'); }}
+        >
+          Open your profile
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function PeopleDetail({ onClose }: { onClose: () => void }) {
   const entities = useHomeAssistantEntities();
   const { haUrl } = useHomeAssistant();
@@ -833,6 +884,7 @@ export function PeopleDetail({ onClose }: { onClose: () => void }) {
 
   const home = people.filter(isHome);
   const away = people.filter((e) => !isHome(e));
+  const trackable = trackedPeople(people);
 
   const rows: DetailRow[] = [...home, ...away].map((e) => ({
     id: e.entity_id,
@@ -844,17 +896,28 @@ export function PeopleDetail({ onClose }: { onClose: () => void }) {
   }));
 
   return (
-    <DialogFrame onClose={onClose}>
-      <DialogCard>
-        <DialogHero
-          icon={mdiAccountMultiple}
-          iconClass="text-ha-blue"
-          value={String(home.length)}
-          unit="home"
-          meta={away.length > 0 ? `${away.map(friendlyName).join(', ')} away` : ofLine(home.length, people.length, 'people')}
-        />
-      </DialogCard>
-      <DetailRows title="Everyone" rows={rows} empty="No people are set up in Home Assistant yet." />
+    <DialogFrame onClose={onClose} size="large">
+      {/* Two columns on a desktop: where everyone is, then who is where. They
+          stack on a phone, map first — it's the faster read of the two. */}
+      <div className="flex flex-col gap-ha-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-ha-3">
+        {/* A map of people nobody can locate is an empty map — say what's
+            missing instead, and how to fix it. */}
+        {trackable.length > 0 ? <PeopleMapPanel /> : <PresenceSetup onClose={onClose} />}
+        <div className="flex min-w-0 flex-col gap-ha-2">
+          <DialogCard>
+            <DialogHero
+              icon={mdiAccountMultiple}
+              iconClass="text-ha-blue"
+              value={String(home.length)}
+              unit="home"
+              meta={trackable.length === 0
+                ? 'Nothing is reporting a location yet'
+                : away.length > 0 ? `${away.map(friendlyName).join(', ')} away` : ofLine(home.length, people.length, 'people')}
+            />
+          </DialogCard>
+          <DetailRows title="Everyone" rows={rows} empty="No people are set up in Home Assistant yet." />
+        </div>
+      </div>
     </DialogFrame>
   );
 }

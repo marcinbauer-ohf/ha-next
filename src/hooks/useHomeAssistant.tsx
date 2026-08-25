@@ -796,23 +796,6 @@ export function useHomeAssistantEntities(): HassEntities {
   );
 }
 
-// Stable identity — the selector cache keys off the function itself.
-const selectNothingReported = (entities: HassEntities) => Object.keys(entities).length === 0;
-
-/**
- * Connected to a home that reports nothing at all — a brand-new instance with no
- * devices yet, as opposed to one that simply hasn't loaded. What the empty-state
- * surfaces key off: the dashboard's "nothing here yet", and the summary chips
- * that become invitations rather than hiding.
- */
-export function useHomeIsEmpty(): boolean {
-  // The demo counts as a home: it never opens a socket, so `connected` stays
-  // false, and the emptied demo is exactly the case this exists to describe.
-  const { connected, demoMode } = useHomeAssistant();
-  const nothingReported = useHomeAssistantSelector(selectNothingReported);
-  return (connected || demoMode) && nothingReported;
-}
-
 export function useHomeAssistantSelector<T>(
   selector: (entities: HassEntities) => T,
   isEqual: (previous: T, next: T) => boolean = Object.is

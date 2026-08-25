@@ -33,11 +33,16 @@ export function useEdgeFade(fadePx = 48) {
     return () => ro.disconnect();
   }, [measure]);
 
-  const mask = useMemo(() => {
+  // No mask unless an edge actually needs fading. A mask clips its element to
+  // the border box, so a fully-opaque one is not free: it cut the hover-grow
+  // band (and any selection ring) off every chip in the row.
+  const style = useMemo(() => {
+    if (!edges.left && !edges.right) return {};
     const from = edges.left ? `transparent 0, black ${fadePx}px` : 'black 0';
     const to = edges.right ? `black calc(100% - ${fadePx}px), transparent 100%` : 'black 100%';
-    return `linear-gradient(to right, ${from}, ${to})`;
+    const mask = `linear-gradient(to right, ${from}, ${to})`;
+    return { WebkitMaskImage: mask, maskImage: mask };
   }, [edges, fadePx]);
 
-  return { ref, onScroll: measure, style: { WebkitMaskImage: mask, maskImage: mask } as const };
+  return { ref, onScroll: measure, style };
 }

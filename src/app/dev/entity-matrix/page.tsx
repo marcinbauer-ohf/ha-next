@@ -217,7 +217,7 @@ export default function EntityMatrixPage() {
                 className={clsx(
                   'rounded-full px-ha-3 py-1 text-xs font-medium transition-colors',
                   on(t.key)
-                    ? 'bg-ha-blue/15 text-ha-blue'
+                    ? 'bg-surface-default text-text-primary ha-selected'
                     : 'bg-surface-default text-text-secondary hover:bg-surface-low',
                 )}
               >
@@ -355,14 +355,14 @@ export default function EntityMatrixPage() {
                     className={clsx(
                       'w-full text-left px-ha-4 py-ha-3 transition-colors',
                       i > 0 && 'border-t border-surface-lower',
-                      selected ? 'bg-ha-blue/10' : 'hover:bg-surface-low',
+                      selected ? 'ha-selected' : 'hover:bg-surface-low',
                     )}
                   >
                     <div className="flex items-center gap-ha-2">
                       <span className={clsx('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider', KIND_STYLE[entry.kind])}>
                         {entry.kind}
                       </span>
-                      <span className={clsx('flex-1 truncate text-sm font-medium', selected ? 'text-ha-blue' : 'text-text-primary')}>
+                      <span className="flex-1 truncate text-sm font-medium text-text-primary">
                         {entityLabel(e, BENCHMARK_DEVICE.name)}
                       </span>
                       <span className="shrink-0 font-mono text-xs text-text-secondary">{stateLabel(e)}</span>

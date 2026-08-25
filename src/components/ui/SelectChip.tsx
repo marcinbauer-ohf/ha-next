@@ -74,7 +74,7 @@ export function SelectChip({
                   type="button"
                   onClick={() => { onSelect(opt.id); if (!multi) setOpen(false); }}
                   className={`flex w-full items-center gap-ha-2 rounded-ha-xl px-ha-3 py-ha-2 text-left text-sm transition-colors ${
-                    selected ? 'text-ha-blue font-semibold' : 'text-text-primary hover:bg-surface-low'
+                    selected ? 'font-semibold text-text-primary' : 'text-text-primary hover:bg-surface-low'
                   }`}
                 >
                   <span className="flex-1">{opt.label}</span>

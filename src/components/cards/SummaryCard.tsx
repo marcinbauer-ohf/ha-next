@@ -27,16 +27,32 @@ const iconColorClasses = {
 // screensaver canvas — keep the whole family on this exact string so their
 // transparency can't drift apart. Dark (black) glass with white icons/text so
 // the chips read against any shader while still letting the scene peek through.
-export const TRANSLUCENT_CHIP_FILL = 'bg-black/55 border border-white/15';
+export const TRANSLUCENT_CHIP_FILL =
+  'bg-black/55 border border-white/15 [--ha-hover-grow:rgba(0,0,0,0.55)] [--ha-hover-grow-edge:rgba(255,255,255,0.15)]';
+
+// The chip family's own fill on an opaque surface — the screensaver pill
+// translated: the card surface, one step up from the page it sits on, so the
+// chip is a defined object without an outline. No hairline: it would stay at the
+// old box while the hover band grows past it, and an edge means "selected"
+// everywhere else in the system.
+const OPAQUE_CHIP_FILL =
+  'bg-surface-default [--ha-hover-grow:var(--ha-color-surface-default)]';
+
+// Pressable chips grow a hair under the pointer instead of brightening: on the
+// dashboard's own light surface a brightness step is invisible, and the growth
+// reads as the chip answering rather than as its fill changing. The growth is
+// `ha-hover-grow`'s band, not a scale — the label and reading have to stay put,
+// and a band never reflows the row either.
+export const CHIP_PRESS =
+  'cursor-pointer transition-all ha-hover-grow active:scale-95 motion-reduce:active:scale-100';
 
 export function SummaryCard({ icon, title, state, color = 'default', compact = false, variant = 'filled', size = 'sm', translucent = false, onClick, className }: SummaryCardProps) {
   const translucentFill = TRANSLUCENT_CHIP_FILL;
   // Interactive glances render as a button with hover/press affordance.
   const Tag = onClick ? 'button' : 'div';
-  const interactive = onClick ? 'cursor-pointer hover:brightness-110 active:scale-95' : '';
+  const interactive = onClick ? CHIP_PRESS : '';
 
   if (compact) {
-    const isOutlined = variant === 'outlined';
     const isLg = size === 'lg';
     const isMd = size === 'md';
 
@@ -53,7 +69,9 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
           'gap-ha-2 px-ha-3 h-10 rounded-full',
           'whitespace-nowrap',
           interactive,
-          translucent ? translucentFill : isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color],
+          translucent ? translucentFill
+            : color === 'danger' ? `${colorClasses.danger} [--ha-hover-grow:var(--ha-color-fill-danger-normal)]`
+            : OPAQUE_CHIP_FILL,
           className,
         )}
       >
@@ -101,7 +119,7 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
         'flex items-center gap-ha-3 p-ha-3 rounded-ha-xl transition-all w-full text-left',
         isLg ? 'p-ha-4' : 'p-ha-3',
         interactive,
-        isOutlined ? 'bg-surface-default border border-surface-lower' : colorClasses[color],
+        isOutlined ? OPAQUE_CHIP_FILL : colorClasses[color],
         className,
       )}
     >

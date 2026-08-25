@@ -68,7 +68,7 @@ export function SummaryGlance({
         onClick={Panel ? (e) => { e.stopPropagation(); setOpen(true); } : undefined}
       />
       {Panel && (
-        <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={640} contained>
+        <ModalSheet open={open} onClose={() => setOpen(false)} maxWidth={item.id === "people" ? 1100 : 640} contained>
           {/* Mounted only while open, so nothing fetches history behind a closed sheet. */}
           {open && (
             <SummaryScopeProvider value={scope ?? null}>

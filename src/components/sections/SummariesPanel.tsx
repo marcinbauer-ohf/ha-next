@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
+import { CHIP_PRESS, TRANSLUCENT_CHIP_FILL } from '../cards/SummaryCard';
 import { Avatar } from '../ui/Avatar';
-import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities, useHomeIsEmpty, useEdgeFade } from '@/hooks';
+import { useHomeAssistant, useHomeAssistantSelector, useHomeAssistantEntities, useEdgeFade } from '@/hooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   mdiAccountMultiple,
@@ -32,31 +32,7 @@ import { useHomeMode } from '@/lib/homeMode';
 import { batteryEntities, batteryLevel, climateSensors, lowBatteryAt, securityEntities, temperatureOf, useSummaryConfig, weatherSource, type SummaryConfig } from '@/lib/summaryConfig';
 import type { SummaryScope } from '../glances/summaryScope';
 import type { GlanceId, HassEntities } from '@/types';
-import type { SummaryGlanceItem } from '../glances';
 
-// A home with literally nothing in it: every chip is an invitation to its own
-// intro screen, which is otherwise unreachable — you can't click a chip that
-// isn't there. Not a demo row: no readings, no numbers, nothing that could pass
-// for the user's own home. Lights, people and automations are missing on purpose
-// — there's nothing to set up behind them, so they'd be dead ends.
-const INVITATIONS: SummaryGlanceItem[] = [
-  { id: 'climate', icon: mdiThermometer, title: 'Climate', state: 'Set up', color: 'primary' },
-  { id: 'security', icon: mdiShieldHome, title: 'Security', state: 'Set up', color: 'default' },
-  { id: 'weather', icon: mdiWeatherPartlyCloudy, title: 'Weather', state: 'Set up', color: 'default' },
-  { id: 'battery', icon: mdiBattery, title: 'Batteries', state: 'Set up', color: 'default' },
-  { id: 'mode', icon: mdiTuneVariant, title: 'Mode', state: 'Set up', color: 'violet' },
-];
-
-/**
- * The summary chips. With no argument they describe the whole home; give it an
- * area's entities and every reading is that room's instead — which is the only
- * honest thing to show above one room's devices ("3 lights on" over a room with
- * one light is a number that argues with the cards under it).
- *
- * Scoped, the home-only chips drop out: weather and home mode have no room
- * meaning, and the home-wide picks are ignored in favour of what the room
- * actually has (see useScopedEntities in summaryDetails).
- */
 export function useLiveSummaryItems(areaEntities?: HassEntities) {
   const home = useHomeAssistantEntities();
   const entities = areaEntities ?? home;
@@ -64,7 +40,7 @@ export function useLiveSummaryItems(areaEntities?: HassEntities) {
   const homeMode = useHomeMode();
   // Connected, and the home really is empty — as opposed to still loading,
   // which shows nothing at all rather than a row of invitations that vanish.
-  const homeIsEmpty = useHomeIsEmpty();
+
   // Which sensors count is the user's call, made in each chip's dialog — the
   // chip and the dialog have to read the same ones or they'd disagree. An
   // unconfigured home falls back to the sane default (see summaryConfig).
@@ -79,9 +55,6 @@ export function useLiveSummaryItems(areaEntities?: HassEntities) {
   );
   return useMemo(() => {
     const all = Object.values(entities);
-    // An empty room is an empty room — there is nothing to invite you to set up,
-    // so it shows no row at all rather than the fresh-install invitations.
-    if (homeIsEmpty) return scoped ? [] : INVITATIONS;
 
     const lights = all.filter(e => e.entity_id.startsWith('light.'));
     const lightsOn = lights.filter(e => e.state === 'on').length;
@@ -156,7 +129,7 @@ export function useLiveSummaryItems(areaEntities?: HassEntities) {
     ];
 
     return items;
-  }, [entities, homeMode, config, homeIsEmpty, scoped]);
+  }, [entities, homeMode, config, scoped]);
 }
 
 const tips = [
@@ -283,21 +256,17 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
   // Use variant if provided, otherwise fallback to compact prop
   const isCompact = variant ? variant === 'compact' : compact;
 
-  // No person entities means no presence to report — like every other glance,
-  // the chip stays out of the row rather than reading "? 0 home".
-  const noPeople = peopleHome.length === 0 && peopleAway.length === 0;
+
 
   // Opens the People dialog, like every other chip in the row.
   const [detailOpen, setDetailOpen] = useState(false);
   const peopleDialog = (
-    <ModalSheet open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth={640} contained>
+    <ModalSheet open={detailOpen} onClose={() => setDetailOpen(false)} maxWidth={1100} contained>
       {detailOpen && <PeopleDetail onClose={() => setDetailOpen(false)} />}
     </ModalSheet>
   );
   // Over the screensaver, a click that isn't stopped dismisses it.
   const openDetail = (e: React.MouseEvent) => { e.stopPropagation(); setDetailOpen(true); };
-
-  if (noPeople) return null;
 
   if (isCompact) {
     // Mobile: stacked avatars + count
@@ -307,8 +276,10 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
         type="button"
         onClick={openDetail}
         className={clsx(
-        'flex items-center rounded-full whitespace-nowrap flex-shrink-0 transition-all cursor-pointer hover:brightness-110 active:scale-95',
-        translucent ? TRANSLUCENT_CHIP_FILL : 'bg-surface-low',
+        'flex items-center rounded-full whitespace-nowrap flex-shrink-0',
+        CHIP_PRESS,
+        translucent ? TRANSLUCENT_CHIP_FILL
+          : 'bg-surface-default [--ha-hover-grow:var(--ha-color-surface-default)]',
         // sm matches SummaryCard's compact chip: same fixed height and padding.
         isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-2.5' : 'gap-ha-2 px-ha-2 h-10'
       )}>
@@ -368,7 +339,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
     <button
       type="button"
       onClick={openDetail}
-      className="flex w-full items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-default border border-surface-lower text-left transition-all cursor-pointer hover:brightness-110 active:scale-95"
+      className={`flex w-full items-center gap-ha-3 p-ha-3 rounded-ha-xl bg-surface-default border border-surface-lower [--ha-hover-grow:var(--ha-color-surface-default)] [--ha-hover-grow-edge:var(--ha-color-surface-lower)] text-left ${CHIP_PRESS}`}
     >
       <div className="flex-shrink-0 text-ha-blue">
         <Icon path={mdiAccountMultiple} size={24} />
@@ -576,7 +547,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
       ref={chipsRef}
       data-section-key="__summaries__"
       className={clsx(
-        'pt-ha-4 pb-ha-1 w-full relative',
+        'pt-ha-3 pb-0 w-full relative',
         // Desktop-only: on a phone the same chips live in the Home Center, so
         // the dashboard opens on the devices instead of a two-row chip block.
         'hidden lg:block',
@@ -602,7 +573,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
           style={chipsFadeStyle}
           className="overflow-x-auto overscroll-x-contain scrollbar-hide lg:overflow-visible"
         >
-          <div className="flex flex-col gap-ha-2 w-max px-1 lg:flex-row lg:flex-wrap lg:items-center lg:w-full">
+          <div className="flex flex-col gap-ha-2 w-max p-1 lg:flex-row lg:flex-wrap lg:items-center lg:w-full">
             {chipRows.map((row, i) => (
               <div key={i} className="flex items-center gap-ha-2 lg:contents">{row}</div>
             ))}

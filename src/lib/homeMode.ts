@@ -10,6 +10,7 @@ import {
   mdiAccountGroup,
 } from '@mdi/js';
 import { useEntity } from '@/hooks/useHomeAssistant';
+import { useDebugFlags } from '@/contexts/DebugFlagsContext';
 import type { HassEntity } from '@/lib/homeassistant/types';
 
 type HassEntities = Record<string, HassEntity>;
@@ -109,9 +110,12 @@ export interface HomeModeInfo {
  * option change (via useEntity).
  */
 export function useHomeMode(): HomeModeInfo | null {
+  // One gate for every surface — the chip, the Home Center card, the dialog.
+  // Off by default (see the home-mode developer flag).
+  const { homeModeEnabled } = useDebugFlags();
   const entityId = useHomeModeEntityId();
   const entity = useEntity(entityId);
-  if (!entityId || !entity) return null;
+  if (!homeModeEnabled || !entityId || !entity) return null;
   const current = entity.state;
   if (!current || current === 'unavailable' || current === 'unknown') return null;
   const options = Array.isArray(entity.attributes.options)

@@ -50,12 +50,17 @@ export function SegmentedControl<T extends string>({
           className={clsx(
             'flex-1 flex h-full items-center justify-center gap-1 rounded-ha-lg text-sm font-medium transition-all duration-200 whitespace-nowrap',
             iconOnly ? 'w-8 px-0' : 'px-ha-3',
-            // Picked reads as picked — literally the filter chips' selected tint,
-            // so one visual language covers chips and switches. (`fill-primary-*`
+            // Picked is a thumb, not a tint: the segment one step up the surface
+            // ladder from the track, with full-strength text. Colour is reserved
+            // for live device state, and the chips and cards say "chosen" with a
+            // neutral edge (`.ha-selected`) — a switch can't borrow that, since a
+            // ring inside the track's own ring reads as two nested frames.
+            // Hover sits at surface-low, one step below picked, so pointing at a
+            // segment never looks like having picked it. (`fill-primary-*`
             // resolves to plain white on some themes, which reads as nothing on a
             // white card.)
             seg.value === value
-              ? 'bg-ha-blue/15 text-ha-blue'
+              ? 'bg-surface-mid text-text-primary'
               : 'text-text-secondary hover:bg-surface-low hover:text-text-primary',
           )}
         >

@@ -75,7 +75,7 @@ function NavItem({
       title={empty ? 'Coming soon' : undefined}
       style={accentActive ? { backgroundColor: `${accent}1a` } : undefined}
       className={clsx(
-        'group w-full flex items-center gap-ha-3 px-ha-4 text-left transition-colors border-b border-surface-low/40 last:border-0 py-ha-2',
+        'group w-full flex items-center gap-ha-3 rounded-ha-xl px-ha-2 text-left transition-colors py-ha-2',
         subtitle && 'min-h-[48px]',
         isActive ? 'bg-surface-mid' : 'hover:bg-surface-mid/50 active:bg-surface-mid',
       )}
@@ -196,9 +196,12 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
   const devToolsSection = visibleSections.find((s) => s.title === 'Developer Tools');
 
   // One card treatment for every group, so `flat` strips them all at once.
+  // No horizontal padding when flat: the rows are the only thing in the column,
+  // so they line up edge-to-edge with the search field and the profile card
+  // above them. (Carded, the padding is the card's inner gutter and stays.)
   const groupClass = flat
     ? 'py-ha-1'
-    : 'bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden py-ha-2';
+    : 'bg-surface-default rounded-ha-2xl border border-surface-lower shadow-[0_10px_28px_-24px_rgba(15,23,42,0.35)] overflow-hidden p-ha-2';
 
   return (
     <div ref={rootRef}>
@@ -326,7 +329,7 @@ export function SettingsNavPanel({ activeSlug, onSelect, bg = 'surface-lower', a
                 type="button"
                 disabled={!systemControlsEnabled}
                 onClick={() => runSystemCommand(cmd)}
-                className={`w-full flex items-center gap-ha-3 px-ha-4 py-ha-2 text-left border-b border-surface-low/40 last:border-0 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                className={`w-full flex items-center gap-ha-3 rounded-ha-xl px-ha-2 py-ha-2 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   cmd.danger
                     ? 'hover:bg-red-500/10 active:bg-red-500/15'
                     : 'hover:bg-surface-mid/50 active:bg-surface-mid'

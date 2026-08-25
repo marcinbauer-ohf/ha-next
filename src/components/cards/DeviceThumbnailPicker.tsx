@@ -23,11 +23,12 @@ export interface DeviceThumbnailPickerProps {
   onChange: (value: string | null | undefined) => void;
 }
 
-// Selected-badge for a thumbnail tile — a ha-blue check in the top-right corner.
+// Selected-badge for a thumbnail tile — a high-contrast check in the top-right
+// corner, matching the selection edge the tile itself wears.
 function ThumbCheck() {
   return (
-    <span className="absolute top-0.5 right-0.5 size-4 rounded-full bg-ha-blue flex items-center justify-center shadow">
-      <Icon path={mdiCheck} size={11} className="text-white" />
+    <span className="absolute top-0.5 right-0.5 size-4 rounded-full bg-text-primary flex items-center justify-center shadow">
+      <Icon path={mdiCheck} size={11} className="text-surface-default" />
     </span>
   );
 }
@@ -76,8 +77,8 @@ export function DeviceThumbnailPicker({ value, auto, iconPath, onChange }: Devic
               onClick={() => onChange(undefined)}
               title="Auto — based on the device type"
               className={clsx(
-                'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden border-2 transition-colors',
-                mode === 'auto' ? 'border-ha-blue' : 'border-transparent hover:border-surface-mid',
+                'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden transition-shadow',
+                mode === 'auto' ? 'ha-selected' : 'hover:ring-2 hover:ring-inset hover:ring-surface-lower',
               )}
             >
               {auto ? (
@@ -96,8 +97,8 @@ export function DeviceThumbnailPicker({ value, auto, iconPath, onChange }: Devic
               onClick={() => onChange(null)}
               title="None — show the icon instead"
               className={clsx(
-                'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden border-2 transition-colors',
-                mode === 'none' ? 'border-ha-blue' : 'border-transparent hover:border-surface-mid',
+                'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden transition-shadow',
+                mode === 'none' ? 'ha-selected' : 'hover:ring-2 hover:ring-inset hover:ring-surface-lower',
               )}
             >
               <Icon path={mdiImageOffOutline} size={22} className="text-text-tertiary" />
@@ -120,8 +121,8 @@ export function DeviceThumbnailPicker({ value, auto, iconPath, onChange }: Devic
                       onClick={() => onChange(path)}
                       title={label}
                       className={clsx(
-                        'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden border-2 transition-colors',
-                        selected ? 'border-ha-blue' : 'border-transparent hover:border-surface-mid',
+                        'relative size-14 rounded-ha-lg bg-surface-mid flex items-center justify-center overflow-hidden transition-shadow',
+                        selected ? 'ha-selected' : 'hover:ring-2 hover:ring-inset hover:ring-surface-lower',
                       )}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}

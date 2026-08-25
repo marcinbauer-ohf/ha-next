@@ -41,12 +41,15 @@ export function useSheetStack(open: boolean): { above: number; below: number } {
 }
 
 /**
- * How a bottom sheet sits back under `above` newer overlays: a nudge up so its
- * top edge clears the newcomer, and a touch narrower. Scaled from the top edge
- * (`transformOrigin: 'top center'`) so the lift is what you see. Two steps is
- * all the eye reads — deeper stacks just look smaller.
+ * How a sheet sits back under `above` newer overlays: a nudge away from its own
+ * anchored edge so that edge clears the newcomer, and a touch narrower. Scaled
+ * from the anchored edge (`transformOrigin`) so the shift is what you see. Two
+ * steps is all the eye reads — deeper stacks just look smaller.
+ *
+ * `fromTop` for a sheet hanging off the top edge instead of rising from the
+ * bottom: it recedes downward, so its bottom edge is the one still showing.
  */
-export function recede(above: number): { y: number; scale: number } {
+export function recede(above: number, fromTop = false): { y: number; scale: number } {
   const n = Math.min(above, 2);
-  return { y: -n * 14, scale: 1 - n * 0.05 };
+  return { y: (fromTop ? 1 : -1) * n * 14, scale: 1 - n * 0.05 };
 }

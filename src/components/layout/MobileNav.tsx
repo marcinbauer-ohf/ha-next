@@ -1928,7 +1928,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
             // ~290px), so it reads as a tuck-away rather than a width animation.
             // With activities up top the row still needs its real width.
             maxWidth: isTopRowHidden && !isSheetVisible
-              ? `${104 + 456 * (1 - effectiveHideProgress)}px`
+              ? `${60 + 500 * (1 - effectiveHideProgress)}px`
               : undefined,
             transition: 'max-width 0.42s cubic-bezier(0.22,1,0.36,1)',
           }}

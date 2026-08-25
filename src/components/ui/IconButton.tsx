@@ -52,8 +52,10 @@ const GLYPH: Record<IconButtonSize, number> = { sm: 18, md: 20, lg: 22 };
 
 const BASE = clsx(
   'inline-flex shrink-0 items-center justify-center outline-none',
-  'transition-[background-color,color,transform] duration-150 ease-out',
-  // One press feedback for every glyph button in the app.
+  'transition-[background-color,color,transform,box-shadow] duration-150 ease-out',
+  // One press feedback for every glyph button in the app, and the same
+  // grow-on-hover as Button and the chips (see `.ha-hover-grow`).
+  'ha-hover-grow',
   'active:scale-95 motion-reduce:active:scale-100',
   'focus-visible:ring-2 focus-visible:ring-ha-blue/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-default',
   'disabled:opacity-40 disabled:pointer-events-none',
@@ -71,19 +73,19 @@ const TONE: Record<IconButtonTone, { rest: string; hover: string; fill: string }
     fill: 'bg-surface-low',
   },
   accent: {
-    rest: 'text-ha-blue',
+    rest: 'text-ha-blue [--ha-hover-grow:color-mix(in_srgb,var(--ha-color-blue)_10%,transparent)]',
     hover: 'hover:bg-ha-blue/10',
     fill: 'bg-ha-blue/10',
   },
   danger: {
-    rest: 'text-red-500',
+    rest: 'text-red-500 [--ha-hover-grow:color-mix(in_srgb,var(--color-red-500)_10%,transparent)]',
     hover: 'hover:bg-red-500/10',
     fill: 'bg-red-500/10',
   },
   // Over a photo, a video or the screensaver, where the page's surfaces don't
   // exist: a glass chip that carries its own contrast.
   onImage: {
-    rest: 'text-white/85 backdrop-blur-md border border-white/15',
+    rest: 'text-white/85 backdrop-blur-md border border-white/15 [--ha-hover-grow:rgba(255,255,255,0.2)] [--ha-hover-grow-edge:rgba(255,255,255,0.15)]',
     hover: 'hover:bg-white/20 hover:text-white',
     fill: 'bg-white/10',
   },

@@ -7,6 +7,7 @@ import { DialogCard, DialogFrame, DialogHero } from '../cards/dialogKit';
 import { ModalSheet } from '../layout/ModalSheet';
 import { AutomationActivityChart } from '../sections/AutomationActivityChart';
 import { AutomationDetailPanel } from '../cards/AutomationDetailPanel';
+import { AutomationStart, AutomationsIntro } from './AutomationStart';
 import { useAutomations, type AutomationSummary } from '@/hooks';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,15 +39,17 @@ export function AutomationsGlance({ compact, variant, size, translucent }: Autom
   // When set, the modal crossfades from the activity chart to a single
   // automation's detail (view for everyone; admins also get an edit link).
   const [detailId, setDetailId] = useState<string | null>(null);
+  // A home with no automations opens on the explainer instead of an empty
+  // chart, and this is the step after it.
+  const [starting, setStarting] = useState(false);
+  const empty = automations.length === 0;
 
   const activeToday = useMemo(() => countActiveToday(automations), [automations]);
   const enabled = useMemo(() => automations.filter((a) => a.enabled).length, [automations]);
   const running = automations.some((a) => a.running);
   const detail = detailId ? automations.find((a) => a.id === detailId) ?? null : null;
 
-  const close = () => { setOpen(false); setDetailId(null); };
-
-  if (automations.length === 0) return null;
+  const close = () => { setOpen(false); setDetailId(null); setStarting(false); };
 
   return (
     <>
@@ -54,7 +57,8 @@ export function AutomationsGlance({ compact, variant, size, translucent }: Autom
         id="automations"
         icon={mdiRobot}
         title="Automations"
-        state={`${activeToday} ran`}
+        // A home with none still gets the chip — it's the way in to making one.
+        state={empty ? 'Set up' : `${activeToday} ran`}
         color="violet"
         compact={compact}
         variant={variant}
@@ -64,8 +68,20 @@ export function AutomationsGlance({ compact, variant, size, translucent }: Autom
         onClick={(e) => { e.stopPropagation(); setOpen(true); }}
       />
 
-      <ModalSheet open={open} onClose={close} maxWidth={760} transitionKey={detailId ?? 'activity'} contained>
-        {detail ? (
+      {/* Wider and taller than the reading dialogs: the activity chart is the
+          point of this one, and a month of bars needs the room. */}
+      <ModalSheet
+        open={open}
+        onClose={close}
+        maxWidth={empty ? 760 : 1100}
+        transitionKey={detailId ?? (starting ? 'start' : empty ? 'intro' : 'activity')}
+        contained
+      >
+        {empty ? (
+          starting
+            ? <AutomationStart onClose={close} />
+            : <AutomationsIntro onStart={() => setStarting(true)} />
+        ) : detail ? (
           // Back to the activity view rides the header's own arrow — a second
           // bar above a header that already has a leading glyph read as two.
           <AutomationDetailPanel automation={detail} onClose={close} onBack={() => setDetailId(null)} />
@@ -73,7 +89,7 @@ export function AutomationsGlance({ compact, variant, size, translucent }: Autom
           // The same frame as every other summary chip: no header, the reading
           // first, then what's behind it. The chart carries its own runs table,
           // so it stays one column rather than taking the chart lane.
-          <DialogFrame onClose={close}>
+          <DialogFrame onClose={close} size="large">
             <DialogCard>
               <DialogHero
                 icon={mdiRobot}

@@ -11,6 +11,7 @@ import { SidePanel } from '../layout/SidePanel';
 import { ModalSheet } from '../layout/ModalSheet';
 import { HomeHero } from './HomeHero';
 import { HomeInformation } from './HomeInformation';
+import { ProfileSettings } from './ProfileSettings';
 import { ShortcutList } from '@/components/ui/KeyboardShortcutsDialog';
 import { openShortcutsHelp } from '@/lib/keyboardShortcuts';
 import { toggleCardTunerPanel } from '@/lib/cardTuner';
@@ -257,7 +258,7 @@ function ChoiceGroup<T extends string>({
         {options.map((option) => {
           const selected = option.value === value;
           const tone = selected
-            ? 'border-transparent bg-surface-mid text-ha-blue'
+            ? 'border-transparent bg-surface-default text-text-primary ha-selected'
             : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low';
           // Options that ship a preview render the selectable label alongside a
           // "Preview" button (can't nest a button inside a button).
@@ -290,8 +291,9 @@ function ChoiceGroup<T extends string>({
 }
 
 // Like ChoiceGroup but several options can be on at once (allow-list). `caption`
-// under the label explains what an empty selection means. Selected pills glow
-// blue; unselected are muted — same visual language as ChoiceGroup.
+// under the label explains what an empty selection means. Selected pills wear
+// the shared selection edge; unselected are muted — same visual language as
+// ChoiceGroup.
 function MultiChoiceGroup<T extends string>({
   label,
   caption,
@@ -313,7 +315,7 @@ function MultiChoiceGroup<T extends string>({
         {options.map((option) => {
           const selected = values.includes(option.value);
           const tone = selected
-            ? 'border-transparent bg-surface-mid text-ha-blue'
+            ? 'border-transparent bg-surface-default text-text-primary ha-selected'
             : 'border-surface-lower bg-surface-default text-text-secondary hover:bg-surface-low';
           return (
             <button
@@ -788,7 +790,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
     setTimeout(() => setConfigureStatus('idle'), 2500);
   }, [devices, setConfig]);
 
-  const { hideHomeCenterEnabled, toggleHideHomeCenter, hideCardImagesEnabled, toggleHideCardImages, sidebarPreviewsEnabled, toggleSidebarPreviews, dashboardFilterEnabled, toggleDashboardFilter, mobileNavAutoHideEnabled, toggleMobileNavAutoHide, settingsRailEnabled, toggleSettingsRail } = useDebugFlags();
+  const { hideHomeCenterEnabled, toggleHideHomeCenter, hideCardImagesEnabled, toggleHideCardImages, sidebarPreviewsEnabled, toggleSidebarPreviews, dashboardFilterEnabled, toggleDashboardFilter, mobileNavAutoHideEnabled, toggleMobileNavAutoHide, settingsRailEnabled, toggleSettingsRail, homeModeEnabled, toggleHomeMode } = useDebugFlags();
   const [connectionSetupOpen, setConnectionSetupOpen] = useState(false);
 
   const allNavItems = allSettingsLinks;
@@ -1581,6 +1583,12 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           onToggle={toggleHideCardImages}
         />
         <ToggleRow
+          label="Home Mode"
+          description="A chip showing what the home is set to (Home / Away / Night), read from a dropdown helper. Off unless your home has one and you want a chip spent on it."
+          checked={homeModeEnabled}
+          onToggle={toggleHomeMode}
+        />
+        <ToggleRow
           label="Hide Home Center"
           description="Desktop drops the whole bottom bar (Ask your home, activities and the clock pill); mobile drops the Home Center tab. Its settings entry is hidden on both."
           checked={hideHomeCenterEnabled}
@@ -1768,6 +1776,18 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
   }
 
   // ── HA settings placeholder ───────────────────────────────────────────────
+  // ── Profile (you, your trackers, and the way to the rest) ─────────────────
+  // Sits before the haPath placeholder so this replaces the "/profile" stub.
+  if (slug === 'profile') {
+    return (
+      <div key="profile" className="ha-pane-in">
+        <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
+          <ProfileSettings />
+        </SettingsShell>
+      </div>
+    );
+  }
+
   if (navItem?.haPath) {
     return (
       <SettingsShell panelMode={panelMode} title={panelMode ? undefined : meta.title}>
