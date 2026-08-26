@@ -42,10 +42,13 @@ function ReportCentre({ onChange }: { onChange: (loc: LatLng) => void }) {
 export default function MapPicker({
   center,
   onChange,
+  flag,
 }: {
   /** Centre to fly to when it changes — panning never updates this. */
   center: LatLng | null;
   onChange: (loc: LatLng) => void;
+  /** Country flag emoji raised from the house a beat after panning settles. */
+  flag?: string | null;
 }) {
   return (
     <div className="relative w-full h-full overflow-hidden">
@@ -65,13 +68,20 @@ export default function MapPicker({
       {/* Fixed centre marker — the home badge from the dashboards. z-500 beats
           leaflet's panes (z 400); pointer-events off so it never eats a pan. */}
       <div className="absolute inset-0 z-[500] flex items-center justify-center pointer-events-none">
-        <span
-          className="flex size-[40px] rounded-full items-center justify-center border-[3px] border-white shadow-[0_2px_6px_rgba(0,0,0,0.3)]"
-          style={{ background: '#009ac7' }}
-        >
+        <span className="relative flex size-[40px] rounded-full items-center justify-center border-[3px] border-white shadow-[0_2px_6px_rgba(0,0,0,0.3)]" style={{ background: '#009ac7' }}>
           <IconHome size={20} color="#ffffff" />
+          {/* the house hoists the flag of whatever country it lands in */}
+          {flag && (
+            <span key={flag} className="obv2-flag absolute -top-[30px] left-1/2 -translate-x-1/2 text-[24px] leading-none drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)]">
+              {flag}
+            </span>
+          )}
         </span>
       </div>
+      <style>{`
+        @keyframes obv2-flag-up { 0% { transform: translate(-50%, 18px) scale(0.2); opacity: 0; } 60% { transform: translate(-50%, -3px) scale(1.08); opacity: 1; } 100% { transform: translate(-50%, 0) scale(1); opacity: 1; } }
+        .obv2-flag { animation: obv2-flag-up 0.5s ease-out; }
+      `}</style>
     </div>
   );
 }
