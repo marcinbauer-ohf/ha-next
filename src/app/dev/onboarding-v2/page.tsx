@@ -386,13 +386,21 @@ function keyBits(seed: string): number[] {
 
 function KeySvg({ seed, color = INK, height = 88 }: { seed: string; color?: string; height?: number }) {
   const bits = keyBits(seed);
+  // Modern flat blade: the bitting is valleys CUT INTO the right edge, not
+  // teeth sticking out. Deeper password bits cut deeper dips.
+  const L = 12;
+  const R = 20;
+  let blade = `M${L} 18 L${R} 18 `;
+  bits.forEach((b, i) => {
+    const y = 27 + i * 8;
+    const depth = 3 + b * 5;
+    blade += `L${R} ${y - 3} L${R - depth} ${y} L${R} ${y + 3} `;
+  });
+  blade += `L${R} 57 L16 62 L${L} 58 Z`;
   return (
     <svg width={height * 0.5} height={height} viewBox="0 0 32 64" fill="none">
-      <circle cx="16" cy="10" r="7" stroke={color} strokeWidth="6" />
-      <rect x="13" y="17" width="6" height="43" rx="3" fill={color} />
-      {bits.map((b, i) => (
-        <rect key={i} x="19" y={30 + i * 8} width={4 + b * 8} height="5" rx="2.5" fill={color} />
-      ))}
+      <circle cx="16" cy="10" r="7.5" stroke={color} strokeWidth="6" />
+      <path d={blade} fill={color} stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -506,18 +514,18 @@ function WelcomeArt({ homeName, userCount }: { homeName: string; userCount: numb
             </span>
           </div>
         </div>
-        {/* the data-sharing switch, decided at the end */}
+        {/* the keychain — keys on a hook below the picture frame */}
+        <div className="absolute -left-[86px] top-[162px]" style={{ animation: 'obv2-sway 8s ease-in-out infinite' }}>
+          <Keychain keys={keys} keyHeight={54} ringSize={36} />
+        </div>
+        {/* the data-sharing switch — a doorbell beside the knob */}
         <div
-          className="absolute -left-[76px] top-[214px] bg-white rounded-full p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+          className="absolute -right-[62px] top-[172px] bg-white rounded-full p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
           style={{ animation: 'obv2-sway 9s ease-in-out infinite' }}
         >
           <div className="w-[34px] h-[20px] rounded-full p-[2px]" style={{ background: ACCENT }}>
             <span className="block size-[16px] rounded-full bg-white translate-x-[14px]" />
           </div>
-        </div>
-        {/* the keychain — the people who hold keys to this home */}
-        <div className="absolute -right-[72px] top-[88px]" style={{ animation: 'obv2-sway 8s ease-in-out infinite' }}>
-          <Keychain keys={keys} keyHeight={54} ringSize={36} />
         </div>
         <Door name={homeName} />
         {/* The shelf bar below the door — a floor holding its area books */}
