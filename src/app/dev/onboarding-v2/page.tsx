@@ -75,27 +75,177 @@ const TEXT = '#141414';
 const TEXT_2 = '#5e5e5e';
 const TEXT_DIM = '#989898';
 
-const FLOOR_NAMES = ['Ground floor', 'First floor', 'Second floor', 'Third floor', 'Fourth floor'];
-const MAX_FLOORS = FLOOR_NAMES.length;
-// Easter egg: whoever builds to the top of the stepper gets a tower.
-const floorName = (i: number) => (i === MAX_FLOORS - 1 ? 'The tower 🏰' : FLOOR_NAMES[i]);
+const MAX_FLOORS = 5;
 
-const ROOMS: { name: string; Icon: TablerIcon }[] = [
-  { name: 'Living room', Icon: IconSofa },
-  { name: 'Kitchen', Icon: IconToolsKitchen2 },
-  { name: 'Bedroom', Icon: IconBed },
-  { name: 'Bathroom', Icon: IconBath },
-  { name: 'Office', Icon: IconBriefcase },
-  { name: 'Dining room', Icon: IconArmchair },
-  { name: 'Hallway', Icon: IconDoor },
-  { name: 'Kids room', Icon: IconHorseToy },
-  { name: 'Laundry', Icon: IconWashMachine },
-  { name: 'Garage', Icon: IconCar },
-  { name: 'Gym', Icon: IconBarbell },
-  { name: 'Garden', Icon: IconPlant },
-  { name: 'Stairway', Icon: IconStairs },
-  { name: 'Studio', Icon: IconLamp },
+// ── Copy: EN/PL — the flag button on the welcome bar toggles ─────────────────
+type Lang = 'en' | 'pl';
+interface Device {
+  name: string;
+  value?: string;
+  toggle?: boolean;
+}
+
+const ROOM_ICONS: TablerIcon[] = [
+  IconSofa, IconToolsKitchen2, IconBed, IconBath, IconBriefcase, IconArmchair, IconDoor,
+  IconHorseToy, IconWashMachine, IconCar, IconBarbell, IconPlant, IconStairs, IconLamp,
 ];
+const DEVICE_ICONS: TablerIcon[] = [IconBulb, IconThermometer, IconPlug, IconDroplet, IconDeviceTv, IconLock];
+const ANALYTIC_KEYS = ['base', 'usage', 'stats', 'diag'];
+
+const STR = {
+  en: {
+    flag: '🇬🇧',
+    welcomeTitle: 'Welcome home',
+    welcomeSub: 'A few easy questions, nothing is permanent',
+    begin: 'Let’s begin',
+    cont: 'Continue',
+    finish: 'Finish',
+    skip: 'Skip for now',
+    custom: 'Custom',
+    customMenu: ['Restore from a backup', 'Migrate from another system', 'Learn about Home Assistant'],
+    a11yMenu: ['Larger text', 'High contrast', 'Reduce motion', 'Spoken hints'],
+    nameTitle: 'Name your home',
+    nameSub: "It's written on the door. You can change it anytime.",
+    namePh: 'My Home',
+    usersTitle: 'Your own key',
+    usersSub: 'Your account unlocks this home — the password cuts your key.',
+    userPh: 'Username',
+    passPh: 'Password',
+    inviteTitle: 'Invite your household',
+    inviteSub: 'Everyone gets their own key. You can also do this later.',
+    invitePh: 'Invite by email',
+    inviteToast: (email: string) => `Invite sent — a key is waiting for ${email}`,
+    locTitle: 'Where is your home?',
+    locSub: 'Drag the map until your home sits under the marker.',
+    locate: 'Use my location',
+    locating: 'Finding you…',
+    tapPlace: 'Tap to place your home',
+    dragHome: 'Drag until your home sits under the marker',
+    floorsTitle: 'How many floors?',
+    floorsSub: 'Floors group your rooms which have your devices. Simple.',
+    quips: [
+      'Cozy — everything within reach',
+      'Two floors, a classic',
+      'Three floors of morning cardio',
+      'Your smartwatch will love these stairs',
+      'That’s not a house, that’s a castle! 🏰',
+    ],
+    areasOn: 'Areas on ',
+    areasSub: 'Tap a shelf to hop between floors.',
+    customRoomPh: 'Add a custom room',
+    permTitle: 'What leaves your home?',
+    permSub: 'Each one is an anonymous postcard to Home Assistant. All optional.',
+    analytics: [
+      { key: 'base', label: 'Basic analytics', desc: 'Installation type and version' },
+      { key: 'usage', label: 'Usage', desc: 'Which integrations you use' },
+      { key: 'stats', label: 'Statistics', desc: 'Counts of devices and automations' },
+      { key: 'diag', label: 'Diagnostics', desc: 'Crash reports, to fix bugs sooner' },
+    ],
+    thanksTitle: 'Say thanks 💌',
+    thanksDesc: 'Send a thank-you note to the Open Home Foundation',
+    floors: ['Ground floor', 'First floor', 'Second floor', 'Third floor', 'Fourth floor'],
+    tower: 'The tower 🏰',
+    rooms: ['Living room', 'Kitchen', 'Bedroom', 'Bathroom', 'Office', 'Dining room', 'Hallway', 'Kids room', 'Laundry', 'Garage', 'Gym', 'Garden', 'Stairway', 'Studio'],
+    devices: [
+      { name: 'Ceiling light', toggle: true },
+      { name: 'Thermostat', value: '21,5°' },
+      { name: 'Smart plug', toggle: true },
+      { name: 'Humidity', value: '52%' },
+      { name: 'TV', toggle: true },
+      { name: 'Front door', value: 'Locked' },
+    ] as Device[],
+    homeFallback: 'Home',
+    dashMenu: ['Select a home', 'Edit home dashboard'],
+    on: 'On',
+    off: 'Off',
+    searchPh: 'Search your home',
+    noResults: 'Nothing found',
+    actLine: (name: string, on: boolean) => `${name} ${on ? 'turned on' : 'turned off'}`,
+    times: ['just now', '10 min ago', '1 h ago', '3 h ago', 'yesterday'],
+    yourHome: 'Your home',
+    people: 'People',
+    admin: 'Admin',
+    invitedLabel: 'Invited',
+  },
+  pl: {
+    flag: '🇵🇱',
+    welcomeTitle: 'Witaj w domu',
+    welcomeSub: 'Kilka prostych pytań, nic nie jest na zawsze',
+    begin: 'Zaczynajmy',
+    cont: 'Dalej',
+    finish: 'Zakończ',
+    skip: 'Na razie pomiń',
+    custom: 'Inne',
+    customMenu: ['Przywróć z kopii zapasowej', 'Przenieś się z innego systemu', 'Poznaj Home Assistant'],
+    a11yMenu: ['Większy tekst', 'Wysoki kontrast', 'Ogranicz animacje', 'Podpowiedzi głosowe'],
+    nameTitle: 'Nazwij swój dom',
+    nameSub: 'Nazwa jest na drzwiach. Zmienisz ją w każdej chwili.',
+    namePh: 'Mój dom',
+    usersTitle: 'Twój własny klucz',
+    usersSub: 'Twoje konto otwiera ten dom — hasło nacina twój klucz.',
+    userPh: 'Nazwa użytkownika',
+    passPh: 'Hasło',
+    inviteTitle: 'Zaproś domowników',
+    inviteSub: 'Każdy dostaje własny klucz. Możesz to zrobić też później.',
+    invitePh: 'Zaproś przez e-mail',
+    inviteToast: (email: string) => `Zaproszenie wysłane — klucz czeka na ${email}`,
+    locTitle: 'Gdzie jest twój dom?',
+    locSub: 'Przesuwaj mapę, aż twój dom znajdzie się pod znacznikiem.',
+    locate: 'Użyj mojej lokalizacji',
+    locating: 'Szukam cię…',
+    tapPlace: 'Dotknij, aby umieścić dom',
+    dragHome: 'Przesuwaj, aż dom będzie pod znacznikiem',
+    floorsTitle: 'Ile pięter?',
+    floorsSub: 'Piętra grupują pokoje, a pokoje — twoje urządzenia. Proste.',
+    quips: [
+      'Przytulnie — wszystko pod ręką',
+      'Dwa piętra, klasyka',
+      'Trzy piętra porannego cardio',
+      'Twój smartwatch pokocha te schody',
+      'To nie dom, to zamek! 🏰',
+    ],
+    areasOn: 'Pokoje — ',
+    areasSub: 'Dotknij półki, aby przeskoczyć między piętrami.',
+    customRoomPh: 'Dodaj własny pokój',
+    permTitle: 'Co opuszcza twój dom?',
+    permSub: 'Każda pozycja to anonimowa pocztówka do Home Assistant. Wszystko opcjonalne.',
+    analytics: [
+      { key: 'base', label: 'Podstawowe dane', desc: 'Typ instalacji i wersja' },
+      { key: 'usage', label: 'Użycie', desc: 'Których integracji używasz' },
+      { key: 'stats', label: 'Statystyki', desc: 'Liczba urządzeń i automatyzacji' },
+      { key: 'diag', label: 'Diagnostyka', desc: 'Raporty o błędach, by naprawiać je szybciej' },
+    ],
+    thanksTitle: 'Podziękuj 💌',
+    thanksDesc: 'Wyślij podziękowanie do Open Home Foundation',
+    floors: ['Parter', 'Pierwsze piętro', 'Drugie piętro', 'Trzecie piętro', 'Czwarte piętro'],
+    tower: 'Wieża 🏰',
+    rooms: ['Salon', 'Kuchnia', 'Sypialnia', 'Łazienka', 'Biuro', 'Jadalnia', 'Przedpokój', 'Pokój dzieci', 'Pralnia', 'Garaż', 'Siłownia', 'Ogród', 'Schody', 'Pracownia'],
+    devices: [
+      { name: 'Lampa sufitowa', toggle: true },
+      { name: 'Termostat', value: '21,5°' },
+      { name: 'Inteligentna wtyczka', toggle: true },
+      { name: 'Wilgotność', value: '52%' },
+      { name: 'Telewizor', toggle: true },
+      { name: 'Drzwi wejściowe', value: 'Zamknięte' },
+    ] as Device[],
+    homeFallback: 'Dom',
+    dashMenu: ['Wybierz dom', 'Edytuj panel domu'],
+    on: 'Wł.',
+    off: 'Wył.',
+    searchPh: 'Szukaj w domu',
+    noResults: 'Nic nie znaleziono',
+    actLine: (name: string, on: boolean) => `${on ? 'Włączono' : 'Wyłączono'}: ${name}`,
+    times: ['przed chwilą', '10 min temu', '1 godz. temu', '3 godz. temu', 'wczoraj'],
+    yourHome: 'Twój dom',
+    people: 'Domownicy',
+    admin: 'Administrator',
+    invitedLabel: 'Zaproszono',
+  },
+};
+type Copy = typeof STR.en;
+
+// Easter egg: whoever builds to the top of the stepper gets a tower.
+const floorName = (L: Copy, i: number) => (i === MAX_FLOORS - 1 ? L.tower : L.floors[i]);
 
 // ── Books ────────────────────────────────────────────────────────────────────
 interface Book {
@@ -109,7 +259,8 @@ interface Book {
   lean: number;
 }
 
-const BOOK_TONES = ['#ffffff', '#fdfdfd', '#f8f8f8', '#ffffff', ACCENT];
+// Soft spine colors — light enough that the gray room icon reads on all of them.
+const BOOK_TONES = ['#ffffff', '#f6e8c9', '#cfe6f2', '#d9ead3', '#f4dcd6', '#e6e0f2', '#ffffff'];
 
 let bookSeq = 0;
 function makeBook(room: string, Icon: TablerIcon): Book {
@@ -206,7 +357,7 @@ function Shelf({
                   }}
                   className="rounded-[6px] shrink-0 shadow-[0_2px_4px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)] flex flex-col items-center pt-[7px]"
                 >
-                  <book.Icon size={18} color={book.tone === ACCENT ? '#ffffff' : TEXT_2} stroke={1.75} />
+                  <book.Icon size={18} color={TEXT_2} stroke={1.75} />
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -224,11 +375,13 @@ function Shelf({
 }
 
 function ShelfStack({
+  L,
   floors,
   booksByFloor,
   focusIndex,
   onSelect,
 }: {
+  L: Copy;
   floors: number;
   booksByFloor: Book[][];
   /** null = no floor focused (floors step); otherwise dims the other shelves. */
@@ -243,8 +396,8 @@ function ShelfStack({
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
-            key={FLOOR_NAMES[i]}
-            label={floorName(i)}
+            key={`floor-${i}`}
+            label={floorName(L, i)}
             books={booksByFloor[i] ?? []}
             dimmed={focusIndex !== null && i !== focusIndex}
             showHeadroom={focusIndex === i}
@@ -332,6 +485,7 @@ function PillInput({
   onChange,
   placeholder,
   secret = false,
+  delayFocus = false,
   onFocus,
   onBlur,
 }: {
@@ -340,6 +494,11 @@ function PillInput({
   placeholder: string;
   /** Password-style field with a show/hide eye. */
   secret?: boolean;
+  /**
+   * Choreograph the tap: fire onFocus (the artwork zoom) immediately but hold
+   * the actual focus — and with it the keyboard — until the zoom has landed.
+   */
+  delayFocus?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
 }) {
@@ -350,6 +509,14 @@ function PillInput({
         type={secret && !show ? 'password' : 'text'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onPointerDown={(e) => {
+          if (!delayFocus) return;
+          const el = e.currentTarget;
+          if (document.activeElement === el) return;
+          e.preventDefault();
+          onFocus?.();
+          setTimeout(() => el.focus(), 360);
+        }}
         onFocus={onFocus}
         onBlur={onBlur}
         placeholder={placeholder}
@@ -405,28 +572,59 @@ function KeySvg({
   const cut = keyHash(cutSeed);
   const bits = Array.from({ length: 4 }, (_, i) => ((cut >> (i * 4)) & 15) / 15);
   const s = keyHash(styleSeed ?? cutSeed);
+  // The style seed also picks the kind of key: a classic cut key, a modern
+  // dimple key, or a key card.
+  const kind = (s >> 6) % 3;
   const headR = 6.5 + (s & 3) * 0.7;
   const headStroke = 5 + ((s >> 2) & 3) * 0.7;
   // Every person's key wears a small colored cap around the hole.
   const cap = KEY_CAPS[s % KEY_CAPS.length];
+
+  if (kind === 2) {
+    // Key card: hole punched through, a cap-colored stripe as its accent.
+    return (
+      <svg width={height * 0.5} height={height} viewBox="0 0 32 64" fill="none">
+        <path
+          fillRule="evenodd"
+          d="M4.5 8.5 A6.5 6.5 0 0 1 11 2 L21 2 A6.5 6.5 0 0 1 27.5 8.5 L27.5 55.5 A6.5 6.5 0 0 1 21 62 L11 62 A6.5 6.5 0 0 1 4.5 55.5 Z M16 5.5 a3.6 3.6 0 1 0 0 7.2 a3.6 3.6 0 1 0 0 -7.2 Z"
+          fill={color}
+        />
+        <rect x="8.5" y="44" width="15" height="5" rx="2.5" fill={cap} />
+        <rect x="8.5" y="20" width="9" height="3" rx="1.5" fill="#ffffff" opacity="0.35" />
+        <rect x="8.5" y="27" width="13" height="3" rx="1.5" fill="#ffffff" opacity="0.35" />
+      </svg>
+    );
+  }
+
   const L = 11 + ((s >> 4) & 1) * 2;
   const R = 20;
   const pointed = ((s >> 5) & 1) === 1;
-  let blade = `M${L} 18 L${R} 18 `;
-  bits.forEach((b, i) => {
-    const y = 27 + i * 8;
-    const depth = 3 + b * 5;
-    blade += `L${R} ${y - 3} L${R - depth} ${y} L${R} ${y + 3} `;
-  });
-  blade += pointed
-    ? `L${R} 57 L16 62 L${L} 58 Z`
-    : `L${R} 59 Q${R} 62 ${R - 3} 62 L${L + 3} 62 Q${L} 62 ${L} 59 Z`;
+  let blade: string;
+  if (kind === 1) {
+    // Dimple key: a straight blade, the code drilled in as dimples.
+    blade = `M${L} 18 L${R} 18 L${R} 59 Q${R} 62 ${R - 3} 62 L${L + 3} 62 Q${L} 62 ${L} 59 Z`;
+  } else {
+    blade = `M${L} 18 L${R} 18 `;
+    bits.forEach((b, i) => {
+      const y = 27 + i * 8;
+      const depth = 3 + b * 5;
+      blade += `L${R} ${y - 3} L${R - depth} ${y} L${R} ${y + 3} `;
+    });
+    blade += pointed
+      ? `L${R} 57 L16 62 L${L} 58 Z`
+      : `L${R} 59 Q${R} 62 ${R - 3} 62 L${L + 3} 62 Q${L} 62 ${L} 59 Z`;
+  }
+  const mid = (L + R) / 2;
   return (
     <svg width={height * 0.5} height={height} viewBox="0 0 32 64" fill="none">
-      <circle cx="16" cy="10" r={headR} stroke={cap} strokeWidth={headStroke} />
-      {/* thin body-coloured collar where the cap meets the blade */}
-      <rect x="12" y={15.5} width="8" height="4" rx="2" fill={color} />
       <path d={blade} fill={color} stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+      {kind === 1 &&
+        bits.map((b, i) => (
+          <circle key={i} cx={mid + (b - 0.5) * 4} cy={28 + i * 8} r={1.5 + b * 1.1} fill={SURFACE} />
+        ))}
+      {/* thin body-coloured collar, then the cap on top of everything */}
+      <rect x="12" y={15.5} width="8" height="4" rx="2" fill={color} />
+      <circle cx="16" cy="10" r={headR} stroke={cap} strokeWidth={headStroke} />
     </svg>
   );
 }
@@ -488,8 +686,11 @@ function Door({
       : undefined;
   return (
     <div className="relative" style={{ perspective: 700 }}>
+      {/* The door frame — without one the panel floats and reads as an OPEN
+          door; framed, it reads closed. */}
+      <div className="absolute -inset-[9px] rounded-[31px] bg-[#f4f4f4] shadow-[0_2px_10px_rgba(0,0,0,0.05)]" />
       {/* The doorway — hidden behind the door until it swings open. */}
-      <div className="absolute inset-[3px] rounded-[24px] bg-[#dcdcdc]" />
+      <div className="absolute inset-[3px] rounded-[24px] bg-[#d7d7d7]" />
       <div
         className="relative rounded-[24px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
         onAnimationEnd={poked ? onPokeEnd : undefined}
@@ -528,7 +729,7 @@ function Door({
  * location map, and the books on the shelf are areas on a floor. The heading
  * lives here, display-sized — every other step keeps it in the app bar.
  */
-function WelcomeArt({ homeName }: { homeName: string }) {
+function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
   // Tap micro-interactions: one-shot animations that hand back to the idle
   // sway when they finish.
   const [poke, setPoke] = useState<string | null>(null);
@@ -537,10 +738,10 @@ function WelcomeArt({ homeName }: { homeName: string }) {
     <div className="flex-1 min-h-0 w-full flex flex-col">
       <div className="text-center pt-7 pb-2">
         <h1 className="text-[32px] font-semibold tracking-[-0.96px] leading-tight" style={{ color: TEXT }}>
-          Welcome home
+          {L.welcomeTitle}
         </h1>
         <p className="text-[16px] tracking-[-0.48px] mt-1 mx-auto max-w-[280px]" style={{ color: TEXT_2 }}>
-          A few easy questions, nothing is permanent
+          {L.welcomeSub}
         </p>
       </div>
       <div className="flex-1 min-h-0 relative">
@@ -623,11 +824,13 @@ function WelcomeArt({ homeName }: { homeName: string }) {
 
 // ── Areas: the scrollable shelf stack (art) and the chip rail (sheet) ───────
 function AreasArt({
+  L,
   floors,
   booksByFloor,
   floorIndex,
   onSelectFloor,
 }: {
+  L: Copy;
   floors: number;
   booksByFloor: Book[][];
   floorIndex: number;
@@ -646,7 +849,7 @@ function AreasArt({
         className="h-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={(e) => setStackScrolled(e.currentTarget.scrollTop > 8)}
       >
-        <ShelfStack floors={floors} booksByFloor={booksByFloor} focusIndex={floorIndex} onSelect={onSelectFloor} />
+        <ShelfStack L={L} floors={floors} booksByFloor={booksByFloor} focusIndex={floorIndex} onSelect={onSelectFloor} />
       </div>
       <div
         aria-hidden
@@ -661,6 +864,7 @@ function AreasArt({
 }
 
 function AreasSheet({
+  L,
   floorIndex,
   booksByFloor,
   toggleRoom,
@@ -668,6 +872,7 @@ function AreasSheet({
   customRooms,
   onNext,
 }: {
+  L: Copy;
   floorIndex: number;
   booksByFloor: Book[][];
   toggleRoom: (room: string, Icon: TablerIcon) => void;
@@ -698,7 +903,10 @@ function AreasSheet({
           onScroll={onRailScroll}
           className="grid grid-rows-3 grid-flow-col auto-cols-max gap-2 overflow-x-auto px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {[...ROOMS, ...customRooms.map((name) => ({ name, Icon: IconDoor }))].map(({ name, Icon }) => {
+          {[
+            ...L.rooms.map((name, i) => ({ name, Icon: ROOM_ICONS[i] })),
+            ...customRooms.map((name) => ({ name, Icon: IconDoor })),
+          ].map(({ name, Icon }) => {
             const isOn = selected.has(name);
             return (
               <Press
@@ -728,7 +936,7 @@ function AreasSheet({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submitCustom()}
-          placeholder="Add a custom room"
+          placeholder={L.customRoomPh}
           className="flex-1 min-w-0 bg-transparent outline-none text-[18px] font-semibold tracking-[-0.36px] placeholder:text-[#989898]"
           style={{ color: TEXT }}
         />
@@ -750,24 +958,17 @@ function AreasSheet({
           <IconPlus size={22} />
         </Press>
       </div>
-      <CtaButton label="Continue" onClick={onNext} arrow />
+      <CtaButton label={L.cont} onClick={onNext} arrow />
     </>
   );
 }
 
 // ── Data sharing: postcards from your mailbox ───────────────────────────────
-const ANALYTICS: { key: string; label: string; desc: string }[] = [
-  { key: 'base', label: 'Basic analytics', desc: 'Installation type and version' },
-  { key: 'usage', label: 'Usage', desc: 'Which integrations you use' },
-  { key: 'stats', label: 'Statistics', desc: 'Counts of devices and automations' },
-  { key: 'diag', label: 'Diagnostics', desc: 'Crash reports, to fix bugs sooner' },
-];
-
 function MailboxArt({ prefs }: { prefs: Record<string, boolean> }) {
-  const allOn = ANALYTICS.every((a) => prefs[a.key]);
+  const allOn = ANALYTIC_KEYS.every((k) => prefs[k]);
   // The thank-you letter rides along only when everything else is shared too.
   const cards: { key: string; special: boolean }[] = [
-    ...ANALYTICS.filter((a) => prefs[a.key]).map((a) => ({ key: a.key, special: false })),
+    ...ANALYTIC_KEYS.filter((k) => prefs[k]).map((key) => ({ key, special: false })),
     ...(allOn && prefs.thanks ? [{ key: 'thanks', special: true }] : []),
   ];
   const anyOn = cards.length > 0;
@@ -829,15 +1030,6 @@ function MailboxArt({ prefs }: { prefs: Record<string, boolean> }) {
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
-const DEVICE_POOL: { Icon: TablerIcon; name: string; value?: string; toggle?: boolean }[] = [
-  { Icon: IconBulb, name: 'Ceiling light', toggle: true },
-  { Icon: IconThermometer, name: 'Thermostat', value: '21,5°' },
-  { Icon: IconPlug, name: 'Smart plug', toggle: true },
-  { Icon: IconDroplet, name: 'Humidity', value: '52%' },
-  { Icon: IconDeviceTv, name: 'TV', toggle: true },
-  { Icon: IconLock, name: 'Front door', value: 'Locked' },
-];
-
 interface Card {
   id: string;
   name: string;
@@ -847,9 +1039,16 @@ interface Card {
   on: boolean;
 }
 
-function makeCard(i: number, idPrefix = 'card'): Card {
-  const d = DEVICE_POOL[i % DEVICE_POOL.length];
-  return { id: `${idPrefix}-${i}`, ...d, on: i % 3 !== 1 };
+function makeCard(L: Copy, i: number, idPrefix = 'card'): Card {
+  const d = L.devices[i % L.devices.length];
+  return {
+    id: `${idPrefix}-${i}`,
+    name: d.name,
+    Icon: DEVICE_ICONS[i % DEVICE_ICONS.length],
+    value: d.value,
+    toggle: d.toggle,
+    on: i % 3 !== 1,
+  };
 }
 
 function MiniToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
@@ -858,7 +1057,11 @@ function MiniToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
       type="button"
       role="switch"
       aria-checked={on}
-      onClick={onToggle}
+      onClick={(e) => {
+        // Cards open their preview on tap — the toggle must not.
+        e.stopPropagation();
+        onToggle();
+      }}
       className="w-[42px] h-[26px] shrink-0 rounded-full p-[3px] transition-colors duration-200"
       style={{ background: on ? ACCENT : '#e3e3e3' }}
     >
@@ -870,13 +1073,21 @@ function MiniToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
+type DashTab = 'home' | 'search' | 'activity' | 'profile';
+
 function DashboardStep({
   homeName,
+  username,
+  invited,
   initialCards,
+  L,
   onBack,
 }: {
   homeName: string;
+  username: string;
+  invited: string[];
   initialCards: Card[];
+  L: Copy;
   onBack: () => void;
 }) {
   const [cards, setCards] = useState<Card[]>(initialCards);
@@ -884,9 +1095,33 @@ function DashboardStep({
   // Top fade appears once the grid scrolls under the app bar; the bottom fade
   // always dissolves the cards into the nav.
   const [scrolled, setScrolled] = useState(false);
+  // The nav's tabs open a surface that grows out of the pill — a light take on
+  // the app's MobileNav pull-up sheet. Home closes it again.
+  const [tab, setTab] = useState<DashTab>('home');
+  const [query, setQuery] = useState('');
+  const [previewId, setPreviewId] = useState<string | null>(null);
 
-  const addCard = () => setCards((prev) => [...prev, makeCard(prev.length, `card-${Date.now()}`)]);
+  const addCard = () => setCards((prev) => [...prev, makeCard(L, prev.length, `card-${Date.now()}`)]);
   const flip = (id: string) => setCards((prev) => prev.map((c) => (c.id === id ? { ...c, on: !c.on } : c)));
+  const previewCard = cards.find((c) => c.id === previewId) ?? null;
+
+  // Search dedupes on the device name — the grid may hold several of each.
+  const q = query.trim().toLowerCase();
+  const matches = cards.filter(
+    (c, i) => c.name.toLowerCase().includes(q) && cards.findIndex((o) => o.name === c.name) === i,
+  );
+
+  const pickTab = (t: DashTab) => {
+    if (t === 'home') {
+      if (tab === 'home') onBack();
+      else setTab('home');
+      return;
+    }
+    if (t === 'search') setQuery('');
+    setTab((prev) => (prev === t ? 'home' : t));
+  };
+
+  const navIcon = (t: DashTab, active: boolean) => (active ? '#ffffff' : '#8a8a8a');
 
   return (
     <>
@@ -897,7 +1132,7 @@ function DashboardStep({
         >
           <IconHome size={20} color="#707078" />
           <span className="text-[16px] font-semibold tracking-[-0.48px] max-w-[160px] truncate" style={{ color: '#707078' }}>
-            {homeName.trim() || 'Home'}
+            {homeName.trim() || L.homeFallback}
           </span>
           <IconChevronDown
             size={18}
@@ -905,7 +1140,7 @@ function DashboardStep({
             style={{ transform: menuOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }}
           />
         </Press>
-        <PopMenu open={menuOpen} onPick={() => setMenuOpen(false)} items={['Select a home', 'Edit home dashboard']} />
+        <PopMenu open={menuOpen} onPick={() => setMenuOpen(false)} items={L.dashMenu} />
         <Press aria-label="Add to home" onClick={addCard} className="size-[44px] rounded-full flex items-center justify-center" style={{ background: ACCENT }}>
           <IconPlus size={22} color="white" />
         </Press>
@@ -925,7 +1160,8 @@ function DashboardStep({
                 initial={{ opacity: 0, scale: 0.9, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-                className="relative bg-white rounded-[24px] p-2 flex flex-col gap-2"
+                onClick={() => setPreviewId(card.id)}
+                className="relative bg-white rounded-[24px] p-2 flex flex-col gap-2 cursor-pointer"
               >
                 {card.toggle && (
                   <span className="absolute top-[14px] right-[14px]">
@@ -940,7 +1176,7 @@ function DashboardStep({
                     {card.name}
                   </span>
                   <span className="text-[14px] font-semibold tracking-[-0.42px] truncate" style={{ color: TEXT_2 }}>
-                    {card.toggle ? (card.on ? 'On' : 'Off') : card.value}
+                    {card.toggle ? (card.on ? L.on : L.off) : card.value}
                   </span>
                 </div>
               </motion.div>
@@ -963,23 +1199,186 @@ function DashboardStep({
         />
       </div>
 
-      {/* Bottom nav — visual only for now, pinned to the bottom edge. */}
+      {/* Tab surface — grows out of the nav pill; the active tab closes it. */}
+      <AnimatePresence>
+        {tab !== 'home' && (
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 28, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 28, scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+            className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+84px)] z-30 bg-white rounded-[28px] p-4 shadow-[0_16px_44px_rgba(0,0,0,0.16)] flex flex-col gap-2 max-h-[55%]"
+          >
+            {tab === 'search' && (
+              <>
+                <div className="w-full bg-[#f3f3f3] rounded-full min-h-[48px] px-4 flex items-center gap-2">
+                  <IconSearch size={18} color={TEXT_DIM} />
+                  <input
+                    autoFocus
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={L.searchPh}
+                    className="flex-1 min-w-0 bg-transparent outline-none text-[16px] font-semibold tracking-[-0.32px] placeholder:text-[#989898]"
+                    style={{ color: TEXT }}
+                  />
+                </div>
+                <div className="overflow-y-auto flex flex-col min-h-[60px]">
+                  {matches.map((c) => (
+                    <div key={c.id} className="flex items-center gap-3 px-2 py-2.5">
+                      <span className="size-[38px] rounded-full bg-[#f3f3f3] flex items-center justify-center shrink-0">
+                        <c.Icon size={19} color={TEXT_2} />
+                      </span>
+                      <span className="flex-1 min-w-0 text-[15px] font-semibold tracking-[-0.3px] truncate" style={{ color: TEXT }}>
+                        {c.name}
+                      </span>
+                      {c.toggle ? (
+                        <MiniToggle on={c.on} onToggle={() => flip(c.id)} />
+                      ) : (
+                        <span className="text-[14px] font-semibold" style={{ color: TEXT_2 }}>{c.value}</span>
+                      )}
+                    </div>
+                  ))}
+                  {matches.length === 0 && (
+                    <span className="text-center py-5 text-[14px] font-semibold" style={{ color: TEXT_DIM }}>
+                      {L.noResults}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+            {tab === 'activity' && (
+              <div className="overflow-y-auto flex flex-col">
+                {cards.slice(0, 6).map((c, i) => (
+                  <div key={c.id} className="flex items-center gap-3 px-2 py-2.5">
+                    <span
+                      className="size-[8px] rounded-full shrink-0"
+                      style={{ background: c.on ? ACCENT : '#d4d4d4' }}
+                    />
+                    <span className="flex-1 min-w-0 text-[15px] font-semibold tracking-[-0.3px] truncate" style={{ color: TEXT }}>
+                      {L.actLine(c.name, c.on)}
+                    </span>
+                    <span className="text-[13px] font-semibold shrink-0" style={{ color: TEXT_DIM }}>
+                      {L.times[i % L.times.length]}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {tab === 'profile' && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="size-[52px] rounded-full bg-[#f3f3f3] flex items-center justify-center shrink-0">
+                    <IconUser size={26} color={TEXT_2} />
+                  </span>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[17px] font-semibold tracking-[-0.34px] truncate" style={{ color: TEXT }}>
+                      {username.trim() || L.admin}
+                    </span>
+                    <span className="text-[13px] font-semibold" style={{ color: TEXT_2 }}>
+                      {L.yourHome}: {homeName.trim() || L.homeFallback}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[13px] font-semibold px-1" style={{ color: TEXT_DIM }}>
+                  {L.people}
+                </span>
+                <div className="flex flex-col">
+                  {[{ name: username.trim() || L.admin, role: L.admin }, ...invited.map((email) => ({ name: email, role: L.invitedLabel }))].map(
+                    ({ name, role }) => (
+                      <div key={name} className="flex items-center gap-3 px-1 py-1.5">
+                        <span className="shrink-0">
+                          <KeySvg cutSeed={name} styleSeed={name} color={INK} height={36} />
+                        </span>
+                        <span className="flex-1 min-w-0 text-[15px] font-semibold tracking-[-0.3px] truncate" style={{ color: TEXT }}>
+                          {name}
+                        </span>
+                        <span className="text-[13px] font-semibold shrink-0" style={{ color: TEXT_DIM }}>
+                          {role}
+                        </span>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bottom nav — tabs open their surface, pinned to the bottom edge. */}
       <div className="w-full mt-auto rounded-full min-h-[68px] px-8 flex items-center justify-between" style={{ background: INK }}>
-        <Press aria-label="Home" onClick={onBack} className="p-2 text-white">
-          <IconHome size={26} />
+        <Press aria-label="Home" onClick={() => pickTab('home')} className="p-2">
+          <IconHome size={26} color={navIcon('home', tab === 'home')} />
         </Press>
-        <Press aria-label="Search" className="p-2 text-[#8a8a8a]">
-          <IconSearch size={26} />
+        <Press aria-label="Search" onClick={() => pickTab('search')} className="p-2">
+          <IconSearch size={26} color={navIcon('search', tab === 'search')} />
         </Press>
-        <Press aria-label="Activity" className="p-2 text-[#8a8a8a]">
-          <IconClockHour4 size={26} />
+        <Press aria-label="Activity" onClick={() => pickTab('activity')} className="p-2">
+          <IconClockHour4 size={26} color={navIcon('activity', tab === 'activity')} />
         </Press>
-        <Press aria-label="Profile" className="p-1">
-          <span className="size-[30px] rounded-full bg-white flex items-center justify-center">
-            <IconUser size={19} color={INK} />
+        <Press aria-label="Profile" onClick={() => pickTab('profile')} className="p-1">
+          <span
+            className="size-[30px] rounded-full flex items-center justify-center"
+            style={{ background: tab === 'profile' ? ACCENT : '#ffffff' }}
+          >
+            <IconUser size={19} color={tab === 'profile' ? '#ffffff' : INK} />
           </span>
         </Press>
       </div>
+
+      {/* Device preview — tap a card, get its sheet. Close lives on the left. */}
+      <AnimatePresence>
+        {previewCard && (
+          <>
+            <motion.div
+              key="preview-scrim"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={() => setPreviewId(null)}
+              className="fixed inset-0 z-40 bg-black/30"
+            />
+            <motion.div
+              key="preview-sheet"
+              initial={{ opacity: 0, y: 70 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 70 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+              className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none"
+            >
+              <div className="pointer-events-auto w-full max-w-[430px] px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+                <div className="bg-white rounded-[32px] p-4 flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <Press
+                      aria-label="Close"
+                      onClick={() => setPreviewId(null)}
+                      className="size-[40px] rounded-full bg-[#f3f3f3] flex items-center justify-center"
+                    >
+                      <IconX size={19} color={TEXT_2} />
+                    </Press>
+                    {previewCard.toggle && <MiniToggle on={previewCard.on} onToggle={() => flip(previewCard.id)} />}
+                  </div>
+                  <div className="flex flex-col items-center pt-2 pb-5 gap-3">
+                    <span className="size-[84px] rounded-[26px] bg-[#f3f3f3] flex items-center justify-center">
+                      <previewCard.Icon size={38} color={previewCard.toggle && !previewCard.on ? TEXT_2 : TEXT} />
+                    </span>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[19px] font-semibold tracking-[-0.38px]" style={{ color: TEXT }}>
+                        {previewCard.name}
+                      </span>
+                      <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: previewCard.toggle && previewCard.on ? ACCENT : TEXT_2 }}>
+                        {previewCard.toggle ? (previewCard.on ? L.on : L.off) : previewCard.value}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </>
   );
 }
@@ -999,6 +1398,8 @@ const ORDER: Step[] = ['welcome', 'name', 'users', 'invite', 'location', 'floors
 
 export default function OnboardingV2Page() {
   const [step, setStep] = useState<Step>('welcome');
+  const [lang, setLang] = useState<Lang>('en');
+  const L = STR[lang];
   const [homeName, setHomeName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -1017,7 +1418,13 @@ export default function OnboardingV2Page() {
   const [nameFocused, setNameFocused] = useState(false);
   const [credFocused, setCredFocused] = useState(false);
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
+  const [a11yMenuOpen, setA11yMenuOpen] = useState(false);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
+  // Touch devices get the choreographed focus: artwork settles into its
+  // keyboard framing first, THEN the field focuses and the keyboard rises.
+  const [coarse] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches,
+  );
 
   // On iOS the keyboard doesn't shrink a fixed layout — the browser pans the
   // page instead, shoving the artwork out of view. Sizing the column from the
@@ -1158,17 +1565,18 @@ export default function OnboardingV2Page() {
     );
   };
 
+  const inviteValid = /\S+@\S+\.\S+/.test(inviteDraft.trim());
   const submitInvite = () => {
-    const name = inviteDraft.trim();
-    if (!name) return;
-    addInvite(name);
+    const email = inviteDraft.trim();
+    if (!inviteValid) return;
+    addInvite(email);
     setInviteDraft('');
-    showToast(`Invite sent — ${name}'s key was added to the ring`);
+    showToast(L.inviteToast(email));
   };
 
   // One example device per created area; six placeholders if none were made.
   const roomCount = booksByFloor.reduce((n, shelf) => n + shelf.length, 0);
-  const cards: Card[] = Array.from({ length: roomCount || 6 }, (_, i) => makeCard(i, 'seed'));
+  const cards: Card[] = Array.from({ length: roomCount || 6 }, (_, i) => makeCard(L, i, 'seed'));
 
   const next = () => {
     setDir(1);
@@ -1197,50 +1605,58 @@ export default function OnboardingV2Page() {
         // The welcome heading lives display-sized in the artboard instead.
         return { title: null };
       case 'name':
-        return { title: 'Name your home', sub: "It's written on the door. You can change it anytime." };
+        return { title: L.nameTitle, sub: L.nameSub };
       case 'users':
-        return { title: 'Your own key', sub: 'Your account unlocks this home — the password cuts your key.' };
+        return { title: L.usersTitle, sub: L.usersSub };
       case 'invite':
-        return { title: 'Invite your household', sub: 'Everyone gets their own key. You can also do this later.' };
+        return { title: L.inviteTitle, sub: L.inviteSub };
       case 'location':
-        return { title: 'Where is your home?', sub: 'Drag the map until your home sits under the marker.' };
+        return { title: L.locTitle, sub: L.locSub };
       case 'floors':
-        return { title: 'How many floors?', sub: 'Floors group your rooms which have your devices. Simple.' };
+        return { title: L.floorsTitle, sub: L.floorsSub };
       case 'areas':
         return {
           title: (
             <>
-              <span style={{ color: TEXT_2 }}>Areas on </span>
-              <span>{floorName(floorIndex).toLowerCase()}</span>
+              <span style={{ color: TEXT_2 }}>{L.areasOn}</span>
+              <span>{floorName(L, floorIndex).toLowerCase()}</span>
             </>
           ),
-          sub: 'Tap a shelf to hop between floors.',
+          sub: L.areasSub,
         };
       case 'permissions':
-        return { title: 'What leaves your home?', sub: 'Each one is an anonymous postcard to Home Assistant. All optional.' };
+        return { title: L.permTitle, sub: L.permSub };
       default:
         return { title: '' };
     }
   })();
 
-  const allAnalyticsOn = ANALYTICS.every((a) => prefs[a.key]);
+  const allAnalyticsOn = ANALYTIC_KEYS.every((k) => prefs[k]);
 
   const art = (() => {
     switch (step) {
       case 'welcome':
-        return <WelcomeArt homeName={homeName} />;
+        return <WelcomeArt homeName={homeName} L={L} />;
       case 'name':
         return (
           <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
-            {/* Focusing the field leans in on the door so the name is the star. */}
+            {/* Focusing the field leans in on the door. On touch the wrapper
+                instead settles to the keyboard framing BEFORE the keyboard
+                rises (see PillInput delayFocus) — no mid-animation size snap. */}
             <div
               className="transition-transform duration-500 ease-out"
               style={{
-                transform: nameFocused && !compact ? 'scale(1.6) translateY(19%)' : undefined,
-                transformOrigin: 'top center',
+                transform: nameFocused
+                  ? coarse || compact
+                    ? 'scale(0.62)'
+                    : 'scale(1.6) translateY(19%)'
+                  : compact
+                    ? 'scale(0.62)'
+                    : undefined,
+                transformOrigin: nameFocused && !(coarse || compact) ? 'top center' : 'center',
               }}
             >
-              <Door name={homeName} height={compact ? 190 : 310} swing={false} />
+              <Door name={homeName} height={310} swing={false} />
             </div>
           </div>
         );
@@ -1250,12 +1666,18 @@ export default function OnboardingV2Page() {
             {/* Focusing a credential turns the key horizontal, ready for its lock. */}
             <div
               className="transition-transform duration-500 ease-out"
-              style={{ transform: credFocused ? `rotate(-90deg) scale(${compact ? 0.62 : 0.9})` : undefined }}
+              style={{
+                transform: credFocused
+                  ? `rotate(-90deg) scale(${coarse || compact ? 0.62 : 0.9})`
+                  : compact
+                    ? 'scale(0.68)'
+                    : undefined,
+              }}
             >
               <Keychain
                 keys={[{ id: 'admin', cutSeed: password || 'password', styleSeed: username || 'admin', color: INK }]}
-                keyHeight={compact ? 76 : 110}
-                ringSize={compact ? 50 : 72}
+                keyHeight={110}
+                ringSize={72}
               />
             </div>
           </div>
@@ -1263,15 +1685,20 @@ export default function OnboardingV2Page() {
       case 'invite':
         return (
           <div className="flex-1 flex items-center justify-center min-h-0 relative overflow-hidden">
-            <Keychain
-              keys={[
-                { id: 'admin', cutSeed: password || 'password', styleSeed: username || 'admin', color: INK },
-                ...invited.map((name) => ({ id: `inv-${name}`, cutSeed: name, styleSeed: name, color: TEXT_2 })),
-              ]}
-              keyHeight={compact ? 76 : 110}
-              ringSize={compact ? 50 : 72}
-            />
-            {/* while a name is being typed, their key drifts toward the ring */}
+            <div
+              className="transition-transform duration-500 ease-out"
+              style={{ transform: compact ? 'scale(0.68)' : undefined }}
+            >
+              <Keychain
+                keys={[
+                  { id: 'admin', cutSeed: password || 'password', styleSeed: username || 'admin', color: INK },
+                  ...invited.map((email) => ({ id: `inv-${email}`, cutSeed: email, styleSeed: email, color: TEXT_2 })),
+                ]}
+                keyHeight={110}
+                ringSize={72}
+              />
+            </div>
+            {/* while an email is being typed, their key drifts toward the ring */}
             <AnimatePresence>
               {inviteDraft.trim() && (
                 <motion.div
@@ -1311,7 +1738,7 @@ export default function OnboardingV2Page() {
                 )}
               </div>
               <span className="text-[14px] font-semibold tracking-[-0.28px] py-1" style={{ color: TEXT_DIM }}>
-                {mapActive ? 'Drag until your home sits under the marker' : 'Tap to place your home'}
+                {mapActive ? L.dragHome : L.tapPlace}
               </span>
             </div>
           </div>
@@ -1319,11 +1746,11 @@ export default function OnboardingV2Page() {
       case 'floors':
         return (
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-end">
-            <ShelfStack floors={floors} booksByFloor={[]} focusIndex={null} />
+            <ShelfStack L={L} floors={floors} booksByFloor={[]} focusIndex={null} />
           </div>
         );
       case 'areas':
-        return <AreasArt floors={floors} booksByFloor={booksByFloor} floorIndex={floorIndex} onSelectFloor={selectFloor} />;
+        return <AreasArt L={L} floors={floors} booksByFloor={booksByFloor} floorIndex={floorIndex} onSelectFloor={selectFloor} />;
       case 'permissions':
         return <MailboxArt prefs={prefs} />;
       default:
@@ -1334,18 +1761,19 @@ export default function OnboardingV2Page() {
   const sheet = (() => {
     switch (step) {
       case 'welcome':
-        return <CtaButton label="Let’s begin" onClick={next} />;
+        return <CtaButton label={L.begin} onClick={next} />;
       case 'name':
         return (
           <>
             <PillInput
               value={homeName}
               onChange={setHomeName}
-              placeholder="My Home"
+              placeholder={L.namePh}
+              delayFocus={coarse}
               onFocus={() => setNameFocused(true)}
               onBlur={() => setNameFocused(false)}
             />
-            <CtaButton label="Continue" onClick={next} arrow disabled={!homeName.trim()} />
+            <CtaButton label={L.cont} onClick={next} arrow disabled={!homeName.trim()} />
           </>
         );
       case 'users':
@@ -1354,19 +1782,21 @@ export default function OnboardingV2Page() {
             <PillInput
               value={username}
               onChange={setUsername}
-              placeholder="Username"
+              placeholder={L.userPh}
+              delayFocus={coarse}
               onFocus={() => setCredFocused(true)}
               onBlur={() => setCredFocused(false)}
             />
             <PillInput
               value={password}
               onChange={setPassword}
-              placeholder="Password"
+              placeholder={L.passPh}
               secret
+              delayFocus={coarse}
               onFocus={() => setCredFocused(true)}
               onBlur={() => setCredFocused(false)}
             />
-            <CtaButton label="Continue" onClick={next} arrow disabled={!username.trim() || !password} />
+            <CtaButton label={L.cont} onClick={next} arrow disabled={!username.trim() || !password} />
           </>
         );
       case 'invite':
@@ -1374,10 +1804,13 @@ export default function OnboardingV2Page() {
           <>
             <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] p-2 pl-5 flex items-center justify-between gap-2">
               <input
+                type="email"
+                inputMode="email"
+                autoCapitalize="off"
                 value={inviteDraft}
                 onChange={(e) => setInviteDraft(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && submitInvite()}
-                placeholder="Invite someone by name"
+                placeholder={L.invitePh}
                 className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
                 style={{ color: TEXT }}
               />
@@ -1394,14 +1827,14 @@ export default function OnboardingV2Page() {
                 aria-label="Send invite"
                 onClick={submitInvite}
                 className="size-[40px] rounded-full flex items-center justify-center shrink-0"
-                style={{ background: inviteDraft.trim() ? ACCENT : '#ffffff', color: inviteDraft.trim() ? '#fff' : TEXT_2 }}
+                style={{ background: inviteValid ? ACCENT : '#ffffff', color: inviteValid ? '#fff' : TEXT_2 }}
               >
                 <IconUserPlus size={20} />
               </Press>
             </div>
-            <CtaButton label="Continue" onClick={next} arrow disabled={invited.length === 0} />
+            <CtaButton label={L.cont} onClick={next} arrow disabled={invited.length === 0} />
             <Press onClick={next} className="obv2-cta mx-auto px-4 py-1 text-[15px] font-semibold tracking-[-0.3px]">
-              <span style={{ color: TEXT_2 }}>Skip for now</span>
+              <span style={{ color: TEXT_2 }}>{L.skip}</span>
             </Press>
           </>
         );
@@ -1411,28 +1844,25 @@ export default function OnboardingV2Page() {
             <Press onClick={locateMe} className="w-full min-h-[52px] rounded-full bg-[#f3f3f3] flex items-center justify-center gap-2">
               <IconCurrentLocation size={20} color={TEXT_2} />
               <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT_2 }}>
-                {locating ? 'Finding you…' : 'Use my location'}
+                {locating ? L.locating : L.locate}
               </span>
             </Press>
-            <CtaButton label="Continue" onClick={next} arrow />
+            <CtaButton label={L.cont} onClick={next} arrow />
           </>
         );
       case 'floors':
         return (
           <>
-            <AnimatePresence>
-              {floors === MAX_FLOORS && (
-                <motion.p
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  className="text-center text-[14px] font-semibold tracking-[-0.28px]"
-                  style={{ color: TEXT_2 }}
-                >
-                  🏰 That&apos;s not a house, that&apos;s a castle!
-                </motion.p>
-              )}
-            </AnimatePresence>
+            {/* every floor count gets its quip; it says its line and bows out */}
+            <div className="min-h-[24px] flex items-center justify-center overflow-hidden">
+              <span
+                key={`${floors}-${lang}`}
+                className="text-center text-[14px] font-semibold tracking-[-0.28px]"
+                style={{ color: TEXT_2, animation: 'obv2-quip 3.4s ease forwards' }}
+              >
+                {L.quips[floors - 1]}
+              </span>
+            </div>
             <div className="w-full bg-[#f3f3f3] rounded-full min-h-[64px] p-2 flex items-center justify-between">
               <Press
                 aria-label="Fewer floors"
@@ -1460,12 +1890,13 @@ export default function OnboardingV2Page() {
                 <IconPlus size={22} color="white" />
               </Press>
             </div>
-            <CtaButton label="Continue" onClick={next} arrow />
+            <CtaButton label={L.cont} onClick={next} arrow />
           </>
         );
       case 'areas':
         return (
           <AreasSheet
+            L={L}
             floorIndex={floorIndex}
             booksByFloor={booksByFloor}
             toggleRoom={toggleRoom}
@@ -1477,7 +1908,7 @@ export default function OnboardingV2Page() {
       case 'permissions':
         return (
           <>
-            {ANALYTICS.map(({ key, label, desc }) => (
+            {L.analytics.map(({ key, label, desc }) => (
               <div key={key} className="flex items-center justify-between gap-3 px-3 py-1.5">
                 <div className="flex flex-col min-w-0">
                   <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT }}>
@@ -1503,10 +1934,10 @@ export default function OnboardingV2Page() {
                   <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-[16px]" style={{ background: '#eef6f9' }}>
                     <div className="flex flex-col min-w-0">
                       <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT }}>
-                        Say thanks 💌
+                        {L.thanksTitle}
                       </span>
                       <span className="text-[13px] tracking-[-0.26px]" style={{ color: TEXT_2 }}>
-                        Send a thank-you note to the Open Home Foundation
+                        {L.thanksDesc}
                       </span>
                     </div>
                     <MiniToggle on={!!prefs.thanks} onToggle={() => setPrefs({ ...prefs, thanks: !prefs.thanks })} />
@@ -1514,7 +1945,7 @@ export default function OnboardingV2Page() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <CtaButton label="Finish" onClick={next} />
+            <CtaButton label={L.finish} onClick={next} />
           </>
         );
       default:
@@ -1538,18 +1969,19 @@ export default function OnboardingV2Page() {
         html, body { background: ${SURFACE}; }
         [data-squircle="on"] .onboarding-v2, [data-squircle="on"] .onboarding-v2 * { corner-shape: round; }
         .obv2-hide-cta .obv2-cta { display: none; }
-        @keyframes obv2-door { 0%, 70% { transform: rotateY(0deg); } 80%, 88% { transform: rotateY(-26deg); } 96%, 100% { transform: rotateY(0deg); } }
+        @keyframes obv2-door { 0%, 78% { transform: rotateY(0deg); } 85%, 90% { transform: rotateY(-11deg); } 96%, 100% { transform: rotateY(0deg); } }
         @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
         @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         @keyframes obv2-door-once { 0% { transform: rotateY(0deg); } 45% { transform: rotateY(-34deg); } 100% { transform: rotateY(0deg); } }
         @keyframes obv2-jingle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-11deg); } 55% { transform: rotate(8deg); } 80% { transform: rotate(-4deg); } }
         @keyframes obv2-pop { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.14); } }
         @keyframes obv2-pulse { 0% { transform: scale(0.25); opacity: 0.9; } 100% { transform: scale(1.4); opacity: 0; } }
+        @keyframes obv2-quip { 0% { opacity: 0; transform: translateY(6px); } 8%, 78% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
       `}</style>
       <div className="mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
-          <div className="h-full flex flex-col gap-3 px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+6px)]">
-            <DashboardStep homeName={homeName} initialCards={cards} onBack={back} />
+          <div className="relative h-full flex flex-col gap-3 px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+6px)]">
+            <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} L={L} onBack={back} />
           </div>
         ) : (
           <div className="h-full flex flex-col">
@@ -1562,7 +1994,7 @@ export default function OnboardingV2Page() {
                     className="min-h-[44px] px-4 rounded-full bg-[#f3f3f3] flex items-center gap-1 shrink-0"
                   >
                     <span className="text-[15px] font-semibold tracking-[-0.3px]" style={{ color: TEXT_2 }}>
-                      Custom
+                      {L.custom}
                     </span>
                     <IconChevronDown
                       size={17}
@@ -1596,17 +2028,30 @@ export default function OnboardingV2Page() {
                     )}
                   </AnimatePresence>
                 </div>
-                <Press
-                  aria-label="Accessibility options"
-                  className="size-[44px] rounded-full bg-[#f3f3f3] flex items-center justify-center shrink-0"
-                >
-                  <IconAccessible size={24} color={TEXT_2} />
-                </Press>
+                <div className="flex items-center gap-2 shrink-0">
+                  {step === 'welcome' && (
+                    <Press
+                      aria-label="Switch language"
+                      onClick={() => setLang((l) => (l === 'en' ? 'pl' : 'en'))}
+                      className="size-[44px] rounded-full bg-[#f3f3f3] flex items-center justify-center text-[20px] leading-none"
+                    >
+                      {L.flag}
+                    </Press>
+                  )}
+                  <Press
+                    aria-label="Accessibility options"
+                    onClick={() => setA11yMenuOpen((v) => !v)}
+                    className="size-[44px] rounded-full bg-[#f3f3f3] flex items-center justify-center"
+                  >
+                    <IconAccessible size={24} color={TEXT_2} />
+                  </Press>
+                </div>
+                <PopMenu align="right" open={a11yMenuOpen} onPick={() => setA11yMenuOpen(false)} items={L.a11yMenu} />
                 {step === 'welcome' && (
                   <PopMenu
                     open={welcomeMenuOpen}
                     onPick={() => setWelcomeMenuOpen(false)}
-                    items={['Restore from a backup', 'Migrate from another system', 'Learn about Home Assistant']}
+                    items={L.customMenu}
                   />
                 )}
               </div>
@@ -1672,10 +2117,12 @@ export default function OnboardingV2Page() {
             {/* static bottom sheet — its contents crossfade per step. The
                 gradient scrim above it pushes the artwork into the background. */}
             <div className="relative">
+              {/* runs on past the sheet's top edge so the rounded corners
+                  don't notch a hard stop into the gradient */}
               <div
                 aria-hidden
-                className="absolute -top-20 inset-x-0 h-20 pointer-events-none"
-                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10), transparent)' }}
+                className="absolute -top-20 inset-x-0 h-[116px] pointer-events-none"
+                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10) 36px, transparent)' }}
               />
             <div
               className={clsx(
