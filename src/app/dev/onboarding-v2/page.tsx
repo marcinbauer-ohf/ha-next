@@ -42,6 +42,7 @@ import {
   IconUser,
   IconWashMachine,
   IconLamp,
+  IconMapPin,
   type Icon as TablerIcon,
 } from '@tabler/icons-react';
 
@@ -266,8 +267,12 @@ function CtaButton({ label, onClick, arrow = false }: { label: string; onClick: 
 }
 
 // ── Steps ────────────────────────────────────────────────────────────────────
-function WelcomeStep({ onNext }: { onNext: () => void }) {
-  // A decorative preview of the shelf metaphor, pre-populated and tipped.
+/**
+ * The welcome scene sketches the whole flow: the door is the home (its line is
+ * the home title the user sets up first), the framed pin is the location map,
+ * and the shelf of books is a floor with its areas.
+ */
+function WelcomeArt() {
   const teaser = useMemo<Book[]>(
     () => [
       { id: 't1', room: '', w: 20, h: 62, tone: '#ffffff', lean: 0 },
@@ -278,12 +283,54 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
     [],
   );
   return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-8 min-h-0">
+      {/* framer's repeat animations stall under the step's AnimatePresence
+          variants parent, so the idle motion here is plain CSS keyframes. */}
+      <style>{`
+        @keyframes obv2-door { 0%, 22% { transform: rotateY(0deg); } 42%, 68% { transform: rotateY(-34deg); } 88%, 100% { transform: rotateY(0deg); } }
+        @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+        @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+      `}</style>
+      <div className="flex items-center gap-6">
+        {/* Framed map with a pin — the location step */}
+        <div
+          className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)] -mt-24"
+          style={{ animation: 'obv2-sway 7s ease-in-out infinite' }}
+        >
+          <div className="w-[72px] h-[84px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
+            <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
+              <IconMapPin size={28} color={ACCENT} />
+            </span>
+          </div>
+        </div>
+        {/* The door — it's a home; it idly swings open and shut */}
+        <div className="relative" style={{ perspective: 700 }}>
+          <div className="absolute inset-0 rounded-[18px] bg-[#d8d8d8]" />
+          <div
+            className="relative w-[150px] h-[280px] rounded-[18px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+            style={{ transformOrigin: 'left center', animation: 'obv2-door 6.5s ease-in-out infinite' }}
+          >
+            {/* the home title, set up first */}
+            <div className="absolute top-[62px] left-1/2 -translate-x-1/2 w-[64px] h-[10px] rounded-full bg-[#e6e6e6]" />
+            {/* knob */}
+            <div className="absolute right-[14px] top-1/2 -translate-y-1/2 size-[14px] rounded-full bg-[#e6e6e6]" />
+          </div>
+        </div>
+      </div>
+      {/* A floor holding its areas */}
+      <div className="w-[264px]">
+        <Shelf label="" books={teaser} dimmed={false} showHeadroom />
+      </div>
+    </div>
+  );
+}
+
+function WelcomeStep({ onNext }: { onNext: () => void }) {
+  return (
     <>
       <HeaderBar />
       <Title sub="A few easy questions, nothing is permanent">Welcome home</Title>
-      <div className="flex-1 flex flex-col justify-center px-6">
-        <Shelf label="" books={teaser} dimmed={false} showHeadroom />
-      </div>
+      <WelcomeArt />
       <CtaButton label="Let’s begin" onClick={onNext} />
     </>
   );
@@ -603,7 +650,11 @@ export default function OnboardingV2Page() {
   );
   const fallbackCards: Card[] = Array.from({ length: 6 }, (_, i) => ({ id: `ph-${i}`, name: 'Name', value: 'Value' }));
 
+  // +1 = forward, -1 = back; steers which side steps slide in from and out to.
+  const [dir, setDir] = useState(1);
+
   const next = () => {
+    setDir(1);
     if (step === 'welcome') setStep('floors');
     else if (step === 'floors') {
       setFloorIndex(0);
@@ -614,6 +665,7 @@ export default function OnboardingV2Page() {
     }
   };
   const back = () => {
+    setDir(-1);
     if (step === 'floors') setStep('welcome');
     else if (step === 'areas') {
       if (floorIndex > 0) setFloorIndex(floorIndex - 1);
@@ -633,12 +685,18 @@ export default function OnboardingV2Page() {
           pill rounding here, so opt this subtree back out. */}
       <style>{`[data-squircle="on"] .onboarding-v2, [data-squircle="on"] .onboarding-v2 * { corner-shape: round; }`}</style>
       <div className="mx-auto max-w-[430px] h-full">
-        <AnimatePresence mode="popLayout" initial={false}>
+        <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <motion.div
             key={stepKey}
-            initial={{ opacity: 0, x: 32 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -32 }}
+            custom={dir}
+            variants={{
+              enter: (d: number) => ({ opacity: 0, x: 32 * d }),
+              center: { opacity: 1, x: 0 },
+              exit: (d: number) => ({ opacity: 0, x: -32 * d }),
+            }}
+            initial="enter"
+            animate="center"
+            exit="exit"
             transition={{ type: 'spring', stiffness: 380, damping: 34 }}
             className="h-full flex flex-col gap-3 px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+16px)]"
           >
