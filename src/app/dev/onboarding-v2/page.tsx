@@ -283,7 +283,7 @@ function WelcomeArt() {
     [],
   );
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-8 min-h-0">
+    <div className="flex-1 flex flex-col items-center justify-center min-h-0">
       {/* framer's repeat animations stall under the step's AnimatePresence
           variants parent, so the idle motion here is plain CSS keyframes. */}
       <style>{`
@@ -291,35 +291,51 @@ function WelcomeArt() {
         @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
         @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
       `}</style>
-      <div className="flex items-center gap-6">
-        {/* Framed map with a pin — the location step */}
+      {/* Figma composition: one centered column — the door with the shelf bar
+          right below it; the map frame hangs on the wall beside the door. */}
+      <div className="relative">
         <div
-          className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)] -mt-24"
+          className="absolute -left-[96px] top-[38px] bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
           style={{ animation: 'obv2-sway 7s ease-in-out infinite' }}
         >
-          <div className="w-[72px] h-[84px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
+          <div className="w-[64px] h-[76px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
             <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
-              <IconMapPin size={28} color={ACCENT} />
+              <IconMapPin size={26} color={ACCENT} />
             </span>
           </div>
         </div>
         {/* The door — it's a home; it idly swings open and shut */}
         <div className="relative" style={{ perspective: 700 }}>
-          <div className="absolute inset-0 rounded-[18px] bg-[#d8d8d8]" />
+          <div className="absolute inset-0 rounded-[24px] bg-[#d8d8d8]" />
           <div
-            className="relative w-[150px] h-[280px] rounded-[18px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
+            className="relative w-[174px] h-[345px] rounded-[24px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
             style={{ transformOrigin: 'left center', animation: 'obv2-door 6.5s ease-in-out infinite' }}
           >
             {/* the home title, set up first */}
-            <div className="absolute top-[62px] left-1/2 -translate-x-1/2 w-[64px] h-[10px] rounded-full bg-[#e6e6e6]" />
+            <div className="absolute top-[72px] left-1/2 -translate-x-1/2 w-[72px] h-[10px] rounded-full bg-[#e6e6e6]" />
             {/* knob */}
-            <div className="absolute right-[14px] top-1/2 -translate-y-1/2 size-[14px] rounded-full bg-[#e6e6e6]" />
+            <div className="absolute right-[16px] top-[54%] size-[14px] rounded-full bg-[#e6e6e6]" />
           </div>
         </div>
-      </div>
-      {/* A floor holding its areas */}
-      <div className="w-[264px]">
-        <Shelf label="" books={teaser} dimmed={false} showHeadroom />
+        {/* The shelf bar below the door — a floor holding its area books */}
+        <div className="relative mt-[19px]">
+          <div className="absolute bottom-[30px] left-[16px] flex items-end gap-[3px]">
+            {teaser.map((b) => (
+              <div
+                key={b.id}
+                className="rounded-[5px] shadow-[0_2px_4px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)]"
+                style={{
+                  width: Math.round(b.w * 0.75),
+                  height: Math.round(b.h * 0.6),
+                  background: b.tone,
+                  transform: `rotate(${b.lean}deg)`,
+                  transformOrigin: b.lean < 0 ? 'bottom left' : 'bottom right',
+                }}
+              />
+            ))}
+          </div>
+          <div className="w-[174px] h-[39px] rounded-full bg-white" />
+        </div>
       </div>
     </div>
   );
