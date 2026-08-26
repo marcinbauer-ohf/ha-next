@@ -43,6 +43,13 @@ import {
   IconWashMachine,
   IconLamp,
   IconMapPin,
+  IconBulb,
+  IconChevronDown,
+  IconPlug,
+  IconDeviceTv,
+  IconDroplet,
+  IconLock,
+  IconThermometer,
   type Icon as TablerIcon,
 } from '@tabler/icons-react';
 
@@ -78,6 +85,7 @@ const ROOMS: { name: string; Icon: TablerIcon }[] = [
 interface Book {
   id: string;
   room: string;
+  Icon: TablerIcon;
   w: number;
   h: number;
   tone: string;
@@ -88,12 +96,13 @@ interface Book {
 const BOOK_TONES = ['#ffffff', '#fdfdfd', '#f8f8f8', '#ffffff', ACCENT];
 
 let bookSeq = 0;
-function makeBook(room: string): Book {
+function makeBook(room: string, Icon: TablerIcon): Book {
   return {
     id: `book-${bookSeq++}`,
     room,
-    w: 16 + Math.round(Math.random() * 10),
-    h: 46 + Math.round(Math.random() * 26),
+    Icon,
+    w: 30 + Math.round(Math.random() * 12),
+    h: 62 + Math.round(Math.random() * 28),
     tone: BOOK_TONES[Math.floor(Math.random() * BOOK_TONES.length)],
     lean: Math.random() < 0.3 ? (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 8) : 0,
   };
@@ -153,7 +162,7 @@ function Shelf({
       className="w-full flex flex-col"
     >
       {(showHeadroom || books.length > 0) && (
-        <div className="flex items-end justify-center gap-[3px] min-h-[84px] px-6">
+        <div className="flex items-end justify-center gap-[3px] min-h-[100px] px-6">
           <AnimatePresence>
             {books.map((book) => (
               <motion.div
@@ -170,8 +179,10 @@ function Shelf({
                   background: book.tone,
                   transformOrigin: book.lean < 0 ? 'bottom left' : 'bottom right',
                 }}
-                className="rounded-[6px] shrink-0 shadow-[0_2px_4px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)]"
-              />
+                className="rounded-[6px] shrink-0 shadow-[0_2px_4px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)] flex flex-col items-center pt-[7px]"
+              >
+                <book.Icon size={18} color={book.tone === ACCENT ? '#ffffff' : TEXT_2} stroke={1.75} />
+              </motion.div>
             ))}
           </AnimatePresence>
         </div>
@@ -198,7 +209,7 @@ function ShelfStack({
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
-    <div className="w-full h-full flex flex-col justify-end gap-3 pb-2">
+    <div className="w-full h-full flex flex-col justify-end gap-3 pb-9">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -230,7 +241,7 @@ function Title({ children, sub }: { children: React.ReactNode; sub?: string }) {
   );
 }
 
-function HeaderBar({ onBack }: { onBack?: () => void }) {
+function HeaderBar({ onBack, left }: { onBack?: () => void; left?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between w-full min-h-[44px]">
       {onBack ? (
@@ -242,12 +253,52 @@ function HeaderBar({ onBack }: { onBack?: () => void }) {
           <IconChevronLeft size={24} color={TEXT_2} />
         </Press>
       ) : (
-        <span />
+        (left ?? <span />)
       )}
       <Press aria-label="Accessibility options" className="size-[44px] rounded-full bg-[#f3f3f3] flex items-center justify-center">
         <IconAccessible size={24} color={TEXT_2} />
       </Press>
     </div>
+  );
+}
+
+function PopMenu({
+  open,
+  items,
+  onPick,
+  align = 'left',
+}: {
+  open: boolean;
+  items: string[];
+  onPick: () => void;
+  align?: 'left' | 'right';
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: -6, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -6, scale: 0.96 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+          className={clsx(
+            'absolute top-[52px] z-10 bg-white rounded-[20px] p-2 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col min-w-[220px]',
+            align === 'left' ? 'left-0' : 'right-0',
+          )}
+        >
+          {items.map((label) => (
+            <Press
+              key={label}
+              onClick={onPick}
+              className="text-left px-4 py-3 rounded-[14px] text-[15px] font-semibold tracking-[-0.3px] hover:bg-[#f3f3f3]"
+              style={{ color: TEXT }}
+            >
+              {label}
+            </Press>
+          ))}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 
@@ -275,10 +326,10 @@ function CtaButton({ label, onClick, arrow = false }: { label: string; onClick: 
 function WelcomeArt() {
   const teaser = useMemo<Book[]>(
     () => [
-      { id: 't1', room: '', w: 20, h: 62, tone: '#ffffff', lean: 0 },
-      { id: 't2', room: '', w: 24, h: 50, tone: ACCENT, lean: -10 },
-      { id: 't3', room: '', w: 17, h: 68, tone: '#fafafa', lean: 0 },
-      { id: 't4', room: '', w: 22, h: 44, tone: '#ffffff', lean: 9 },
+      { id: 't1', room: '', Icon: IconSofa, w: 20, h: 62, tone: '#ffffff', lean: 0 },
+      { id: 't2', room: '', Icon: IconToolsKitchen2, w: 24, h: 50, tone: ACCENT, lean: -10 },
+      { id: 't3', room: '', Icon: IconBed, w: 17, h: 68, tone: '#fafafa', lean: 0 },
+      { id: 't4', room: '', Icon: IconBath, w: 22, h: 44, tone: '#ffffff', lean: 9 },
     ],
     [],
   );
@@ -342,9 +393,33 @@ function WelcomeArt() {
 }
 
 function WelcomeStep({ onNext }: { onNext: () => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <>
-      <HeaderBar />
+      <div className="relative">
+        <HeaderBar
+          left={
+            <Press
+              onClick={() => setMenuOpen((v) => !v)}
+              className="min-h-[44px] px-4 rounded-full bg-[#f3f3f3] flex items-center gap-1"
+            >
+              <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT_2 }}>
+                Custom
+              </span>
+              <IconChevronDown
+                size={18}
+                color={TEXT_2}
+                style={{ transform: menuOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }}
+              />
+            </Press>
+          }
+        />
+        <PopMenu
+          open={menuOpen}
+          onPick={() => setMenuOpen(false)}
+          items={['Restore from a backup', 'Migrate from another system', 'Learn about Home Assistant']}
+        />
+      </div>
       <Title sub="A few easy questions, nothing is permanent">Welcome home</Title>
       <WelcomeArt />
       <CtaButton label="Let’s begin" onClick={onNext} />
@@ -411,7 +486,7 @@ function AreasStep({
   floors: number;
   floorIndex: number;
   booksByFloor: Book[][];
-  toggleRoom: (room: string) => void;
+  toggleRoom: (room: string, Icon: TablerIcon) => void;
   addCustomRoom: (name: string) => void;
   customRooms: string[];
   onBack: () => void;
@@ -457,7 +532,7 @@ function AreasStep({
               return (
                 <Press
                   key={name}
-                  onClick={() => toggleRoom(name)}
+                  onClick={() => toggleRoom(name, Icon)}
                   className="flex items-center gap-2 p-2 pr-3 rounded-[12px]"
                   style={{ background: isOn ? ACCENT : '#ffffff', color: isOn ? '#ffffff' : INK }}
                 >
@@ -502,52 +577,72 @@ function AreasStep({
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
+const DEVICE_POOL: { Icon: TablerIcon; name: string; value?: string; toggle?: boolean }[] = [
+  { Icon: IconBulb, name: 'Ceiling light', toggle: true },
+  { Icon: IconThermometer, name: 'Thermostat', value: '21,5°' },
+  { Icon: IconPlug, name: 'Smart plug', toggle: true },
+  { Icon: IconDroplet, name: 'Humidity', value: '52%' },
+  { Icon: IconDeviceTv, name: 'TV', toggle: true },
+  { Icon: IconLock, name: 'Front door', value: 'Locked' },
+];
+
 interface Card {
   id: string;
   name: string;
-  value: string;
+  Icon: TablerIcon;
+  value?: string;
+  toggle?: boolean;
+  on: boolean;
+}
+
+function makeCard(i: number, idPrefix = 'card'): Card {
+  const d = DEVICE_POOL[i % DEVICE_POOL.length];
+  return { id: `${idPrefix}-${i}`, ...d, on: i % 3 !== 1 };
+}
+
+function MiniToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onToggle}
+      className="w-[42px] h-[26px] rounded-full p-[3px] transition-colors duration-200"
+      style={{ background: on ? ACCENT : '#e3e3e3' }}
+    >
+      <span
+        className="block size-[20px] rounded-full bg-white shadow-sm transition-transform duration-200"
+        style={{ transform: on ? 'translateX(16px)' : undefined }}
+      />
+    </button>
+  );
 }
 
 function DashboardStep({ initialCards, onBack }: { initialCards: Card[]; onBack: () => void }) {
   const [cards, setCards] = useState<Card[]>(initialCards);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const addCard = () =>
-    setCards((prev) => [...prev, { id: `card-${prev.length}-${Date.now()}`, name: 'Name', value: 'Value' }]);
+  const addCard = () => setCards((prev) => [...prev, makeCard(prev.length, `card-${Date.now()}`)]);
+  const flip = (id: string) => setCards((prev) => prev.map((c) => (c.id === id ? { ...c, on: !c.on } : c)));
 
   return (
     <>
       <div className="flex items-center justify-between w-full min-h-[44px] relative">
         <Press
           onClick={() => setMenuOpen((v) => !v)}
-          className="min-h-[44px] px-5 rounded-full bg-[#f2f2f2] flex items-center"
+          className="min-h-[44px] px-4 rounded-full bg-[#f2f2f2] flex items-center gap-2"
         >
+          <IconHome size={20} color="#707078" />
           <span className="text-[16px] font-semibold tracking-[-0.48px]" style={{ color: '#707078' }}>
             Home
           </span>
+          <IconChevronDown
+            size={18}
+            color="#707078"
+            style={{ transform: menuOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }}
+          />
         </Press>
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-              className="absolute left-0 top-[52px] z-10 bg-white rounded-[20px] p-2 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col min-w-[200px]"
-            >
-              {['Select a home', 'Edit home dashboard'].map((label) => (
-                <Press
-                  key={label}
-                  onClick={() => setMenuOpen(false)}
-                  className="text-left px-4 py-3 rounded-[14px] text-[15px] font-semibold tracking-[-0.3px] hover:bg-[#f3f3f3]"
-                  style={{ color: TEXT }}
-                >
-                  {label}
-                </Press>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <PopMenu open={menuOpen} onPick={() => setMenuOpen(false)} items={['Select a home', 'Edit home dashboard']} />
         <Press aria-label="Add to home" onClick={addCard} className="size-[44px] rounded-full flex items-center justify-center" style={{ background: ACCENT }}>
           <IconPlus size={22} color="white" />
         </Press>
@@ -563,17 +658,22 @@ function DashboardStep({ initialCards, onBack }: { initialCards: Card[]; onBack:
                 initial={{ opacity: 0, scale: 0.9, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-                className="bg-white rounded-[24px] p-2 flex flex-col gap-2"
+                className="relative bg-white rounded-[24px] p-2 flex flex-col gap-2"
               >
+                {card.toggle && (
+                  <span className="absolute top-[14px] right-[14px]">
+                    <MiniToggle on={card.on} onToggle={() => flip(card.id)} />
+                  </span>
+                )}
                 <div className="p-2 h-[54px] flex items-center">
-                  <IconHome size={24} color={TEXT} />
+                  <card.Icon size={24} color={card.toggle && !card.on ? TEXT_2 : TEXT} />
                 </div>
                 <div className="px-2 pb-2 flex flex-col">
                   <span className="text-[16px] font-semibold tracking-[-0.48px] truncate" style={{ color: TEXT }}>
                     {card.name}
                   </span>
                   <span className="text-[14px] font-semibold tracking-[-0.42px] truncate" style={{ color: TEXT_2 }}>
-                    {card.value}
+                    {card.toggle ? (card.on ? 'On' : 'Off') : card.value}
                   </span>
                 </div>
               </motion.div>
@@ -582,20 +682,20 @@ function DashboardStep({ initialCards, onBack }: { initialCards: Card[]; onBack:
         </div>
       </div>
 
-      {/* Bottom nav — visual only for now. */}
-      <div className="w-full rounded-full min-h-[54px] px-8 flex items-center justify-between" style={{ background: INK }}>
+      {/* Bottom nav — visual only for now, pinned to the bottom edge. */}
+      <div className="w-full mt-auto rounded-full min-h-[68px] px-8 flex items-center justify-between" style={{ background: INK }}>
         <Press aria-label="Home" onClick={onBack} className="p-2 text-white">
-          <IconHome size={24} />
+          <IconHome size={26} />
         </Press>
         <Press aria-label="Search" className="p-2 text-[#8a8a8a]">
-          <IconSearch size={24} />
+          <IconSearch size={26} />
         </Press>
         <Press aria-label="Activity" className="p-2 text-[#8a8a8a]">
-          <IconClockHour4 size={24} />
+          <IconClockHour4 size={26} />
         </Press>
         <Press aria-label="Profile" className="p-1">
-          <span className="size-[28px] rounded-full bg-white flex items-center justify-center">
-            <IconUser size={18} color={INK} />
+          <span className="size-[30px] rounded-full bg-white flex items-center justify-center">
+            <IconUser size={19} color={INK} />
           </span>
         </Press>
       </div>
@@ -614,14 +714,14 @@ export default function OnboardingV2Page() {
   const [customRooms, setCustomRooms] = useState<string[]>([]);
 
   const toggleRoom = useCallback(
-    (room: string) => {
+    (room: string, Icon: TablerIcon) => {
       setBooksByFloor((prev) => {
         const next = prev.map((f) => [...f]);
         while (next.length < floors) next.push([]);
         const shelf = next[floorIndex];
         const at = shelf.findIndex((b) => b.room === room);
         if (at >= 0) shelf.splice(at, 1);
-        else shelf.push(makeBook(room));
+        else shelf.push(makeBook(room, Icon));
         return next;
       });
     },
@@ -634,7 +734,7 @@ export default function OnboardingV2Page() {
       setBooksByFloor((prev) => {
         const next = prev.map((f) => [...f]);
         while (next.length < floors) next.push([]);
-        if (!next[floorIndex].some((b) => b.room === name)) next[floorIndex].push(makeBook(name));
+        if (!next[floorIndex].some((b) => b.room === name)) next[floorIndex].push(makeBook(name, IconDoor));
         return next;
       });
     },
@@ -661,10 +761,9 @@ export default function OnboardingV2Page() {
     return () => clearInterval(tick);
   }, [step, floorIndex]);
 
-  const cards: Card[] = booksByFloor.flatMap((shelf, i) =>
-    shelf.map((b) => ({ id: b.id, name: b.room, value: FLOOR_NAMES[i] })),
-  );
-  const fallbackCards: Card[] = Array.from({ length: 6 }, (_, i) => ({ id: `ph-${i}`, name: 'Name', value: 'Value' }));
+  // One example device per created area; six placeholders if none were made.
+  const roomCount = booksByFloor.reduce((n, shelf) => n + shelf.length, 0);
+  const cards: Card[] = Array.from({ length: roomCount || 6 }, (_, i) => makeCard(i, 'seed'));
 
   // +1 = forward, -1 = back; steers which side steps slide in from and out to.
   const [dir, setDir] = useState(1);
@@ -733,7 +832,7 @@ export default function OnboardingV2Page() {
               />
             )}
             {step === 'dashboard' && (
-              <DashboardStep initialCards={cards.length ? cards : fallbackCards} onBack={back} />
+              <DashboardStep initialCards={cards} onBack={back} />
             )}
           </motion.div>
         </AnimatePresence>
