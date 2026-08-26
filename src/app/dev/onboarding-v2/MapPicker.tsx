@@ -10,7 +10,7 @@
 import { useEffect } from 'react';
 import { MapContainer, TileLayer, useMap, useMapEvent } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { IconMapPin } from '@tabler/icons-react';
+import { IconHome } from '@tabler/icons-react';
 
 // OSM standard tiles — key-less; CARTO's free basemaps now watermark
 // "API KEY REQUIRED".
@@ -48,7 +48,7 @@ export default function MapPicker({
   onChange: (loc: LatLng) => void;
 }) {
   return (
-    <div className="relative w-full h-full overflow-hidden rounded-[24px]">
+    <div className="relative w-full h-full overflow-hidden">
       <MapContainer
         // No location yet: whole-world view so the first move is picking a
         // continent, not an arbitrary city pretending to be home.
@@ -62,12 +62,14 @@ export default function MapPicker({
         <Recenter center={center} />
         <ReportCentre onChange={onChange} />
       </MapContainer>
-      {/* Fixed centre pin. z-500 beats leaflet's panes (z 400); pointer-events
-          off so it never eats a pan that starts on it. Lifted half its height
-          so the TIP marks the centre. */}
+      {/* Fixed centre marker — the home badge from the dashboards. z-500 beats
+          leaflet's panes (z 400); pointer-events off so it never eats a pan. */}
       <div className="absolute inset-0 z-[500] flex items-center justify-center pointer-events-none">
-        <span className="-translate-y-1/2 drop-shadow-[0_2px_3px_rgba(0,0,0,0.3)]">
-          <IconMapPin size={40} color="#009ac7" fill="#ffffff" stroke={1.5} />
+        <span
+          className="flex size-[40px] rounded-full items-center justify-center border-[3px] border-white shadow-[0_2px_6px_rgba(0,0,0,0.3)]"
+          style={{ background: '#009ac7' }}
+        >
+          <IconHome size={20} color="#ffffff" />
         </span>
       </div>
     </div>

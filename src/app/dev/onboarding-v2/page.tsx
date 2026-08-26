@@ -73,6 +73,8 @@ const TEXT_DIM = '#989898';
 
 const FLOOR_NAMES = ['Ground floor', 'First floor', 'Second floor', 'Third floor', 'Fourth floor'];
 const MAX_FLOORS = FLOOR_NAMES.length;
+// Easter egg: whoever builds to the top of the stepper gets a tower.
+const floorName = (i: number) => (i === MAX_FLOORS - 1 ? 'The tower 🏰' : FLOOR_NAMES[i]);
 
 const ROOMS: { name: string; Icon: TablerIcon }[] = [
   { name: 'Living room', Icon: IconSofa },
@@ -114,7 +116,7 @@ function makeBook(room: string, Icon: TablerIcon): Book {
     w: 30 + Math.round(Math.random() * 12),
     h: 62 + Math.round(Math.random() * 28),
     tone: BOOK_TONES[Math.floor(Math.random() * BOOK_TONES.length)],
-    lean: Math.random() < 0.3 ? (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 8) : 0,
+    lean: Math.random() < 0.15 ? (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 8) : 0,
   };
 }
 
@@ -156,20 +158,26 @@ function Shelf({
   books,
   dimmed,
   showHeadroom,
+  index,
+  onSelect,
 }: {
   label: string;
   books: Book[];
   dimmed: boolean;
   showHeadroom: boolean;
+  index?: number;
+  onSelect?: () => void;
 }) {
   return (
     <motion.div
       layout
+      data-floor={index}
+      onClick={onSelect}
       initial={{ opacity: 0, y: 28, scale: 0.92 }}
       animate={{ opacity: dimmed ? 0.4 : 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 28, scale: 0.92 }}
       transition={{ type: 'spring', stiffness: 340, damping: 26 }}
-      className="w-full flex flex-col"
+      className={clsx('w-full flex flex-col', onSelect && 'cursor-pointer')}
     >
       {(showHeadroom || books.length > 0) && (
         <div className="flex items-end justify-center gap-[3px] min-h-[100px] px-6">
@@ -210,24 +218,29 @@ function ShelfStack({
   floors,
   booksByFloor,
   focusIndex,
+  onSelect,
 }: {
   floors: number;
   booksByFloor: Book[][];
   /** null = no floor focused (floors step); otherwise dims the other shelves. */
   focusIndex: number | null;
+  /** When set, tapping a shelf jumps to that floor. */
+  onSelect?: (i: number) => void;
 }) {
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
-    <div className="w-full h-full flex flex-col justify-end gap-3 pb-6">
+    <div className="w-full min-h-full flex flex-col justify-end gap-3 pb-6">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
             key={FLOOR_NAMES[i]}
-            label={FLOOR_NAMES[i]}
+            label={floorName(i)}
             books={booksByFloor[i] ?? []}
             dimmed={focusIndex !== null && i !== focusIndex}
             showHeadroom={focusIndex === i}
+            index={i}
+            onSelect={onSelect && i !== focusIndex ? () => onSelect(i) : undefined}
           />
         ))}
       </AnimatePresence>
@@ -356,11 +369,15 @@ function PillInput({
   onChange,
   placeholder,
   type = 'text',
+  onFocus,
+  onBlur,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   type?: string;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }) {
   return (
     <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] px-5 flex items-center">
@@ -368,6 +385,8 @@ function PillInput({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={onFocus}
+        onBlur={onBlur}
         placeholder={placeholder}
         className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
         style={{ color: TEXT }}
@@ -440,19 +459,38 @@ function Keychain({
 }
 
 // ── The door: the home itself, its name written on it ───────────────────────
-function Door({ name, height = 345, swing = true }: { name?: string; height?: number; swing?: boolean }) {
+function Door({
+  name,
+  height = 345,
+  swing = true,
+  poked = false,
+  onPokeEnd,
+}: {
+  name?: string;
+  height?: number;
+  swing?: boolean;
+  /** One-shot open/close on tap; onPokeEnd fires when the swing finishes. */
+  poked?: boolean;
+  onPokeEnd?: () => void;
+}) {
   const width = Math.round(height * 0.504);
+  const animation = poked
+    ? 'obv2-door-once 1.2s ease-in-out'
+    : swing
+      ? 'obv2-door 9s ease-in-out infinite'
+      : undefined;
   return (
     <div className="relative" style={{ perspective: 700 }}>
       {/* The doorway — hidden behind the door until it swings open. */}
       <div className="absolute inset-[3px] rounded-[24px] bg-[#dcdcdc]" />
       <div
         className="relative rounded-[24px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+        onAnimationEnd={poked ? onPokeEnd : undefined}
         style={{
           width,
           height,
           transformOrigin: 'left center',
-          animation: swing ? 'obv2-door 9s ease-in-out infinite' : undefined,
+          animation,
         }}
       >
         {/* the home name — the first thing the user sets up */}
@@ -498,39 +536,23 @@ function WelcomeArt({ homeName, userCount }: { homeName: string; userCount: numb
     seed: `home-${i}`,
     color: i === 0 ? INK : TEXT_2,
   }));
+  // Tap micro-interactions: one-shot animations that hand back to the idle
+  // sway when they finish. The doorbell actually toggles.
+  const [poke, setPoke] = useState<string | null>(null);
+  const [bellOn, setBellOn] = useState(true);
+  const endPoke = () => setPoke(null);
   return (
-    <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-      {/* Figma composition: one centered column — the door with the shelf bar
-          right below it. The flow's other objects hang on the wall around it:
-          map frame and data switch left, keychain right. */}
-      <div className="relative">
-        <div
-          className="absolute -left-[96px] top-[38px] bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
-          style={{ animation: 'obv2-sway 7s ease-in-out infinite' }}
-        >
-          <div className="w-[64px] h-[76px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
-            <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
-              <IconMapPin size={26} color={ACCENT} />
-            </span>
-          </div>
-        </div>
-        {/* the keychain — keys on a hook below the picture frame */}
-        <div className="absolute -left-[86px] top-[162px]" style={{ animation: 'obv2-sway 8s ease-in-out infinite' }}>
-          <Keychain keys={keys} keyHeight={54} ringSize={36} />
-        </div>
-        {/* the data-sharing switch — a doorbell beside the knob */}
-        <div
-          className="absolute -right-[62px] top-[172px] bg-white rounded-full p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
-          style={{ animation: 'obv2-sway 9s ease-in-out infinite' }}
-        >
-          <div className="w-[34px] h-[20px] rounded-full p-[2px]" style={{ background: ACCENT }}>
-            <span className="block size-[16px] rounded-full bg-white translate-x-[14px]" />
-          </div>
-        </div>
-        <Door name={homeName} />
-        {/* The shelf bar below the door — a floor holding its area books */}
+    <div className="flex-1 min-h-0 w-full relative">
+      {/* The door stands at the left, bleeding off the edge like you're
+          standing right in front of it; the wall items hang on the right. */}
+      <div
+        className="absolute -left-[64px] top-1/2 -translate-y-1/2 cursor-pointer"
+        onClick={() => setPoke('door')}
+      >
+        <Door name={homeName} poked={poke === 'door'} onPokeEnd={endPoke} />
+        {/* The mat below the door — a floor holding its area books */}
         <div className="relative mt-[19px]">
-          <div className="absolute bottom-[30px] left-[16px] flex items-end gap-[3px]">
+          <div className="absolute bottom-[30px] left-[84px] flex items-end gap-[3px]">
             {teaser.map((b) => (
               <div
                 key={b.id}
@@ -547,6 +569,52 @@ function WelcomeArt({ homeName, userCount }: { homeName: string; userCount: numb
           </div>
           <div className="w-[174px] h-[39px] rounded-full bg-white" />
         </div>
+      </div>
+      {/* wall items, hung in a column on the right */}
+      <div className="absolute right-[10px] top-1/2 -translate-y-1/2 flex flex-col items-center gap-8">
+        {/* the map in a small landscape photo frame */}
+        <div
+          className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)] cursor-pointer"
+          onClick={() => setPoke('frame')}
+          onAnimationEnd={poke === 'frame' ? endPoke : undefined}
+          style={{
+            animation: poke === 'frame' ? 'obv2-pop 0.7s ease' : 'obv2-sway 7s ease-in-out infinite',
+          }}
+        >
+          <div className="w-[80px] h-[58px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
+            <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
+              <IconMapPin size={24} color={ACCENT} />
+            </span>
+          </div>
+        </div>
+        {/* the keychain on its hook — tap to jingle */}
+        <div
+          className="cursor-pointer"
+          onClick={() => setPoke('keys')}
+          onAnimationEnd={poke === 'keys' ? endPoke : undefined}
+          style={{
+            transformOrigin: 'top center',
+            animation: poke === 'keys' ? 'obv2-jingle 0.8s ease' : 'obv2-sway 8s ease-in-out infinite',
+          }}
+        >
+          <Keychain keys={keys} keyHeight={54} ringSize={36} />
+        </div>
+        {/* the data-sharing doorbell — tap to flip it */}
+        <Press
+          aria-label="Data sharing"
+          onClick={() => setBellOn((v) => !v)}
+          className="bg-white rounded-full p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+        >
+          <div
+            className="w-[34px] h-[20px] rounded-full p-[2px] transition-colors duration-200"
+            style={{ background: bellOn ? ACCENT : '#e3e3e3' }}
+          >
+            <span
+              className="block size-[16px] rounded-full bg-white transition-transform duration-200"
+              style={{ transform: bellOn ? 'translateX(14px)' : undefined }}
+            />
+          </div>
+        </Press>
       </div>
     </div>
   );
@@ -609,29 +677,40 @@ function NameStep({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const [focused, setFocused] = useState(false);
   return (
     <>
       <HeaderBar onBack={onBack} />
       <Title sub="It's written on the door. You can change it anytime.">Name your home</Title>
-      <div className="flex-1 flex items-center justify-center min-h-0">
-        <Door name={homeName} height={300} swing={false} />
+      <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
+        {/* Focusing the field leans in on the door so the name is the star. */}
+        <div
+          className="transition-transform duration-500 ease-out"
+          style={{ transform: focused ? 'scale(1.45) translateY(24%)' : undefined, transformOrigin: 'top center' }}
+        >
+          <Door name={homeName} height={300} swing={false} />
+        </div>
       </div>
       <Sheet>
-        <PillInput value={homeName} onChange={setHomeName} placeholder="My Home" />
+        <PillInput
+          value={homeName}
+          onChange={setHomeName}
+          placeholder="My Home"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
         <CtaButton label="Continue" onClick={onNext} arrow disabled={!homeName.trim()} />
       </Sheet>
     </>
   );
 }
 
-// ── Who holds the keys: the admin account + invited people ──────────────────
+// ── Your own key: the admin account. The password cuts the key. ─────────────
 function UsersStep({
   username,
   setUsername,
   password,
   setPassword,
-  invited,
-  addInvite,
   onBack,
   onNext,
 }: {
@@ -639,14 +718,42 @@ function UsersStep({
   setUsername: (v: string) => void;
   password: string;
   setPassword: (v: string) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <>
+      <HeaderBar onBack={onBack} />
+      <Title sub="Your account unlocks this home — the password cuts your key.">Your own key</Title>
+      <div className="flex-1 flex items-center justify-center min-h-0">
+        <Keychain keys={[{ id: 'admin', seed: `${username}:${password}`, color: INK }]} keyHeight={110} ringSize={72} />
+      </div>
+      <Sheet>
+        <PillInput value={username} onChange={setUsername} placeholder="Username" />
+        <PillInput value={password} onChange={setPassword} type="password" placeholder="Password" />
+        <CtaButton label="Continue" onClick={onNext} arrow disabled={!username.trim() || !password} />
+      </Sheet>
+    </>
+  );
+}
+
+// ── Invite the household: more keys on the ring. Skippable. ─────────────────
+function InviteStep({
+  username,
+  password,
+  invited,
+  addInvite,
+  onBack,
+  onNext,
+}: {
+  username: string;
+  password: string;
   invited: string[];
   addInvite: (name: string) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
   const [inviteDraft, setInviteDraft] = useState('');
-  // The admin's key is cut by their credentials — retype the password and the
-  // notches change with it. Invited people get a key cut from their name.
   const keys = [
     { id: 'admin', seed: `${username}:${password}`, color: INK },
     ...invited.map((name) => ({ id: `inv-${name}`, seed: name, color: TEXT_2 })),
@@ -660,13 +767,11 @@ function UsersStep({
   return (
     <>
       <HeaderBar onBack={onBack} />
-      <Title sub="You're the first key. Invite the rest of the household anytime.">Who holds the keys?</Title>
+      <Title sub="Everyone gets their own key. You can also do this later.">Invite your household</Title>
       <div className="flex-1 flex items-center justify-center min-h-0">
         <Keychain keys={keys} keyHeight={110} ringSize={72} />
       </div>
       <Sheet>
-        <PillInput value={username} onChange={setUsername} placeholder="Username" />
-        <PillInput value={password} onChange={setPassword} type="password" placeholder="Password" />
         <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] p-2 pl-5 flex items-center justify-between gap-3">
           <input
             value={inviteDraft}
@@ -685,7 +790,10 @@ function UsersStep({
             <IconUserPlus size={20} />
           </Press>
         </div>
-        <CtaButton label="Continue" onClick={onNext} arrow disabled={!username.trim() || !password} />
+        <CtaButton label="Continue" onClick={onNext} arrow disabled={invited.length === 0} />
+        <Press onClick={onNext} className="mx-auto px-4 py-1 text-[15px] font-semibold tracking-[-0.3px]">
+          <span style={{ color: TEXT_2 }}>Skip for now</span>
+        </Press>
       </Sheet>
     </>
   );
@@ -730,25 +838,29 @@ function PlaceStep({
       <HeaderBar onBack={onBack} />
       <Title sub="Drag the map until the pin sits on your home.">Where is your home?</Title>
       <div className="flex-1 min-h-0 flex items-center justify-center py-2">
-        {mapActive ? (
-          <div className="w-full h-full max-h-[440px] rounded-[24px] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-            <MapPicker center={center} onChange={setLocation} />
+        {/* A landscape photo frame on the wall; focusing it develops the photo
+            into a real, draggable map. The home marker stays fixed dead-centre. */}
+        <div className="w-full max-w-[350px] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
+          <div className="w-full h-[230px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
+            {mapActive ? (
+              <MapPicker center={center} onChange={setLocation} />
+            ) : (
+              <Press onClick={() => setMapActive(true)} className="w-full h-full flex items-center justify-center">
+                <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
+                  <span
+                    className="flex size-[44px] rounded-full items-center justify-center border-[3px] border-white shadow-[0_2px_6px_rgba(0,0,0,0.2)]"
+                    style={{ background: ACCENT }}
+                  >
+                    <IconHome size={22} color="#ffffff" />
+                  </span>
+                </span>
+              </Press>
+            )}
           </div>
-        ) : (
-          <Press
-            onClick={() => setMapActive(true)}
-            className="bg-white rounded-[20px] p-3 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-3"
-          >
-            <div className="w-[160px] h-[190px] rounded-[14px] bg-[#edf3f5] flex items-center justify-center">
-              <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
-                <IconMapPin size={44} color={ACCENT} />
-              </span>
-            </div>
-            <span className="text-[15px] font-semibold tracking-[-0.3px] pb-1" style={{ color: TEXT_2 }}>
-              Tap to place your home
-            </span>
-          </Press>
-        )}
+          <span className="text-[14px] font-semibold tracking-[-0.28px] py-1" style={{ color: TEXT_DIM }}>
+            {mapActive ? 'Drag until your home sits under the marker' : 'Tap to place your home'}
+          </span>
+        </div>
       </div>
       <Sheet>
         <Press
@@ -786,22 +898,49 @@ function PermissionsStep({
   onNext: () => void;
 }) {
   const anyOn = Object.values(prefs).some(Boolean);
+  const enabled = ANALYTICS.filter((a) => prefs[a.key]);
   return (
     <>
       <HeaderBar onBack={onBack} />
-      <Title sub="Anonymous, optional, and off by default. Change it anytime.">Share data to help?</Title>
-      <div className="flex-1 flex items-center justify-center min-h-0">
-        {/* one big switch mirroring whether anything is shared */}
-        <div className="bg-white rounded-full p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-          <div
-            className="w-[96px] h-[56px] rounded-full p-[6px] transition-colors duration-300"
-            style={{ background: anyOn ? ACCENT : '#e3e3e3' }}
-          >
-            <span
-              className="block size-[44px] rounded-full bg-white shadow-sm transition-transform duration-300"
-              style={{ transform: anyOn ? 'translateX(40px)' : undefined }}
+      <Title sub="Each one is an anonymous postcard to Home Assistant. All optional.">What leaves your home?</Title>
+      <div className="flex-1 flex items-end justify-center min-h-0 pb-4">
+        {/* The mailbox: every shared category is a postcard in the outgoing
+            slot, and the flag goes up as soon as anything will be sent. */}
+        <div className="flex flex-col items-center">
+          <div className="relative w-[230px] h-[72px]">
+            <AnimatePresence>
+              {enabled.map((a, i) => (
+                <motion.div
+                  key={a.key}
+                  initial={{ y: 58, opacity: 0, rotate: 0 }}
+                  animate={{ y: 0, opacity: 1, rotate: (i - (enabled.length - 1) / 2) * 7 }}
+                  exit={{ y: 58, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+                  className="absolute bottom-[-8px] w-[62px] h-[48px] bg-white rounded-[6px] shadow-[0_2px_6px_rgba(0,0,0,0.1)]"
+                  style={{ left: 84 + (i - (enabled.length - 1) / 2) * 36, transformOrigin: 'bottom center' }}
+                >
+                  <span className="absolute top-[6px] right-[6px] size-[10px] rounded-[2px]" style={{ background: ACCENT }} />
+                  <span className="absolute left-[7px] top-[9px] w-[24px] h-[3px] rounded-full bg-[#e6e6e6]" />
+                  <span className="absolute left-[7px] top-[16px] w-[32px] h-[3px] rounded-full bg-[#e6e6e6]" />
+                  <span className="absolute left-[7px] top-[23px] w-[20px] h-[3px] rounded-full bg-[#e6e6e6]" />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+          {/* mailbox body with the slot and the flag */}
+          <div className="relative z-10 w-[190px] h-[100px] bg-white rounded-[26px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex items-center justify-center">
+            <div className="w-[110px] h-[10px] rounded-full bg-[#e6e6e6]" />
+            <div
+              className="absolute -right-[24px] top-[44px] w-[38px] h-[9px] rounded-full transition-all duration-300"
+              style={{
+                background: anyOn ? ACCENT : '#e3e3e3',
+                transformOrigin: 'left center',
+                transform: anyOn ? 'rotate(-75deg)' : 'rotate(0deg)',
+              }}
             />
           </div>
+          {/* the post it stands on */}
+          <div className="w-[14px] h-[44px] bg-white rounded-b-[7px] shadow-[0_2px_8px_rgba(0,0,0,0.06)]" />
         </div>
       </div>
       <Sheet>
@@ -843,11 +982,27 @@ function FloorsStep({
         <ShelfStack floors={floors} booksByFloor={[]} focusIndex={null} />
       </div>
       <Sheet>
+        <AnimatePresence>
+          {floors === MAX_FLOORS && (
+            <motion.p
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="text-center text-[14px] font-semibold tracking-[-0.28px]"
+              style={{ color: TEXT_2 }}
+            >
+              🏰 That&apos;s not a house, that&apos;s a castle!
+            </motion.p>
+          )}
+        </AnimatePresence>
         <div className="w-full bg-[#f3f3f3] rounded-full min-h-[64px] p-2 flex items-center justify-between">
           <Press
             aria-label="Fewer floors"
             onClick={() => setFloors(Math.max(1, floors - 1))}
-            className="size-[48px] rounded-full flex items-center justify-center"
+            className={clsx(
+              'size-[48px] rounded-full flex items-center justify-center transition-opacity',
+              floors <= 1 && 'opacity-30 pointer-events-none',
+            )}
             style={{ background: ACCENT }}
           >
             <IconMinus size={22} color="white" />
@@ -858,7 +1013,10 @@ function FloorsStep({
           <Press
             aria-label="More floors"
             onClick={() => setFloors(Math.min(MAX_FLOORS, floors + 1))}
-            className="size-[48px] rounded-full flex items-center justify-center"
+            className={clsx(
+              'size-[48px] rounded-full flex items-center justify-center transition-opacity',
+              floors >= MAX_FLOORS && 'opacity-30 pointer-events-none',
+            )}
             style={{ background: ACCENT }}
           >
             <IconPlus size={22} color="white" />
@@ -877,6 +1035,7 @@ function AreasStep({
   toggleRoom,
   addCustomRoom,
   customRooms,
+  onSelectFloor,
   onBack,
   onNext,
 }: {
@@ -886,6 +1045,7 @@ function AreasStep({
   toggleRoom: (room: string, Icon: TablerIcon) => void;
   addCustomRoom: (name: string) => void;
   customRooms: string[];
+  onSelectFloor: (i: number) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -893,11 +1053,19 @@ function AreasStep({
   const [draft, setDraft] = useState('');
   const railRef = useRef<HTMLDivElement>(null);
   const [railEnd, setRailEnd] = useState(false);
+  const [stackScrolled, setStackScrolled] = useState(false);
 
   const onRailScroll = useCallback(() => {
     const el = railRef.current;
     if (el) setRailEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 8);
   }, []);
+
+  // Keep the focused shelf in view when hopping floors via tap or Continue.
+  useEffect(() => {
+    document
+      .querySelector(`[data-floor="${floorIndex}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [floorIndex]);
 
   const submitCustom = () => {
     const name = draft.trim();
@@ -911,10 +1079,29 @@ function AreasStep({
       <HeaderBar onBack={onBack} />
       <Title>
         <span style={{ color: TEXT_2 }}>Areas on </span>
-        <span>{FLOOR_NAMES[floorIndex].toLowerCase()}</span>
+        <span>{floorName(floorIndex).toLowerCase()}</span>
       </Title>
-      <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-end">
-        <ShelfStack floors={floors} booksByFloor={booksByFloor} focusIndex={floorIndex} />
+      {/* The whole stack scrolls, and any shelf can be tapped to jump to it. */}
+      <div className="relative flex-1 min-h-0">
+        <div
+          className="h-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onScroll={(e) => setStackScrolled(e.currentTarget.scrollTop > 8)}
+        >
+          <ShelfStack
+            floors={floors}
+            booksByFloor={booksByFloor}
+            focusIndex={floorIndex}
+            onSelect={onSelectFloor}
+          />
+        </div>
+        <div
+          aria-hidden
+          className={clsx(
+            'absolute top-0 inset-x-0 h-10 pointer-events-none transition-opacity duration-200',
+            stackScrolled ? 'opacity-100' : 'opacity-0',
+          )}
+          style={{ background: `linear-gradient(to bottom, ${SURFACE}, transparent)` }}
+        />
       </div>
       <Sheet>
         {/* Three-row, horizontally scrollable chip rail with an end fade. */}
@@ -1109,8 +1296,17 @@ function DashboardStep({
 }
 
 // ── Flow ─────────────────────────────────────────────────────────────────────
-type Step = 'welcome' | 'name' | 'users' | 'location' | 'floors' | 'areas' | 'permissions' | 'dashboard';
-const ORDER: Step[] = ['welcome', 'name', 'users', 'location', 'floors', 'areas', 'permissions', 'dashboard'];
+type Step =
+  | 'welcome'
+  | 'name'
+  | 'users'
+  | 'invite'
+  | 'location'
+  | 'floors'
+  | 'areas'
+  | 'permissions'
+  | 'dashboard';
+const ORDER: Step[] = ['welcome', 'name', 'users', 'invite', 'location', 'floors', 'areas', 'permissions', 'dashboard'];
 
 export default function OnboardingV2Page() {
   const [step, setStep] = useState<Step>('welcome');
@@ -1158,15 +1354,27 @@ export default function OnboardingV2Page() {
     [floorIndex, floors],
   );
 
-  // Micro-interaction: every few seconds one standing book on the focused
-  // shelf randomly tips over. Only while picking areas.
+  // +1 = forward, -1 = back; steers which side steps slide in from and out to.
+  const [dir, setDir] = useState(1);
+
+  const selectFloor = useCallback(
+    (i: number) => {
+      setDir(i > floorIndex ? 1 : -1);
+      setFloorIndex(i);
+    },
+    [floorIndex],
+  );
+
+  // Micro-interaction: occasionally one standing book on the focused shelf
+  // tips over — rare, and never once a third of the shelf is already leaning.
   useEffect(() => {
     if (step !== 'areas') return;
     const tick = setInterval(() => {
       setBooksByFloor((prev) => {
         const shelf = prev[floorIndex] ?? [];
         const standing = shelf.filter((b) => b.lean === 0);
-        if (standing.length < 2 || Math.random() < 0.5) return prev;
+        const leaning = shelf.length - standing.length;
+        if (standing.length < 2 || leaning >= shelf.length / 3 || Math.random() < 0.65) return prev;
         const victim = standing[Math.floor(Math.random() * standing.length)];
         return prev.map((f, i) =>
           i === floorIndex
@@ -1174,16 +1382,13 @@ export default function OnboardingV2Page() {
             : f,
         );
       });
-    }, 3500);
+    }, 6000);
     return () => clearInterval(tick);
   }, [step, floorIndex]);
 
   // One example device per created area; six placeholders if none were made.
   const roomCount = booksByFloor.reduce((n, shelf) => n + shelf.length, 0);
   const cards: Card[] = Array.from({ length: roomCount || 6 }, (_, i) => makeCard(i, 'seed'));
-
-  // +1 = forward, -1 = back; steers which side steps slide in from and out to.
-  const [dir, setDir] = useState(1);
 
   const next = () => {
     setDir(1);
@@ -1221,6 +1426,9 @@ export default function OnboardingV2Page() {
         @keyframes obv2-door { 0%, 70% { transform: rotateY(0deg); } 80%, 88% { transform: rotateY(-26deg); } 96%, 100% { transform: rotateY(0deg); } }
         @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
         @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        @keyframes obv2-door-once { 0% { transform: rotateY(0deg); } 45% { transform: rotateY(-34deg); } 100% { transform: rotateY(0deg); } }
+        @keyframes obv2-jingle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-11deg); } 55% { transform: rotate(8deg); } 80% { transform: rotate(-4deg); } }
+        @keyframes obv2-pop { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.14); } }
       `}</style>
       <div className="mx-auto max-w-[430px] h-full">
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
@@ -1255,6 +1463,14 @@ export default function OnboardingV2Page() {
                 setUsername={setUsername}
                 password={password}
                 setPassword={setPassword}
+                onBack={back}
+                onNext={next}
+              />
+            )}
+            {step === 'invite' && (
+              <InviteStep
+                username={username}
+                password={password}
                 invited={invited}
                 addInvite={addInvite}
                 onBack={back}
@@ -1275,6 +1491,7 @@ export default function OnboardingV2Page() {
                 toggleRoom={toggleRoom}
                 addCustomRoom={addCustomRoom}
                 customRooms={customRooms}
+                onSelectFloor={selectFloor}
                 onBack={back}
                 onNext={next}
               />
