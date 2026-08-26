@@ -209,7 +209,7 @@ function ShelfStack({
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
-    <div className="w-full h-full flex flex-col justify-end gap-3 pb-9">
+    <div className="w-full h-full flex flex-col justify-end gap-3 pb-6">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -302,6 +302,16 @@ function PopMenu({
   );
 }
 
+/** White bottom sheet separating each step's controls from the artwork. */
+function Sheet({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="-mx-5 mt-1 bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[0_-10px_30px_rgba(0,0,0,0.06)] flex flex-col gap-2">
+      <div className="mx-auto w-[40px] h-[4px] rounded-full bg-[#e6e6e6] mb-1" />
+      {children}
+    </div>
+  );
+}
+
 function CtaButton({ label, onClick, arrow = false }: { label: string; onClick: () => void; arrow?: boolean }) {
   return (
     <Press
@@ -338,7 +348,7 @@ function WelcomeArt() {
       {/* framer's repeat animations stall under the step's AnimatePresence
           variants parent, so the idle motion here is plain CSS keyframes. */}
       <style>{`
-        @keyframes obv2-door { 0%, 22% { transform: rotateY(0deg); } 42%, 68% { transform: rotateY(-34deg); } 88%, 100% { transform: rotateY(0deg); } }
+        @keyframes obv2-door { 0%, 70% { transform: rotateY(0deg); } 80%, 88% { transform: rotateY(-26deg); } 96%, 100% { transform: rotateY(0deg); } }
         @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
         @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
       `}</style>
@@ -357,10 +367,11 @@ function WelcomeArt() {
         </div>
         {/* The door — it's a home; it idly swings open and shut */}
         <div className="relative" style={{ perspective: 700 }}>
-          <div className="absolute inset-0 rounded-[24px] bg-[#d8d8d8]" />
+          {/* The doorway — hidden behind the door until it swings open. */}
+          <div className="absolute inset-[3px] rounded-[24px] bg-[#dcdcdc]" />
           <div
-            className="relative w-[174px] h-[345px] rounded-[24px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
-            style={{ transformOrigin: 'left center', animation: 'obv2-door 6.5s ease-in-out infinite' }}
+            className="relative w-[174px] h-[345px] rounded-[24px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+            style={{ transformOrigin: 'left center', animation: 'obv2-door 9s ease-in-out infinite' }}
           >
             {/* the home title, set up first */}
             <div className="absolute top-[72px] left-1/2 -translate-x-1/2 w-[72px] h-[10px] rounded-full bg-[#e6e6e6]" />
@@ -422,7 +433,9 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
       </div>
       <Title sub="A few easy questions, nothing is permanent">Welcome home</Title>
       <WelcomeArt />
-      <CtaButton label="Let’s begin" onClick={onNext} />
+      <Sheet>
+        <CtaButton label="Let’s begin" onClick={onNext} />
+      </Sheet>
     </>
   );
 }
@@ -445,8 +458,8 @@ function FloorsStep({
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-end">
         <ShelfStack floors={floors} booksByFloor={[]} focusIndex={null} />
       </div>
-      <div className="flex flex-col gap-2">
-        <div className="w-full bg-white rounded-full min-h-[64px] p-2 flex items-center justify-between">
+      <Sheet>
+        <div className="w-full bg-[#f3f3f3] rounded-full min-h-[64px] p-2 flex items-center justify-between">
           <Press
             aria-label="Fewer floors"
             onClick={() => setFloors(Math.max(1, floors - 1))}
@@ -468,7 +481,7 @@ function FloorsStep({
           </Press>
         </div>
         <CtaButton label="Continue" onClick={onNext} arrow />
-      </div>
+      </Sheet>
     </>
   );
 }
@@ -519,7 +532,7 @@ function AreasStep({
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-end">
         <ShelfStack floors={floors} booksByFloor={booksByFloor} focusIndex={floorIndex} />
       </div>
-      <div className="flex flex-col gap-2 pt-3">
+      <Sheet>
         {/* Three-row, horizontally scrollable chip rail with an end fade. */}
         <div className="relative -mx-5">
           <div
@@ -534,7 +547,7 @@ function AreasStep({
                   key={name}
                   onClick={() => toggleRoom(name, Icon)}
                   className="flex items-center gap-2 p-2 pr-3 rounded-[12px]"
-                  style={{ background: isOn ? ACCENT : '#ffffff', color: isOn ? '#ffffff' : INK }}
+                  style={{ background: isOn ? ACCENT : '#f3f3f3', color: isOn ? '#ffffff' : INK }}
                 >
                   {isOn ? <IconCheck size={22} /> : <Icon size={22} />}
                   <span className="text-[14px] font-semibold tracking-[-0.28px] whitespace-nowrap">{name}</span>
@@ -548,11 +561,11 @@ function AreasStep({
               'absolute inset-y-0 right-0 w-14 pointer-events-none transition-opacity duration-200',
               railEnd ? 'opacity-0' : 'opacity-100',
             )}
-            style={{ background: `linear-gradient(to left, ${SURFACE}, transparent)` }}
+            style={{ background: 'linear-gradient(to left, #ffffff, transparent)' }}
           />
         </div>
         {/* Add a custom room */}
-        <div className="w-full bg-white rounded-full min-h-[60px] p-2 pl-5 flex items-center justify-between gap-3">
+        <div className="w-full bg-[#f3f3f3] rounded-full min-h-[60px] p-2 pl-5 flex items-center justify-between gap-3">
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -565,13 +578,13 @@ function AreasStep({
             aria-label="Add custom room"
             onClick={submitCustom}
             className="size-[44px] rounded-full flex items-center justify-center shrink-0"
-            style={{ background: draft.trim() ? ACCENT : '#f3f3f3', color: draft.trim() ? '#fff' : TEXT_2 }}
+            style={{ background: draft.trim() ? ACCENT : '#ffffff', color: draft.trim() ? '#fff' : TEXT_2 }}
           >
             <IconPlus size={22} />
           </Press>
         </div>
         <CtaButton label="Continue" onClick={onNext} arrow />
-      </div>
+      </Sheet>
     </>
   );
 }
@@ -813,7 +826,12 @@ export default function OnboardingV2Page() {
             animate="center"
             exit="exit"
             transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-            className="h-full flex flex-col gap-3 px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+16px)]"
+            className={clsx(
+              'h-full flex flex-col gap-3 px-5 pt-[calc(env(safe-area-inset-top)+12px)]',
+              // Onboarding steps end in a full-bleed Sheet that carries its own
+              // safe-area padding; only the dashboard needs the container's.
+              step === 'dashboard' && 'pb-[calc(env(safe-area-inset-bottom)+16px)]',
+            )}
           >
             {step === 'welcome' && <WelcomeStep onNext={next} />}
             {step === 'floors' && (
