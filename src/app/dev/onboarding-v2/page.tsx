@@ -1000,11 +1000,17 @@ export default function OnboardingV2Page() {
   // page instead, shoving the artwork out of view. Sizing the column from the
   // visual viewport makes the layout genuinely shrink above the keyboard, and
   // `compact` swaps the artwork to keyboard-sized proportions.
-  const [vvh, setVvh] = useState<number | null>(null);
+  const [vp, setVp] = useState<{ h: number; max: number } | null>(null);
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const update = () => setVvh(Math.round(vv.height));
+    const update = () => {
+      const h = Math.round(vv.height);
+      setVp((prev) => ({ h, max: Math.max(prev?.max ?? 0, h) }));
+      // iOS also PANS the page toward the focused input before (and sometimes
+      // despite) the resize — snap the pan back, the layout already fits.
+      if (window.scrollY || vv.offsetTop) window.scrollTo(0, 0);
+    };
     update();
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
@@ -1013,7 +1019,10 @@ export default function OnboardingV2Page() {
       vv.removeEventListener('scroll', update);
     };
   }, []);
-  const compact = vvh !== null && vvh < 560;
+  const vvh = vp?.h ?? null;
+  // Keyboard = the viewport lost real height against the best we've seen, or
+  // it's outright short. A fixed 560px cutoff misses large iPhones.
+  const compact = vp !== null && (vp.h < 560 || vp.h < vp.max - 100);
 
   const showToast = (msg: string) => {
     const id = Date.now();
