@@ -213,7 +213,8 @@ function Shelf({
           </div>
         </div>
       )}
-      <motion.div layout className="w-full bg-white rounded-full min-h-[44px] flex items-center justify-center px-4">
+      {/* the shelf plank — wood-rounded, not a pill */}
+      <motion.div layout className="w-full bg-white rounded-[12px] min-h-[44px] flex items-center justify-center px-4">
         <span className="text-[20px] font-semibold tracking-[-0.4px]" style={{ color: TEXT_DIM }}>
           {label}
         </span>
@@ -564,11 +565,19 @@ function WelcomeArt({ homeName }: { homeName: string }) {
                 </span>
               </div>
             </div>
-            {/* the little coat stand by the door */}
-            <div className="flex flex-col items-center">
-              <div className="w-[44px] h-[12px] bg-white rounded-full" />
-              <div className="w-[10px] h-[36px] bg-white" />
-              <div className="w-[26px] h-[8px] bg-white rounded-full" />
+            {/* the Home Assistant ZBT-2 antenna, chatting with the devices */}
+            <div className="relative flex flex-col items-center">
+              {[0, 1].map((i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className="absolute -top-[14px] left-1/2 size-[40px] rounded-full border-2 border-white"
+                  style={{ marginLeft: -20, animation: `obv2-pulse 2.6s ease-out ${i * 1.3}s infinite` }}
+                />
+              ))}
+              <div className="relative w-[44px] h-[12px] bg-white rounded-full" />
+              <div className="relative w-[10px] h-[36px] bg-white" />
+              <div className="relative w-[26px] h-[8px] bg-white rounded-full" />
             </div>
           </div>
           {/* your key and the area books, standing together on a shelf */}
@@ -604,7 +613,7 @@ function WelcomeArt({ homeName }: { homeName: string }) {
                 ))}
               </div>
             </div>
-            <div className="mt-[8px] w-[176px] h-[30px] bg-white rounded-full" />
+            <div className="mt-[8px] w-[176px] h-[30px] bg-white rounded-[10px]" />
           </div>
         </div>
       </div>
@@ -850,7 +859,7 @@ function MiniToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
       role="switch"
       aria-checked={on}
       onClick={onToggle}
-      className="w-[42px] h-[26px] rounded-full p-[3px] transition-colors duration-200"
+      className="w-[42px] h-[26px] shrink-0 rounded-full p-[3px] transition-colors duration-200"
       style={{ background: on ? ACCENT : '#e3e3e3' }}
     >
       <span
@@ -872,6 +881,9 @@ function DashboardStep({
 }) {
   const [cards, setCards] = useState<Card[]>(initialCards);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Top fade appears once the grid scrolls under the app bar; the bottom fade
+  // always dissolves the cards into the nav.
+  const [scrolled, setScrolled] = useState(false);
 
   const addCard = () => setCards((prev) => [...prev, makeCard(prev.length, `card-${Date.now()}`)]);
   const flip = (id: string) => setCards((prev) => prev.map((c) => (c.id === id ? { ...c, on: !c.on } : c)));
@@ -899,7 +911,11 @@ function DashboardStep({
         </Press>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pt-4">
+      <div className="relative flex-1 min-h-0 -mx-1">
+        <div
+          className="h-full overflow-y-auto px-1 pt-4"
+          onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)}
+        >
         <div className="grid grid-cols-2 gap-2 content-start pb-4">
           <AnimatePresence>
             {cards.map((card) => (
@@ -931,6 +947,20 @@ function DashboardStep({
             ))}
           </AnimatePresence>
         </div>
+        </div>
+        <div
+          aria-hidden
+          className={clsx(
+            'absolute top-0 inset-x-0 h-10 pointer-events-none transition-opacity duration-200',
+            scrolled ? 'opacity-100' : 'opacity-0',
+          )}
+          style={{ background: `linear-gradient(to bottom, ${SURFACE}, transparent)` }}
+        />
+        <div
+          aria-hidden
+          className="absolute bottom-0 inset-x-0 h-12 pointer-events-none"
+          style={{ background: `linear-gradient(to top, ${SURFACE}, transparent)` }}
+        />
       </div>
 
       {/* Bottom nav — visual only for now, pinned to the bottom edge. */}
@@ -1503,6 +1533,9 @@ export default function OnboardingV2Page() {
           motion is CSS keyframes — framer's repeat animations stall under the
           step's AnimatePresence variants parent. */}
       <style>{`
+        /* iOS keyboard show/hide pans the page — anything revealed behind the
+           document must match the surface, or it flashes dark. */
+        html, body { background: ${SURFACE}; }
         [data-squircle="on"] .onboarding-v2, [data-squircle="on"] .onboarding-v2 * { corner-shape: round; }
         .obv2-hide-cta .obv2-cta { display: none; }
         @keyframes obv2-door { 0%, 70% { transform: rotateY(0deg); } 80%, 88% { transform: rotateY(-26deg); } 96%, 100% { transform: rotateY(0deg); } }
@@ -1511,10 +1544,11 @@ export default function OnboardingV2Page() {
         @keyframes obv2-door-once { 0% { transform: rotateY(0deg); } 45% { transform: rotateY(-34deg); } 100% { transform: rotateY(0deg); } }
         @keyframes obv2-jingle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-11deg); } 55% { transform: rotate(8deg); } 80% { transform: rotate(-4deg); } }
         @keyframes obv2-pop { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.14); } }
+        @keyframes obv2-pulse { 0% { transform: scale(0.25); opacity: 0.9; } 100% { transform: scale(1.4); opacity: 0; } }
       `}</style>
       <div className="mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
-          <div className="h-full flex flex-col gap-3 px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+16px)]">
+          <div className="h-full flex flex-col gap-3 px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+6px)]">
             <DashboardStep homeName={homeName} initialCards={cards} onBack={back} />
           </div>
         ) : (
