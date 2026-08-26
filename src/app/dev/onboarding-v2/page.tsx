@@ -996,6 +996,25 @@ export default function OnboardingV2Page() {
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
 
+  // On iOS the keyboard doesn't shrink a fixed layout — the browser pans the
+  // page instead, shoving the artwork out of view. Sizing the column from the
+  // visual viewport makes the layout genuinely shrink above the keyboard, and
+  // `compact` swaps the artwork to keyboard-sized proportions.
+  const [vvh, setVvh] = useState<number | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setVvh(Math.round(vv.height));
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+  const compact = vvh !== null && vvh < 560;
+
   const showToast = (msg: string) => {
     const id = Date.now();
     setToast({ id, msg });
@@ -1180,38 +1199,41 @@ export default function OnboardingV2Page() {
             {/* Focusing the field leans in on the door so the name is the star. */}
             <div
               className="transition-transform duration-500 ease-out"
-              style={{ transform: nameFocused ? 'scale(1.32) translateY(12%)' : undefined, transformOrigin: 'top center' }}
+              style={{
+                transform: nameFocused && !compact ? 'scale(1.32) translateY(12%)' : undefined,
+                transformOrigin: 'top center',
+              }}
             >
-              <Door name={homeName} height={310} swing={false} />
+              <Door name={homeName} height={compact ? 190 : 310} swing={false} />
             </div>
           </div>
         );
       case 'users':
         return (
-          <div className="flex-1 flex items-center justify-center min-h-0">
+          <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
             {/* Focusing a credential turns the key horizontal, ready for its lock. */}
             <div
               className="transition-transform duration-500 ease-out"
-              style={{ transform: credFocused ? 'rotate(-90deg) scale(0.9)' : undefined }}
+              style={{ transform: credFocused ? `rotate(-90deg) scale(${compact ? 0.62 : 0.9})` : undefined }}
             >
               <Keychain
                 keys={[{ id: 'admin', cutSeed: password || 'password', styleSeed: username || 'admin', color: INK }]}
-                keyHeight={110}
-                ringSize={72}
+                keyHeight={compact ? 76 : 110}
+                ringSize={compact ? 50 : 72}
               />
             </div>
           </div>
         );
       case 'invite':
         return (
-          <div className="flex-1 flex items-center justify-center min-h-0 relative">
+          <div className="flex-1 flex items-center justify-center min-h-0 relative overflow-hidden">
             <Keychain
               keys={[
                 { id: 'admin', cutSeed: password || 'password', styleSeed: username || 'admin', color: INK },
                 ...invited.map((name) => ({ id: `inv-${name}`, cutSeed: name, styleSeed: name, color: TEXT_2 })),
               ]}
-              keyHeight={110}
-              ringSize={72}
+              keyHeight={compact ? 76 : 110}
+              ringSize={compact ? 50 : 72}
             />
             {/* while a name is being typed, their key drifts toward the ring */}
             <AnimatePresence>
@@ -1224,7 +1246,7 @@ export default function OnboardingV2Page() {
                   transition={{ duration: 1.2, ease: 'easeOut' }}
                   className="absolute left-1/2 top-1/3 pointer-events-none"
                 >
-                  <KeySvg cutSeed={inviteDraft.trim()} styleSeed={inviteDraft.trim()} color={TEXT_DIM} height={84} />
+                  <KeySvg cutSeed={inviteDraft.trim()} styleSeed={inviteDraft.trim()} color={TEXT_DIM} height={compact ? 58 : 84} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1483,7 +1505,7 @@ export default function OnboardingV2Page() {
         @keyframes obv2-jingle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-11deg); } 55% { transform: rotate(8deg); } 80% { transform: rotate(-4deg); } }
         @keyframes obv2-pop { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.14); } }
       `}</style>
-      <div className="mx-auto max-w-[430px] h-full relative">
+      <div className="mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
           <div className="h-full flex flex-col gap-3 px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+16px)]">
             <DashboardStep homeName={homeName} initialCards={cards} onBack={back} />
@@ -1545,8 +1567,9 @@ export default function OnboardingV2Page() {
                   />
                 )}
               </div>
-              {/* supporting copy under the app bar */}
-              <div className="min-h-[40px] pt-1.5 flex items-start justify-center">
+              {/* supporting copy under the app bar — folded away when the
+                  keyboard is up so the artwork keeps as much room as possible */}
+              <div className={clsx('pt-1.5 flex items-start justify-center', compact ? 'hidden' : 'min-h-[40px]')}>
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.p
                     key={stepKey}
