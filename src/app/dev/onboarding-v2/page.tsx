@@ -14,7 +14,7 @@
  * a bare dashboard (Home pill, + adds cards, inert bottom nav).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -516,104 +516,90 @@ function Door({
 // ── Steps: artwork (slides between steps) + sheet contents (crossfade) ──────
 /**
  * The welcome scene sketches the whole flow: the door is the home (its line is
- * the home name, set up first), the keychain is the people who hold keys to
- * it, the framed pin is the location map, the shelf of books is a floor with
- * its areas, and the little switch is the data-sharing choice at the end.
+ * the home name, set up first), the key is your account, the framed pin is the
+ * location map, and the books on the shelf are areas on a floor. The heading
+ * lives here, display-sized — every other step keeps it in the app bar.
  */
-function WelcomeArt({ homeName, userCount }: { homeName: string; userCount: number }) {
-  const teaser = useMemo<Book[]>(
-    () => [
-      { id: 't1', room: '', Icon: IconSofa, w: 20, h: 62, tone: '#ffffff', lean: 0 },
-      { id: 't2', room: '', Icon: IconToolsKitchen2, w: 24, h: 50, tone: ACCENT, lean: -10 },
-      { id: 't3', room: '', Icon: IconBed, w: 17, h: 68, tone: '#fafafa', lean: 0 },
-      { id: 't4', room: '', Icon: IconBath, w: 22, h: 44, tone: '#ffffff', lean: 9 },
-    ],
-    [],
-  );
-  const keys = Array.from({ length: Math.max(1, userCount) }, (_, i) => ({
-    id: `wk-${i}`,
-    cutSeed: `home-${i}`,
-    color: i === 0 ? INK : TEXT_2,
-  }));
+function WelcomeArt({ homeName }: { homeName: string }) {
   // Tap micro-interactions: one-shot animations that hand back to the idle
-  // sway when they finish. The doorbell actually toggles.
+  // sway when they finish.
   const [poke, setPoke] = useState<string | null>(null);
-  const [bellOn, setBellOn] = useState(true);
   const endPoke = () => setPoke(null);
   return (
-    <div className="flex-1 min-h-0 w-full relative">
-      {/* The door stands at the left, bleeding off the edge like you're
-          standing right in front of it; the wall items hang on the right. */}
-      <div
-        className="absolute -left-[64px] top-1/2 -translate-y-1/2 cursor-pointer"
-        onClick={() => setPoke('door')}
-      >
-        <Door name={homeName} poked={poke === 'door'} onPokeEnd={endPoke} />
-        {/* The mat below the door — a floor holding its area books */}
-        <div className="relative mt-[19px]">
-          <div className="absolute bottom-[30px] left-[84px] flex items-end gap-[3px]">
-            {teaser.map((b) => (
-              <div
-                key={b.id}
-                className="rounded-[5px] shadow-[0_2px_4px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)]"
-                style={{
-                  width: Math.round(b.w * 0.75),
-                  height: Math.round(b.h * 0.6),
-                  background: b.tone,
-                  transform: `rotate(${b.lean}deg)`,
-                  transformOrigin: b.lean < 0 ? 'bottom left' : 'bottom right',
-                }}
-              />
-            ))}
-          </div>
-          <div className="w-[174px] h-[39px] rounded-full bg-white" />
-        </div>
+    <div className="flex-1 min-h-0 w-full flex flex-col">
+      <div className="text-center pt-7 pb-2">
+        <h1 className="text-[32px] font-semibold tracking-[-0.96px] leading-tight" style={{ color: TEXT }}>
+          Welcome home
+        </h1>
+        <p className="text-[16px] tracking-[-0.48px] mt-1 mx-auto max-w-[280px]" style={{ color: TEXT_2 }}>
+          A few easy questions, nothing is permanent
+        </p>
       </div>
-      {/* wall items, hung in a column on the right */}
-      <div className="absolute right-[10px] top-1/2 -translate-y-1/2 flex flex-col items-center gap-8">
-        {/* the map in a small landscape photo frame */}
-        <div
-          className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)] cursor-pointer"
-          onClick={() => setPoke('frame')}
-          onAnimationEnd={poke === 'frame' ? endPoke : undefined}
-          style={{
-            animation: poke === 'frame' ? 'obv2-pop 0.7s ease' : 'obv2-sway 7s ease-in-out infinite',
-          }}
-        >
-          <div className="w-[80px] h-[58px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
-            <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
-              <IconMapPin size={24} color={ACCENT} />
-            </span>
+      <div className="flex-1 min-h-0 relative">
+        {/* the door bleeds off the left edge, standing on its mat */}
+        <div className="absolute -left-[70px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
+          <Door name={homeName} height={330} poked={poke === 'door'} onPokeEnd={endPoke} />
+          <div className="mt-[16px] ml-[8px] w-[190px] h-[34px] bg-white rounded-full" />
+        </div>
+        {/* the wall arrangement on the right */}
+        <div className="absolute right-[6px] top-1/2 -translate-y-1/2 flex flex-col gap-7 items-start">
+          <div className="flex items-end gap-4">
+            {/* the map in a landscape photo frame */}
+            <div
+              className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)] cursor-pointer"
+              onClick={() => setPoke('frame')}
+              onAnimationEnd={poke === 'frame' ? endPoke : undefined}
+              style={{ animation: poke === 'frame' ? 'obv2-pop 0.7s ease' : 'obv2-sway 7s ease-in-out infinite' }}
+            >
+              <div className="w-[104px] h-[70px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
+                <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
+                  <IconMapPin size={26} color={ACCENT} />
+                </span>
+              </div>
+            </div>
+            {/* the little coat stand by the door */}
+            <div className="flex flex-col items-center">
+              <div className="w-[44px] h-[12px] bg-white rounded-full" />
+              <div className="w-[10px] h-[36px] bg-white" />
+              <div className="w-[26px] h-[8px] bg-white rounded-full" />
+            </div>
+          </div>
+          {/* your key and the area books, standing together on a shelf */}
+          <div className="flex flex-col">
+            <div className="flex items-end gap-5 pl-3">
+              <div
+                className="cursor-pointer drop-shadow-[0_2px_3px_rgba(0,0,0,0.08)]"
+                onClick={() => setPoke('keys')}
+                onAnimationEnd={poke === 'keys' ? endPoke : undefined}
+                style={{
+                  transformOrigin: 'bottom center',
+                  animation: poke === 'keys' ? 'obv2-jingle 0.8s ease' : undefined,
+                }}
+              >
+                <KeySvg cutSeed="home" styleSeed="home" color="#ffffff" height={78} />
+              </div>
+              <div className="flex items-end gap-[5px]">
+                {[
+                  { w: 18, h: 66, lean: 0 },
+                  { w: 21, h: 74, lean: 0 },
+                  { w: 16, h: 56, lean: 8 },
+                ].map((b, i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-[6px] shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
+                    style={{
+                      width: b.w,
+                      height: b.h,
+                      transform: b.lean ? `rotate(${b.lean}deg)` : undefined,
+                      transformOrigin: 'bottom right',
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="mt-[8px] w-[176px] h-[30px] bg-white rounded-full" />
           </div>
         </div>
-        {/* the keychain on its hook — tap to jingle */}
-        <div
-          className="cursor-pointer"
-          onClick={() => setPoke('keys')}
-          onAnimationEnd={poke === 'keys' ? endPoke : undefined}
-          style={{
-            transformOrigin: 'top center',
-            animation: poke === 'keys' ? 'obv2-jingle 0.8s ease' : 'obv2-sway 8s ease-in-out infinite',
-          }}
-        >
-          <Keychain keys={keys} keyHeight={54} ringSize={36} />
-        </div>
-        {/* the data-sharing doorbell — tap to flip it */}
-        <Press
-          aria-label="Data sharing"
-          onClick={() => setBellOn((v) => !v)}
-          className="bg-white rounded-full p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
-        >
-          <div
-            className="w-[34px] h-[20px] rounded-full p-[2px] transition-colors duration-200"
-            style={{ background: bellOn ? ACCENT : '#e3e3e3' }}
-          >
-            <span
-              className="block size-[16px] rounded-full bg-white transition-transform duration-200"
-              style={{ transform: bellOn ? 'translateX(14px)' : undefined }}
-            />
-          </div>
-        </Press>
       </div>
     </div>
   );
@@ -1168,7 +1154,8 @@ export default function OnboardingV2Page() {
   const heading: { title: React.ReactNode; sub?: string } = (() => {
     switch (step) {
       case 'welcome':
-        return { title: 'Welcome home', sub: 'A few easy questions, nothing is permanent' };
+        // The welcome heading lives display-sized in the artboard instead.
+        return { title: null };
       case 'name':
         return { title: 'Name your home', sub: "It's written on the door. You can change it anytime." };
       case 'users':
@@ -1201,7 +1188,7 @@ export default function OnboardingV2Page() {
   const art = (() => {
     switch (step) {
       case 'welcome':
-        return <WelcomeArt homeName={homeName} userCount={1 + invited.length} />;
+        return <WelcomeArt homeName={homeName} />;
       case 'name':
         return (
           <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
@@ -1549,6 +1536,7 @@ export default function OnboardingV2Page() {
                 )}
                 <div className="flex-1 min-w-0 h-[44px] flex items-center justify-center overflow-hidden">
                   <AnimatePresence mode="popLayout" initial={false}>
+                    {heading.title != null && (
                     <motion.h1
                       key={stepKey}
                       initial={{ opacity: 0, y: 10 }}
@@ -1560,6 +1548,7 @@ export default function OnboardingV2Page() {
                     >
                       {heading.title}
                     </motion.h1>
+                    )}
                   </AnimatePresence>
                 </div>
                 <Press
@@ -1578,6 +1567,7 @@ export default function OnboardingV2Page() {
               </div>
               {/* supporting copy under the app bar — folded away when the
                   keyboard is up so the artwork keeps as much room as possible */}
+              {heading.sub != null && (
               <div className={clsx('pt-1.5 flex items-start justify-center', compact ? 'hidden' : 'min-h-[40px]')}>
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.p
@@ -1593,6 +1583,7 @@ export default function OnboardingV2Page() {
                   </motion.p>
                 </AnimatePresence>
               </div>
+              )}
             </div>
             {/* toast — invite confirmations and the like */}
             <AnimatePresence>
