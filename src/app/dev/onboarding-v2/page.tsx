@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { AnimatePresence, motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
@@ -45,13 +46,22 @@ import {
   IconMapPin,
   IconBulb,
   IconChevronDown,
+  IconCurrentLocation,
   IconPlug,
+  IconUserPlus,
   IconDeviceTv,
   IconDroplet,
   IconLock,
   IconThermometer,
   type Icon as TablerIcon,
 } from '@tabler/icons-react';
+import type { LatLng } from './MapPicker';
+
+// leaflet reads `window` on import — keep it out of the server bundle.
+const MapPicker = dynamic(() => import('./MapPicker'), {
+  ssr: false,
+  loading: () => <div className="w-full h-full rounded-[24px] bg-white/60 animate-pulse" />,
+});
 
 // ── Palette (values lifted from the Figma --ha/* tokens) ────────────────────
 const SURFACE = '#e6e6e6';
@@ -312,12 +322,25 @@ function Sheet({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CtaButton({ label, onClick, arrow = false }: { label: string; onClick: () => void; arrow?: boolean }) {
+function CtaButton({
+  label,
+  onClick,
+  arrow = false,
+  disabled = false,
+}: {
+  label: string;
+  onClick: () => void;
+  arrow?: boolean;
+  disabled?: boolean;
+}) {
   return (
     <Press
       brighten
-      onClick={onClick}
-      className="w-full min-h-[52px] rounded-full flex items-center justify-between px-3 text-white"
+      onClick={disabled ? undefined : onClick}
+      className={clsx(
+        'w-full min-h-[52px] rounded-full flex items-center justify-between px-3 text-white transition-opacity',
+        disabled && 'opacity-40 pointer-events-none',
+      )}
       style={{ background: INK }}
     >
       <span className="size-[24px]" />
@@ -327,13 +350,132 @@ function CtaButton({ label, onClick, arrow = false }: { label: string; onClick: 
   );
 }
 
+/** Shared pill text input used across the setup steps. */
+function PillInput({
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  type?: string;
+}) {
+  return (
+    <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] px-5 flex items-center">
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
+        style={{ color: TEXT }}
+      />
+    </div>
+  );
+}
+
+// ── Keys & keychain: every person in the home holds a key ───────────────────
+/** Stable 4-notch bitting derived from a string — the password cuts the key. */
+function keyBits(seed: string): number[] {
+  let h = 7;
+  for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return Array.from({ length: 4 }, (_, i) => ((h >> (i * 4)) & 15) / 15);
+}
+
+function KeySvg({ seed, color = INK, height = 88 }: { seed: string; color?: string; height?: number }) {
+  const bits = keyBits(seed);
+  return (
+    <svg width={height * 0.5} height={height} viewBox="0 0 32 64" fill="none">
+      <circle cx="16" cy="10" r="7" stroke={color} strokeWidth="6" />
+      <rect x="13" y="17" width="6" height="43" rx="3" fill={color} />
+      {bits.map((b, i) => (
+        <rect key={i} x="19" y={30 + i * 8} width={4 + b * 8} height="5" rx="2.5" fill={color} />
+      ))}
+    </svg>
+  );
+}
+
+function Keychain({
+  keys,
+  keyHeight = 88,
+  ringSize = 60,
+}: {
+  keys: { id: string; seed: string; color: string }[];
+  keyHeight?: number;
+  ringSize?: number;
+}) {
+  const n = keys.length;
+  return (
+    <div className="flex flex-col items-center">
+      <div
+        className="rounded-full border-white bg-transparent shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+        style={{ width: ringSize, height: ringSize, borderWidth: ringSize * 0.16 }}
+      />
+      <div className="relative w-full" style={{ height: keyHeight + 4, marginTop: -ringSize * 0.18 }}>
+        {keys.map((k, i) => (
+          <div key={k.id} className="absolute left-1/2 -translate-x-1/2">
+            <motion.div
+              initial={{ rotate: 0, y: -24, opacity: 0 }}
+              animate={{ rotate: (i - (n - 1) / 2) * 18, y: 0, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 16 }}
+              style={{ transformOrigin: 'top center' }}
+            >
+              <KeySvg seed={k.seed} color={k.color} height={keyHeight} />
+            </motion.div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── The door: the home itself, its name written on it ───────────────────────
+function Door({ name, height = 345, swing = true }: { name?: string; height?: number; swing?: boolean }) {
+  const width = Math.round(height * 0.504);
+  return (
+    <div className="relative" style={{ perspective: 700 }}>
+      {/* The doorway — hidden behind the door until it swings open. */}
+      <div className="absolute inset-[3px] rounded-[24px] bg-[#dcdcdc]" />
+      <div
+        className="relative rounded-[24px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
+        style={{
+          width,
+          height,
+          transformOrigin: 'left center',
+          animation: swing ? 'obv2-door 9s ease-in-out infinite' : undefined,
+        }}
+      >
+        {/* the home name — the first thing the user sets up */}
+        {name ? (
+          <span
+            className="absolute top-[60px] left-0 right-0 text-center text-[18px] font-semibold tracking-[-0.36px] px-3 truncate"
+            style={{ color: TEXT_2 }}
+          >
+            {name}
+          </span>
+        ) : (
+          <div
+            className="absolute top-[68px] left-1/2 -translate-x-1/2 h-[10px] rounded-full bg-[#e6e6e6]"
+            style={{ width: Math.round(width * 0.41) }}
+          />
+        )}
+        {/* knob */}
+        <div className="absolute right-[16px] top-[54%] size-[14px] rounded-full bg-[#e6e6e6]" />
+      </div>
+    </div>
+  );
+}
+
 // ── Steps ────────────────────────────────────────────────────────────────────
 /**
  * The welcome scene sketches the whole flow: the door is the home (its line is
- * the home title the user sets up first), the framed pin is the location map,
- * and the shelf of books is a floor with its areas.
+ * the home name, set up first), the keychain is the people who hold keys to
+ * it, the framed pin is the location map, the shelf of books is a floor with
+ * its areas, and the little switch is the data-sharing choice at the end.
  */
-function WelcomeArt() {
+function WelcomeArt({ homeName, userCount }: { homeName: string; userCount: number }) {
   const teaser = useMemo<Book[]>(
     () => [
       { id: 't1', room: '', Icon: IconSofa, w: 20, h: 62, tone: '#ffffff', lean: 0 },
@@ -343,17 +485,16 @@ function WelcomeArt() {
     ],
     [],
   );
+  const keys = Array.from({ length: Math.max(1, userCount) }, (_, i) => ({
+    id: `wk-${i}`,
+    seed: `home-${i}`,
+    color: i === 0 ? INK : TEXT_2,
+  }));
   return (
     <div className="flex-1 flex flex-col items-center justify-center min-h-0">
-      {/* framer's repeat animations stall under the step's AnimatePresence
-          variants parent, so the idle motion here is plain CSS keyframes. */}
-      <style>{`
-        @keyframes obv2-door { 0%, 70% { transform: rotateY(0deg); } 80%, 88% { transform: rotateY(-26deg); } 96%, 100% { transform: rotateY(0deg); } }
-        @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
-        @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-      `}</style>
       {/* Figma composition: one centered column — the door with the shelf bar
-          right below it; the map frame hangs on the wall beside the door. */}
+          right below it. The flow's other objects hang on the wall around it:
+          map frame and data switch left, keychain right. */}
       <div className="relative">
         <div
           className="absolute -left-[96px] top-[38px] bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
@@ -365,20 +506,20 @@ function WelcomeArt() {
             </span>
           </div>
         </div>
-        {/* The door — it's a home; it idly swings open and shut */}
-        <div className="relative" style={{ perspective: 700 }}>
-          {/* The doorway — hidden behind the door until it swings open. */}
-          <div className="absolute inset-[3px] rounded-[24px] bg-[#dcdcdc]" />
-          <div
-            className="relative w-[174px] h-[345px] rounded-[24px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-            style={{ transformOrigin: 'left center', animation: 'obv2-door 9s ease-in-out infinite' }}
-          >
-            {/* the home title, set up first */}
-            <div className="absolute top-[72px] left-1/2 -translate-x-1/2 w-[72px] h-[10px] rounded-full bg-[#e6e6e6]" />
-            {/* knob */}
-            <div className="absolute right-[16px] top-[54%] size-[14px] rounded-full bg-[#e6e6e6]" />
+        {/* the data-sharing switch, decided at the end */}
+        <div
+          className="absolute -left-[76px] top-[214px] bg-white rounded-full p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+          style={{ animation: 'obv2-sway 9s ease-in-out infinite' }}
+        >
+          <div className="w-[34px] h-[20px] rounded-full p-[2px]" style={{ background: ACCENT }}>
+            <span className="block size-[16px] rounded-full bg-white translate-x-[14px]" />
           </div>
         </div>
+        {/* the keychain — the people who hold keys to this home */}
+        <div className="absolute -right-[72px] top-[88px]" style={{ animation: 'obv2-sway 8s ease-in-out infinite' }}>
+          <Keychain keys={keys} keyHeight={54} ringSize={36} />
+        </div>
+        <Door name={homeName} />
         {/* The shelf bar below the door — a floor holding its area books */}
         <div className="relative mt-[19px]">
           <div className="absolute bottom-[30px] left-[16px] flex items-end gap-[3px]">
@@ -403,7 +544,15 @@ function WelcomeArt() {
   );
 }
 
-function WelcomeStep({ onNext }: { onNext: () => void }) {
+function WelcomeStep({
+  homeName,
+  userCount,
+  onNext,
+}: {
+  homeName: string;
+  userCount: number;
+  onNext: () => void;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <>
@@ -432,9 +581,236 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         />
       </div>
       <Title sub="A few easy questions, nothing is permanent">Welcome home</Title>
-      <WelcomeArt />
+      <WelcomeArt homeName={homeName} userCount={userCount} />
       <Sheet>
         <CtaButton label="Let’s begin" onClick={onNext} />
+      </Sheet>
+    </>
+  );
+}
+
+// ── Name the home: what's written on the door ───────────────────────────────
+function NameStep({
+  homeName,
+  setHomeName,
+  onBack,
+  onNext,
+}: {
+  homeName: string;
+  setHomeName: (v: string) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <>
+      <HeaderBar onBack={onBack} />
+      <Title sub="It's written on the door. You can change it anytime.">Name your home</Title>
+      <div className="flex-1 flex items-center justify-center min-h-0">
+        <Door name={homeName} height={300} swing={false} />
+      </div>
+      <Sheet>
+        <PillInput value={homeName} onChange={setHomeName} placeholder="My Home" />
+        <CtaButton label="Continue" onClick={onNext} arrow disabled={!homeName.trim()} />
+      </Sheet>
+    </>
+  );
+}
+
+// ── Who holds the keys: the admin account + invited people ──────────────────
+function UsersStep({
+  username,
+  setUsername,
+  password,
+  setPassword,
+  invited,
+  addInvite,
+  onBack,
+  onNext,
+}: {
+  username: string;
+  setUsername: (v: string) => void;
+  password: string;
+  setPassword: (v: string) => void;
+  invited: string[];
+  addInvite: (name: string) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const [inviteDraft, setInviteDraft] = useState('');
+  // The admin's key is cut by their credentials — retype the password and the
+  // notches change with it. Invited people get a key cut from their name.
+  const keys = [
+    { id: 'admin', seed: `${username}:${password}`, color: INK },
+    ...invited.map((name) => ({ id: `inv-${name}`, seed: name, color: TEXT_2 })),
+  ];
+  const submitInvite = () => {
+    const name = inviteDraft.trim();
+    if (!name) return;
+    addInvite(name);
+    setInviteDraft('');
+  };
+  return (
+    <>
+      <HeaderBar onBack={onBack} />
+      <Title sub="You're the first key. Invite the rest of the household anytime.">Who holds the keys?</Title>
+      <div className="flex-1 flex items-center justify-center min-h-0">
+        <Keychain keys={keys} keyHeight={110} ringSize={72} />
+      </div>
+      <Sheet>
+        <PillInput value={username} onChange={setUsername} placeholder="Username" />
+        <PillInput value={password} onChange={setPassword} type="password" placeholder="Password" />
+        <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] p-2 pl-5 flex items-center justify-between gap-3">
+          <input
+            value={inviteDraft}
+            onChange={(e) => setInviteDraft(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && submitInvite()}
+            placeholder="Invite someone by name"
+            className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
+            style={{ color: TEXT }}
+          />
+          <Press
+            aria-label="Invite person"
+            onClick={submitInvite}
+            className="size-[40px] rounded-full flex items-center justify-center shrink-0"
+            style={{ background: inviteDraft.trim() ? ACCENT : '#ffffff', color: inviteDraft.trim() ? '#fff' : TEXT_2 }}
+          >
+            <IconUserPlus size={20} />
+          </Press>
+        </div>
+        <CtaButton label="Continue" onClick={onNext} arrow disabled={!username.trim() || !password} />
+      </Sheet>
+    </>
+  );
+}
+
+// ── Where the home sits: tap the framed pin, place it on a real map ─────────
+function PlaceStep({
+  location,
+  setLocation,
+  onBack,
+  onNext,
+}: {
+  location: LatLng | null;
+  setLocation: (l: LatLng) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const [mapActive, setMapActive] = useState(!!location);
+  // Centre handed to the map: only "use my location" sets it, so panning is
+  // never yanked back under the finger.
+  const [center, setCenter] = useState<LatLng | null>(location);
+  const [locating, setLocating] = useState(false);
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCenter(here);
+        setLocation(here);
+        setMapActive(true);
+      },
+      () => setLocating(false),
+      { timeout: 10_000 },
+    );
+  };
+
+  return (
+    <>
+      <HeaderBar onBack={onBack} />
+      <Title sub="Drag the map until the pin sits on your home.">Where is your home?</Title>
+      <div className="flex-1 min-h-0 flex items-center justify-center py-2">
+        {mapActive ? (
+          <div className="w-full h-full max-h-[440px] rounded-[24px] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+            <MapPicker center={center} onChange={setLocation} />
+          </div>
+        ) : (
+          <Press
+            onClick={() => setMapActive(true)}
+            className="bg-white rounded-[20px] p-3 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-3"
+          >
+            <div className="w-[160px] h-[190px] rounded-[14px] bg-[#edf3f5] flex items-center justify-center">
+              <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
+                <IconMapPin size={44} color={ACCENT} />
+              </span>
+            </div>
+            <span className="text-[15px] font-semibold tracking-[-0.3px] pb-1" style={{ color: TEXT_2 }}>
+              Tap to place your home
+            </span>
+          </Press>
+        )}
+      </div>
+      <Sheet>
+        <Press
+          onClick={useMyLocation}
+          className="w-full min-h-[52px] rounded-full bg-[#f3f3f3] flex items-center justify-center gap-2"
+        >
+          <IconCurrentLocation size={20} color={TEXT_2} />
+          <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT_2 }}>
+            {locating ? 'Finding you…' : 'Use my location'}
+          </span>
+        </Press>
+        <CtaButton label="Continue" onClick={onNext} arrow />
+      </Sheet>
+    </>
+  );
+}
+
+// ── Data sharing: Home Assistant's analytics toggles ────────────────────────
+const ANALYTICS: { key: string; label: string; desc: string }[] = [
+  { key: 'base', label: 'Basic analytics', desc: 'Installation type and version' },
+  { key: 'usage', label: 'Usage', desc: 'Which integrations you use' },
+  { key: 'stats', label: 'Statistics', desc: 'Counts of devices and automations' },
+  { key: 'diag', label: 'Diagnostics', desc: 'Crash reports, to fix bugs sooner' },
+];
+
+function PermissionsStep({
+  prefs,
+  setPrefs,
+  onBack,
+  onNext,
+}: {
+  prefs: Record<string, boolean>;
+  setPrefs: (p: Record<string, boolean>) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const anyOn = Object.values(prefs).some(Boolean);
+  return (
+    <>
+      <HeaderBar onBack={onBack} />
+      <Title sub="Anonymous, optional, and off by default. Change it anytime.">Share data to help?</Title>
+      <div className="flex-1 flex items-center justify-center min-h-0">
+        {/* one big switch mirroring whether anything is shared */}
+        <div className="bg-white rounded-full p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <div
+            className="w-[96px] h-[56px] rounded-full p-[6px] transition-colors duration-300"
+            style={{ background: anyOn ? ACCENT : '#e3e3e3' }}
+          >
+            <span
+              className="block size-[44px] rounded-full bg-white shadow-sm transition-transform duration-300"
+              style={{ transform: anyOn ? 'translateX(40px)' : undefined }}
+            />
+          </div>
+        </div>
+      </div>
+      <Sheet>
+        {ANALYTICS.map(({ key, label, desc }) => (
+          <div key={key} className="flex items-center justify-between gap-3 px-3 py-1.5">
+            <div className="flex flex-col min-w-0">
+              <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT }}>
+                {label}
+              </span>
+              <span className="text-[13px] tracking-[-0.26px]" style={{ color: TEXT_2 }}>
+                {desc}
+              </span>
+            </div>
+            <MiniToggle on={!!prefs[key]} onToggle={() => setPrefs({ ...prefs, [key]: !prefs[key] })} />
+          </div>
+        ))}
+        <CtaButton label="Finish" onClick={onNext} />
       </Sheet>
     </>
   );
@@ -631,7 +1007,15 @@ function MiniToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-function DashboardStep({ initialCards, onBack }: { initialCards: Card[]; onBack: () => void }) {
+function DashboardStep({
+  homeName,
+  initialCards,
+  onBack,
+}: {
+  homeName: string;
+  initialCards: Card[];
+  onBack: () => void;
+}) {
   const [cards, setCards] = useState<Card[]>(initialCards);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -646,8 +1030,8 @@ function DashboardStep({ initialCards, onBack }: { initialCards: Card[]; onBack:
           className="min-h-[44px] px-4 rounded-full bg-[#f2f2f2] flex items-center gap-2"
         >
           <IconHome size={20} color="#707078" />
-          <span className="text-[16px] font-semibold tracking-[-0.48px]" style={{ color: '#707078' }}>
-            Home
+          <span className="text-[16px] font-semibold tracking-[-0.48px] max-w-[160px] truncate" style={{ color: '#707078' }}>
+            {homeName.trim() || 'Home'}
           </span>
           <IconChevronDown
             size={18}
@@ -717,14 +1101,26 @@ function DashboardStep({ initialCards, onBack }: { initialCards: Card[]; onBack:
 }
 
 // ── Flow ─────────────────────────────────────────────────────────────────────
-type Step = 'welcome' | 'floors' | 'areas' | 'dashboard';
+type Step = 'welcome' | 'name' | 'users' | 'location' | 'floors' | 'areas' | 'permissions' | 'dashboard';
+const ORDER: Step[] = ['welcome', 'name', 'users', 'location', 'floors', 'areas', 'permissions', 'dashboard'];
 
 export default function OnboardingV2Page() {
   const [step, setStep] = useState<Step>('welcome');
+  const [homeName, setHomeName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [invited, setInvited] = useState<string[]>([]);
+  const [location, setLocation] = useState<LatLng | null>(null);
+  const [prefs, setPrefs] = useState<Record<string, boolean>>({});
   const [floors, setFloors] = useState(1);
   const [floorIndex, setFloorIndex] = useState(0);
   const [booksByFloor, setBooksByFloor] = useState<Book[][]>([[]]);
   const [customRooms, setCustomRooms] = useState<string[]>([]);
+
+  const addInvite = useCallback(
+    (name: string) => setInvited((prev) => (prev.includes(name) ? prev : [...prev, name])),
+    [],
+  );
 
   const toggleRoom = useCallback(
     (room: string, Icon: TablerIcon) => {
@@ -783,22 +1179,21 @@ export default function OnboardingV2Page() {
 
   const next = () => {
     setDir(1);
-    if (step === 'welcome') setStep('floors');
-    else if (step === 'floors') {
-      setFloorIndex(0);
-      setStep('areas');
-    } else if (step === 'areas') {
-      if (floorIndex < floors - 1) setFloorIndex(floorIndex + 1);
-      else setStep('dashboard');
+    if (step === 'areas' && floorIndex < floors - 1) {
+      setFloorIndex(floorIndex + 1);
+      return;
     }
+    if (step === 'floors') setFloorIndex(0);
+    setStep(ORDER[ORDER.indexOf(step) + 1]);
   };
   const back = () => {
     setDir(-1);
-    if (step === 'floors') setStep('welcome');
-    else if (step === 'areas') {
-      if (floorIndex > 0) setFloorIndex(floorIndex - 1);
-      else setStep('floors');
-    } else if (step === 'dashboard') setStep('areas');
+    if (step === 'areas' && floorIndex > 0) {
+      setFloorIndex(floorIndex - 1);
+      return;
+    }
+    if (step === 'permissions') setFloorIndex(floors - 1);
+    setStep(ORDER[ORDER.indexOf(step) - 1]);
   };
 
   const stepKey = step === 'areas' ? `areas-${floorIndex}` : step;
@@ -810,8 +1205,15 @@ export default function OnboardingV2Page() {
     >
       {/* The app smooths every radius into a squircle (globals.css data-squircle
           rule), which squares off this prototype's pill buttons. Figma uses true
-          pill rounding here, so opt this subtree back out. */}
-      <style>{`[data-squircle="on"] .onboarding-v2, [data-squircle="on"] .onboarding-v2 * { corner-shape: round; }`}</style>
+          pill rounding here, so opt this subtree back out. The artwork's idle
+          motion is CSS keyframes — framer's repeat animations stall under the
+          step's AnimatePresence variants parent. */}
+      <style>{`
+        [data-squircle="on"] .onboarding-v2, [data-squircle="on"] .onboarding-v2 * { corner-shape: round; }
+        @keyframes obv2-door { 0%, 70% { transform: rotateY(0deg); } 80%, 88% { transform: rotateY(-26deg); } 96%, 100% { transform: rotateY(0deg); } }
+        @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+        @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+      `}</style>
       <div className="mx-auto max-w-[430px] h-full">
         <AnimatePresence mode="popLayout" initial={false} custom={dir}>
           <motion.div
@@ -833,7 +1235,27 @@ export default function OnboardingV2Page() {
               step === 'dashboard' && 'pb-[calc(env(safe-area-inset-bottom)+16px)]',
             )}
           >
-            {step === 'welcome' && <WelcomeStep onNext={next} />}
+            {step === 'welcome' && (
+              <WelcomeStep homeName={homeName} userCount={1 + invited.length} onNext={next} />
+            )}
+            {step === 'name' && (
+              <NameStep homeName={homeName} setHomeName={setHomeName} onBack={back} onNext={next} />
+            )}
+            {step === 'users' && (
+              <UsersStep
+                username={username}
+                setUsername={setUsername}
+                password={password}
+                setPassword={setPassword}
+                invited={invited}
+                addInvite={addInvite}
+                onBack={back}
+                onNext={next}
+              />
+            )}
+            {step === 'location' && (
+              <PlaceStep location={location} setLocation={setLocation} onBack={back} onNext={next} />
+            )}
             {step === 'floors' && (
               <FloorsStep floors={floors} setFloors={setFloors} onBack={back} onNext={next} />
             )}
@@ -849,8 +1271,11 @@ export default function OnboardingV2Page() {
                 onNext={next}
               />
             )}
+            {step === 'permissions' && (
+              <PermissionsStep prefs={prefs} setPrefs={setPrefs} onBack={back} onNext={next} />
+            )}
             {step === 'dashboard' && (
-              <DashboardStep initialCards={cards} onBack={back} />
+              <DashboardStep homeName={homeName} initialCards={cards} onBack={back} />
             )}
           </motion.div>
         </AnimatePresence>
