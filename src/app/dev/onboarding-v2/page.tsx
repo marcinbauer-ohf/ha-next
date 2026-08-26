@@ -313,7 +313,7 @@ function CtaButton({
       brighten
       onClick={disabled ? undefined : onClick}
       className={clsx(
-        'w-full min-h-[52px] rounded-full flex items-center justify-between px-3 text-white transition-opacity',
+        'obv2-cta w-full min-h-[52px] rounded-full flex items-center justify-between px-3 text-white transition-opacity',
         disabled && 'opacity-40 pointer-events-none',
       )}
       style={{ background: INK }}
@@ -378,6 +378,9 @@ function PillInput({
 }
 
 // ── Keys & keychain: every person in the home holds a key ───────────────────
+/** Plastic key-cap colors — picked by the person's style seed. */
+const KEY_CAPS = ['#009ac7', '#e8a33d', '#7bb662', '#d96c6c', '#8e7cc3', '#e58f65'];
+
 /** Stable hash used to cut and shape keys. */
 function keyHash(s: string): number {
   let h = 7;
@@ -403,6 +406,8 @@ function KeySvg({
   const s = keyHash(styleSeed ?? cutSeed);
   const headR = 6.5 + (s & 3) * 0.7;
   const headStroke = 5 + ((s >> 2) & 3) * 0.7;
+  // Every person's key wears a small colored cap around the hole.
+  const cap = KEY_CAPS[s % KEY_CAPS.length];
   const L = 11 + ((s >> 4) & 1) * 2;
   const R = 20;
   const pointed = ((s >> 5) & 1) === 1;
@@ -417,7 +422,9 @@ function KeySvg({
     : `L${R} 59 Q${R} 62 ${R - 3} 62 L${L + 3} 62 Q${L} 62 ${L} 59 Z`;
   return (
     <svg width={height * 0.5} height={height} viewBox="0 0 32 64" fill="none">
-      <circle cx="16" cy="10" r={headR} stroke={color} strokeWidth={headStroke} />
+      <circle cx="16" cy="10" r={headR} stroke={cap} strokeWidth={headStroke} />
+      {/* thin body-coloured collar where the cap meets the blade */}
+      <rect x="12" y={15.5} width="8" height="4" rx="2" fill={color} />
       <path d={blade} fill={color} stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
@@ -495,8 +502,8 @@ function Door({
         {/* the home name — the first thing the user sets up */}
         {name ? (
           <span
-            className="absolute top-[60px] left-0 right-0 text-center text-[18px] font-semibold tracking-[-0.36px] px-3 truncate"
-            style={{ color: TEXT_2 }}
+            className="absolute left-0 right-0 text-center font-semibold px-2 truncate"
+            style={{ color: TEXT_2, top: Math.round(height * 0.19), fontSize: Math.max(12, Math.round(width * 0.105)), letterSpacing: '-0.02em' }}
           >
             {name}
           </span>
@@ -1009,6 +1016,9 @@ export default function OnboardingV2Page() {
   // Keyboard = the viewport lost real height against the best we've seen, or
   // it's outright short. A fixed 560px cutoff misses large iPhones.
   const compact = vp !== null && (vp.h < 560 || vp.h < vp.max - 100);
+  // While actually typing with the keyboard up, only the inputs matter — the
+  // continue button may fall out of frame (hidden via .obv2-hide-cta).
+  const [typing, setTyping] = useState(false);
 
   const showToast = (msg: string) => {
     const id = Date.now();
@@ -1196,7 +1206,7 @@ export default function OnboardingV2Page() {
             <div
               className="transition-transform duration-500 ease-out"
               style={{
-                transform: nameFocused && !compact ? 'scale(1.32) translateY(12%)' : undefined,
+                transform: nameFocused && !compact ? 'scale(1.6) translateY(19%)' : undefined,
                 transformOrigin: 'top center',
               }}
             >
@@ -1360,7 +1370,7 @@ export default function OnboardingV2Page() {
               </Press>
             </div>
             <CtaButton label="Continue" onClick={next} arrow disabled={invited.length === 0} />
-            <Press onClick={next} className="mx-auto px-4 py-1 text-[15px] font-semibold tracking-[-0.3px]">
+            <Press onClick={next} className="obv2-cta mx-auto px-4 py-1 text-[15px] font-semibold tracking-[-0.3px]">
               <span style={{ color: TEXT_2 }}>Skip for now</span>
             </Press>
           </>
@@ -1494,6 +1504,7 @@ export default function OnboardingV2Page() {
           step's AnimatePresence variants parent. */}
       <style>{`
         [data-squircle="on"] .onboarding-v2, [data-squircle="on"] .onboarding-v2 * { corner-shape: round; }
+        .obv2-hide-cta .obv2-cta { display: none; }
         @keyframes obv2-door { 0%, 70% { transform: rotateY(0deg); } 80%, 88% { transform: rotateY(-26deg); } 96%, 100% { transform: rotateY(0deg); } }
         @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
         @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
@@ -1624,8 +1635,26 @@ export default function OnboardingV2Page() {
                 </motion.div>
               </AnimatePresence>
             </div>
-            {/* static bottom sheet — its contents crossfade per step */}
-            <div className="bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
+            {/* static bottom sheet — its contents crossfade per step. The
+                gradient scrim above it pushes the artwork into the background. */}
+            <div className="relative">
+              <div
+                aria-hidden
+                className="absolute -top-20 inset-x-0 h-20 pointer-events-none"
+                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10), transparent)' }}
+              />
+            <div
+              className={clsx(
+                'relative bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]',
+                compact && typing && 'obv2-hide-cta',
+              )}
+              onFocusCapture={(e) => {
+                if ((e.target as HTMLElement).tagName === 'INPUT') setTyping(true);
+              }}
+              onBlurCapture={(e) => {
+                if ((e.target as HTMLElement).tagName === 'INPUT') setTyping(false);
+              }}
+            >
               <div className="mx-auto w-[40px] h-[4px] rounded-full bg-[#e6e6e6] mb-2" />
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
@@ -1639,6 +1668,7 @@ export default function OnboardingV2Page() {
                   {sheet}
                 </motion.div>
               </AnimatePresence>
+            </div>
             </div>
           </div>
         )}
