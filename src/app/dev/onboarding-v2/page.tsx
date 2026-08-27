@@ -78,7 +78,7 @@ const TEXT_DIM = '#989898';
 const MAX_FLOORS = 5;
 
 // ── Copy: EN/PL — the flag button on the welcome bar toggles ─────────────────
-type Lang = 'en' | 'pl';
+type Lang = 'en' | 'pl' | 'es';
 interface Device {
   name: string;
   value?: string;
@@ -94,7 +94,7 @@ const ANALYTIC_KEYS = ['base', 'usage', 'stats', 'diag'];
 
 const STR = {
   en: {
-    flag: '🇬🇧',
+    code: 'EN',
     welcomeTitle: 'Welcome home',
     welcomeSub: 'A few easy questions, nothing is permanent',
     begin: 'Let’s begin',
@@ -107,6 +107,7 @@ const STR = {
     nameTitle: 'Name your home',
     nameSub: "It's written on the door. You can change it anytime.",
     namePh: 'My Home',
+    nameChips: ['My Home', 'The Nest', 'Base Camp', 'The Cabin'],
     usersTitle: 'Your own key',
     usersSub: 'Your account unlocks this home — the password cuts your key.',
     userPh: 'Username',
@@ -168,7 +169,7 @@ const STR = {
     invitedLabel: 'Invited',
   },
   pl: {
-    flag: '🇵🇱',
+    code: 'PL',
     welcomeTitle: 'Witaj w domu',
     welcomeSub: 'Kilka prostych pytań, nic nie jest na zawsze',
     begin: 'Zaczynajmy',
@@ -181,6 +182,7 @@ const STR = {
     nameTitle: 'Nazwij swój dom',
     nameSub: 'Nazwa jest na drzwiach. Zmienisz ją w każdej chwili.',
     namePh: 'Mój dom',
+    nameChips: ['Mój dom', 'Gniazdko', 'Baza', 'Chatka'],
     usersTitle: 'Twój własny klucz',
     usersSub: 'Twoje konto otwiera ten dom — hasło nacina twój klucz.',
     userPh: 'Nazwa użytkownika',
@@ -241,8 +243,84 @@ const STR = {
     admin: 'Administrator',
     invitedLabel: 'Zaproszono',
   },
+  es: {
+    code: 'ES',
+    welcomeTitle: 'Bienvenido a casa',
+    welcomeSub: 'Unas preguntas fáciles, nada es permanente',
+    begin: 'Empecemos',
+    cont: 'Continuar',
+    finish: 'Terminar',
+    skip: 'Omitir por ahora',
+    custom: 'Opciones',
+    customMenu: ['Restaurar desde una copia', 'Migrar desde otro sistema', 'Conoce Home Assistant'],
+    a11yMenu: ['Texto más grande', 'Alto contraste', 'Menos animaciones', 'Indicaciones de voz'],
+    nameTitle: 'Nombra tu hogar',
+    nameSub: 'Está escrito en la puerta. Puedes cambiarlo cuando quieras.',
+    namePh: 'Mi casa',
+    nameChips: ['Mi casa', 'El nido', 'La base', 'La cabaña'],
+    usersTitle: 'Tu propia llave',
+    usersSub: 'Tu cuenta abre este hogar — la contraseña talla tu llave.',
+    userPh: 'Nombre de usuario',
+    passPh: 'Contraseña',
+    inviteTitle: 'Invita a tu hogar',
+    inviteSub: 'Cada uno recibe su propia llave. También puedes hacerlo más tarde.',
+    invitePh: 'Invitar por correo',
+    inviteToast: (email: string) => `Invitación enviada — una llave espera a ${email}`,
+    locTitle: '¿Dónde está tu hogar?',
+    locSub: 'Arrastra el mapa hasta que tu casa quede bajo el marcador.',
+    locate: 'Usar mi ubicación',
+    locating: 'Buscándote…',
+    tapPlace: 'Toca para colocar tu casa',
+    dragHome: 'Arrastra hasta que tu casa quede bajo el marcador',
+    floorsTitle: '¿Cuántas plantas?',
+    floorsSub: 'Las plantas agrupan tus habitaciones, que tienen tus dispositivos. Simple.',
+    quips: [
+      'Acogedor — todo a mano',
+      'Dos plantas, un clásico',
+      'Tres plantas de cardio matutino',
+      'A tu smartwatch le encantarán estas escaleras',
+      '¡Eso no es una casa, es un castillo! 🏰',
+    ],
+    areasOn: 'Habitaciones — ',
+    areasSub: 'Toca una balda para saltar entre plantas.',
+    customRoomPh: 'Añade una habitación',
+    permTitle: '¿Qué sale de tu casa?',
+    permSub: 'Cada una es una postal anónima a Home Assistant. Todo opcional.',
+    analytics: [
+      { key: 'base', label: 'Datos básicos', desc: 'Tipo de instalación y versión' },
+      { key: 'usage', label: 'Uso', desc: 'Qué integraciones usas' },
+      { key: 'stats', label: 'Estadísticas', desc: 'Número de dispositivos y automatizaciones' },
+      { key: 'diag', label: 'Diagnóstico', desc: 'Informes de errores, para corregirlos antes' },
+    ],
+    thanksTitle: 'Da las gracias 💌',
+    thanksDesc: 'Envía un agradecimiento a la Open Home Foundation',
+    floors: ['Planta baja', 'Primera planta', 'Segunda planta', 'Tercera planta', 'Cuarta planta'],
+    tower: 'La torre 🏰',
+    rooms: ['Salón', 'Cocina', 'Dormitorio', 'Baño', 'Oficina', 'Comedor', 'Pasillo', 'Cuarto de niños', 'Lavadero', 'Garaje', 'Gimnasio', 'Jardín', 'Escalera', 'Estudio'],
+    devices: [
+      { name: 'Lámpara de techo', toggle: true },
+      { name: 'Termostato', value: '21,5°' },
+      { name: 'Enchufe inteligente', toggle: true },
+      { name: 'Humedad', value: '52%' },
+      { name: 'Televisor', toggle: true },
+      { name: 'Puerta principal', value: 'Cerrada' },
+    ] as Device[],
+    homeFallback: 'Casa',
+    dashMenu: ['Elegir un hogar', 'Editar el panel'],
+    on: 'Enc.',
+    off: 'Apag.',
+    searchPh: 'Buscar en casa',
+    noResults: 'Sin resultados',
+    actLine: (name: string, on: boolean) => `${on ? 'Encendido' : 'Apagado'}: ${name}`,
+    times: ['ahora mismo', 'hace 10 min', 'hace 1 h', 'hace 3 h', 'ayer'],
+    yourHome: 'Tu hogar',
+    people: 'Personas',
+    admin: 'Administrador',
+    invitedLabel: 'Invitado',
+  },
 };
 type Copy = typeof STR.en;
+const LANG_CYCLE: Lang[] = ['en', 'pl', 'es'];
 
 // Easter egg: whoever builds to the top of the stepper gets a tower.
 const floorName = (L: Copy, i: number) => (i === MAX_FLOORS - 1 ? L.tower : L.floors[i]);
@@ -323,6 +401,8 @@ function Shelf({
   index?: number;
   onSelect?: () => void;
 }) {
+  // Touching a book gives it a little wobble around its lean.
+  const [pokedId, setPokedId] = useState<string | null>(null);
   return (
     <motion.div
       layout
@@ -344,20 +424,35 @@ function Shelf({
                 <motion.div
                   key={book.id}
                   layout
-                  initial={{ y: -150, rotate: 0, opacity: 0 }}
-                  animate={{ y: 0, rotate: book.lean, opacity: 1 }}
+                  initial={{ y: -150, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
                   exit={{ opacity: 0, scale: 0.7 }}
                   transition={{ type: 'spring', stiffness: 320, damping: 17, mass: 0.9 }}
-                  title={book.room}
-                  style={{
-                    width: book.w,
-                    height: book.h,
-                    background: book.tone,
-                    transformOrigin: book.lean < 0 ? 'bottom left' : 'bottom right',
-                  }}
-                  className="rounded-[6px] shrink-0 shadow-[0_2px_4px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)] flex flex-col items-center pt-[7px]"
+                  className="shrink-0"
+                  style={{ width: book.w, height: book.h }}
                 >
-                  <book.Icon size={18} color={TEXT_2} stroke={1.75} />
+                  {/* The lean lives here as plain CSS so the poke wobble can
+                      key off it (the keyframes read var(--lean)). */}
+                  <div
+                    title={book.room}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setPokedId(book.id);
+                    }}
+                    onAnimationEnd={() => setPokedId((p) => (p === book.id ? null : p))}
+                    className="w-full h-full rounded-[6px] shadow-[0_2px_4px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)] flex flex-col items-center pt-[7px] transition-transform duration-500"
+                    style={
+                      {
+                        background: book.tone,
+                        transformOrigin: book.lean < 0 ? 'bottom left' : 'bottom right',
+                        transform: `rotate(${book.lean}deg)`,
+                        '--lean': `${book.lean}deg`,
+                        animation: pokedId === book.id ? 'obv2-book-poke 0.65s ease' : undefined,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <book.Icon size={18} color={TEXT_2} stroke={1.75} />
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -392,7 +487,7 @@ function ShelfStack({
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
-    <div className="w-full min-h-full flex flex-col justify-end gap-3 pb-6">
+    <div className="w-full min-h-full flex flex-col justify-end gap-3 pb-12">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -506,13 +601,24 @@ function PillInput({
   return (
     <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] pl-5 pr-2 flex items-center gap-1">
       <input
-        type={secret && !show ? 'password' : 'text'}
+        // Always type="text": iOS hangs its password-manager UI (save/use
+        // existing password) off type="password", which this prototype never
+        // wants. The dots come from -webkit-text-security instead.
+        type="text"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize={secret ? 'off' : undefined}
+        spellCheck={false}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onPointerDown={(e) => {
           if (!delayFocus) return;
           const el = e.currentTarget;
           if (document.activeElement === el) return;
+          // Hopping between two inputs keeps the keyboard up — delaying the
+          // focus there just makes the UI stutter. Only choreograph the
+          // keyboard-raising first focus.
+          if (document.activeElement?.tagName === 'INPUT') return;
           e.preventDefault();
           onFocus?.();
           setTimeout(() => el.focus(), 360);
@@ -521,7 +627,7 @@ function PillInput({
         onBlur={onBlur}
         placeholder={placeholder}
         className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
-        style={{ color: TEXT }}
+        style={{ color: TEXT, WebkitTextSecurity: secret && !show ? 'disc' : undefined } as React.CSSProperties}
       />
       {value && (
         <Press
@@ -654,7 +760,15 @@ function Keychain({
               transition={{ type: 'spring', stiffness: 300, damping: 16 }}
               style={{ transformOrigin: 'top center' }}
             >
-              <KeySvg cutSeed={k.cutSeed} styleSeed={k.styleSeed} color={k.color} height={keyHeight} />
+              {/* each key pendulums gently on the ring, out of phase */}
+              <div
+                style={{
+                  transformOrigin: 'top center',
+                  animation: `obv2-swing 3.6s ease-in-out ${i * 0.55}s infinite`,
+                }}
+              >
+                <KeySvg cutSeed={k.cutSeed} styleSeed={k.styleSeed} color={k.color} height={keyHeight} />
+              </div>
             </motion.div>
           </div>
         ))}
@@ -667,23 +781,19 @@ function Keychain({
 function Door({
   name,
   height = 345,
-  swing = true,
   poked = false,
   onPokeEnd,
 }: {
   name?: string;
   height?: number;
-  swing?: boolean;
   /** One-shot open/close on tap; onPokeEnd fires when the swing finishes. */
   poked?: boolean;
   onPokeEnd?: () => void;
 }) {
   const width = Math.round(height * 0.504);
-  const animation = poked
-    ? 'obv2-door-once 1.2s ease-in-out'
-    : swing
-      ? 'obv2-door 9s ease-in-out infinite'
-      : undefined;
+  // The door rests closed — an idle swing kept catching the eye mid-open and
+  // reading as "the door is open". It only swings when poked.
+  const animation = poked ? 'obv2-door-once 1.2s ease-in-out' : undefined;
   return (
     <div className="relative" style={{ perspective: 700 }}>
       {/* The door frame — without one the panel floats and reads as an OPEN
@@ -748,7 +858,11 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         {/* the door bleeds off the left edge, standing on its mat */}
         <div className="absolute -left-[70px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
           <Door name={homeName} height={330} poked={poke === 'door'} onPokeEnd={endPoke} />
-          <div className="mt-[16px] ml-[8px] w-[190px] h-[34px] bg-white rounded-full" />
+          {/* the doormat — a flat rhombus lying at the doorstep */}
+          <div
+            className="mt-[18px] ml-[14px] w-[168px] h-[34px] bg-white rounded-[12px]"
+            style={{ transform: 'skewX(-32deg)' }}
+          />
         </div>
         {/* the wall arrangement on the right */}
         <div className="absolute right-[6px] top-1/2 -translate-y-1/2 flex flex-col gap-7 items-start">
@@ -766,18 +880,17 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
                 </span>
               </div>
             </div>
-            {/* the Home Assistant ZBT-2 antenna, chatting with the devices */}
+            {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices */}
             <div className="relative flex flex-col items-center">
               {[0, 1].map((i) => (
                 <span
                   key={i}
                   aria-hidden
-                  className="absolute -top-[14px] left-1/2 size-[40px] rounded-full border-2 border-white"
+                  className="absolute -top-[16px] left-1/2 size-[40px] rounded-full border-2 border-white"
                   style={{ marginLeft: -20, animation: `obv2-pulse 2.6s ease-out ${i * 1.3}s infinite` }}
                 />
               ))}
-              <div className="relative w-[44px] h-[12px] bg-white rounded-full" />
-              <div className="relative w-[10px] h-[36px] bg-white" />
+              <div className="relative w-[10px] h-[42px] bg-white rounded-t-full" />
               <div className="relative w-[26px] h-[8px] bg-white rounded-full" />
             </div>
           </div>
@@ -1640,23 +1753,17 @@ export default function OnboardingV2Page() {
       case 'name':
         return (
           <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
-            {/* Focusing the field leans in on the door. On touch the wrapper
-                instead settles to the keyboard framing BEFORE the keyboard
-                rises (see PillInput delayFocus) — no mid-animation size snap. */}
+            {/* Focusing the field zooms IN on the nametag: the name plate sits
+                86px above the door's centre, so translateY(86·1.5) parks it
+                dead-centre of whatever room the keyboard leaves. Same door,
+                same shape, closer. */}
             <div
-              className="transition-transform duration-500 ease-out"
               style={{
-                transform: nameFocused
-                  ? coarse || compact
-                    ? 'scale(0.62)'
-                    : 'scale(1.6) translateY(19%)'
-                  : compact
-                    ? 'scale(0.62)'
-                    : undefined,
-                transformOrigin: nameFocused && !(coarse || compact) ? 'top center' : 'center',
+                transform: nameFocused ? 'translateY(129px) scale(1.5)' : undefined,
+                transition: 'transform 0.65s cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
-              <Door name={homeName} height={310} swing={false} />
+              <Door name={homeName} height={310} />
             </div>
           </div>
         );
@@ -1773,6 +1880,22 @@ export default function OnboardingV2Page() {
               onFocus={() => setNameFocused(true)}
               onBlur={() => setNameFocused(false)}
             />
+            {/* a few ready-made names, chip-style like the area picker */}
+            <div className="flex flex-wrap justify-center gap-2">
+              {L.nameChips.map((chip) => (
+                <Press
+                  key={chip}
+                  onClick={() => setHomeName(chip)}
+                  className="px-3 py-2 rounded-[12px] text-[14px] font-semibold tracking-[-0.28px]"
+                  style={{
+                    background: homeName === chip ? ACCENT : '#f3f3f3',
+                    color: homeName === chip ? '#ffffff' : INK,
+                  }}
+                >
+                  {chip}
+                </Press>
+              ))}
+            </div>
             <CtaButton label={L.cont} onClick={next} arrow disabled={!homeName.trim()} />
           </>
         );
@@ -1806,6 +1929,8 @@ export default function OnboardingV2Page() {
               <input
                 type="email"
                 inputMode="email"
+                autoComplete="off"
+                autoCorrect="off"
                 autoCapitalize="off"
                 value={inviteDraft}
                 onChange={(e) => setInviteDraft(e.target.value)}
@@ -1969,7 +2094,6 @@ export default function OnboardingV2Page() {
         html, body { background: ${SURFACE}; }
         [data-squircle="on"] .onboarding-v2, [data-squircle="on"] .onboarding-v2 * { corner-shape: round; }
         .obv2-hide-cta .obv2-cta { display: none; }
-        @keyframes obv2-door { 0%, 78% { transform: rotateY(0deg); } 85%, 90% { transform: rotateY(-11deg); } 96%, 100% { transform: rotateY(0deg); } }
         @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
         @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         @keyframes obv2-door-once { 0% { transform: rotateY(0deg); } 45% { transform: rotateY(-34deg); } 100% { transform: rotateY(0deg); } }
@@ -1977,6 +2101,8 @@ export default function OnboardingV2Page() {
         @keyframes obv2-pop { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.14); } }
         @keyframes obv2-pulse { 0% { transform: scale(0.25); opacity: 0.9; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes obv2-quip { 0% { opacity: 0; transform: translateY(6px); } 8%, 78% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
+        @keyframes obv2-swing { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
+        @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
       `}</style>
       <div className="mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
@@ -2032,10 +2158,12 @@ export default function OnboardingV2Page() {
                   {step === 'welcome' && (
                     <Press
                       aria-label="Switch language"
-                      onClick={() => setLang((l) => (l === 'en' ? 'pl' : 'en'))}
-                      className="size-[44px] rounded-full bg-[#f3f3f3] flex items-center justify-center text-[20px] leading-none"
+                      onClick={() => setLang((l) => LANG_CYCLE[(LANG_CYCLE.indexOf(l) + 1) % LANG_CYCLE.length])}
+                      className="size-[44px] rounded-full bg-[#f3f3f3] flex items-center justify-center"
                     >
-                      {L.flag}
+                      <span className="text-[13px] font-bold tracking-[0.02em]" style={{ color: TEXT_2 }}>
+                        {L.code}
+                      </span>
                     </Press>
                   )}
                   <Press
