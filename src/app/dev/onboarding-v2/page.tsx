@@ -2153,8 +2153,13 @@ export default function OnboardingV2Page() {
                   </Press>
                 )}
               </div>
-              <span className="text-[14px] font-semibold tracking-[-0.28px] py-1" style={{ color: TEXT_DIM }}>
-                {mapActive ? L.dragHome : L.tapPlace}
+              {/* the hint gives way to the address once panning finds one */}
+              <span
+                key={address ?? 'hint'}
+                className="text-[14px] font-semibold tracking-[-0.28px] py-1 truncate max-w-full px-2"
+                style={{ color: address ? TEXT_2 : TEXT_DIM, animation: 'obv2-fade-in 0.4s ease' }}
+              >
+                {mapActive ? (address ? `${flag ? `${flag} ` : ''}${address}` : L.dragHome) : L.tapPlace}
               </span>
             </div>
           </div>
@@ -2270,18 +2275,6 @@ export default function OnboardingV2Page() {
       case 'location':
         return (
           <>
-            {/* the address under the marker — same slot as the floors quip */}
-            <div className="min-h-[24px] flex items-center justify-center overflow-hidden">
-              {address && (
-                <span
-                  key={address}
-                  className="text-center text-[14px] font-semibold tracking-[-0.28px] truncate max-w-full px-2"
-                  style={{ color: TEXT_2, animation: 'obv2-fade-in 0.4s ease' }}
-                >
-                  {flag ? `${flag} ` : ''}{address}
-                </span>
-              )}
-            </div>
             <Press onClick={locateMe} className="w-full min-h-[52px] rounded-full bg-[#f3f3f3] flex items-center justify-center gap-2">
               <IconCurrentLocation size={20} color={TEXT_2} />
               <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT_2 }}>
