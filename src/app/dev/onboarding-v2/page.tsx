@@ -887,7 +887,10 @@ function Door({
   // reading as "the door is open". It only swings when poked.
   const animation = poked ? 'obv2-door-once 1.2s ease-in-out' : undefined;
   return (
-    <div className="relative" style={{ perspective: 700 }}>
+    // Width pinned to the door: as a plain block this div stretches to its
+    // widest sibling-driven parent (the welcome mat), and the doorway layer —
+    // inset from THIS box — then pokes out past the door like it's ajar.
+    <div className="relative" style={{ perspective: 700, width }}>
       {/* The door frame — without one the panel floats and reads as an OPEN
           door; framed, it reads closed. */}
       <div className="absolute -inset-[9px] rounded-[31px] bg-[#f4f4f4] shadow-[0_2px_10px_rgba(0,0,0,0.05)]" />
@@ -952,11 +955,13 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         {/* the door bleeds off the left edge, standing on its mat */}
         <div className="absolute -left-[70px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
           <Door name={homeName} height={330} poked={poke === 'door'} onPokeEnd={endPoke} />
-          {/* the doormat — a flat rhombus lying at the doorstep */}
-          <div
-            className="mt-[18px] ml-[14px] w-[168px] h-[34px] bg-white rounded-[12px]"
-            style={{ transform: 'skewX(-32deg)' }}
-          />
+          {/* the doormat — a rounded rhombus lying flat at the doorstep */}
+          <div className="mt-[10px] w-[166px] h-[52px] flex items-center justify-center">
+            <div
+              className="w-[104px] h-[104px] bg-white rounded-[20px] shrink-0"
+              style={{ transform: 'scaleY(0.32) rotate(45deg)' }}
+            />
+          </div>
         </div>
         {/* the wall arrangement on the right */}
         <div className="absolute right-[6px] top-1/2 -translate-y-1/2 flex flex-col gap-7 items-start">
