@@ -47,6 +47,7 @@ import {
   IconBulb,
   IconChevronDown,
   IconCurrentLocation,
+  IconDeviceMobile,
   IconPlug,
   IconUserPlus,
   IconX,
@@ -109,6 +110,10 @@ interface Device {
   value?: string;
   toggle?: boolean;
 }
+interface Invitee {
+  email: string;
+  admin: boolean;
+}
 
 const ROOM_ICONS: TablerIcon[] = [
   IconSofa, IconToolsKitchen2, IconBed, IconBath, IconBriefcase, IconArmchair, IconDoor,
@@ -143,20 +148,21 @@ const STR = {
     a11yMenu: ['Larger text', 'High contrast', 'Reduce motion', 'Spoken hints'],
     nameTitle: 'Name your home',
     nameSub: "It's written on the door. You can change it anytime.",
-    namePh: 'My Home',
+    namePh: 'Home name',
     nameChips: ['My Home', 'The Nest', 'Base Camp', 'The Cabin'],
-    usersTitle: 'Your own key',
+    usersTitle: 'Create your account',
     usersSub: 'Your account unlocks this home — the password cuts your key.',
     userPh: 'Username',
     passPh: 'Password',
-    inviteTitle: 'Invite your household',
+    inviteTitle: 'Invite others',
     inviteSub: 'Everyone gets their own key. You can also do this later.',
-    invitePh: 'Invite by email',
+    invitePh: 'Email address',
     inviteToast: (email: string) => `Invite sent — a key is waiting for ${email}`,
     locTitle: 'Where is your home?',
-    locSub: 'Drag the map until your home sits under the marker.',
+    locSub: 'Search, or drag the map until your home sits under the marker.',
     locate: 'Use my location',
     locating: 'Finding you…',
+    locSearchPh: 'Search for an address',
     tapPlace: 'Tap to place your home',
     dragHome: 'Drag until your home sits under the marker',
     floorsTitle: 'How many floors?',
@@ -170,6 +176,8 @@ const STR = {
     ],
     areasOn: 'Areas on ',
     areasSub: 'Tap a shelf to hop between floors.',
+    nextFloor: 'Next floor',
+    rotate: 'Rotate your phone',
     customRoomPh: 'Add a custom room',
     permTitle: 'What leaves your home?',
     permSub: 'Each one is an anonymous postcard to Home Assistant. All optional.',
@@ -203,7 +211,7 @@ const STR = {
     yourHome: 'Your home',
     people: 'People',
     admin: 'Admin',
-    invitedLabel: 'Invited',
+    guest: 'Guest',
     dashboards: ['Energy', 'Security', 'Garden'],
     settingsTitle: 'Settings',
     settings: [
@@ -229,20 +237,21 @@ const STR = {
     a11yMenu: ['Większy tekst', 'Wysoki kontrast', 'Ogranicz animacje', 'Podpowiedzi głosowe'],
     nameTitle: 'Nazwij swój dom',
     nameSub: 'Nazwa jest na drzwiach. Zmienisz ją w każdej chwili.',
-    namePh: 'Mój dom',
+    namePh: 'Nazwa domu',
     nameChips: ['Mój dom', 'Gniazdko', 'Baza', 'Chatka'],
-    usersTitle: 'Twój własny klucz',
+    usersTitle: 'Utwórz swoje konto',
     usersSub: 'Twoje konto otwiera ten dom — hasło nacina twój klucz.',
     userPh: 'Nazwa użytkownika',
     passPh: 'Hasło',
-    inviteTitle: 'Zaproś domowników',
+    inviteTitle: 'Zaproś innych',
     inviteSub: 'Każdy dostaje własny klucz. Możesz to zrobić też później.',
-    invitePh: 'Zaproś przez e-mail',
+    invitePh: 'Adres e-mail',
     inviteToast: (email: string) => `Zaproszenie wysłane — klucz czeka na ${email}`,
     locTitle: 'Gdzie jest twój dom?',
-    locSub: 'Przesuwaj mapę, aż twój dom znajdzie się pod znacznikiem.',
+    locSub: 'Wyszukaj lub przesuwaj mapę, aż twój dom znajdzie się pod znacznikiem.',
     locate: 'Użyj mojej lokalizacji',
     locating: 'Szukam cię…',
+    locSearchPh: 'Szukaj adresu',
     tapPlace: 'Dotknij, aby umieścić dom',
     dragHome: 'Przesuwaj, aż dom będzie pod znacznikiem',
     floorsTitle: 'Ile pięter?',
@@ -256,6 +265,8 @@ const STR = {
     ],
     areasOn: 'Pokoje — ',
     areasSub: 'Dotknij półki, aby przeskoczyć między piętrami.',
+    nextFloor: 'Następne piętro',
+    rotate: 'Obróć telefon',
     customRoomPh: 'Dodaj własny pokój',
     permTitle: 'Co opuszcza twój dom?',
     permSub: 'Każda pozycja to anonimowa pocztówka do Home Assistant. Wszystko opcjonalne.',
@@ -289,7 +300,7 @@ const STR = {
     yourHome: 'Twój dom',
     people: 'Domownicy',
     admin: 'Administrator',
-    invitedLabel: 'Zaproszono',
+    guest: 'Gość',
     dashboards: ['Energia', 'Bezpieczeństwo', 'Ogród'],
     settingsTitle: 'Ustawienia',
     settings: [
@@ -315,20 +326,21 @@ const STR = {
     a11yMenu: ['Texto más grande', 'Alto contraste', 'Menos animaciones', 'Indicaciones de voz'],
     nameTitle: 'Nombra tu hogar',
     nameSub: 'Está escrito en la puerta. Puedes cambiarlo cuando quieras.',
-    namePh: 'Mi casa',
+    namePh: 'Nombre del hogar',
     nameChips: ['Mi casa', 'El nido', 'La base', 'La cabaña'],
-    usersTitle: 'Tu propia llave',
+    usersTitle: 'Crea tu cuenta',
     usersSub: 'Tu cuenta abre este hogar — la contraseña talla tu llave.',
     userPh: 'Nombre de usuario',
     passPh: 'Contraseña',
-    inviteTitle: 'Invita a tu hogar',
+    inviteTitle: 'Invita a otros',
     inviteSub: 'Cada uno recibe su propia llave. También puedes hacerlo más tarde.',
-    invitePh: 'Invitar por correo',
+    invitePh: 'Correo electrónico',
     inviteToast: (email: string) => `Invitación enviada — una llave espera a ${email}`,
     locTitle: '¿Dónde está tu hogar?',
-    locSub: 'Arrastra el mapa hasta que tu casa quede bajo el marcador.',
+    locSub: 'Busca o arrastra el mapa hasta que tu casa quede bajo el marcador.',
     locate: 'Usar mi ubicación',
     locating: 'Buscándote…',
+    locSearchPh: 'Buscar una dirección',
     tapPlace: 'Toca para colocar tu casa',
     dragHome: 'Arrastra hasta que tu casa quede bajo el marcador',
     floorsTitle: '¿Cuántas plantas?',
@@ -342,6 +354,8 @@ const STR = {
     ],
     areasOn: 'Habitaciones — ',
     areasSub: 'Toca una balda para saltar entre plantas.',
+    nextFloor: 'Siguiente planta',
+    rotate: 'Gira tu teléfono',
     customRoomPh: 'Añade una habitación',
     permTitle: '¿Qué sale de tu casa?',
     permSub: 'Cada una es una postal anónima a Home Assistant. Todo opcional.',
@@ -375,7 +389,7 @@ const STR = {
     yourHome: 'Tu hogar',
     people: 'Personas',
     admin: 'Administrador',
-    invitedLabel: 'Invitado',
+    guest: 'Invitado',
     dashboards: ['Energía', 'Seguridad', 'Jardín'],
     settingsTitle: 'Ajustes',
     settings: [
@@ -1017,11 +1031,15 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
                 onClick={() => setPoke('keys')}
                 onAnimationEnd={poke === 'keys' ? endPoke : undefined}
                 style={{
-                  transformOrigin: 'bottom center',
+                  // The ring is the pivot — a poke jingles the whole bunch
+                  // around it, same as the account step's keychain.
+                  transformOrigin: 'top center',
                   animation: poke === 'keys' ? 'obv2-jingle 0.8s ease' : undefined,
                 }}
               >
-                <KeySvg cutSeed="home" styleSeed="home" color="#ffffff" height={62} />
+                <div className="w-[36px]">
+                  <Keychain keys={[{ id: 'home', cutSeed: 'home', styleSeed: 'home', color: '#ffffff' }]} keyHeight={54} ringSize={30} />
+                </div>
               </div>
               <div className="flex items-end gap-[5px]">
                 {[
@@ -1109,6 +1127,7 @@ function AreasSheet({
   toggleRoom,
   addCustomRoom,
   customRooms,
+  ctaLabel,
   onNext,
 }: {
   L: Copy;
@@ -1117,6 +1136,8 @@ function AreasSheet({
   toggleRoom: (room: string, Icon: TablerIcon) => void;
   addCustomRoom: (name: string) => void;
   customRooms: string[];
+  /** "Next floor" while floors remain, "Continue" on the last one. */
+  ctaLabel: string;
   onNext: () => void;
 }) {
   const selected = new Set((booksByFloor[floorIndex] ?? []).map((b) => b.room));
@@ -1197,7 +1218,7 @@ function AreasSheet({
           <IconPlus size={22} />
         </Press>
       </div>
-      <CtaButton label={L.cont} onClick={onNext} arrow />
+      <CtaButton label={ctaLabel} onClick={onNext} arrow />
     </>
   );
 }
@@ -1331,7 +1352,7 @@ function DashboardStep({
 }: {
   homeName: string;
   username: string;
-  invited: string[];
+  invited: Invitee[];
   initialCards: Card[];
   L: Copy;
   onBack: () => void;
@@ -1501,7 +1522,7 @@ function DashboardStep({
                   {L.people}
                 </span>
                 <div className="bg-white rounded-[24px] p-1.5 flex flex-col">
-                  {[{ name: username.trim() || L.admin, role: L.admin }, ...invited.map((email) => ({ name: email, role: L.invitedLabel }))].map(
+                  {[{ name: username.trim() || L.admin, role: L.admin }, ...invited.map((p) => ({ name: p.email, role: p.admin ? L.admin : L.guest }))].map(
                     ({ name, role }) => (
                       <div key={name} className="flex items-center gap-3 px-2 py-1.5">
                         <span className="shrink-0 w-[38px] flex justify-center">
@@ -1768,7 +1789,7 @@ function DashboardStep({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
               onClick={() => setPreviewId(null)}
-              className="fixed inset-0 z-40 bg-black/30"
+              className="absolute inset-0 z-40 bg-black/30"
             />
             <motion.div
               key="preview-sheet"
@@ -1776,7 +1797,7 @@ function DashboardStep({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 70 }}
               transition={{ type: 'spring', stiffness: 420, damping: 36 }}
-              className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none"
+              className="absolute inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none"
             >
               <motion.div
                 drag="y"
@@ -1842,12 +1863,14 @@ export default function OnboardingV2Page() {
   const [homeName, setHomeName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [invited, setInvited] = useState<string[]>([]);
+  const [invited, setInvited] = useState<Invitee[]>([]);
   const [inviteDraft, setInviteDraft] = useState('');
+  const [inviteAdmin, setInviteAdmin] = useState(false);
   const [location, setLocation] = useState<LatLng | null>(null);
   const [mapActive, setMapActive] = useState(false);
   const [center, setCenter] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
+  const [locQuery, setLocQuery] = useState('');
   const [flag, setFlag] = useState<string | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
@@ -1856,6 +1879,7 @@ export default function OnboardingV2Page() {
   const [booksByFloor, setBooksByFloor] = useState<Book[][]>([[]]);
   const [customRooms, setCustomRooms] = useState<string[]>([]);
   const [credFocused, setCredFocused] = useState(false);
+  const [nameFocused, setNameFocused] = useState(false);
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
   const [a11yMenuOpen, setA11yMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
@@ -1904,7 +1928,8 @@ export default function OnboardingV2Page() {
   };
 
   const addInvite = useCallback(
-    (name: string) => setInvited((prev) => (prev.includes(name) ? prev : [...prev, name])),
+    (email: string, admin: boolean) =>
+      setInvited((prev) => (prev.some((p) => p.email === email) ? prev : [...prev, { email, admin }])),
     [],
   );
 
@@ -2015,11 +2040,32 @@ export default function OnboardingV2Page() {
     );
   };
 
+  // Forward geocode via Nominatim (key-less, CORS-open) — the map flies to
+  // the top hit and panning takes over from there.
+  const searchAddress = async () => {
+    const q = locQuery.trim();
+    if (!q) return;
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=${lang}`,
+      );
+      const j = await r.json();
+      if (j[0]) {
+        const here = { lat: parseFloat(j[0].lat), lng: parseFloat(j[0].lon) };
+        setCenter(here);
+        setLocation(here);
+        setMapActive(true);
+      }
+    } catch {
+      /* offline or blocked — the map stays where it was */
+    }
+  };
+
   const inviteValid = /\S+@\S+\.\S+/.test(inviteDraft.trim());
   const submitInvite = () => {
     const email = inviteDraft.trim();
     if (!inviteValid) return;
-    addInvite(email);
+    addInvite(email, inviteAdmin);
     setInviteDraft('');
     showToast(L.inviteToast(email));
   };
@@ -2089,11 +2135,15 @@ export default function OnboardingV2Page() {
         return <WelcomeArt homeName={homeName} L={L} />;
       case 'name':
         return (
-          <div className="flex-1 flex items-start justify-center min-h-0 overflow-hidden pt-4">
-            {/* No zoom, no motion: the door hangs from the top of the scene, so
-                the keyboard just crops its lower half — the nameplate never
-                moves or changes size. */}
-            <Door name={homeName} height={310} />
+          <div className="flex-1 flex flex-col items-center min-h-0 overflow-hidden py-2">
+            {/* No zoom: spacers centre the door; on focus the top one gives
+                way so the scene glides up and the nameplate stays in view
+                above the keyboard crop. */}
+            <div aria-hidden style={{ flexGrow: nameFocused ? 0.12 : 1, transition: 'flex-grow 0.5s ease' }} />
+            <div className="shrink-0">
+              <Door name={homeName} height={310} />
+            </div>
+            <div aria-hidden style={{ flexGrow: 1, transition: 'flex-grow 0.5s ease' }} />
           </div>
         );
       case 'users':
@@ -2128,7 +2178,7 @@ export default function OnboardingV2Page() {
               <Keychain
                 keys={[
                   { id: 'admin', cutSeed: password || 'password', styleSeed: username || 'admin', color: INK },
-                  ...invited.map((email) => ({ id: `inv-${email}`, cutSeed: email, styleSeed: email, color: TEXT_2 })),
+                  ...invited.map((p) => ({ id: `inv-${p.email}`, cutSeed: p.email, styleSeed: p.email, color: p.admin ? INK : TEXT_2 })),
                 ]}
                 keyHeight={110}
                 ringSize={72}
@@ -2224,7 +2274,13 @@ export default function OnboardingV2Page() {
                 ))}
               </div>
             </div>
-            <PillInput value={homeName} onChange={setHomeName} placeholder={L.namePh} />
+            <PillInput
+              value={homeName}
+              onChange={setHomeName}
+              placeholder={L.namePh}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setNameFocused(false)}
+            />
             <CtaButton label={L.cont} onClick={next} arrow disabled={!homeName.trim()} />
           </>
         );
@@ -2286,6 +2342,22 @@ export default function OnboardingV2Page() {
                 <IconUserPlus size={20} />
               </Press>
             </div>
+            {/* the invite goes out as a guest key unless promoted */}
+            <div className="flex items-center justify-center gap-2">
+              {([false, true] as const).map((isAdmin) => (
+                <Press
+                  key={String(isAdmin)}
+                  onClick={() => setInviteAdmin(isAdmin)}
+                  className="px-3 py-2 rounded-[12px] text-[14px] font-semibold tracking-[-0.28px]"
+                  style={{
+                    background: inviteAdmin === isAdmin ? ACCENT : '#f3f3f3',
+                    color: inviteAdmin === isAdmin ? '#ffffff' : INK,
+                  }}
+                >
+                  {isAdmin ? L.admin : L.guest}
+                </Press>
+              ))}
+            </div>
             <CtaButton label={L.cont} onClick={next} arrow disabled={invited.length === 0} />
             <Press onClick={next} className="obv2-cta mx-auto px-4 py-1 text-[15px] font-semibold tracking-[-0.3px]">
               <span style={{ color: TEXT_2 }}>{L.skip}</span>
@@ -2295,12 +2367,39 @@ export default function OnboardingV2Page() {
       case 'location':
         return (
           <>
-            <Press onClick={locateMe} className="w-full min-h-[52px] rounded-full bg-[#f3f3f3] flex items-center justify-center gap-2">
-              <IconCurrentLocation size={20} color={TEXT_2} />
-              <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT_2 }}>
-                {locating ? L.locating : L.locate}
-              </span>
-            </Press>
+            {/* one field does both: type an address, or tap the target to be found */}
+            <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] p-2 pl-5 flex items-center gap-2">
+              <input
+                inputMode="search"
+                enterKeyHint="search"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                value={locQuery}
+                onChange={(e) => setLocQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && searchAddress()}
+                placeholder={L.locSearchPh}
+                className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
+                style={{ color: TEXT }}
+              />
+              {locQuery && (
+                <Press
+                  aria-label="Search"
+                  onClick={searchAddress}
+                  className="size-[40px] rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: ACCENT }}
+                >
+                  <IconSearch size={19} color="#ffffff" />
+                </Press>
+              )}
+              <Press
+                aria-label={locating ? L.locating : L.locate}
+                onClick={locateMe}
+                className="size-[40px] rounded-full flex items-center justify-center shrink-0 bg-white"
+              >
+                <IconCurrentLocation size={19} color={locating ? ACCENT : TEXT_2} />
+              </Press>
+            </div>
             <CtaButton label={L.cont} onClick={next} arrow />
           </>
         );
@@ -2356,6 +2455,7 @@ export default function OnboardingV2Page() {
             toggleRoom={toggleRoom}
             addCustomRoom={addCustomRoom}
             customRooms={customRooms}
+            ctaLabel={floorIndex < floors - 1 ? L.nextFloor : L.cont}
             onNext={next}
           />
         );
@@ -2435,8 +2535,28 @@ export default function OnboardingV2Page() {
         @keyframes obv2-nudge { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } 60% { transform: translateY(1px); } }
         @keyframes obv2-vacuum { 0%, 45% { transform: translateX(300px); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(300px); } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
+        /* Tablet & desktop: the phone flow floats as a framed canvas on a
+           slightly darker stage instead of stretching to fill the screen. */
+        @media (min-width: 640px) and (min-height: 720px) {
+          .onboarding-v2 { background: #d7d7d7 !important; }
+          .onboarding-v2 .obv2-col {
+            height: min(844px, calc(100% - 48px)) !important;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 40px;
+            overflow: hidden;
+            background: ${SURFACE};
+            box-shadow: 0 24px 80px rgba(0,0,0,0.16);
+          }
+        }
+        /* Phones are portrait-only: landscape gets a rotate prompt instead of
+           a broken layout. Coarse pointer keeps short desktop windows out. */
+        .obv2-rotate { display: none; }
+        @media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+          .obv2-rotate { display: flex; }
+        }
       `}</style>
-      <div className="mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
+      <div className="obv2-col mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
           <div className="relative h-full overflow-hidden">
             <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} L={L} onBack={back} />
@@ -2627,6 +2747,15 @@ export default function OnboardingV2Page() {
             </div>
           </div>
         )}
+      </div>
+      {/* portrait lock: shown by the media query above on landscape phones */}
+      <div className="obv2-rotate fixed inset-0 z-[999] items-center justify-center" style={{ background: SURFACE }}>
+        <div className="flex flex-col items-center gap-3 px-8 text-center">
+          <IconDeviceMobile size={44} color={TEXT_2} className="rotate-90" />
+          <span className="text-[18px] font-semibold tracking-[-0.36px]" style={{ color: TEXT }}>
+            {L.rotate}
+          </span>
+        </div>
       </div>
     </div>
   );
