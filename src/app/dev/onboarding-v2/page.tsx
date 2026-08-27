@@ -1410,6 +1410,11 @@ function DashboardStep({
 
   return (
     <>
+      {/* everything behind the pull-up sheet recedes slightly while it's up */}
+      <div
+        className={clsx('absolute inset-0 transition-transform duration-300 ease-out', sheetTab && 'scale-[0.955]')}
+        style={{ transformOrigin: '50% 32%' }}
+      >
       {/* the card grid scrolls edge to edge, under both frosted bars */}
       <div className="absolute inset-0 overflow-y-auto" onScroll={onGridScroll}>
         <div className="grid grid-cols-2 gap-2 content-start px-4 pt-[calc(env(safe-area-inset-top)+76px)] pb-[calc(env(safe-area-inset-bottom)+104px)]">
@@ -1548,9 +1553,21 @@ function DashboardStep({
         </div>
       )}
 
+      </div>
+
       {/* the pull-up sheet: search, activity, and the dashboard picker */}
       <AnimatePresence>
         {sheetTab && (
+          <>
+          <motion.div
+            key="sheet-scrim"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setSheetTab(null)}
+            className="absolute inset-0 z-[25] bg-black/25"
+          />
           <motion.div
             key="dash-sheet"
             initial={{ y: '105%' }}
@@ -1668,6 +1685,7 @@ function DashboardStep({
               </motion.div>
             </AnimatePresence>
           </motion.div>
+          </>
         )}
       </AnimatePresence>
 
