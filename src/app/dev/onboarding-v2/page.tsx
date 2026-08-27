@@ -463,6 +463,7 @@ function Shelf({
   showHeadroom,
   index,
   onSelect,
+  onStraighten,
 }: {
   label: string;
   books: Book[];
@@ -470,8 +471,10 @@ function Shelf({
   showHeadroom: boolean;
   index?: number;
   onSelect?: () => void;
+  /** Tapping a leaning book stands it back up. */
+  onStraighten?: (id: string) => void;
 }) {
-  // Touching a book gives it a little wobble around its lean.
+  // Touching a standing book gives it a little wobble around its lean.
   const [pokedId, setPokedId] = useState<string | null>(null);
   return (
     <motion.div
@@ -507,7 +510,9 @@ function Shelf({
                     title={book.room}
                     onPointerDown={(e) => {
                       e.stopPropagation();
-                      setPokedId(book.id);
+                      // A tipped book gets tidied upright; a standing one wobbles.
+                      if (book.lean !== 0) onStraighten?.(book.id);
+                      else setPokedId(book.id);
                     }}
                     onAnimationEnd={() => setPokedId((p) => (p === book.id ? null : p))}
                     className="w-full h-full rounded-[6px] shadow-[0_2px_4px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)] flex flex-col items-center pt-[7px] transition-transform duration-500"
@@ -545,6 +550,7 @@ function ShelfStack({
   booksByFloor,
   focusIndex,
   onSelect,
+  onStraighten,
 }: {
   L: Copy;
   floors: number;
@@ -553,6 +559,7 @@ function ShelfStack({
   focusIndex: number | null;
   /** When set, tapping a shelf jumps to that floor. */
   onSelect?: (i: number) => void;
+  onStraighten?: (id: string) => void;
 }) {
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
@@ -568,6 +575,7 @@ function ShelfStack({
             showHeadroom={focusIndex === i}
             index={i}
             onSelect={onSelect && i !== focusIndex ? () => onSelect(i) : undefined}
+            onStraighten={onStraighten}
           />
         ))}
       </AnimatePresence>
@@ -1018,12 +1026,14 @@ function AreasArt({
   booksByFloor,
   floorIndex,
   onSelectFloor,
+  onStraighten,
 }: {
   L: Copy;
   floors: number;
   booksByFloor: Book[][];
   floorIndex: number;
   onSelectFloor: (i: number) => void;
+  onStraighten: (id: string) => void;
 }) {
   const [stackScrolled, setStackScrolled] = useState(false);
   // Keep the focused shelf in view when hopping floors via tap or Continue.
@@ -1038,7 +1048,7 @@ function AreasArt({
         className="h-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={(e) => setStackScrolled(e.currentTarget.scrollTop > 8)}
       >
-        <ShelfStack L={L} floors={floors} booksByFloor={booksByFloor} focusIndex={floorIndex} onSelect={onSelectFloor} />
+        <ShelfStack L={L} floors={floors} booksByFloor={booksByFloor} focusIndex={floorIndex} onSelect={onSelectFloor} onStraighten={onStraighten} />
       </div>
       <div
         aria-hidden
@@ -1817,6 +1827,11 @@ export default function OnboardingV2Page() {
   // +1 = forward, -1 = back; steers which side the artwork slides from.
   const [dir, setDir] = useState(1);
 
+  // Tapping a tipped book stands it back up.
+  const straightenBook = useCallback((id: string) => {
+    setBooksByFloor((prev) => prev.map((f) => f.map((b) => (b.id === id ? { ...b, lean: 0 } : b))));
+  }, []);
+
   const selectFloor = useCallback(
     (i: number) => {
       setDir(i > floorIndex ? 1 : -1);
@@ -2060,7 +2075,7 @@ export default function OnboardingV2Page() {
           </div>
         );
       case 'areas':
-        return <AreasArt L={L} floors={floors} booksByFloor={booksByFloor} floorIndex={floorIndex} onSelectFloor={selectFloor} />;
+        return <AreasArt L={L} floors={floors} booksByFloor={booksByFloor} floorIndex={floorIndex} onSelectFloor={selectFloor} onStraighten={straightenBook} />;
       case 'permissions':
         return <MailboxArt prefs={prefs} />;
       default:
