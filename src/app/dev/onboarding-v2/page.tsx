@@ -580,7 +580,7 @@ function ShelfStack({
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
-    <div className="w-full min-h-full flex flex-col justify-end gap-3 pb-12">
+    <div className="w-full max-w-[560px] mx-auto min-h-full flex flex-col justify-end gap-3 pb-12">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -965,7 +965,9 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
           {L.welcomeSub}
         </p>
       </div>
-      <div className="flex-1 min-h-0 relative">
+      {/* the scene is composed at phone width — on wider screens it just
+          stands centred instead of stretching apart */}
+      <div className="flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
         {/* the door bleeds off the left edge, standing on its mat */}
         <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
           <Door name={homeName} height={330} poked={poke === 'door'} onPokeEnd={endPoke} />
@@ -1440,7 +1442,7 @@ function DashboardStep({
       >
       {/* the card grid scrolls edge to edge, under both frosted bars */}
       <div className="absolute inset-0 overflow-y-auto" onScroll={onGridScroll}>
-        <div className="grid grid-cols-2 gap-2 content-start px-4 pt-[calc(env(safe-area-inset-top)+76px)] pb-[calc(env(safe-area-inset-bottom)+104px)]">
+        <div className="grid grid-cols-2 md:grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2 md:gap-3 content-start px-4 pt-[calc(env(safe-area-inset-top)+76px)] pb-[calc(env(safe-area-inset-bottom)+104px)]">
           <AnimatePresence>
             {cards.map((card) => (
               <motion.div
@@ -1477,7 +1479,7 @@ function DashboardStep({
       {/* profile: its own page — the first column of the app's settings */}
       {view === 'profile' && (
         <div className="absolute inset-0 z-10 overflow-y-auto" style={{ background: SURFACE }}>
-          <div className="px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(env(safe-area-inset-bottom)+104px)] flex flex-col gap-4">
+          <div className="px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(env(safe-area-inset-bottom)+104px)] flex flex-col gap-4 w-full max-w-[640px] mx-auto">
             <div className="flex items-center gap-3 px-1">
               <span className="size-[56px] rounded-full bg-white flex items-center justify-center shrink-0">
                 <IconUser size={28} color={TEXT_2} />
@@ -1605,7 +1607,7 @@ function DashboardStep({
             onDragEnd={(_, info) => {
               if (info.offset.y > 90 || info.velocity.y > 600) setSheetTab(null);
             }}
-            className="absolute inset-x-0 bottom-0 z-30 bg-white rounded-t-[32px] shadow-[0_-8px_40px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden"
+            className="absolute inset-x-0 bottom-0 z-30 w-full max-w-[640px] mx-auto bg-white rounded-t-[32px] shadow-[0_-8px_40px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden"
             style={{ top: 'calc(env(safe-area-inset-top) + 64px)' }}
           >
             <div
@@ -1726,7 +1728,7 @@ function DashboardStep({
           onClick={navDucked ? () => setNavHidden(false) : undefined}
           className={clsx(
             'relative mx-auto rounded-full overflow-hidden transition-all duration-200 ease-out',
-            navDucked ? 'h-[10px] w-[88px] opacity-50 cursor-pointer' : 'h-[64px] w-full opacity-100',
+            navDucked ? 'h-[10px] w-[88px] opacity-50 cursor-pointer' : 'h-[64px] w-full max-w-[430px] opacity-100',
           )}
           style={{ background: INK }}
         >
@@ -2206,8 +2208,8 @@ export default function OnboardingV2Page() {
           <div className="flex-1 min-h-0 flex items-center justify-center py-2">
             {/* A landscape photo frame; focusing it develops the photo into a
                 real, draggable map with the home badge fixed dead-centre. */}
-            <div className="w-full max-w-[350px] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
-              <div className="w-full h-[250px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
+            <div className="w-full max-w-[350px] md:max-w-[480px] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
+              <div className="w-full h-[250px] md:h-[320px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
                 {mapActive ? (
                   <MapPicker center={center} onChange={setLocation} />
                 ) : (
@@ -2533,22 +2535,12 @@ export default function OnboardingV2Page() {
         @keyframes obv2-swing { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
         @keyframes obv2-fade-in { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
         @keyframes obv2-nudge { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } 60% { transform: translateY(1px); } }
-        @keyframes obv2-vacuum { 0%, 45% { transform: translateX(300px); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(300px); } }
+        /* The vacuum parks off-frame: past the phone edge on mobile, and far
+           enough right on wide screens that it leaves the viewport too. */
+        .onboarding-v2 { --obv2-vac-park: 300px; }
+        @media (min-width: 768px) { .onboarding-v2 { --obv2-vac-park: 70vw; } }
+        @keyframes obv2-vacuum { 0%, 45% { transform: translateX(var(--obv2-vac-park, 300px)); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
-        /* Tablet & desktop: the phone flow floats as a framed canvas on a
-           slightly darker stage instead of stretching to fill the screen. */
-        @media (min-width: 640px) and (min-height: 720px) {
-          .onboarding-v2 { background: #d7d7d7 !important; }
-          .onboarding-v2 .obv2-col {
-            height: min(844px, calc(100% - 48px)) !important;
-            top: 50%;
-            transform: translateY(-50%);
-            border-radius: 40px;
-            overflow: hidden;
-            background: ${SURFACE};
-            box-shadow: 0 24px 80px rgba(0,0,0,0.16);
-          }
-        }
         /* Phones are portrait-only: landscape gets a rotate prompt instead of
            a broken layout. Coarse pointer keeps short desktop windows out. */
         .obv2-rotate { display: none; }
@@ -2556,7 +2548,8 @@ export default function OnboardingV2Page() {
           .obv2-rotate { display: flex; }
         }
       `}</style>
-      <div className="obv2-col mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
+      {/* full-bleed at every size — inner pieces cap their own widths */}
+      <div className="relative w-full" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
           <div className="relative h-full overflow-hidden">
             <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} L={L} onBack={back} />
@@ -2738,7 +2731,7 @@ export default function OnboardingV2Page() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.16 }}
-                  className="flex flex-col gap-2"
+                  className="flex flex-col gap-2 w-full max-w-[480px] mx-auto"
                 >
                   {sheet}
                 </motion.div>
