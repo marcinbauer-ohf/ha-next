@@ -57,6 +57,31 @@ import {
   IconDroplet,
   IconLock,
   IconThermometer,
+  IconBolt,
+  IconChevronUp,
+  IconChevronRight,
+  IconLayoutDashboard,
+  IconLayoutGrid,
+  IconMap,
+  IconUsers,
+  IconTag,
+  IconPuzzle,
+  IconDevices,
+  IconShape,
+  IconTool,
+  IconRobot,
+  IconScript,
+  IconSitemap,
+  IconApps,
+  IconMicrophone,
+  IconSettings,
+  IconNetwork,
+  IconServer,
+  IconFileText,
+  IconCpu,
+  IconRestore,
+  IconBell,
+  IconCloud,
   type Icon as TablerIcon,
 } from '@tabler/icons-react';
 import type { LatLng } from './MapPicker';
@@ -91,6 +116,18 @@ const ROOM_ICONS: TablerIcon[] = [
 ];
 const DEVICE_ICONS: TablerIcon[] = [IconBulb, IconThermometer, IconPlug, IconDroplet, IconDeviceTv, IconLock];
 const ANALYTIC_KEYS = ['base', 'usage', 'stats', 'diag'];
+// Icons for L.dashboards (extra dashboards after the home one).
+const DASH_ICONS: TablerIcon[] = [IconBolt, IconLock, IconPlant];
+// Icons zipped against L.settings — same section/item shape.
+const SETTINGS_ICONS: TablerIcon[][] = [
+  [IconLayoutGrid, IconCloud, IconBell],
+  [IconLayoutDashboard, IconMap, IconMapPin, IconUsers, IconTag],
+  [IconPuzzle, IconDevices, IconShape, IconTool],
+  [IconRobot, IconBulb, IconScript, IconSitemap],
+  [IconApps],
+  [IconMicrophone],
+  [IconSettings, IconNetwork, IconServer, IconFileText, IconCpu, IconRestore],
+];
 
 const STR = {
   en: {
@@ -167,6 +204,17 @@ const STR = {
     people: 'People',
     admin: 'Admin',
     invitedLabel: 'Invited',
+    dashboards: ['Energy', 'Security', 'Garden'],
+    settingsTitle: 'Settings',
+    settings: [
+      { title: '', items: ['Home Center', 'Nabu Casa Cloud', 'Notifications'] },
+      { title: 'My Home', items: ['Dashboards', 'Areas & Floors', 'Zones', 'Users', 'Tags'] },
+      { title: 'Devices', items: ['Integrations', 'Devices & Services', 'Entities', 'Helpers'] },
+      { title: 'Automation', items: ['Automations', 'Scenes', 'Scripts', 'Blueprints'] },
+      { title: 'Applications', items: ['Applications'] },
+      { title: 'Voice & AI', items: ['Voice Assistants'] },
+      { title: 'System', items: ['General', 'Network', 'Storage', 'Logs', 'System Info', 'Backups'] },
+    ],
   },
   pl: {
     code: 'PL',
@@ -242,6 +290,17 @@ const STR = {
     people: 'Domownicy',
     admin: 'Administrator',
     invitedLabel: 'Zaproszono',
+    dashboards: ['Energia', 'Bezpieczeństwo', 'Ogród'],
+    settingsTitle: 'Ustawienia',
+    settings: [
+      { title: '', items: ['Centrum domu', 'Nabu Casa Cloud', 'Powiadomienia'] },
+      { title: 'Mój dom', items: ['Panele', 'Pomieszczenia i piętra', 'Strefy', 'Użytkownicy', 'Tagi'] },
+      { title: 'Urządzenia', items: ['Integracje', 'Urządzenia i usługi', 'Elementy', 'Pomocnicy'] },
+      { title: 'Automatyzacja', items: ['Automatyzacje', 'Sceny', 'Skrypty', 'Szablony'] },
+      { title: 'Aplikacje', items: ['Aplikacje'] },
+      { title: 'Głos i AI', items: ['Asystenci głosowi'] },
+      { title: 'System', items: ['Ogólne', 'Sieć', 'Pamięć', 'Logi', 'Informacje o systemie', 'Kopie zapasowe'] },
+    ],
   },
   es: {
     code: 'ES',
@@ -317,6 +376,17 @@ const STR = {
     people: 'Personas',
     admin: 'Administrador',
     invitedLabel: 'Invitado',
+    dashboards: ['Energía', 'Seguridad', 'Jardín'],
+    settingsTitle: 'Ajustes',
+    settings: [
+      { title: '', items: ['Centro del hogar', 'Nabu Casa Cloud', 'Notificaciones'] },
+      { title: 'Mi hogar', items: ['Paneles', 'Habitaciones y plantas', 'Zonas', 'Usuarios', 'Etiquetas'] },
+      { title: 'Dispositivos', items: ['Integraciones', 'Dispositivos y servicios', 'Entidades', 'Auxiliares'] },
+      { title: 'Automatización', items: ['Automatizaciones', 'Escenas', 'Scripts', 'Planos'] },
+      { title: 'Aplicaciones', items: ['Aplicaciones'] },
+      { title: 'Voz e IA', items: ['Asistentes de voz'] },
+      { title: 'Sistema', items: ['General', 'Red', 'Almacenamiento', 'Registros', 'Información del sistema', 'Copias de seguridad'] },
+    ],
   },
 };
 type Copy = typeof STR.en;
@@ -510,11 +580,14 @@ function PopMenu({
   open,
   items,
   onPick,
+  onPickItem,
   align = 'left',
 }: {
   open: boolean;
   items: string[];
   onPick: () => void;
+  /** Optional per-item hook, called with the item index before onPick. */
+  onPickItem?: (i: number) => void;
   align?: 'left' | 'right';
 }) {
   return (
@@ -530,10 +603,13 @@ function PopMenu({
             align === 'left' ? 'left-0' : 'right-0',
           )}
         >
-          {items.map((label) => (
+          {items.map((label, i) => (
             <Press
               key={label}
-              onClick={onPick}
+              onClick={() => {
+                onPickItem?.(i);
+                onPick();
+              }}
               className="text-left px-4 py-3 rounded-[14px] text-[15px] font-semibold tracking-[-0.3px] hover:bg-[#f3f3f3]"
               style={{ color: TEXT }}
             >
@@ -1186,7 +1262,15 @@ function MiniToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-type DashTab = 'home' | 'search' | 'activity' | 'profile';
+type DashView = 'dashboard' | 'profile';
+type SheetTab = 'search' | 'activity' | 'dashboards';
+
+/** The frosted strip both bars sit on — content scrolls through underneath. */
+const FROST: React.CSSProperties = {
+  background: 'rgba(230,230,230,0.72)',
+  backdropFilter: 'blur(16px)',
+  WebkitBackdropFilter: 'blur(16px)',
+};
 
 function DashboardStep({
   homeName,
@@ -1205,14 +1289,34 @@ function DashboardStep({
 }) {
   const [cards, setCards] = useState<Card[]>(initialCards);
   const [menuOpen, setMenuOpen] = useState(false);
-  // Top fade appears once the grid scrolls under the app bar; the bottom fade
-  // always dissolves the cards into the nav.
-  const [scrolled, setScrolled] = useState(false);
-  // The nav's tabs open a surface that grows out of the pill — a light take on
-  // the app's MobileNav pull-up sheet. Home closes it again.
-  const [tab, setTab] = useState<DashTab>('home');
+  // Home is the grid; profile is its own page. The other tabs (and home's
+  // second tap) raise a near-full-height sheet out of the nav — the light
+  // version of the app's MobileNav pull-up surface.
+  const [view, setView] = useState<DashView>('dashboard');
+  const [sheetTab, setSheetTab] = useState<SheetTab | null>(null);
   const [query, setQuery] = useState('');
   const [previewId, setPreviewId] = useState<string | null>(null);
+
+  // Auto-hide: the nav ducks away on scroll-down and returns on scroll-up —
+  // same accumulate-travel-per-direction reflex as the app's MobileNav.
+  const [navHidden, setNavHidden] = useState(false);
+  const lastY = useRef(0);
+  const travel = useRef(0);
+  const onGridScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const top = e.currentTarget.scrollTop;
+    const delta = top - lastY.current;
+    lastY.current = top;
+    if (top <= 2) {
+      travel.current = 0;
+      setNavHidden(false);
+      return;
+    }
+    // Reset the tally when the direction flips so jitter can't creep over.
+    travel.current = (travel.current > 0) === (delta > 0) ? travel.current + delta : delta;
+    if (travel.current >= 24) setNavHidden(true);
+    else if (travel.current <= -16) setNavHidden(false);
+  };
+  const navDucked = navHidden && view === 'dashboard' && !sheetTab && !previewId;
 
   const addCard = () => setCards((prev) => [...prev, makeCard(L, prev.length, `card-${Date.now()}`)]);
   const flip = (id: string) => setCards((prev) => prev.map((c) => (c.id === id ? { ...c, on: !c.on } : c)));
@@ -1224,47 +1328,34 @@ function DashboardStep({
     (c, i) => c.name.toLowerCase().includes(q) && cards.findIndex((o) => o.name === c.name) === i,
   );
 
-  const pickTab = (t: DashTab) => {
-    if (t === 'home') {
-      if (tab === 'home') onBack();
-      else setTab('home');
+  const homeIdle = view === 'dashboard' && sheetTab === null;
+  const tapHome = () => {
+    if (!homeIdle) {
+      setView('dashboard');
+      setSheetTab(null);
       return;
     }
+    // Already home: the chevron promised more — the dashboard picker.
+    setSheetTab('dashboards');
+  };
+  const toggleSheet = (t: SheetTab) => {
+    setView('dashboard');
     if (t === 'search') setQuery('');
-    setTab((prev) => (prev === t ? 'home' : t));
+    setSheetTab((prev) => (prev === t ? null : t));
   };
 
-  const navIcon = (t: DashTab, active: boolean) => (active ? '#ffffff' : '#8a8a8a');
+  const homeActive = view === 'dashboard' && (sheetTab === null || sheetTab === 'dashboards');
+  const homeTitle = homeName.trim() || L.homeFallback;
+  const allDashboards = [
+    { name: homeTitle, Icon: IconHome, active: true },
+    ...L.dashboards.map((name, i) => ({ name, Icon: DASH_ICONS[i], active: false })),
+  ];
 
   return (
     <>
-      <div className="flex items-center justify-between w-full min-h-[44px] relative">
-        <Press
-          onClick={() => setMenuOpen((v) => !v)}
-          className="min-h-[44px] px-4 rounded-full bg-[#f2f2f2] flex items-center gap-2"
-        >
-          <IconHome size={20} color="#707078" />
-          <span className="text-[16px] font-semibold tracking-[-0.48px] max-w-[160px] truncate" style={{ color: '#707078' }}>
-            {homeName.trim() || L.homeFallback}
-          </span>
-          <IconChevronDown
-            size={18}
-            color="#707078"
-            style={{ transform: menuOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }}
-          />
-        </Press>
-        <PopMenu open={menuOpen} onPick={() => setMenuOpen(false)} items={L.dashMenu} />
-        <Press aria-label="Add to home" onClick={addCard} className="size-[44px] rounded-full flex items-center justify-center" style={{ background: ACCENT }}>
-          <IconPlus size={22} color="white" />
-        </Press>
-      </div>
-
-      <div className="relative flex-1 min-h-0 -mx-1">
-        <div
-          className="h-full overflow-y-auto px-1 pt-4"
-          onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 8)}
-        >
-        <div className="grid grid-cols-2 gap-2 content-start pb-4">
+      {/* the card grid scrolls edge to edge, under both frosted bars */}
+      <div className="absolute inset-0 overflow-y-auto" onScroll={onGridScroll}>
+        <div className="grid grid-cols-2 gap-2 content-start px-4 pt-[calc(env(safe-area-inset-top)+76px)] pb-[calc(env(safe-area-inset-bottom)+104px)]">
           <AnimatePresence>
             {cards.map((card) => (
               <motion.div
@@ -1296,112 +1387,61 @@ function DashboardStep({
             ))}
           </AnimatePresence>
         </div>
-        </div>
-        <div
-          aria-hidden
-          className={clsx(
-            'absolute top-0 inset-x-0 h-10 pointer-events-none transition-opacity duration-200',
-            scrolled ? 'opacity-100' : 'opacity-0',
-          )}
-          style={{ background: `linear-gradient(to bottom, ${SURFACE}, transparent)` }}
-        />
-        <div
-          aria-hidden
-          className="absolute bottom-0 inset-x-0 h-12 pointer-events-none"
-          style={{ background: `linear-gradient(to top, ${SURFACE}, transparent)` }}
-        />
       </div>
 
-      {/* Tab surface — grows out of the nav pill; the active tab closes it. */}
-      <AnimatePresence>
-        {tab !== 'home' && (
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0, y: 28, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 28, scale: 0.98 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-            className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+84px)] z-30 bg-white rounded-[28px] p-4 shadow-[0_16px_44px_rgba(0,0,0,0.16)] flex flex-col gap-2 max-h-[55%]"
-          >
-            {tab === 'search' && (
-              <>
-                <div className="w-full bg-[#f3f3f3] rounded-full min-h-[48px] px-4 flex items-center gap-2">
-                  <IconSearch size={18} color={TEXT_DIM} />
-                  <input
-                    autoFocus
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder={L.searchPh}
-                    className="flex-1 min-w-0 bg-transparent outline-none text-[16px] font-semibold tracking-[-0.32px] placeholder:text-[#989898]"
-                    style={{ color: TEXT }}
-                  />
-                </div>
-                <div className="overflow-y-auto flex flex-col min-h-[60px]">
-                  {matches.map((c) => (
-                    <div key={c.id} className="flex items-center gap-3 px-2 py-2.5">
-                      <span className="size-[38px] rounded-full bg-[#f3f3f3] flex items-center justify-center shrink-0">
-                        <c.Icon size={19} color={TEXT_2} />
-                      </span>
-                      <span className="flex-1 min-w-0 text-[15px] font-semibold tracking-[-0.3px] truncate" style={{ color: TEXT }}>
-                        {c.name}
-                      </span>
-                      {c.toggle ? (
-                        <MiniToggle on={c.on} onToggle={() => flip(c.id)} />
-                      ) : (
-                        <span className="text-[14px] font-semibold" style={{ color: TEXT_2 }}>{c.value}</span>
-                      )}
-                    </div>
-                  ))}
-                  {matches.length === 0 && (
-                    <span className="text-center py-5 text-[14px] font-semibold" style={{ color: TEXT_DIM }}>
-                      {L.noResults}
-                    </span>
-                  )}
-                </div>
-              </>
-            )}
-            {tab === 'activity' && (
-              <div className="overflow-y-auto flex flex-col">
-                {cards.slice(0, 6).map((c, i) => (
-                  <div key={c.id} className="flex items-center gap-3 px-2 py-2.5">
-                    <span
-                      className="size-[8px] rounded-full shrink-0"
-                      style={{ background: c.on ? ACCENT : '#d4d4d4' }}
-                    />
-                    <span className="flex-1 min-w-0 text-[15px] font-semibold tracking-[-0.3px] truncate" style={{ color: TEXT }}>
-                      {L.actLine(c.name, c.on)}
-                    </span>
-                    <span className="text-[13px] font-semibold shrink-0" style={{ color: TEXT_DIM }}>
-                      {L.times[i % L.times.length]}
-                    </span>
-                  </div>
-                ))}
+      {/* profile: its own page — the first column of the app's settings */}
+      {view === 'profile' && (
+        <div className="absolute inset-0 z-10 overflow-y-auto" style={{ background: SURFACE }}>
+          <div className="px-4 pt-[calc(env(safe-area-inset-top)+16px)] pb-[calc(env(safe-area-inset-bottom)+104px)] flex flex-col gap-4">
+            <div className="flex items-center gap-3 px-1">
+              <span className="size-[56px] rounded-full bg-white flex items-center justify-center shrink-0">
+                <IconUser size={28} color={TEXT_2} />
+              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[20px] font-semibold tracking-[-0.4px] truncate" style={{ color: TEXT }}>
+                  {username.trim() || L.admin}
+                </span>
+                <span className="text-[14px] font-semibold" style={{ color: TEXT_2 }}>
+                  {L.yourHome}: {homeTitle}
+                </span>
               </div>
-            )}
-            {tab === 'profile' && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="size-[52px] rounded-full bg-[#f3f3f3] flex items-center justify-center shrink-0">
-                    <IconUser size={26} color={TEXT_2} />
+            </div>
+            {L.settings.map((section, si) => (
+              <div key={si} className="flex flex-col gap-1.5">
+                {section.title && (
+                  <span className="px-2 text-[13px] font-semibold" style={{ color: TEXT_DIM }}>
+                    {section.title}
                   </span>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[17px] font-semibold tracking-[-0.34px] truncate" style={{ color: TEXT }}>
-                      {username.trim() || L.admin}
-                    </span>
-                    <span className="text-[13px] font-semibold" style={{ color: TEXT_2 }}>
-                      {L.yourHome}: {homeName.trim() || L.homeFallback}
-                    </span>
-                  </div>
+                )}
+                <div className="bg-white rounded-[24px] p-1.5 flex flex-col">
+                  {section.items.map((label, ii) => {
+                    const Icon = SETTINGS_ICONS[si][ii];
+                    return (
+                      <Press key={label} className="flex items-center gap-3 px-2 py-1.5 rounded-[18px] text-left">
+                        <span className="size-[38px] rounded-[12px] bg-[#f3f3f3] flex items-center justify-center shrink-0">
+                          <Icon size={19} color={TEXT_2} />
+                        </span>
+                        <span className="flex-1 min-w-0 text-[15px] font-semibold tracking-[-0.3px] truncate" style={{ color: TEXT }}>
+                          {label}
+                        </span>
+                        <IconChevronRight size={17} color={TEXT_DIM} className="shrink-0" />
+                      </Press>
+                    );
+                  })}
                 </div>
-                <span className="text-[13px] font-semibold px-1" style={{ color: TEXT_DIM }}>
+              </div>
+            ))}
+            {invited.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <span className="px-2 text-[13px] font-semibold" style={{ color: TEXT_DIM }}>
                   {L.people}
                 </span>
-                <div className="flex flex-col">
+                <div className="bg-white rounded-[24px] p-1.5 flex flex-col">
                   {[{ name: username.trim() || L.admin, role: L.admin }, ...invited.map((email) => ({ name: email, role: L.invitedLabel }))].map(
                     ({ name, role }) => (
-                      <div key={name} className="flex items-center gap-3 px-1 py-1.5">
-                        <span className="shrink-0">
-                          <KeySvg cutSeed={name} styleSeed={name} color={INK} height={36} />
+                      <div key={name} className="flex items-center gap-3 px-2 py-1.5">
+                        <span className="shrink-0 w-[38px] flex justify-center">
+                          <KeySvg cutSeed={name} styleSeed={name} color={INK} height={34} />
                         </span>
                         <span className="flex-1 min-w-0 text-[15px] font-semibold tracking-[-0.3px] truncate" style={{ color: TEXT }}>
                           {name}
@@ -1415,29 +1455,194 @@ function DashboardStep({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* top app bar — frosted, the grid slides through underneath */}
+      {view === 'dashboard' && (
+        <div className="absolute top-0 inset-x-0 z-20 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2" style={FROST}>
+          <div className="relative flex items-center justify-between min-h-[44px]">
+            <Press
+              onClick={() => setMenuOpen((v) => !v)}
+              className="min-h-[44px] px-4 rounded-full bg-white/80 flex items-center gap-2"
+            >
+              <IconHome size={20} color="#707078" />
+              <span className="text-[16px] font-semibold tracking-[-0.48px] max-w-[160px] truncate" style={{ color: '#707078' }}>
+                {homeTitle}
+              </span>
+              <IconChevronDown
+                size={18}
+                color="#707078"
+                style={{ transform: menuOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }}
+              />
+            </Press>
+            <PopMenu
+              open={menuOpen}
+              onPick={() => setMenuOpen(false)}
+              onPickItem={(i) => i === 0 && onBack()}
+              items={L.dashMenu}
+            />
+            <Press aria-label="Add to home" onClick={addCard} className="size-[44px] rounded-full flex items-center justify-center" style={{ background: ACCENT }}>
+              <IconPlus size={22} color="white" />
+            </Press>
+          </div>
+        </div>
+      )}
+
+      {/* the pull-up sheet: search, activity, and the dashboard picker */}
+      <AnimatePresence>
+        {sheetTab && (
+          <motion.div
+            key="dash-sheet"
+            initial={{ y: '105%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '105%' }}
+            transition={{ type: 'spring', stiffness: 340, damping: 34 }}
+            className="absolute inset-x-0 bottom-0 z-30 bg-white rounded-t-[32px] shadow-[0_-8px_40px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden"
+            style={{ top: 'calc(env(safe-area-inset-top) + 64px)' }}
+          >
+            <div className="mx-auto w-[40px] h-[4px] rounded-full bg-[#e6e6e6] mt-3 shrink-0" />
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div
+                key={sheetTab}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.16 }}
+                className="flex-1 min-h-0 flex flex-col gap-2 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+96px)]"
+              >
+                {sheetTab === 'search' && (
+                  <>
+                    <div className="w-full bg-[#f3f3f3] rounded-full min-h-[48px] px-4 flex items-center gap-2 shrink-0">
+                      <IconSearch size={18} color={TEXT_DIM} />
+                      <input
+                        autoFocus
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder={L.searchPh}
+                        className="flex-1 min-w-0 bg-transparent outline-none text-[16px] font-semibold tracking-[-0.32px] placeholder:text-[#989898]"
+                        style={{ color: TEXT }}
+                      />
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+                      {matches.map((c) => (
+                        <div key={c.id} className="flex items-center gap-3 px-2 py-2.5">
+                          <span className="size-[38px] rounded-full bg-[#f3f3f3] flex items-center justify-center shrink-0">
+                            <c.Icon size={19} color={TEXT_2} />
+                          </span>
+                          <span className="flex-1 min-w-0 text-[15px] font-semibold tracking-[-0.3px] truncate" style={{ color: TEXT }}>
+                            {c.name}
+                          </span>
+                          {c.toggle ? (
+                            <MiniToggle on={c.on} onToggle={() => flip(c.id)} />
+                          ) : (
+                            <span className="text-[14px] font-semibold" style={{ color: TEXT_2 }}>{c.value}</span>
+                          )}
+                        </div>
+                      ))}
+                      {matches.length === 0 && (
+                        <span className="text-center py-5 text-[14px] font-semibold" style={{ color: TEXT_DIM }}>
+                          {L.noResults}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+                {sheetTab === 'activity' && (
+                  <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+                    {cards.slice(0, 8).map((c, i) => (
+                      <div key={c.id} className="flex items-center gap-3 px-2 py-2.5">
+                        <span
+                          className="size-[8px] rounded-full shrink-0"
+                          style={{ background: c.on ? ACCENT : '#d4d4d4' }}
+                        />
+                        <span className="flex-1 min-w-0 text-[15px] font-semibold tracking-[-0.3px] truncate" style={{ color: TEXT }}>
+                          {L.actLine(c.name, c.on)}
+                        </span>
+                        <span className="text-[13px] font-semibold shrink-0" style={{ color: TEXT_DIM }}>
+                          {L.times[i % L.times.length]}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {sheetTab === 'dashboards' && (
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="grid grid-cols-3 gap-3 pt-1">
+                      {allDashboards.map((d) => (
+                        <Press
+                          key={d.name}
+                          onClick={() => setSheetTab(null)}
+                          className="flex flex-col gap-1.5 p-1.5 rounded-[16px]"
+                          style={{ background: d.active ? '#eef6f9' : undefined }}
+                        >
+                          {/* the little layout mock, same idea as the app's dashboard cards */}
+                          <span className="w-full aspect-[3/4] rounded-[14px] bg-[#f3f3f3] p-2 flex flex-col gap-1.5">
+                            <span className="h-2 rounded-full w-full" style={{ background: d.active ? 'rgba(0,154,199,0.25)' : '#e2e2e2' }} />
+                            <span className="h-2 rounded-full w-3/4" style={{ background: d.active ? 'rgba(0,154,199,0.25)' : '#e2e2e2' }} />
+                            <span className="h-3 rounded-[6px] w-full mt-1" style={{ background: d.active ? 'rgba(0,154,199,0.25)' : '#e2e2e2' }} />
+                            <span className="h-3 rounded-[6px] w-full" style={{ background: d.active ? 'rgba(0,154,199,0.25)' : '#e2e2e2' }} />
+                          </span>
+                          <span className="flex items-center gap-1 px-0.5 min-w-0">
+                            <d.Icon size={15} color={d.active ? ACCENT : TEXT_2} className="shrink-0" />
+                            <span className="text-[12px] font-semibold truncate" style={{ color: d.active ? TEXT : TEXT_2 }}>
+                              {d.name}
+                            </span>
+                          </span>
+                        </Press>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Bottom nav — tabs open their surface, pinned to the bottom edge. */}
-      <div className="w-full mt-auto rounded-full min-h-[68px] px-8 flex items-center justify-between" style={{ background: INK }}>
-        <Press aria-label="Home" onClick={() => pickTab('home')} className="p-2">
-          <IconHome size={26} color={navIcon('home', tab === 'home')} />
-        </Press>
-        <Press aria-label="Search" onClick={() => pickTab('search')} className="p-2">
-          <IconSearch size={26} color={navIcon('search', tab === 'search')} />
-        </Press>
-        <Press aria-label="Activity" onClick={() => pickTab('activity')} className="p-2">
-          <IconClockHour4 size={26} color={navIcon('activity', tab === 'activity')} />
-        </Press>
-        <Press aria-label="Profile" onClick={() => pickTab('profile')} className="p-1">
-          <span
-            className="size-[30px] rounded-full flex items-center justify-center"
-            style={{ background: tab === 'profile' ? ACCENT : '#ffffff' }}
+      {/* bottom nav — frosted strip, ducks away on scroll-down */}
+      <div
+        className={clsx(
+          'absolute bottom-0 inset-x-0 z-40 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] transition-transform duration-300 ease-out',
+          navDucked && 'translate-y-[110%]',
+        )}
+        style={sheetTab ? undefined : FROST}
+      >
+        <div className="w-full rounded-full min-h-[64px] px-8 flex items-center justify-between" style={{ background: INK }}>
+          <Press aria-label="Home" onClick={tapHome} className="relative p-2">
+            {/* the chevron hints there's more behind a second tap */}
+            <span
+              aria-hidden
+              className="absolute -top-[8px] left-1/2 -translate-x-1/2 transition-opacity duration-300"
+              style={{ opacity: homeIdle ? 1 : 0 }}
+            >
+              <IconChevronUp size={13} color="#8a8a8a" />
+            </span>
+            <IconHome size={26} color={homeActive ? '#ffffff' : '#8a8a8a'} />
+          </Press>
+          <Press aria-label="Search" onClick={() => toggleSheet('search')} className="p-2">
+            <IconSearch size={26} color={sheetTab === 'search' ? '#ffffff' : '#8a8a8a'} />
+          </Press>
+          <Press aria-label="Activity" onClick={() => toggleSheet('activity')} className="p-2">
+            <IconClockHour4 size={26} color={sheetTab === 'activity' ? '#ffffff' : '#8a8a8a'} />
+          </Press>
+          <Press
+            aria-label="Profile"
+            onClick={() => {
+              setSheetTab(null);
+              setView((v) => (v === 'profile' ? 'dashboard' : 'profile'));
+            }}
+            className="p-1"
           >
-            <IconUser size={19} color={tab === 'profile' ? '#ffffff' : INK} />
-          </span>
-        </Press>
+            <span
+              className="size-[30px] rounded-full flex items-center justify-center"
+              style={{ background: view === 'profile' && !sheetTab ? ACCENT : '#ffffff' }}
+            >
+              <IconUser size={19} color={view === 'profile' && !sheetTab ? '#ffffff' : INK} />
+            </span>
+          </Press>
+        </div>
       </div>
 
       {/* Device preview — tap a card, get its sheet. Close lives on the left. */}
@@ -1872,14 +2077,6 @@ export default function OnboardingV2Page() {
       case 'name':
         return (
           <>
-            <PillInput
-              value={homeName}
-              onChange={setHomeName}
-              placeholder={L.namePh}
-              delayFocus={coarse}
-              onFocus={() => setNameFocused(true)}
-              onBlur={() => setNameFocused(false)}
-            />
             {/* a few ready-made names, chip-style like the area picker */}
             <div className="flex flex-wrap justify-center gap-2">
               {L.nameChips.map((chip) => (
@@ -1896,6 +2093,14 @@ export default function OnboardingV2Page() {
                 </Press>
               ))}
             </div>
+            <PillInput
+              value={homeName}
+              onChange={setHomeName}
+              placeholder={L.namePh}
+              delayFocus={coarse}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setNameFocused(false)}
+            />
             <CtaButton label={L.cont} onClick={next} arrow disabled={!homeName.trim()} />
           </>
         );
@@ -2106,7 +2311,7 @@ export default function OnboardingV2Page() {
       `}</style>
       <div className="mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
-          <div className="relative h-full flex flex-col gap-3 px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-[calc(env(safe-area-inset-bottom)+6px)]">
+          <div className="relative h-full overflow-hidden">
             <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} L={L} onBack={back} />
           </div>
         ) : (
