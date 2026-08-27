@@ -2159,7 +2159,7 @@ export default function OnboardingV2Page() {
             <div className="w-full max-w-[350px] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
               <div className="w-full h-[250px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
                 {mapActive ? (
-                  <MapPicker center={center} onChange={setLocation} flag={flag} />
+                  <MapPicker center={center} onChange={setLocation} />
                 ) : (
                   <Press onClick={() => setMapActive(true)} className="w-full h-full flex items-center justify-center">
                     <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
