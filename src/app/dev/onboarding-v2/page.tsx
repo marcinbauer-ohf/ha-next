@@ -392,6 +392,7 @@ const STR = {
 type Copy = typeof STR.en;
 const LANGS: Lang[] = ['en', 'pl', 'es'];
 const LANG_NAMES: Record<Lang, string> = { en: 'English', pl: 'Polski', es: 'Español' };
+const LANG_FLAGS: Record<Lang, string> = { en: '🇬🇧', pl: '🇵🇱', es: '🇪🇸' };
 
 // Easter egg: whoever builds to the top of the stepper gets a tower.
 const floorName = (L: Copy, i: number) => (i === MAX_FLOORS - 1 ? L.tower : L.floors[i]);
@@ -590,6 +591,7 @@ function PopMenu({
   items,
   onPick,
   onPickItem,
+  leading,
   align = 'left',
 }: {
   open: boolean;
@@ -597,6 +599,8 @@ function PopMenu({
   onPick: () => void;
   /** Optional per-item hook, called with the item index before onPick. */
   onPickItem?: (i: number) => void;
+  /** Optional per-item leading adornment (e.g. a flag emoji). */
+  leading?: string[];
   align?: 'left' | 'right';
 }) {
   return (
@@ -619,10 +623,11 @@ function PopMenu({
                 onPickItem?.(i);
                 onPick();
               }}
-              className="text-left px-4 py-3 rounded-[14px] text-[15px] font-semibold tracking-[-0.3px] hover:bg-[#f3f3f3]"
+              className="text-left px-4 py-3 rounded-[14px] text-[15px] font-semibold tracking-[-0.3px] hover:bg-[#f3f3f3] flex items-center gap-2.5"
               style={{ color: TEXT }}
             >
-              {label}
+              {leading?.[i] && <span className="text-[17px] leading-none">{leading[i]}</span>}
+              <span>{label}</span>
             </Press>
           ))}
         </motion.div>
@@ -977,6 +982,8 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
               ))}
               <div className="relative w-[10px] h-[42px] bg-white rounded-t-full" />
               <div className="relative w-[26px] h-[8px] bg-white rounded-full" />
+              {/* the little shelf it stands on */}
+              <div className="relative mt-[6px] w-[54px] h-[12px] bg-white rounded-[8px]" />
             </div>
           </div>
           {/* your key and the area books, standing together on a shelf */}
@@ -1753,6 +1760,7 @@ export default function OnboardingV2Page() {
   const [center, setCenter] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
   const [flag, setFlag] = useState<string | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
   const [floors, setFloors] = useState(1);
   const [floorIndex, setFloorIndex] = useState(0);
@@ -1878,25 +1886,30 @@ export default function OnboardingV2Page() {
   }, [step, floorIndex]);
 
   // A beat after panning settles, the house raises the flag of the country
-  // under the marker. Key-less reverse geocoding; failures just mean no flag.
+  // under the marker, and the sheet spells out the address. Key-less reverse
+  // geocoding; failures just mean no flag and no address.
   useEffect(() => {
     if (step !== 'location' || !location) return;
     const t = setTimeout(async () => {
       try {
         const r = await fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.lat}&longitude=${location.lng}&localityLanguage=en`,
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${location.lat}&longitude=${location.lng}&localityLanguage=${lang}`,
         );
         const j = await r.json();
         const cc: string = j.countryCode || '';
         if (cc.length === 2) {
           setFlag(String.fromCodePoint(...[...cc.toUpperCase()].map((ch) => 127397 + ch.charCodeAt(0))));
         }
+        const parts = [j.locality || j.city, j.principalSubdivision, j.countryName]
+          .filter(Boolean)
+          .filter((p, i, arr) => arr.indexOf(p) === i);
+        if (parts.length) setAddress(parts.join(', '));
       } catch {
         /* offline or blocked — no flag, no harm */
       }
     }, 700);
     return () => clearTimeout(t);
-  }, [step, location]);
+  }, [step, location, lang]);
 
   const locateMe = () => {
     if (!navigator.geolocation) return;
@@ -2202,6 +2215,18 @@ export default function OnboardingV2Page() {
       case 'location':
         return (
           <>
+            {/* the address under the marker — same slot as the floors quip */}
+            <div className="min-h-[24px] flex items-center justify-center overflow-hidden">
+              {address && (
+                <span
+                  key={address}
+                  className="text-center text-[14px] font-semibold tracking-[-0.28px] truncate max-w-full px-2"
+                  style={{ color: TEXT_2, animation: 'obv2-fade-in 0.4s ease' }}
+                >
+                  {flag ? `${flag} ` : ''}{address}
+                </span>
+              )}
+            </div>
             <Press onClick={locateMe} className="w-full min-h-[52px] rounded-full bg-[#f3f3f3] flex items-center justify-center gap-2">
               <IconCurrentLocation size={20} color={TEXT_2} />
               <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT_2 }}>
@@ -2338,6 +2363,7 @@ export default function OnboardingV2Page() {
         @keyframes obv2-pulse { 0% { transform: scale(0.25); opacity: 0.9; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes obv2-quip { 0% { opacity: 0; transform: translateY(6px); } 8%, 78% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
         @keyframes obv2-swing { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
+        @keyframes obv2-fade-in { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
       `}</style>
       <div className="mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
@@ -2423,6 +2449,7 @@ export default function OnboardingV2Page() {
                   onPick={() => setLangMenuOpen(false)}
                   onPickItem={(i) => setLang(LANGS[i])}
                   items={LANGS.map((l) => LANG_NAMES[l])}
+                  leading={LANGS.map((l) => LANG_FLAGS[l])}
                 />
                 {step === 'welcome' && (
                   <PopMenu
