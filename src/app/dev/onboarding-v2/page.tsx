@@ -974,17 +974,19 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
   const [pokedBook, setPokedBook] = useState<number | null>(null);
   return (
     <div className="flex-1 min-h-0 w-full flex flex-col">
-      <div className="text-center pt-7 pb-2">
-        <h1 className="text-[32px] font-semibold tracking-[-0.96px] leading-tight" style={{ color: TEXT }}>
+      <div className="text-center pt-7 pb-2 md:pt-3">
+        <h1 className="text-[32px] md:text-[42px] font-semibold tracking-[-0.96px] md:tracking-[-1.26px] leading-tight" style={{ color: TEXT }}>
           {L.welcomeTitle}
         </h1>
-        <p className="text-[16px] tracking-[-0.48px] mt-1 mx-auto max-w-[280px]" style={{ color: TEXT_2 }}>
+        <p className="text-[16px] md:text-[18px] tracking-[-0.48px] md:tracking-[-0.36px] mt-1 md:mt-2 mx-auto max-w-[280px] md:max-w-[480px]" style={{ color: TEXT_2 }}>
           {L.welcomeSub}
         </p>
       </div>
       {/* the scene is composed at phone width — on wider screens it just
           stands centred instead of stretching apart */}
-      <div className="obv2-art flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
+      {/* not scaled: the scene's door is already display-sized, and growth
+          would collide with the heading above it */}
+      <div className="flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
         {/* the door bleeds off the left edge, standing on its mat */}
         <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
           <Door name={homeName} height={330} poked={poke === 'door'} onPokeEnd={endPoke} />
@@ -2159,7 +2161,9 @@ export default function OnboardingV2Page() {
                 way so the scene glides up and the nameplate stays in view
                 above the keyboard crop. */}
             <div aria-hidden style={{ flexGrow: nameFocused ? 0.12 : 1, transition: 'flex-grow 0.5s ease' }} />
-            <div className="obv2-art shrink-0">
+            {/* the door is display-sized already — scaling it would collide
+                with the desktop in-art heading */}
+            <div className="shrink-0">
               <Door name={homeName} height={310} />
             </div>
             <div aria-hidden style={{ flexGrow: 1, transition: 'flex-grow 0.5s ease' }} />
@@ -2559,9 +2563,9 @@ export default function OnboardingV2Page() {
         /* The illustrations grow with the screen — stepped so they always fit
            the art region's height. Interactive art (map, shelves) sizes via
            layout instead: a transform would break leaflet drags & scrolling. */
-        @media (min-width: 768px) and (min-height: 720px) { .onboarding-v2 { --obv2-art-scale: 1.35; } }
-        @media (min-width: 1200px) and (min-height: 880px) { .onboarding-v2 { --obv2-art-scale: 1.7; } }
-        @media (min-width: 1600px) and (min-height: 1080px) { .onboarding-v2 { --obv2-art-scale: 2.1; } }
+        @media (min-width: 768px) and (min-height: 720px) { .onboarding-v2 { --obv2-art-scale: 1.2; } }
+        @media (min-width: 1200px) and (min-height: 880px) { .onboarding-v2 { --obv2-art-scale: 1.4; } }
+        @media (min-width: 1600px) and (min-height: 1080px) { .onboarding-v2 { --obv2-art-scale: 1.7; } }
         .obv2-art { transform: scale(var(--obv2-art-scale, 1)); }
         .obv2-art-bottom { transform-origin: 50% 100%; }
         @keyframes obv2-vacuum { 0%, 45% { transform: translateX(var(--obv2-vac-park, 300px)); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
@@ -2622,7 +2626,7 @@ export default function OnboardingV2Page() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.18 }}
-                      className="text-[19px] font-semibold tracking-[-0.38px] truncate max-w-full"
+                      className="text-[19px] font-semibold tracking-[-0.38px] truncate max-w-full md:hidden"
                       style={{ color: TEXT }}
                     >
                       {heading.title}
@@ -2670,7 +2674,7 @@ export default function OnboardingV2Page() {
               {/* supporting copy under the app bar — folded away when the
                   keyboard is up so the artwork keeps as much room as possible */}
               {heading.sub != null && (
-              <div className={clsx('pt-1.5 flex items-start justify-center', compact ? 'hidden' : 'min-h-[40px]')}>
+              <div className={clsx('pt-1.5 flex items-start justify-center md:hidden', compact ? 'hidden' : 'min-h-[40px]')}>
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.p
                     key={stepKey}
@@ -2706,7 +2710,7 @@ export default function OnboardingV2Page() {
               )}
             </AnimatePresence>
             {/* only the artwork slides between steps */}
-            <div className="flex-1 min-h-0 relative px-5 overflow-hidden">
+            <div className="flex-1 md:grow-[3] min-h-0 relative px-5 overflow-hidden">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -2722,6 +2726,19 @@ export default function OnboardingV2Page() {
                   transition={{ type: 'spring', stiffness: 380, damping: 34 }}
                   className="h-full w-full flex flex-col"
                 >
+                  {/* desktop: the heading lives display-sized in the artboard */}
+                  {heading.title != null && (
+                    <div className="hidden md:block text-center pt-3 pb-2 shrink-0">
+                      <h1 className="text-[42px] font-semibold tracking-[-1.26px] leading-tight" style={{ color: TEXT }}>
+                        {heading.title}
+                      </h1>
+                      {heading.sub && (
+                        <p className="text-[18px] tracking-[-0.36px] mt-2 mx-auto max-w-[620px]" style={{ color: TEXT_2 }}>
+                          {heading.sub}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {art}
                 </motion.div>
               </AnimatePresence>
@@ -2766,6 +2783,8 @@ export default function OnboardingV2Page() {
               </AnimatePresence>
             </div>
             </div>
+            {/* desktop: pushes the floating card up to roughly two-thirds height */}
+            <div aria-hidden className="hidden md:block grow basis-0" />
           </div>
         )}
       </div>
