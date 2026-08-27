@@ -2558,6 +2558,14 @@ export default function OnboardingV2Page() {
         @media (min-width: 768px) { .onboarding-v2 { --obv2-vac-park: 70vw; } }
         @keyframes obv2-vacuum { 0%, 45% { transform: translateX(var(--obv2-vac-park, 300px)); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
+        /* With the sheet capped on wide screens, the scrim band above it also
+           fades out sideways instead of showing hard edges. */
+        @media (min-width: 768px) {
+          .obv2-sheet-fade {
+            -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+            mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+          }
+        }
         /* Phones are portrait-only: landscape gets a rotate prompt instead of
            a broken layout. Coarse pointer keeps short desktop windows out. */
         .obv2-rotate { display: none; }
@@ -2581,7 +2589,7 @@ export default function OnboardingV2Page() {
                 className="absolute top-full -mt-px inset-x-0 h-10 pointer-events-none"
                 style={{ background: `linear-gradient(to bottom, ${SURFACE}, transparent)` }}
               />
-              <div className="relative flex items-center justify-between gap-2 min-h-[44px]">
+              <div className="relative flex items-center justify-between gap-2 min-h-[44px] w-full max-w-[640px] mx-auto">
                 {step === 'welcome' ? (
                   <Press
                     onClick={() => setWelcomeMenuOpen((v) => !v)}
@@ -2725,12 +2733,12 @@ export default function OnboardingV2Page() {
                   don't notch a hard stop into the gradient */}
               <div
                 aria-hidden
-                className="absolute -top-20 inset-x-0 h-[116px] pointer-events-none"
+                className="obv2-sheet-fade absolute -top-20 inset-x-0 h-[116px] pointer-events-none"
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10) 36px, transparent)' }}
               />
             <div
               className={clsx(
-                'relative bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)]',
+                'relative bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)] w-full max-w-[640px] mx-auto',
                 compact && typing && 'obv2-hide-cta',
               )}
               onFocusCapture={(e) => {
