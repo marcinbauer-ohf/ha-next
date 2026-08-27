@@ -1824,7 +1824,6 @@ export default function OnboardingV2Page() {
   const [floorIndex, setFloorIndex] = useState(0);
   const [booksByFloor, setBooksByFloor] = useState<Book[][]>([[]]);
   const [customRooms, setCustomRooms] = useState<string[]>([]);
-  const [nameFocused, setNameFocused] = useState(false);
   const [credFocused, setCredFocused] = useState(false);
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
   const [a11yMenuOpen, setA11yMenuOpen] = useState(false);
@@ -2059,17 +2058,11 @@ export default function OnboardingV2Page() {
         return <WelcomeArt homeName={homeName} L={L} />;
       case 'name':
         return (
-          <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
-            {/* No zoom — with the keyboard up the door simply scales to stay
-                whole in whatever room is left. */}
-            <div
-              style={{
-                transform: compact || (nameFocused && coarse) ? 'scale(0.55)' : undefined,
-                transition: 'transform 0.65s cubic-bezier(0.22, 1, 0.36, 1)',
-              }}
-            >
-              <Door name={homeName} height={310} />
-            </div>
+          <div className="flex-1 flex items-start justify-center min-h-0 overflow-hidden pt-4">
+            {/* No zoom, no motion: the door hangs from the top of the scene, so
+                the keyboard just crops its lower half — the nameplate never
+                moves or changes size. */}
+            <Door name={homeName} height={310} />
           </div>
         );
       case 'users':
@@ -2195,14 +2188,7 @@ export default function OnboardingV2Page() {
                 ))}
               </div>
             </div>
-            <PillInput
-              value={homeName}
-              onChange={setHomeName}
-              placeholder={L.namePh}
-              delayFocus={coarse}
-              onFocus={() => setNameFocused(true)}
-              onBlur={() => setNameFocused(false)}
-            />
+            <PillInput value={homeName} onChange={setHomeName} placeholder={L.namePh} />
             <CtaButton label={L.cont} onClick={next} arrow disabled={!homeName.trim()} />
           </>
         );
