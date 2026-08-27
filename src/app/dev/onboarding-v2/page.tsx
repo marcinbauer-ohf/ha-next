@@ -955,16 +955,15 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         {/* the door bleeds off the left edge, standing on its mat */}
         <div className="absolute -left-[70px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
           <Door name={homeName} height={330} poked={poke === 'door'} onPokeEnd={endPoke} />
-          {/* the doormat — a rounded rhombus lying flat at the doorstep */}
-          <div className="mt-[10px] w-[166px] h-[52px] flex items-center justify-center">
-            <div
-              className="w-[104px] h-[104px] bg-white rounded-[20px] shrink-0"
-              style={{ transform: 'scaleY(0.32) rotate(45deg)' }}
-            />
-          </div>
+          {/* the doormat — a flat slab at the doorstep, skewed away from the door */}
+          <div
+            className="mt-[18px] ml-[8px] w-[168px] h-[34px] bg-white rounded-[12px]"
+            style={{ transform: 'skewX(32deg)' }}
+          />
         </div>
-        {/* the wall arrangement on the right */}
-        <div className="absolute right-[6px] top-1/2 -translate-y-1/2 flex flex-col gap-7 items-start">
+        {/* the wall arrangement on the right — left-anchored so the shelf
+            planks can run off the right edge, mirroring the door's bleed */}
+        <div className="absolute left-[128px] top-1/2 -translate-y-1/2 flex flex-col gap-7 items-start">
           <div className="flex items-end gap-4">
             {/* the map in a landscape photo frame */}
             <div
@@ -980,19 +979,21 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
               </div>
             </div>
             {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices */}
-            <div className="relative flex flex-col items-center">
-              {[0, 1].map((i) => (
-                <span
-                  key={i}
-                  aria-hidden
-                  className="absolute -top-[16px] left-1/2 size-[40px] rounded-full border-2 border-white"
-                  style={{ marginLeft: -20, animation: `obv2-pulse 2.6s ease-out ${i * 1.3}s infinite` }}
-                />
-              ))}
-              <div className="relative w-[10px] h-[42px] bg-white rounded-t-full" />
-              <div className="relative w-[26px] h-[8px] bg-white rounded-full" />
-              {/* the little shelf it stands on — same height as the book shelf */}
-              <div className="relative mt-[6px] w-[54px] h-[30px] bg-white rounded-[10px]" />
+            <div className="relative flex flex-col items-start">
+              <div className="w-[54px] flex flex-col items-center">
+                {[0, 1].map((i) => (
+                  <span
+                    key={i}
+                    aria-hidden
+                    className="absolute -top-[16px] left-[27px] size-[40px] rounded-full border-2 border-white"
+                    style={{ marginLeft: -20, animation: `obv2-pulse 2.6s ease-out ${i * 1.3}s infinite` }}
+                  />
+                ))}
+                <div className="relative w-[10px] h-[42px] bg-white rounded-t-full" />
+                <div className="relative w-[26px] h-[8px] bg-white rounded-full" />
+              </div>
+              {/* its shelf runs off the right edge of the scene */}
+              <div className="relative mt-[6px] w-[170px] h-[30px] bg-white rounded-[10px]" />
             </div>
           </div>
           {/* your key and the area books, standing together on a shelf */}
@@ -1037,7 +1038,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
                 ))}
               </div>
             </div>
-            <div className="mt-[8px] w-[176px] h-[30px] bg-white rounded-[10px]" />
+            <div className="mt-[8px] w-[290px] h-[30px] bg-white rounded-[10px]" />
           </div>
         </div>
       </div>
