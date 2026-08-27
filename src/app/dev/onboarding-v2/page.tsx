@@ -140,6 +140,10 @@ const STR = {
     welcomeTitle: 'Welcome home',
     welcomeSub: 'A few easy questions, nothing is permanent',
     begin: 'Let’s begin',
+    discoveredLine: (n: number) =>
+      n === 1
+        ? 'Already spotted 1 device nearby — finish setup to add it'
+        : `Already spotted ${n} devices nearby — finish setup to add them`,
     cont: 'Continue',
     finish: 'Finish',
     skip: 'Skip for now',
@@ -230,6 +234,8 @@ const STR = {
     welcomeTitle: 'Witaj w domu',
     welcomeSub: 'Kilka prostych pytań, nic nie jest na zawsze',
     begin: 'Zaczynajmy',
+    discoveredLine: (n: number) =>
+      `Wykryto już ${n} ${n === 1 ? 'urządzenie' : n <= 4 ? 'urządzenia' : 'urządzeń'} w pobliżu — dokończ konfigurację, aby je dodać`,
     cont: 'Dalej',
     finish: 'Zakończ',
     skip: 'Na razie pomiń',
@@ -320,6 +326,10 @@ const STR = {
     welcomeTitle: 'Bienvenido a casa',
     welcomeSub: 'Unas preguntas fáciles, nada es permanente',
     begin: 'Empecemos',
+    discoveredLine: (n: number) =>
+      n === 1
+        ? 'Ya se ha detectado 1 dispositivo cerca — termina la configuración para añadirlo'
+        : `Ya se han detectado ${n} dispositivos cerca — termina la configuración para añadirlos`,
     cont: 'Continuar',
     finish: 'Terminar',
     skip: 'Omitir por ahora',
@@ -1903,6 +1913,14 @@ export default function OnboardingV2Page() {
   const [customRooms, setCustomRooms] = useState<string[]>([]);
   const [credFocused, setCredFocused] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
+  // Discovery never waits for onboarding: HA starts scanning the network the
+  // moment it boots, so devices trickle in while the user is still at the door.
+  const [found, setFound] = useState(0);
+  useEffect(() => {
+    if (step !== 'welcome') return;
+    const tick = setInterval(() => setFound((f) => (f >= 7 ? f : f + 1)), 2400);
+    return () => clearInterval(tick);
+  }, [step]);
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
   const [a11yMenuOpen, setA11yMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
@@ -2278,7 +2296,29 @@ export default function OnboardingV2Page() {
   const sheet = (() => {
     switch (step) {
       case 'welcome':
-        return <CtaButton label={L.begin} onClick={next} />;
+        return (
+          <>
+            {/* discovery ticker — height reserved so its arrival doesn't shift the CTA */}
+            <div className="min-h-[24px] flex items-center justify-center gap-2">
+              {found > 0 && (
+                <div key={found} className="flex items-center gap-2" style={{ animation: 'obv2-fade-in 0.4s ease' }}>
+                  <span className="relative flex size-[8px] shrink-0">
+                    <span
+                      aria-hidden
+                      className="absolute -inset-[4px] rounded-full border-2"
+                      style={{ borderColor: ACCENT, animation: 'obv2-pulse 2.4s ease-out infinite' }}
+                    />
+                    <span className="relative size-[8px] rounded-full" style={{ background: ACCENT }} />
+                  </span>
+                  <span className="text-[13px] font-semibold tracking-[-0.26px] text-center" style={{ color: TEXT_2 }}>
+                    {L.discoveredLine(found)}
+                  </span>
+                </div>
+              )}
+            </div>
+            <CtaButton label={L.begin} onClick={next} />
+          </>
+        );
       case 'name':
         return (
           <>
