@@ -1958,13 +1958,11 @@ export default function OnboardingV2Page() {
       case 'name':
         return (
           <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
-            {/* Focusing the field zooms IN on the nametag: the name plate sits
-                86px above the door's centre, so translateY(86·1.5) parks it
-                dead-centre of whatever room the keyboard leaves. Same door,
-                same shape, closer. */}
+            {/* No zoom — with the keyboard up the door simply scales to stay
+                whole in whatever room is left. */}
             <div
               style={{
-                transform: nameFocused ? 'translateY(129px) scale(1.5)' : undefined,
+                transform: compact || (nameFocused && coarse) ? 'scale(0.55)' : undefined,
                 transition: 'transform 0.65s cubic-bezier(0.22, 1, 0.36, 1)',
               }}
             >
@@ -2077,21 +2075,23 @@ export default function OnboardingV2Page() {
       case 'name':
         return (
           <>
-            {/* a few ready-made names, chip-style like the area picker */}
-            <div className="flex flex-wrap justify-center gap-2">
-              {L.nameChips.map((chip) => (
-                <Press
-                  key={chip}
-                  onClick={() => setHomeName(chip)}
-                  className="px-3 py-2 rounded-[12px] text-[14px] font-semibold tracking-[-0.28px]"
-                  style={{
-                    background: homeName === chip ? ACCENT : '#f3f3f3',
-                    color: homeName === chip ? '#ffffff' : INK,
-                  }}
-                >
-                  {chip}
-                </Press>
-              ))}
+            {/* a single scrollable rail of ready-made names */}
+            <div className="-mx-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="w-max min-w-full flex justify-center gap-2 px-5">
+                {L.nameChips.map((chip) => (
+                  <Press
+                    key={chip}
+                    onClick={() => setHomeName(chip)}
+                    className="px-3 py-2 rounded-[12px] text-[14px] font-semibold tracking-[-0.28px] whitespace-nowrap shrink-0"
+                    style={{
+                      background: homeName === chip ? ACCENT : '#f3f3f3',
+                      color: homeName === chip ? '#ffffff' : INK,
+                    }}
+                  >
+                    {chip}
+                  </Press>
+                ))}
+              </div>
             </div>
             <PillInput
               value={homeName}
@@ -2316,8 +2316,14 @@ export default function OnboardingV2Page() {
           </div>
         ) : (
           <div className="h-full flex flex-col">
-            {/* static app bar — the step heading lives here */}
-            <div className="px-5 pt-[calc(env(safe-area-inset-top)+12px)] relative z-20">
+            {/* static app bar — the step heading lives here. Frosted, with a
+                gradient below so artwork fades as it nears the bar. */}
+            <div className="px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-1 relative z-20" style={FROST}>
+              <div
+                aria-hidden
+                className="absolute top-full inset-x-0 h-8 pointer-events-none"
+                style={{ background: `linear-gradient(to bottom, ${SURFACE}, transparent)` }}
+              />
               <div className="relative flex items-center justify-between gap-2 min-h-[44px]">
                 {step === 'welcome' ? (
                   <Press
