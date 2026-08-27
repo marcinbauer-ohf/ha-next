@@ -953,7 +953,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
       </div>
       <div className="flex-1 min-h-0 relative">
         {/* the door bleeds off the left edge, standing on its mat */}
-        <div className="absolute -left-[70px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
+        <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
           <Door name={homeName} height={330} poked={poke === 'door'} onPokeEnd={endPoke} />
           {/* the doormat — a flat slab at the doorstep, skewed away from the door */}
           <div
@@ -963,7 +963,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         </div>
         {/* the wall arrangement on the right — left-anchored so the shelf
             planks can run off the right edge, mirroring the door's bleed */}
-        <div className="absolute left-[128px] top-1/2 -translate-y-1/2 flex flex-col gap-7 items-start">
+        <div className="absolute left-[158px] top-1/2 -translate-y-1/2 flex flex-col gap-7 items-start">
           <div className="flex items-end gap-4">
             {/* the map in a landscape photo frame */}
             <div
