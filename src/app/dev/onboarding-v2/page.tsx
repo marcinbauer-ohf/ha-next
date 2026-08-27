@@ -157,6 +157,7 @@ const STR = {
     inviteTitle: 'Invite others',
     inviteSub: 'Everyone gets their own key. You can also do this later.',
     invitePh: 'Email address',
+    inviteHint: 'Everyone joins as a guest. You can make someone an admin later.',
     inviteToast: (email: string) => `Invite sent — a key is waiting for ${email}`,
     locTitle: 'Where is your home?',
     locSub: 'Search, or drag the map until your home sits under the marker.',
@@ -246,6 +247,7 @@ const STR = {
     inviteTitle: 'Zaproś innych',
     inviteSub: 'Każdy dostaje własny klucz. Możesz to zrobić też później.',
     invitePh: 'Adres e-mail',
+    inviteHint: 'Każdy dołącza jako gość. Później możesz zrobić kogoś administratorem.',
     inviteToast: (email: string) => `Zaproszenie wysłane — klucz czeka na ${email}`,
     locTitle: 'Gdzie jest twój dom?',
     locSub: 'Wyszukaj lub przesuwaj mapę, aż twój dom znajdzie się pod znacznikiem.',
@@ -335,6 +337,7 @@ const STR = {
     inviteTitle: 'Invita a otros',
     inviteSub: 'Cada uno recibe su propia llave. También puedes hacerlo más tarde.',
     invitePh: 'Correo electrónico',
+    inviteHint: 'Todos se unen como invitados. Luego puedes hacer a alguien administrador.',
     inviteToast: (email: string) => `Invitación enviada — una llave espera a ${email}`,
     locTitle: '¿Dónde está tu hogar?',
     locSub: 'Busca o arrastra el mapa hasta que tu casa quede bajo el marcador.',
@@ -1886,7 +1889,6 @@ export default function OnboardingV2Page() {
   const [password, setPassword] = useState('');
   const [invited, setInvited] = useState<Invitee[]>([]);
   const [inviteDraft, setInviteDraft] = useState('');
-  const [inviteAdmin, setInviteAdmin] = useState(false);
   const [location, setLocation] = useState<LatLng | null>(null);
   const [mapActive, setMapActive] = useState(false);
   const [center, setCenter] = useState<LatLng | null>(null);
@@ -1948,9 +1950,10 @@ export default function OnboardingV2Page() {
     setTimeout(() => setToast((t) => (t && t.id === id ? null : t)), 2800);
   };
 
+  // Invites always create guest accounts; promotion happens in settings later.
   const addInvite = useCallback(
-    (email: string, admin: boolean) =>
-      setInvited((prev) => (prev.some((p) => p.email === email) ? prev : [...prev, { email, admin }])),
+    (email: string) =>
+      setInvited((prev) => (prev.some((p) => p.email === email) ? prev : [...prev, { email, admin: false }])),
     [],
   );
 
@@ -2086,7 +2089,7 @@ export default function OnboardingV2Page() {
   const submitInvite = () => {
     const email = inviteDraft.trim();
     if (!inviteValid) return;
-    addInvite(email, inviteAdmin);
+    addInvite(email);
     setInviteDraft('');
     showToast(L.inviteToast(email));
   };
@@ -2365,22 +2368,11 @@ export default function OnboardingV2Page() {
                 <IconUserPlus size={20} />
               </Press>
             </div>
-            {/* the invite goes out as a guest key unless promoted */}
-            <div className="flex items-center justify-center gap-2">
-              {([false, true] as const).map((isAdmin) => (
-                <Press
-                  key={String(isAdmin)}
-                  onClick={() => setInviteAdmin(isAdmin)}
-                  className="px-3 py-2 rounded-[12px] text-[14px] font-semibold tracking-[-0.28px]"
-                  style={{
-                    background: inviteAdmin === isAdmin ? ACCENT : '#f3f3f3',
-                    color: inviteAdmin === isAdmin ? '#ffffff' : INK,
-                  }}
-                >
-                  {isAdmin ? L.admin : L.guest}
-                </Press>
-              ))}
-            </div>
+            {/* every invite is a guest key — the caption says so instead of
+                making the user pick a role mid-onboarding */}
+            <p className="text-center text-[13px] tracking-[-0.26px] px-4" style={{ color: TEXT_DIM }}>
+              {L.inviteHint}
+            </p>
             <CtaButton label={L.cont} onClick={next} arrow disabled={invited.length === 0} />
             <Press onClick={next} className="obv2-cta mx-auto px-4 py-1 text-[15px] font-semibold tracking-[-0.3px]">
               <span style={{ color: TEXT_2 }}>{L.skip}</span>
