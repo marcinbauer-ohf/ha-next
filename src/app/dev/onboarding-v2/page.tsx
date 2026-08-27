@@ -580,7 +580,7 @@ function ShelfStack({
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
-    <div className="w-full max-w-[560px] mx-auto min-h-full flex flex-col justify-end gap-3 pb-12">
+    <div className="w-full max-w-[560px] md:max-w-[720px] mx-auto min-h-full flex flex-col justify-end gap-3 pb-12">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -984,7 +984,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
       </div>
       {/* the scene is composed at phone width — on wider screens it just
           stands centred instead of stretching apart */}
-      <div className="flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
+      <div className="obv2-art flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
         {/* the door bleeds off the left edge, standing on its mat */}
         <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
           <Door name={homeName} height={330} poked={poke === 'door'} onPokeEnd={endPoke} />
@@ -1252,7 +1252,7 @@ function MailboxArt({ prefs }: { prefs: Record<string, boolean> }) {
   ];
   const anyOn = cards.length > 0;
   return (
-    <div className="flex-1 flex items-end justify-center min-h-0 pb-4">
+    <div className="obv2-art obv2-art-bottom flex-1 flex items-end justify-center min-h-0 pb-4">
       <div className="flex flex-col items-center">
         <div className="relative w-[260px] h-[76px]">
           <AnimatePresence>
@@ -2159,7 +2159,7 @@ export default function OnboardingV2Page() {
                 way so the scene glides up and the nameplate stays in view
                 above the keyboard crop. */}
             <div aria-hidden style={{ flexGrow: nameFocused ? 0.12 : 1, transition: 'flex-grow 0.5s ease' }} />
-            <div className="shrink-0">
+            <div className="obv2-art shrink-0">
               <Door name={homeName} height={310} />
             </div>
             <div aria-hidden style={{ flexGrow: 1, transition: 'flex-grow 0.5s ease' }} />
@@ -2167,7 +2167,7 @@ export default function OnboardingV2Page() {
         );
       case 'users':
         return (
-          <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
+          <div className="obv2-art flex-1 flex items-center justify-center min-h-0 overflow-hidden">
             {/* Focusing a credential turns the key horizontal, ready for its lock. */}
             <div
               className="transition-transform duration-500 ease-out"
@@ -2189,7 +2189,7 @@ export default function OnboardingV2Page() {
         );
       case 'invite':
         return (
-          <div className="flex-1 flex items-center justify-center min-h-0 relative overflow-hidden">
+          <div className="obv2-art flex-1 flex items-center justify-center min-h-0 relative overflow-hidden">
             <div
               className="transition-transform duration-500 ease-out"
               style={{ transform: compact ? 'scale(0.68)' : undefined }}
@@ -2225,8 +2225,8 @@ export default function OnboardingV2Page() {
           <div className="flex-1 min-h-0 flex items-center justify-center py-2">
             {/* A landscape photo frame; focusing it develops the photo into a
                 real, draggable map with the home badge fixed dead-centre. */}
-            <div className="w-full max-w-[350px] md:max-w-[480px] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
-              <div className="w-full h-[250px] md:h-[320px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
+            <div className="w-full max-w-[350px] md:max-w-[480px] lg:max-w-[620px] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
+              <div className="w-full h-[250px] md:h-[320px] lg:h-[420px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
                 {mapActive ? (
                   <MapPicker center={center} onChange={setLocation} />
                 ) : (
@@ -2554,8 +2554,16 @@ export default function OnboardingV2Page() {
         @keyframes obv2-nudge { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } 60% { transform: translateY(1px); } }
         /* The vacuum parks off-frame: past the phone edge on mobile, and far
            enough right on wide screens that it leaves the viewport too. */
-        .onboarding-v2 { --obv2-vac-park: 300px; }
+        .onboarding-v2 { --obv2-vac-park: 300px; --obv2-art-scale: 1; }
         @media (min-width: 768px) { .onboarding-v2 { --obv2-vac-park: 70vw; } }
+        /* The illustrations grow with the screen — stepped so they always fit
+           the art region's height. Interactive art (map, shelves) sizes via
+           layout instead: a transform would break leaflet drags & scrolling. */
+        @media (min-width: 768px) and (min-height: 720px) { .onboarding-v2 { --obv2-art-scale: 1.35; } }
+        @media (min-width: 1200px) and (min-height: 880px) { .onboarding-v2 { --obv2-art-scale: 1.7; } }
+        @media (min-width: 1600px) and (min-height: 1080px) { .onboarding-v2 { --obv2-art-scale: 2.1; } }
+        .obv2-art { transform: scale(var(--obv2-art-scale, 1)); }
+        .obv2-art-bottom { transform-origin: 50% 100%; }
         @keyframes obv2-vacuum { 0%, 45% { transform: translateX(var(--obv2-vac-park, 300px)); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
         /* With the sheet capped on wide screens, the scrim band above it also
