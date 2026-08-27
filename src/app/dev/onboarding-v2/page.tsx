@@ -1367,10 +1367,15 @@ function DashboardStep({
   );
 
   const homeIdle = view === 'dashboard' && sheetTab === null;
+  // The chevron bounces on the first few arrivals at the home tab, then just
+  // sits there — learned affordances shouldn't keep waving.
+  const [homeArrivals, setHomeArrivals] = useState(0);
+  const bumpArrival = () => setHomeArrivals((n) => Math.min(n + 1, 9));
   const tapHome = () => {
     if (!homeIdle) {
       setView('dashboard');
       setSheetTab(null);
+      bumpArrival();
       return;
     }
     // Already home: the chevron promised more — the dashboard picker.
@@ -1379,7 +1384,9 @@ function DashboardStep({
   const toggleSheet = (t: SheetTab) => {
     setView('dashboard');
     if (t === 'search') setQuery('');
-    setSheetTab((prev) => (prev === t ? null : t));
+    const next = sheetTab === t ? null : t;
+    if (next === null) bumpArrival();
+    setSheetTab(next);
   };
 
   const homeActive = view === 'dashboard' && (sheetTab === null || sheetTab === 'dashboards');
@@ -1677,11 +1684,16 @@ function DashboardStep({
             )}
           >
             <Press aria-label="Home" onClick={tapHome} className="relative p-2">
-              {/* the chevron hints there's more behind a second tap */}
+              {/* the chevron hints there's more behind a second tap; the y-nudge
+                  (transform) composes with the x-centering (translate property) */}
               <span
+                key={homeArrivals}
                 aria-hidden
                 className="absolute -top-[8px] left-1/2 -translate-x-1/2 transition-opacity duration-300"
-                style={{ opacity: homeIdle ? 1 : 0 }}
+                style={{
+                  opacity: homeIdle ? 1 : 0,
+                  animation: homeIdle && homeArrivals <= 3 ? 'obv2-nudge 1.4s ease 0.5s 3' : undefined,
+                }}
               >
                 <IconChevronUp size={13} color="#8a8a8a" />
               </span>
@@ -1697,6 +1709,7 @@ function DashboardStep({
               aria-label="Profile"
               onClick={() => {
                 setSheetTab(null);
+                if (view === 'profile') bumpArrival();
                 setView((v) => (v === 'profile' ? 'dashboard' : 'profile'));
               }}
               className="p-1"
@@ -2408,6 +2421,7 @@ export default function OnboardingV2Page() {
         @keyframes obv2-quip { 0% { opacity: 0; transform: translateY(6px); } 8%, 78% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
         @keyframes obv2-swing { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
         @keyframes obv2-fade-in { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
+        @keyframes obv2-nudge { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } 60% { transform: translateY(1px); } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
       `}</style>
       <div className="mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
