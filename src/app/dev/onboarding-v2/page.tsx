@@ -140,10 +140,8 @@ const STR = {
     welcomeTitle: 'Welcome home',
     welcomeSub: 'A few easy questions, nothing is permanent',
     begin: 'Let’s begin',
-    discoveredLine: (n: number) =>
-      n === 1
-        ? 'Already spotted 1 device nearby — finish setup to add it'
-        : `Already spotted ${n} devices nearby — finish setup to add them`,
+    discoveredLine: (n: number) => (n === 1 ? '1 device found nearby' : `${n} devices found nearby`),
+    beginFound: (n: number) => (n === 1 ? 'Set up & add 1 device' : `Set up & add ${n} devices`),
     cont: 'Continue',
     finish: 'Finish',
     skip: 'Skip for now',
@@ -235,7 +233,9 @@ const STR = {
     welcomeSub: 'Kilka prostych pytań, nic nie jest na zawsze',
     begin: 'Zaczynajmy',
     discoveredLine: (n: number) =>
-      `Wykryto już ${n} ${n === 1 ? 'urządzenie' : n <= 4 ? 'urządzenia' : 'urządzeń'} w pobliżu — dokończ konfigurację, aby je dodać`,
+      `Znaleziono ${n} ${n === 1 ? 'urządzenie' : n <= 4 ? 'urządzenia' : 'urządzeń'} w pobliżu`,
+    beginFound: (n: number) =>
+      `Skonfiguruj i dodaj ${n} ${n === 1 ? 'urządzenie' : n <= 4 ? 'urządzenia' : 'urządzeń'}`,
     cont: 'Dalej',
     finish: 'Zakończ',
     skip: 'Na razie pomiń',
@@ -327,9 +327,9 @@ const STR = {
     welcomeSub: 'Unas preguntas fáciles, nada es permanente',
     begin: 'Empecemos',
     discoveredLine: (n: number) =>
-      n === 1
-        ? 'Ya se ha detectado 1 dispositivo cerca — termina la configuración para añadirlo'
-        : `Ya se han detectado ${n} dispositivos cerca — termina la configuración para añadirlos`,
+      n === 1 ? '1 dispositivo encontrado cerca' : `${n} dispositivos encontrados cerca`,
+    beginFound: (n: number) =>
+      n === 1 ? 'Configura y añade 1 dispositivo' : `Configura y añade ${n} dispositivos`,
     cont: 'Continuar',
     finish: 'Terminar',
     skip: 'Omitir por ahora',
@@ -2316,7 +2316,7 @@ export default function OnboardingV2Page() {
                 </div>
               )}
             </div>
-            <CtaButton label={L.begin} onClick={next} />
+            <CtaButton label={found > 0 ? L.beginFound(found) : L.begin} onClick={next} />
           </>
         );
       case 'name':
