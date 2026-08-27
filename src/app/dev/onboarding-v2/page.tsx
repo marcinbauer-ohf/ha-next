@@ -1649,7 +1649,9 @@ function DashboardStep({
 
       {/* bottom nav — on scroll-down it shrinks into a small iOS-style
           handle; scroll up or tap it and the full bar grows back */}
-      <div className="absolute bottom-0 inset-x-0 z-40 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)]">
+      {/* bottom gap matches the side margins — the pill tucks right into the
+          corner like the iOS tab bar, home indicator floating over the gap */}
+      <div className="absolute bottom-0 inset-x-0 z-40 px-4 pt-2 pb-4">
         <div
           aria-hidden
           className="absolute inset-x-0 bottom-0 -top-10 pointer-events-none transition-opacity duration-200"
@@ -1659,7 +1661,7 @@ function DashboardStep({
           onClick={navDucked ? () => setNavHidden(false) : undefined}
           className={clsx(
             'relative mx-auto rounded-full overflow-hidden transition-all duration-200 ease-out',
-            navDucked ? 'h-[14px] w-[120px] cursor-pointer' : 'h-[64px] w-full',
+            navDucked ? 'h-[10px] w-[88px] opacity-50 cursor-pointer' : 'h-[64px] w-full opacity-100',
           )}
           style={{ background: INK }}
         >
