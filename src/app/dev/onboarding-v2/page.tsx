@@ -791,17 +791,32 @@ function KeySvg({
   const cap = KEY_CAPS[s % KEY_CAPS.length];
 
   if (kind === 2) {
-    // Key card: hole punched through, a cap-colored stripe as its accent.
+    // Key card: credit-card proportions (CR80, ~1.586:1) hung in portrait
+    // from a punched hole. The password embosses the number groups.
     return (
-      <svg width={height * 0.5} height={height} viewBox="0 0 32 64" fill="none">
+      <svg width={height * 0.64} height={height} viewBox="0 0 41 64" fill="none">
         <path
           fillRule="evenodd"
-          d="M4.5 8.5 A6.5 6.5 0 0 1 11 2 L21 2 A6.5 6.5 0 0 1 27.5 8.5 L27.5 55.5 A6.5 6.5 0 0 1 21 62 L11 62 A6.5 6.5 0 0 1 4.5 55.5 Z M16 5.5 a3.6 3.6 0 1 0 0 7.2 a3.6 3.6 0 1 0 0 -7.2 Z"
+          d="M4 1 L37 1 A3 3 0 0 1 40 4 L40 60 A3 3 0 0 1 37 63 L4 63 A3 3 0 0 1 1 60 L1 4 A3 3 0 0 1 4 1 Z M20.5 3.5 a3 3 0 1 0 0 6 a3 3 0 1 0 0 -6 Z"
           fill={color}
         />
-        <rect x="8.5" y="44" width="15" height="5" rx="2.5" fill={cap} />
-        <rect x="8.5" y="20" width="9" height="3" rx="1.5" fill="#ffffff" opacity="0.35" />
-        <rect x="8.5" y="27" width="13" height="3" rx="1.5" fill="#ffffff" opacity="0.35" />
+        {/* chip and magstripe */}
+        <rect x="6" y="14" width="9" height="7" rx="1.5" fill="#ffffff" opacity="0.45" />
+        <rect x="1" y="24" width="39" height="7" fill={cap} />
+        {/* the card number — each group embossed by the password */}
+        {bits.map((b, i) => (
+          <rect
+            key={i}
+            x={5 + i * 8.2}
+            y={47 + (b - 0.5) * 3}
+            width={4.5 + b * 3}
+            height="3"
+            rx="1.5"
+            fill="#ffffff"
+            opacity="0.45"
+          />
+        ))}
+        <rect x="5" y="55" width="14" height="2.5" rx="1.25" fill="#ffffff" opacity="0.3" />
       </svg>
     );
   }
@@ -829,8 +844,10 @@ function KeySvg({
     <svg width={height * 0.5} height={height} viewBox="0 0 32 64" fill="none">
       <path d={blade} fill={color} stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
       {kind === 1 &&
+        // The password drills the dimples: position and depth per bit, spread
+        // wide enough that a new password visibly re-cuts the pattern.
         bits.map((b, i) => (
-          <circle key={i} cx={mid + (b - 0.5) * 4} cy={28 + i * 8} r={1.5 + b * 1.1} fill={SURFACE} />
+          <circle key={i} cx={mid + (b - 0.5) * 5} cy={28 + i * 8} r={1.2 + b * 1.4} fill={SURFACE} />
         ))}
       {/* thin body-coloured collar, then the cap on top of everything */}
       <rect x="12" y={15.5} width="8" height="4" rx="2" fill={color} />
