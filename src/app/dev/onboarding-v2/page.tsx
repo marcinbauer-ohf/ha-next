@@ -841,7 +841,9 @@ function Keychain({
         className="rounded-full border-white bg-transparent shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
         style={{ width: ringSize, height: ringSize, borderWidth: ringSize * 0.16 }}
       />
-      <div className="relative w-full" style={{ height: keyHeight + 4, marginTop: -ringSize * 0.18 }}>
+      {/* keys tuck up so the ring passes through their holes — the punched
+          hole reveals the ring band behind it */}
+      <div className="relative w-full" style={{ height: keyHeight + 4, marginTop: -ringSize * 0.31 }}>
         {keys.map((k, i) => (
           <div key={k.id} className="absolute left-1/2 -translate-x-1/2">
             <motion.div
@@ -934,6 +936,8 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
   // sway when they finish.
   const [poke, setPoke] = useState<string | null>(null);
   const endPoke = () => setPoke(null);
+  // The shelf books wobble individually, same as the area books later on.
+  const [pokedBook, setPokedBook] = useState<number | null>(null);
   return (
     <div className="flex-1 min-h-0 w-full flex flex-col">
       <div className="text-center pt-7 pb-2">
@@ -982,8 +986,8 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
               ))}
               <div className="relative w-[10px] h-[42px] bg-white rounded-t-full" />
               <div className="relative w-[26px] h-[8px] bg-white rounded-full" />
-              {/* the little shelf it stands on */}
-              <div className="relative mt-[6px] w-[54px] h-[12px] bg-white rounded-[8px]" />
+              {/* the little shelf it stands on — same height as the book shelf */}
+              <div className="relative mt-[6px] w-[54px] h-[30px] bg-white rounded-[10px]" />
             </div>
           </div>
           {/* your key and the area books, standing together on a shelf */}
@@ -1008,13 +1012,22 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
                 ].map((b, i) => (
                   <div
                     key={i}
-                    className="bg-white rounded-[6px] shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
-                    style={{
-                      width: b.w,
-                      height: b.h,
-                      transform: b.lean ? `rotate(${b.lean}deg)` : undefined,
-                      transformOrigin: 'bottom right',
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setPokedBook(i);
                     }}
+                    onAnimationEnd={() => setPokedBook((p) => (p === i ? null : p))}
+                    className="bg-white rounded-[6px] shadow-[0_2px_4px_rgba(0,0,0,0.06)] cursor-pointer"
+                    style={
+                      {
+                        width: b.w,
+                        height: b.h,
+                        transform: b.lean ? `rotate(${b.lean}deg)` : undefined,
+                        transformOrigin: 'bottom right',
+                        '--lean': `${b.lean}deg`,
+                        animation: pokedBook === i ? 'obv2-book-poke 0.65s ease' : undefined,
+                      } as React.CSSProperties
+                    }
                   />
                 ))}
               </div>
