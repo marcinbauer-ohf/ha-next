@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
   IconAccessible,
@@ -1332,6 +1332,9 @@ function DashboardStep({
   const [navHidden, setNavHidden] = useState(false);
   const lastY = useRef(0);
   const travel = useRef(0);
+  // Grabber-driven drag-to-dismiss for the pull-up sheet (the content below
+  // it has to keep scrolling normally, so only the grabber drags).
+  const sheetDrag = useDragControls();
   const onGridScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const top = e.currentTarget.scrollTop;
     const delta = top - lastY.current;
@@ -1530,10 +1533,23 @@ function DashboardStep({
             animate={{ y: 0 }}
             exit={{ y: '105%' }}
             transition={{ type: 'spring', stiffness: 340, damping: 34 }}
+            drag="y"
+            dragListener={false}
+            dragControls={sheetDrag}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.9 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 90 || info.velocity.y > 600) setSheetTab(null);
+            }}
             className="absolute inset-x-0 bottom-0 z-30 bg-white rounded-t-[32px] shadow-[0_-8px_40px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden"
             style={{ top: 'calc(env(safe-area-inset-top) + 64px)' }}
           >
-            <div className="mx-auto w-[40px] h-[4px] rounded-full bg-[#e6e6e6] mt-3 shrink-0" />
+            <div
+              className="w-full pt-3 pb-2 -mb-2 shrink-0 cursor-grab touch-none flex justify-center"
+              onPointerDown={(e) => sheetDrag.start(e)}
+            >
+              <div className="w-[40px] h-[4px] rounded-full bg-[#e6e6e6]" />
+            </div>
             <AnimatePresence mode="popLayout" initial={false}>
               <motion.div
                 key={sheetTab}
@@ -1548,7 +1564,6 @@ function DashboardStep({
                     <div className="w-full bg-[#f3f3f3] rounded-full min-h-[48px] px-4 flex items-center gap-2 shrink-0">
                       <IconSearch size={18} color={TEXT_DIM} />
                       <input
-                        autoFocus
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder={L.searchPh}
@@ -1711,8 +1726,17 @@ function DashboardStep({
               transition={{ type: 'spring', stiffness: 420, damping: 36 }}
               className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none"
             >
-              <div className="pointer-events-auto w-full max-w-[430px] px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
-                <div className="bg-white rounded-[32px] p-4 flex flex-col gap-1">
+              <motion.div
+                drag="y"
+                dragConstraints={{ top: 0, bottom: 0 }}
+                dragElastic={{ top: 0, bottom: 0.7 }}
+                onDragEnd={(_, info) => {
+                  if (info.offset.y > 70 || info.velocity.y > 500) setPreviewId(null);
+                }}
+                className="pointer-events-auto w-full max-w-[430px] px-3 pb-[calc(env(safe-area-inset-bottom)+12px)]"
+              >
+                <div className="bg-white rounded-[32px] p-4 pt-2 flex flex-col gap-1">
+                  <div className="mx-auto w-[40px] h-[4px] rounded-full bg-[#e6e6e6] mb-2" />
                   <div className="flex items-center justify-between">
                     <Press
                       aria-label="Close"
@@ -1737,7 +1761,7 @@ function DashboardStep({
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </motion.div>
           </>
         )}
