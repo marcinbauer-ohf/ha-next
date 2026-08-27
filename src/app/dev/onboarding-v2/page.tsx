@@ -961,9 +961,20 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
             style={{ transform: 'skewX(32deg)' }}
           />
         </div>
+        {/* a robot vacuum makes the occasional cleaning pass at doormat level */}
+        <div
+          aria-hidden
+          className="absolute left-[200px] top-1/2 pointer-events-none"
+          style={{ marginTop: 160, animation: 'obv2-vacuum 16s ease-in-out infinite' }}
+        >
+          <div className="relative size-[46px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 size-[16px] rounded-full bg-[#ececec]" />
+            <span className="absolute top-[6px] left-1/2 -translate-x-1/2 size-[5px] rounded-full" style={{ background: ACCENT }} />
+          </div>
+        </div>
         {/* the wall arrangement on the right — left-anchored so the shelf
             planks can run off the right edge, mirroring the door's bleed */}
-        <div className="absolute left-[158px] top-1/2 -translate-y-1/2 flex flex-col gap-7 items-start">
+        <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start">
           <div className="flex items-end gap-4">
             {/* the map in a landscape photo frame */}
             <div
@@ -1008,7 +1019,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
                   animation: poke === 'keys' ? 'obv2-jingle 0.8s ease' : undefined,
                 }}
               >
-                <KeySvg cutSeed="home" styleSeed="home" color="#ffffff" height={78} />
+                <KeySvg cutSeed="home" styleSeed="home" color="#ffffff" height={62} />
               </div>
               <div className="flex items-end gap-[5px]">
                 {[
@@ -2409,6 +2420,7 @@ export default function OnboardingV2Page() {
         @keyframes obv2-swing { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
         @keyframes obv2-fade-in { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
         @keyframes obv2-nudge { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } 60% { transform: translateY(1px); } }
+        @keyframes obv2-vacuum { 0%, 52% { transform: translateX(0) rotate(0deg); } 60% { transform: translateX(52px) rotate(7deg); } 67% { transform: translateX(40px) rotate(-5deg); } 76% { transform: translateX(96px) rotate(4deg); } 88%, 100% { transform: translateX(0) rotate(0deg); } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
       `}</style>
       <div className="mx-auto max-w-[430px] relative" style={{ height: vvh ?? '100%' }}>
