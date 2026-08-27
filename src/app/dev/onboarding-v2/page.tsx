@@ -390,7 +390,8 @@ const STR = {
   },
 };
 type Copy = typeof STR.en;
-const LANG_CYCLE: Lang[] = ['en', 'pl', 'es'];
+const LANGS: Lang[] = ['en', 'pl', 'es'];
+const LANG_NAMES: Record<Lang, string> = { en: 'English', pl: 'Polski', es: 'Español' };
 
 // Easter egg: whoever builds to the top of the stepper gets a tower.
 const floorName = (L: Copy, i: number) => (i === MAX_FLOORS - 1 ? L.tower : L.floors[i]);
@@ -1275,12 +1276,11 @@ function MiniToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 type DashView = 'dashboard' | 'profile';
 type SheetTab = 'search' | 'activity' | 'dashboards';
 
-/** The frosted strip both bars sit on — content scrolls through underneath. */
-const FROST: React.CSSProperties = {
-  background: 'rgba(230,230,230,0.72)',
-  backdropFilter: 'blur(16px)',
-  WebkitBackdropFilter: 'blur(16px)',
-};
+/** One continuous fade per bar — near-solid behind the controls, running out
+    to transparent past the bar's edge. Content scrolls through underneath. */
+const barFade = (dir: 'top' | 'bottom'): React.CSSProperties => ({
+  background: `linear-gradient(to ${dir === 'top' ? 'bottom' : 'top'}, rgba(230,230,230,0.97) 45%, rgba(230,230,230,0))`,
+});
 
 function DashboardStep({
   homeName,
@@ -1469,9 +1469,10 @@ function DashboardStep({
         </div>
       )}
 
-      {/* top app bar — frosted, the grid slides through underneath */}
+      {/* top app bar — the grid slides through the fade underneath */}
       {view === 'dashboard' && (
-        <div className="absolute top-0 inset-x-0 z-20 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2" style={FROST}>
+        <div className="absolute top-0 inset-x-0 z-20 px-4 pt-[calc(env(safe-area-inset-top)+10px)] pb-2">
+          <div aria-hidden className="absolute inset-x-0 top-0 -bottom-12 pointer-events-none" style={barFade('top')} />
           <div className="relative flex items-center justify-between min-h-[44px]">
             <Press
               onClick={() => setMenuOpen((v) => !v)}
@@ -1611,47 +1612,61 @@ function DashboardStep({
         )}
       </AnimatePresence>
 
-      {/* bottom nav — frosted strip, ducks away on scroll-down */}
-      <div
-        className={clsx(
-          'absolute bottom-0 inset-x-0 z-40 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] transition-transform duration-300 ease-out',
-          navDucked && 'translate-y-[110%]',
-        )}
-        style={sheetTab ? undefined : FROST}
-      >
-        <div className="w-full rounded-full min-h-[64px] px-8 flex items-center justify-between" style={{ background: INK }}>
-          <Press aria-label="Home" onClick={tapHome} className="relative p-2">
-            {/* the chevron hints there's more behind a second tap */}
-            <span
-              aria-hidden
-              className="absolute -top-[8px] left-1/2 -translate-x-1/2 transition-opacity duration-300"
-              style={{ opacity: homeIdle ? 1 : 0 }}
-            >
-              <IconChevronUp size={13} color="#8a8a8a" />
-            </span>
-            <IconHome size={26} color={homeActive ? '#ffffff' : '#8a8a8a'} />
-          </Press>
-          <Press aria-label="Search" onClick={() => toggleSheet('search')} className="p-2">
-            <IconSearch size={26} color={sheetTab === 'search' ? '#ffffff' : '#8a8a8a'} />
-          </Press>
-          <Press aria-label="Activity" onClick={() => toggleSheet('activity')} className="p-2">
-            <IconClockHour4 size={26} color={sheetTab === 'activity' ? '#ffffff' : '#8a8a8a'} />
-          </Press>
-          <Press
-            aria-label="Profile"
-            onClick={() => {
-              setSheetTab(null);
-              setView((v) => (v === 'profile' ? 'dashboard' : 'profile'));
-            }}
-            className="p-1"
+      {/* bottom nav — on scroll-down it shrinks into a small iOS-style
+          handle; scroll up or tap it and the full bar grows back */}
+      <div className="absolute bottom-0 inset-x-0 z-40 px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)]">
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 -top-10 pointer-events-none transition-opacity duration-200"
+          style={{ ...barFade('bottom'), opacity: sheetTab ? 0 : 1 }}
+        />
+        <div
+          onClick={navDucked ? () => setNavHidden(false) : undefined}
+          className={clsx(
+            'relative mx-auto rounded-full overflow-hidden transition-all duration-200 ease-out',
+            navDucked ? 'h-[14px] w-[120px] cursor-pointer' : 'h-[64px] w-full',
+          )}
+          style={{ background: INK }}
+        >
+          <div
+            className={clsx(
+              'h-[64px] w-full px-8 flex items-center justify-between transition-opacity duration-150',
+              navDucked && 'opacity-0 pointer-events-none',
+            )}
           >
-            <span
-              className="size-[30px] rounded-full flex items-center justify-center"
-              style={{ background: view === 'profile' && !sheetTab ? ACCENT : '#ffffff' }}
+            <Press aria-label="Home" onClick={tapHome} className="relative p-2">
+              {/* the chevron hints there's more behind a second tap */}
+              <span
+                aria-hidden
+                className="absolute -top-[8px] left-1/2 -translate-x-1/2 transition-opacity duration-300"
+                style={{ opacity: homeIdle ? 1 : 0 }}
+              >
+                <IconChevronUp size={13} color="#8a8a8a" />
+              </span>
+              <IconHome size={26} color={homeActive ? '#ffffff' : '#8a8a8a'} />
+            </Press>
+            <Press aria-label="Search" onClick={() => toggleSheet('search')} className="p-2">
+              <IconSearch size={26} color={sheetTab === 'search' ? '#ffffff' : '#8a8a8a'} />
+            </Press>
+            <Press aria-label="Activity" onClick={() => toggleSheet('activity')} className="p-2">
+              <IconClockHour4 size={26} color={sheetTab === 'activity' ? '#ffffff' : '#8a8a8a'} />
+            </Press>
+            <Press
+              aria-label="Profile"
+              onClick={() => {
+                setSheetTab(null);
+                setView((v) => (v === 'profile' ? 'dashboard' : 'profile'));
+              }}
+              className="p-1"
             >
-              <IconUser size={19} color={view === 'profile' && !sheetTab ? '#ffffff' : INK} />
-            </span>
-          </Press>
+              <span
+                className="size-[30px] rounded-full flex items-center justify-center"
+                style={{ background: view === 'profile' && !sheetTab ? ACCENT : '#ffffff' }}
+              >
+                <IconUser size={19} color={view === 'profile' && !sheetTab ? '#ffffff' : INK} />
+              </span>
+            </Press>
+          </div>
         </div>
       </div>
 
@@ -1747,6 +1762,7 @@ export default function OnboardingV2Page() {
   const [credFocused, setCredFocused] = useState(false);
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
   const [a11yMenuOpen, setA11yMenuOpen] = useState(false);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   // Touch devices get the choreographed focus: artwork settles into its
   // keyboard framing first, THEN the field focuses and the keyboard rises.
@@ -2331,12 +2347,12 @@ export default function OnboardingV2Page() {
           </div>
         ) : (
           <div className="h-full flex flex-col">
-            {/* static app bar — the step heading lives here. Frosted, with a
-                gradient below so artwork fades as it nears the bar. */}
-            <div className="px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-1 relative z-20" style={FROST}>
+            {/* static app bar — the step heading lives here, on a fade that
+                runs on below it so artwork dissolves as it nears the bar. */}
+            <div className="px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-1 relative z-20">
               <div
                 aria-hidden
-                className="absolute top-full inset-x-0 h-8 pointer-events-none"
+                className="absolute top-full -mt-px inset-x-0 h-10 pointer-events-none"
                 style={{ background: `linear-gradient(to bottom, ${SURFACE}, transparent)` }}
               />
               <div className="relative flex items-center justify-between gap-2 min-h-[44px]">
@@ -2384,7 +2400,7 @@ export default function OnboardingV2Page() {
                   {step === 'welcome' && (
                     <Press
                       aria-label="Switch language"
-                      onClick={() => setLang((l) => LANG_CYCLE[(LANG_CYCLE.indexOf(l) + 1) % LANG_CYCLE.length])}
+                      onClick={() => setLangMenuOpen((v) => !v)}
                       className="size-[44px] rounded-full bg-[#f3f3f3] flex items-center justify-center"
                     >
                       <span className="text-[13px] font-bold tracking-[0.02em]" style={{ color: TEXT_2 }}>
@@ -2401,6 +2417,13 @@ export default function OnboardingV2Page() {
                   </Press>
                 </div>
                 <PopMenu align="right" open={a11yMenuOpen} onPick={() => setA11yMenuOpen(false)} items={L.a11yMenu} />
+                <PopMenu
+                  align="right"
+                  open={langMenuOpen}
+                  onPick={() => setLangMenuOpen(false)}
+                  onPickItem={(i) => setLang(LANGS[i])}
+                  items={LANGS.map((l) => LANG_NAMES[l])}
+                />
                 {step === 'welcome' && (
                   <PopMenu
                     open={welcomeMenuOpen}
