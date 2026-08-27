@@ -967,7 +967,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         <div
           aria-hidden
           className="absolute left-[200px] top-1/2 pointer-events-none"
-          style={{ marginTop: 185, animation: 'obv2-vacuum 18s ease-in-out infinite' }}
+          style={{ marginTop: 159, animation: 'obv2-vacuum 18s ease-in-out infinite' }}
         >
           <div className="relative w-[116px] h-[32px] bg-white rounded-[10px] shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
             <span className="absolute -top-[12px] left-1/2 -translate-x-1/2 w-[32px] h-[13px] bg-white rounded-t-[6px]" />
