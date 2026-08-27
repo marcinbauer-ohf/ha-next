@@ -2566,14 +2566,6 @@ export default function OnboardingV2Page() {
         .obv2-art-bottom { transform-origin: 50% 100%; }
         @keyframes obv2-vacuum { 0%, 45% { transform: translateX(var(--obv2-vac-park, 300px)); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
-        /* With the sheet capped on wide screens, the scrim band above it also
-           fades out sideways instead of showing hard edges. */
-        @media (min-width: 768px) {
-          .obv2-sheet-fade {
-            -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
-            mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
-          }
-        }
         /* Phones are portrait-only: landscape gets a rotate prompt instead of
            a broken layout. Coarse pointer keeps short desktop windows out. */
         .obv2-rotate { display: none; }
@@ -2739,14 +2731,17 @@ export default function OnboardingV2Page() {
             <div className="relative">
               {/* runs on past the sheet's top edge so the rounded corners
                   don't notch a hard stop into the gradient */}
+              {/* mobile only — on desktop the floating card carries a shadow */}
               <div
                 aria-hidden
-                className="obv2-sheet-fade absolute -top-20 inset-x-0 h-[116px] pointer-events-none"
+                className="absolute -top-20 inset-x-0 h-[116px] pointer-events-none md:hidden"
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10) 36px, transparent)' }}
               />
             <div
               className={clsx(
                 'relative bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)] w-full max-w-[640px] mx-auto',
+                // Desktop: not pinned — a floating card under the artwork.
+                'md:rounded-[32px] md:mb-8 md:pt-6 md:pb-6 md:px-8 md:shadow-[0_16px_50px_rgba(0,0,0,0.10)]',
                 compact && typing && 'obv2-hide-cta',
               )}
               onFocusCapture={(e) => {
@@ -2756,7 +2751,7 @@ export default function OnboardingV2Page() {
                 if ((e.target as HTMLElement).tagName === 'INPUT') setTyping(false);
               }}
             >
-              <div className="mx-auto w-[40px] h-[4px] rounded-full bg-[#e6e6e6] mb-2" />
+              <div className="mx-auto w-[40px] h-[4px] rounded-full bg-[#e6e6e6] mb-2 md:hidden" />
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={stepKey}
