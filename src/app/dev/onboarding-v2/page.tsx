@@ -141,7 +141,6 @@ const STR = {
     welcomeSub: 'A few easy questions, nothing is permanent',
     begin: 'Let’s begin',
     discoveredLine: (n: number) => (n === 1 ? '1 device found nearby' : `${n} devices found nearby`),
-    beginFound: (n: number) => (n === 1 ? 'Set up & add 1 device' : `Set up & add ${n} devices`),
     cont: 'Continue',
     finish: 'Finish',
     skip: 'Skip for now',
@@ -234,8 +233,6 @@ const STR = {
     begin: 'Zaczynajmy',
     discoveredLine: (n: number) =>
       `Znaleziono ${n} ${n === 1 ? 'urządzenie' : n <= 4 ? 'urządzenia' : 'urządzeń'} w pobliżu`,
-    beginFound: (n: number) =>
-      `Skonfiguruj i dodaj ${n} ${n === 1 ? 'urządzenie' : n <= 4 ? 'urządzenia' : 'urządzeń'}`,
     cont: 'Dalej',
     finish: 'Zakończ',
     skip: 'Na razie pomiń',
@@ -328,8 +325,6 @@ const STR = {
     begin: 'Empecemos',
     discoveredLine: (n: number) =>
       n === 1 ? '1 dispositivo encontrado cerca' : `${n} dispositivos encontrados cerca`,
-    beginFound: (n: number) =>
-      n === 1 ? 'Configura y añade 1 dispositivo' : `Configura y añade ${n} dispositivos`,
     cont: 'Continuar',
     finish: 'Terminar',
     skip: 'Omitir por ahora',
@@ -1916,11 +1911,6 @@ export default function OnboardingV2Page() {
   // Discovery never waits for onboarding: HA starts scanning the network the
   // moment it boots, so devices trickle in while the user is still at the door.
   const [found, setFound] = useState(0);
-  useEffect(() => {
-    if (step !== 'welcome') return;
-    const tick = setInterval(() => setFound((f) => (f >= 7 ? f : f + 1)), 2400);
-    return () => clearInterval(tick);
-  }, [step]);
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
   const [a11yMenuOpen, setA11yMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
@@ -1967,6 +1957,17 @@ export default function OnboardingV2Page() {
     setToast({ id, msg });
     setTimeout(() => setToast((t) => (t && t.id === id ? null : t)), 2800);
   };
+
+  // Each newly discovered device re-raises the toast with the running count.
+  useEffect(() => {
+    if (step !== 'welcome' || found >= 7) return;
+    const t = setTimeout(() => {
+      const n = found + 1;
+      setFound(n);
+      showToast(L.discoveredLine(n));
+    }, 2400);
+    return () => clearTimeout(t);
+  }, [step, found, L]);
 
   // Invites always create guest accounts; promotion happens in settings later.
   const addInvite = useCallback(
@@ -2118,6 +2119,7 @@ export default function OnboardingV2Page() {
 
   const next = () => {
     setDir(1);
+    setToast(null);
     if (step === 'areas' && floorIndex < floors - 1) {
       setFloorIndex(floorIndex + 1);
       return;
@@ -2127,6 +2129,7 @@ export default function OnboardingV2Page() {
   };
   const back = () => {
     setDir(-1);
+    setToast(null);
     if (step === 'areas' && floorIndex > 0) {
       setFloorIndex(floorIndex - 1);
       return;
@@ -2296,29 +2299,7 @@ export default function OnboardingV2Page() {
   const sheet = (() => {
     switch (step) {
       case 'welcome':
-        return (
-          <>
-            {/* discovery ticker — height reserved so its arrival doesn't shift the CTA */}
-            <div className="min-h-[24px] flex items-center justify-center gap-2">
-              {found > 0 && (
-                <div key={found} className="flex items-center gap-2" style={{ animation: 'obv2-fade-in 0.4s ease' }}>
-                  <span className="relative flex size-[8px] shrink-0">
-                    <span
-                      aria-hidden
-                      className="absolute -inset-[4px] rounded-full border-2"
-                      style={{ borderColor: ACCENT, animation: 'obv2-pulse 2.4s ease-out infinite' }}
-                    />
-                    <span className="relative size-[8px] rounded-full" style={{ background: ACCENT }} />
-                  </span>
-                  <span className="text-[13px] font-semibold tracking-[-0.26px] text-center" style={{ color: TEXT_2 }}>
-                    {L.discoveredLine(found)}
-                  </span>
-                </div>
-              )}
-            </div>
-            <CtaButton label={found > 0 ? L.beginFound(found) : L.begin} onClick={next} />
-          </>
-        );
+        return <CtaButton label={L.begin} onClick={next} />;
       case 'name':
         return (
           <>
@@ -2723,24 +2704,6 @@ export default function OnboardingV2Page() {
               </div>
               )}
             </div>
-            {/* toast — invite confirmations and the like */}
-            <AnimatePresence>
-              {toast && (
-                <div className="absolute top-[calc(env(safe-area-inset-top)+62px)] inset-x-0 z-30 flex justify-center pointer-events-none">
-                  <motion.div
-                    key={toast.id}
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-                    className="bg-white rounded-full px-5 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.14)] text-[14px] font-semibold tracking-[-0.28px]"
-                    style={{ color: TEXT }}
-                  >
-                    {toast.msg}
-                  </motion.div>
-                </div>
-              )}
-            </AnimatePresence>
             {/* only the artwork slides between steps */}
             <div className="flex-1 md:grow-[3] min-h-0 relative px-5 overflow-hidden">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
@@ -2778,6 +2741,24 @@ export default function OnboardingV2Page() {
             {/* static bottom sheet — its contents crossfade per step. The
                 gradient scrim above it pushes the artwork into the background. */}
             <div className="relative">
+              {/* toast — discovery ticks, invite confirmations: rises over the sheet */}
+              <AnimatePresence>
+                {toast && (
+                  <div className="absolute -top-[64px] inset-x-0 z-30 flex justify-center pointer-events-none">
+                    <motion.div
+                      key={toast.id}
+                      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+                      className="bg-white rounded-full px-5 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.14)] text-[14px] font-semibold tracking-[-0.28px] max-w-[90%] truncate"
+                      style={{ color: TEXT }}
+                    >
+                      {toast.msg}
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>
               {/* runs on past the sheet's top edge so the rounded corners
                   don't notch a hard stop into the gradient */}
               {/* mobile only — on desktop the floating card carries a shadow */}
