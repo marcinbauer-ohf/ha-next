@@ -152,7 +152,6 @@ const STR = {
     namePh: 'Home name',
     nameChips: ['My Home', 'The Nest', 'Base Camp', 'The Cabin'],
     usersTitle: 'Create your account',
-    usersSub: 'Your account unlocks this home — the password cuts your key.',
     userPh: 'Username',
     passPh: 'Password',
     inviteTitle: 'Invite others',
@@ -244,7 +243,6 @@ const STR = {
     namePh: 'Nazwa domu',
     nameChips: ['Mój dom', 'Gniazdko', 'Baza', 'Chatka'],
     usersTitle: 'Utwórz swoje konto',
-    usersSub: 'Twoje konto otwiera ten dom — hasło nacina twój klucz.',
     userPh: 'Nazwa użytkownika',
     passPh: 'Hasło',
     inviteTitle: 'Zaproś innych',
@@ -336,7 +334,6 @@ const STR = {
     namePh: 'Nombre del hogar',
     nameChips: ['Mi casa', 'El nido', 'La base', 'La cabaña'],
     usersTitle: 'Crea tu cuenta',
-    usersSub: 'Tu cuenta abre este hogar — la contraseña talla tu llave.',
     userPh: 'Nombre de usuario',
     passPh: 'Contraseña',
     inviteTitle: 'Invita a otros',
@@ -2213,7 +2210,7 @@ export default function OnboardingV2Page() {
       case 'name':
         return { title: L.nameTitle, sub: L.nameSub };
       case 'users':
-        return { title: L.usersTitle, sub: L.usersSub };
+        return { title: L.usersTitle };
       case 'invite':
         return { title: L.inviteTitle, sub: L.inviteSub };
       case 'location':
