@@ -913,18 +913,25 @@ function Door({
   name,
   height = 345,
   poked = false,
+  held = false,
   onPokeEnd,
 }: {
   name?: string;
   height?: number;
   /** One-shot open/close on tap; onPokeEnd fires when the swing finishes. */
   poked?: boolean;
+  /** Longer open-and-stay swing — someone is coming out. */
+  held?: boolean;
   onPokeEnd?: () => void;
 }) {
   const width = Math.round(height * 0.504);
   // The door rests closed — an idle swing kept catching the eye mid-open and
   // reading as "the door is open". It only swings when poked.
-  const animation = poked ? 'obv2-door-once 1.2s ease-in-out' : undefined;
+  const animation = held
+    ? 'obv2-door-hold 4.8s ease-in-out'
+    : poked
+      ? 'obv2-door-once 1.2s ease-in-out'
+      : undefined;
   return (
     // Width pinned to the door: as a plain block this div stretches to its
     // widest sibling-driven parent (the welcome mat), and the doorway layer —
@@ -980,6 +987,16 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
   const endPoke = () => setPoke(null);
   // The shelf books wobble individually, same as the area books later on.
   const [pokedBook, setPokedBook] = useState<number | null>(null);
+  // Easter egg: knock 20 times and someone finally answers — the house cat
+  // saunters out while the door stands open, then it swings shut again.
+  const doorTaps = useRef(0);
+  const [catOut, setCatOut] = useState(false);
+  const knock = () => {
+    if (catOut) return;
+    doorTaps.current += 1;
+    if (doorTaps.current % 20 === 0) setCatOut(true);
+    else setPoke('door');
+  };
   return (
     <div className="flex-1 min-h-0 w-full flex flex-col">
       <div className="text-center pt-7 pb-2 md:pt-3">
@@ -996,14 +1013,36 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
           would collide with the heading above it */}
       <div className="flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
         {/* the door bleeds off the left edge, standing on its mat */}
-        <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={() => setPoke('door')}>
-          <Door name={homeName} height={330} poked={poke === 'door'} onPokeEnd={endPoke} />
+        <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={knock}>
+          <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} onPokeEnd={endPoke} />
           {/* the doormat — a flat slab at the doorstep, skewed away from the door */}
           <div
             className="mt-[18px] ml-[8px] w-[168px] h-[34px] bg-white rounded-[12px]"
             style={{ transform: 'skewX(32deg)' }}
           />
         </div>
+        {/* the answerer: walks out of the held-open door, bottom on the floor
+            line, and keeps going until it leaves the scene (and the screen) */}
+        {catOut && (
+          <div
+            aria-hidden
+            className="absolute left-[20px] top-1/2 pointer-events-none z-10"
+            style={{ marginTop: 161, animation: 'obv2-cat-walk 4.4s ease-in 0.7s both' }}
+            onAnimationEnd={() => setCatOut(false)}
+          >
+            <div className="relative w-[52px] h-[30px]" style={{ animation: 'obv2-bob 0.5s ease-in-out infinite' }}>
+              <span
+                className="absolute -left-[10px] bottom-[9px] w-[16px] h-[5px] bg-white rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+                style={{ transformOrigin: 'right center', animation: 'obv2-cat-tail 0.9s ease-in-out infinite' }}
+              />
+              <span className="absolute left-0 bottom-0 w-[44px] h-[20px] bg-white rounded-full shadow-[0_2px_5px_rgba(0,0,0,0.08)]" />
+              <span className="absolute right-[13px] bottom-[23px] size-[7px] bg-white rounded-[2px] rotate-45" />
+              <span className="absolute right-[3px] bottom-[23px] size-[7px] bg-white rounded-[2px] rotate-45" />
+              <span className="absolute right-0 bottom-[9px] size-[18px] bg-white rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.06)]" />
+              <span className="absolute right-[3px] bottom-[9px] size-[4px] rounded-full" style={{ background: ACCENT }} />
+            </div>
+          </div>
+        )}
         {/* a robot vacuum makes the occasional cleaning pass at doormat level —
             drawn in profile like the rest of the scene: a low puck with its
             lidar turret up top */}
@@ -2562,6 +2601,11 @@ export default function OnboardingV2Page() {
         @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
         @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         @keyframes obv2-door-once { 0% { transform: rotateY(0deg); } 45% { transform: rotateY(-34deg); } 100% { transform: rotateY(0deg); } }
+        @keyframes obv2-door-hold { 0% { transform: rotateY(0deg); } 13% { transform: rotateY(-46deg); } 80% { transform: rotateY(-44deg); } 100% { transform: rotateY(0deg); } }
+        /* the cat leaves the scene the same way the vacuum parks: past the
+           phone edge on mobile, past the viewport on wide screens */
+        @keyframes obv2-cat-walk { 0% { transform: translateX(0); } 100% { transform: translateX(calc(var(--obv2-vac-park, 300px) + 180px)); } }
+        @keyframes obv2-cat-tail { 0%, 100% { transform: rotate(-28deg); } 50% { transform: rotate(-46deg); } }
         @keyframes obv2-jingle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-11deg); } 55% { transform: rotate(8deg); } 80% { transform: rotate(-4deg); } }
         @keyframes obv2-pop { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.14); } }
         @keyframes obv2-pulse { 0% { transform: scale(0.25); opacity: 0.9; } 100% { transform: scale(1.4); opacity: 0; } }
