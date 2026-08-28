@@ -771,6 +771,9 @@ function keyHash(s: string): number {
   return h;
 }
 
+/** The cap color a person's key wears — reused wherever they're represented. */
+const capColorFor = (seed: string) => KEY_CAPS[keyHash(seed) % KEY_CAPS.length];
+
 function KeySvg({
   cutSeed,
   styleSeed,
@@ -796,7 +799,7 @@ function KeySvg({
   const headR = 6.5 + (s & 3) * 0.7;
   const headStroke = 5 + ((s >> 2) & 3) * 0.7;
   // Every person's key wears a small colored cap around the hole.
-  const cap = capColor ?? KEY_CAPS[s % KEY_CAPS.length];
+  const cap = capColor ?? capColorFor(styleSeed ?? cutSeed);
 
   if (kind === 2) {
     // Key card: credit-card proportions (CR80, ~1.586:1) hung in portrait
@@ -1387,6 +1390,14 @@ interface Card {
   value?: string;
   toggle?: boolean;
   on: boolean;
+  /** The area (book) this device lives in — sections the dashboard. */
+  area?: string;
+}
+
+/** The floors/areas the user just built, as plain names for the dashboard. */
+interface FloorSection {
+  name: string;
+  areas: string[];
 }
 
 function makeCard(L: Copy, i: number, idPrefix = 'card'): Card {
@@ -1437,6 +1448,7 @@ function DashboardStep({
   username,
   invited,
   initialCards,
+  structure,
   L,
   onBack,
 }: {
@@ -1444,6 +1456,7 @@ function DashboardStep({
   username: string;
   invited: Invitee[];
   initialCards: Card[];
+  structure: FloorSection[];
   L: Copy;
   onBack: () => void;
 }) {
@@ -1481,7 +1494,13 @@ function DashboardStep({
   };
   const navDucked = navHidden && view === 'dashboard' && !sheetTab && !previewId;
 
-  const addCard = () => setCards((prev) => [...prev, makeCard(L, prev.length, `card-${Date.now()}`)]);
+  // New devices land in the areas round-robin, so every room fills up.
+  const allAreas = structure.flatMap((f) => f.areas);
+  const addCard = () =>
+    setCards((prev) => [
+      ...prev,
+      { ...makeCard(L, prev.length, `card-${Date.now()}`), area: allAreas[prev.length % allAreas.length] },
+    ]);
   const flip = (id: string) => setCards((prev) => prev.map((c) => (c.id === id ? { ...c, on: !c.on } : c)));
   const previewCard = cards.find((c) => c.id === previewId) ?? null;
 
@@ -1528,40 +1547,67 @@ function DashboardStep({
         className={clsx('absolute inset-0 transition-transform duration-300 ease-out', sheetTab && 'scale-[0.955]')}
         style={{ transformOrigin: '50% 32%' }}
       >
-      {/* the card grid scrolls edge to edge, under both frosted bars */}
+      {/* the card grid scrolls edge to edge, under both frosted bars —
+          sectioned by the floors and areas built during onboarding */}
       <div className="absolute inset-0 overflow-y-auto" onScroll={onGridScroll}>
-        <div className="grid grid-cols-2 md:grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2 md:gap-3 content-start px-4 pt-[calc(env(safe-area-inset-top)+76px)] pb-[calc(env(safe-area-inset-bottom)+104px)]">
-          <AnimatePresence>
-            {cards.map((card) => (
-              <motion.div
-                key={card.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 26 }}
-                onClick={() => setPreviewId(card.id)}
-                className="relative bg-white rounded-[24px] p-2 flex flex-col gap-2 cursor-pointer"
-              >
-                {card.toggle && (
-                  <span className="absolute top-[14px] right-[14px]">
-                    <MiniToggle on={card.on} onToggle={() => flip(card.id)} />
-                  </span>
-                )}
-                <div className="p-2 h-[54px] flex items-center">
-                  <card.Icon size={24} color={card.toggle && !card.on ? TEXT_2 : TEXT} />
-                </div>
-                <div className="px-2 pb-2 flex flex-col">
-                  <span className="text-[16px] font-semibold tracking-[-0.48px] truncate" style={{ color: TEXT }}>
-                    {card.name}
-                  </span>
-                  <span className="text-[14px] font-semibold tracking-[-0.42px] truncate" style={{ color: TEXT_2 }}>
-                    {card.toggle ? (card.on ? L.on : L.off) : card.value}
-                  </span>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
+        {(() => {
+          const gridCls = 'grid grid-cols-2 md:grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-2 md:gap-3';
+          const tile = (card: Card) => (
+            <motion.div
+              key={card.id}
+              layout
+              initial={{ opacity: 0, scale: 0.9, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 26 }}
+              onClick={() => setPreviewId(card.id)}
+              className="relative bg-white rounded-[24px] p-2 flex flex-col gap-2 cursor-pointer"
+            >
+              {card.toggle && (
+                <span className="absolute top-[14px] right-[14px]">
+                  <MiniToggle on={card.on} onToggle={() => flip(card.id)} />
+                </span>
+              )}
+              <div className="p-2 h-[54px] flex items-center">
+                <card.Icon size={24} color={card.toggle && !card.on ? TEXT_2 : TEXT} />
+              </div>
+              <div className="px-2 pb-2 flex flex-col">
+                <span className="text-[16px] font-semibold tracking-[-0.48px] truncate" style={{ color: TEXT }}>
+                  {card.name}
+                </span>
+                <span className="text-[14px] font-semibold tracking-[-0.42px] truncate" style={{ color: TEXT_2 }}>
+                  {card.toggle ? (card.on ? L.on : L.off) : card.value}
+                </span>
+              </div>
+            </motion.div>
+          );
+          return (
+            <div className="px-4 pt-[calc(env(safe-area-inset-top)+76px)] pb-[calc(env(safe-area-inset-bottom)+104px)] flex flex-col gap-5">
+              {structure.length === 0 ? (
+                // no floors/areas were set up — the flat starter grid
+                <div className={gridCls}>{cards.map(tile)}</div>
+              ) : (
+                structure.map((floor) => (
+                  <div key={floor.name} className="flex flex-col gap-3">
+                    {/* the floor eyebrow only earns its ink with 2+ floors */}
+                    {structure.length > 1 && (
+                      <span className="px-1 text-[13px] font-semibold" style={{ color: TEXT_DIM }}>
+                        {floor.name}
+                      </span>
+                    )}
+                    {floor.areas.map((area) => (
+                      <div key={area} className="flex flex-col gap-2">
+                        <span className="px-1 text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT }}>
+                          {area}
+                        </span>
+                        <div className={gridCls}>{cards.filter((c) => c.area === area).map(tile)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* profile: its own page — the first column of the app's settings */}
@@ -1857,11 +1903,15 @@ function DashboardStep({
               }}
               className="p-1"
             >
+              {/* the avatar wears the same cap color as the user's key */}
               <span
-                className="size-[30px] rounded-full flex items-center justify-center"
-                style={{ background: view === 'profile' && !sheetTab ? ACCENT : '#ffffff' }}
+                className="size-[30px] rounded-full flex items-center justify-center transition-shadow duration-200"
+                style={{
+                  background: capColorFor(username || 'admin'),
+                  boxShadow: view === 'profile' && !sheetTab ? '0 0 0 2.5px #ffffff' : undefined,
+                }}
               >
-                <IconUser size={19} color={view === 'profile' && !sheetTab ? '#ffffff' : INK} />
+                <IconUser size={19} color="#ffffff" />
               </span>
             </Press>
           </div>
@@ -2194,9 +2244,20 @@ export default function OnboardingV2Page() {
     showToast(L.inviteToast(email));
   };
 
-  // One example device per created area; six placeholders if none were made.
-  const roomCount = booksByFloor.reduce((n, shelf) => n + shelf.length, 0);
-  const cards: Card[] = Array.from({ length: roomCount || 6 }, (_, i) => makeCard(L, i, 'seed'));
+  // The floors/areas just built become the dashboard's sections; each area
+  // starts with one or two example devices. Six flat placeholders if the
+  // structure steps were skipped entirely.
+  const structure: FloorSection[] = booksByFloor
+    .map((shelf, i) => ({ name: floorName(L, i), areas: shelf.map((b) => b.room) }))
+    .filter((f) => f.areas.length > 0);
+  let seedIdx = 0;
+  const cards: Card[] = structure.length
+    ? structure.flatMap((f) =>
+        f.areas.flatMap((area) =>
+          Array.from({ length: 1 + (keyHash(area) % 2) }, () => ({ ...makeCard(L, seedIdx++, 'seed'), area })),
+        ),
+      )
+    : Array.from({ length: 6 }, (_, i) => makeCard(L, i, 'seed'));
 
   const next = () => {
     setDir(1);
@@ -2686,7 +2747,7 @@ export default function OnboardingV2Page() {
       <div className="relative w-full" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
           <div className="relative h-full overflow-hidden">
-            <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} L={L} onBack={back} />
+            <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} structure={structure} L={L} onBack={back} />
           </div>
         ) : (
           <div className="h-full flex flex-col">
