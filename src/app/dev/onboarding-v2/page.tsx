@@ -148,7 +148,6 @@ const STR = {
     customMenu: ['Restore from a backup', 'Migrate from another system', 'Learn about Home Assistant'],
     a11yMenu: ['Larger text', 'High contrast', 'Reduce motion', 'Spoken hints'],
     nameTitle: 'Name your home',
-    nameSub: "It's written on the door. You can change it anytime.",
     namePh: 'Home name',
     nameChips: ['My Home', 'The Nest', 'Base Camp', 'The Cabin'],
     usersTitle: 'Create your account',
@@ -239,7 +238,6 @@ const STR = {
     customMenu: ['Przywróć z kopii zapasowej', 'Przenieś się z innego systemu', 'Poznaj Home Assistant'],
     a11yMenu: ['Większy tekst', 'Wysoki kontrast', 'Ogranicz animacje', 'Podpowiedzi głosowe'],
     nameTitle: 'Nazwij swój dom',
-    nameSub: 'Nazwa jest na drzwiach. Zmienisz ją w każdej chwili.',
     namePh: 'Nazwa domu',
     nameChips: ['Mój dom', 'Gniazdko', 'Baza', 'Chatka'],
     usersTitle: 'Utwórz swoje konto',
@@ -330,7 +328,6 @@ const STR = {
     customMenu: ['Restaurar desde una copia', 'Migrar desde otro sistema', 'Conoce Home Assistant'],
     a11yMenu: ['Texto más grande', 'Alto contraste', 'Menos animaciones', 'Indicaciones de voz'],
     nameTitle: 'Nombra tu hogar',
-    nameSub: 'Está escrito en la puerta. Puedes cambiarlo cuando quieras.',
     namePh: 'Nombre del hogar',
     nameChips: ['Mi casa', 'El nido', 'La base', 'La cabaña'],
     usersTitle: 'Crea tu cuenta',
@@ -2288,7 +2285,7 @@ export default function OnboardingV2Page() {
         // The welcome heading lives display-sized in the artboard instead.
         return { title: null };
       case 'name':
-        return { title: L.nameTitle, sub: L.nameSub };
+        return { title: L.nameTitle };
       case 'users':
         return { title: L.usersTitle };
       case 'invite':
