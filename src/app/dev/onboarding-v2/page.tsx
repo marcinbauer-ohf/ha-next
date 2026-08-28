@@ -1975,7 +1975,7 @@ export default function OnboardingV2Page() {
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
   const [a11yMenuOpen, setA11yMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
-  const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
+  const [toast, setToast] = useState<{ id: string; msg: string; seq: number } | null>(null);
   // Touch devices get the choreographed focus: artwork settles into its
   // keyboard framing first, THEN the field focuses and the keyboard rises.
   const [coarse] = useState(
@@ -2013,10 +2013,13 @@ export default function OnboardingV2Page() {
   // continue button may fall out of frame (hidden via .obv2-hide-cta).
   const [typing, setTyping] = useState(false);
 
-  const showToast = (msg: string) => {
-    const id = Date.now();
-    setToast({ id, msg });
-    setTimeout(() => setToast((t) => (t && t.id === id ? null : t)), 2800);
+  // A stable `id` updates an existing toast in place (same key → no re-mount,
+  // no re-animation) while each call still extends its lifetime via `seq`.
+  const toastSeq = useRef(0);
+  const showToast = (msg: string, id?: string) => {
+    const seq = ++toastSeq.current;
+    setToast({ id: id ?? `t-${seq}`, msg, seq });
+    setTimeout(() => setToast((t) => (t && t.seq === seq ? null : t)), 2800);
   };
 
   // Each newly discovered device re-raises the toast with the running count.
@@ -2025,7 +2028,8 @@ export default function OnboardingV2Page() {
     const t = setTimeout(() => {
       const n = found + 1;
       setFound(n);
-      showToast(L.discoveredLine(n));
+      // Stable id: the toast appears once and only its count changes after.
+      showToast(L.discoveredLine(n), 'discovery');
     }, 2400);
     return () => clearTimeout(t);
   }, [step, found, L]);
