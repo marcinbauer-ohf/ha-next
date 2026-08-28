@@ -1998,17 +1998,27 @@ export default function OnboardingV2Page() {
     if (!vv) return;
     const update = () => {
       const h = Math.round(vv.height);
+      // Home-screen (standalone) launches can report a bogus tiny height
+      // mid launch-transition; trusting it collapses the column to nothing
+      // and no resize event may follow. Even a keyboard leaves ~300px.
+      if (h < 200) return;
       setVp((prev) => ({ h, max: Math.max(prev?.max ?? 0, h) }));
       // iOS also PANS the page toward the focused input before (and sometimes
       // despite) the resize — snap the pan back, the layout already fits.
       if (window.scrollY || vv.offsetTop) window.scrollTo(0, 0);
     };
     update();
+    // Standalone launches don't always fire a visualViewport resize once the
+    // transition settles — re-measure shortly after, and on window resize too.
+    const settle = setTimeout(update, 350);
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
     return () => {
+      clearTimeout(settle);
       vv.removeEventListener('resize', update);
       vv.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
     };
   }, []);
   const vvh = vp?.h ?? null;
