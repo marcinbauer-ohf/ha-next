@@ -914,6 +914,7 @@ function Door({
   height = 345,
   poked = false,
   held = false,
+  open = false,
   onPokeEnd,
 }: {
   name?: string;
@@ -922,6 +923,8 @@ function Door({
   poked?: boolean;
   /** Longer open-and-stay swing — someone is coming out. */
   held?: boolean;
+  /** The door gave up: stays open (hallway showing) until tapped shut. */
+  open?: boolean;
   onPokeEnd?: () => void;
 }) {
   const width = Math.round(height * 0.504);
@@ -941,7 +944,13 @@ function Door({
           door; framed, it reads closed. */}
       <div className="absolute -inset-[9px] rounded-[31px] bg-[#f4f4f4] shadow-[0_2px_10px_rgba(0,0,0,0.05)]" />
       {/* The doorway — hidden behind the door until it swings open. */}
-      <div className="absolute inset-[3px] rounded-[24px] bg-[#d7d7d7]" />
+      <div className="absolute inset-[3px] rounded-[24px] bg-[#d7d7d7] overflow-hidden">
+        {/* a tiny hallway waits inside: floor, a picture, a coat on its hook */}
+        <div className="absolute bottom-0 inset-x-0 h-[15%] bg-[#c9c9c9]" />
+        <div className="absolute left-[20%] top-[27%] w-[18%] h-[13%] rounded-[3px] bg-[#efefef]" />
+        <span className="absolute right-[24%] top-[27%] size-[5px] rounded-full bg-[#b9b9b9]" />
+        <div className="absolute right-[18%] top-[30%] w-[16%] h-[26%] rounded-t-full rounded-b-[5px] bg-[#c2c2c2]" />
+      </div>
       <div
         className="relative rounded-[24px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
         onAnimationEnd={poked ? onPokeEnd : undefined}
@@ -950,6 +959,10 @@ function Door({
           height,
           transformOrigin: 'left center',
           animation,
+          // "Gave up" state: no keyframes, just a sustained swing held by a
+          // transition until the next tap shuts it.
+          transform: open ? 'rotateY(-48deg)' : undefined,
+          transition: 'transform 0.9s ease-in-out',
         }}
       >
         {/* the home name — the first thing the user sets up */}
@@ -991,10 +1004,19 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
   // saunters out while the door stands open, then it swings shut again.
   const doorTaps = useRef(0);
   const [catOut, setCatOut] = useState(false);
+  // …and 20 knocks after the cat, the door just gives up: it swings open onto
+  // the hallway and stays that way until the next tap shuts it.
+  const [gaveUp, setGaveUp] = useState(false);
   const knock = () => {
     if (catOut) return;
+    if (gaveUp) {
+      setGaveUp(false);
+      return;
+    }
     doorTaps.current += 1;
-    if (doorTaps.current % 20 === 0) setCatOut(true);
+    const n = doorTaps.current % 40;
+    if (n === 20) setCatOut(true);
+    else if (n === 0) setGaveUp(true);
     else setPoke('door');
   };
   return (
@@ -1014,7 +1036,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
       <div className="flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
         {/* the door bleeds off the left edge, standing on its mat */}
         <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={knock}>
-          <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} onPokeEnd={endPoke} />
+          <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} open={gaveUp} onPokeEnd={endPoke} />
           {/* the doormat — a flat slab at the doorstep, skewed away from the door */}
           <div
             className="mt-[18px] ml-[8px] w-[168px] h-[34px] bg-white rounded-[12px]"
