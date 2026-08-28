@@ -775,6 +775,7 @@ function KeySvg({
   cutSeed,
   styleSeed,
   color = INK,
+  capColor,
   height = 88,
 }: {
   /** Cuts the valley dips — for the admin this is the password. */
@@ -782,6 +783,8 @@ function KeySvg({
   /** Shapes the head and blade — the person's name/username. */
   styleSeed?: string;
   color?: string;
+  /** Overrides the seed-picked cap color — grayed placeholder keys use this. */
+  capColor?: string;
   height?: number;
 }) {
   const cut = keyHash(cutSeed);
@@ -793,7 +796,7 @@ function KeySvg({
   const headR = 6.5 + (s & 3) * 0.7;
   const headStroke = 5 + ((s >> 2) & 3) * 0.7;
   // Every person's key wears a small colored cap around the hole.
-  const cap = KEY_CAPS[s % KEY_CAPS.length];
+  const cap = capColor ?? KEY_CAPS[s % KEY_CAPS.length];
 
   if (kind === 2) {
     // Key card: credit-card proportions (CR80, ~1.586:1) hung in portrait
@@ -866,7 +869,7 @@ function Keychain({
   keyHeight = 88,
   ringSize = 60,
 }: {
-  keys: { id: string; cutSeed: string; styleSeed?: string; color: string }[];
+  keys: { id: string; cutSeed: string; styleSeed?: string; color: string; capColor?: string }[];
   keyHeight?: number;
   ringSize?: number;
 }) {
@@ -895,7 +898,7 @@ function Keychain({
                   animation: `obv2-swing 3.6s ease-in-out ${i * 0.55}s infinite`,
                 }}
               >
-                <KeySvg cutSeed={k.cutSeed} styleSeed={k.styleSeed} color={k.color} height={keyHeight} />
+                <KeySvg cutSeed={k.cutSeed} styleSeed={k.styleSeed} color={k.color} capColor={k.capColor} height={keyHeight} />
               </div>
             </motion.div>
           </div>
@@ -1952,6 +1955,12 @@ export default function OnboardingV2Page() {
   const [password, setPassword] = useState('');
   const [invited, setInvited] = useState<Invitee[]>([]);
   const [inviteDraft, setInviteDraft] = useState('');
+  const [inviteFocused, setInviteFocused] = useState(false);
+  // Grayed-out "who might live here" keys shown before the input is touched —
+  // randomly cut on every visit.
+  const [ghostSeeds] = useState(() =>
+    Array.from({ length: Math.random() < 0.5 ? 2 : 3 }, () => Math.random().toString(36).slice(2, 9)),
+  );
   const [location, setLocation] = useState<LatLng | null>(null);
   const [mapActive, setMapActive] = useState(false);
   const [center, setCenter] = useState<LatLng | null>(null);
@@ -2288,6 +2297,10 @@ export default function OnboardingV2Page() {
                 keys={[
                   { id: 'admin', cutSeed: password || 'password', styleSeed: username || 'admin', color: INK },
                   ...invited.map((p) => ({ id: `inv-${p.email}`, cutSeed: p.email, styleSeed: p.email, color: p.admin ? INK : TEXT_2 })),
+                  // untouched input: grayed maybe-keys hint at the household to come
+                  ...(!inviteFocused && !inviteDraft.trim()
+                    ? ghostSeeds.map((s, i) => ({ id: `ghost-${i}`, cutSeed: s, styleSeed: s, color: '#cdcdcd', capColor: '#dedede' }))
+                    : []),
                 ]}
                 keyHeight={110}
                 ringSize={72}
@@ -2428,6 +2441,8 @@ export default function OnboardingV2Page() {
                 autoCapitalize="off"
                 value={inviteDraft}
                 onChange={(e) => setInviteDraft(e.target.value)}
+                onFocus={() => setInviteFocused(true)}
+                onBlur={() => setInviteFocused(false)}
                 onKeyDown={(e) => e.key === 'Enter' && submitInvite()}
                 placeholder={L.invitePh}
                 className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
