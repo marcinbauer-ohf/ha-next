@@ -151,6 +151,7 @@ const STR = {
     namePh: 'Home name',
     nameChips: ['My Home', 'The Nest', 'Base Camp', 'The Cabin'],
     usersTitle: 'Create your account',
+    usersSub: 'This is the admin account — the owner of the home.',
     userPh: 'Username',
     passPh: 'Password',
     inviteTitle: 'Invite others',
@@ -242,6 +243,7 @@ const STR = {
     namePh: 'Nazwa domu',
     nameChips: ['Mój dom', 'Gniazdko', 'Baza', 'Chatka'],
     usersTitle: 'Utwórz swoje konto',
+    usersSub: 'To konto administratora — właściciela domu.',
     userPh: 'Nazwa użytkownika',
     passPh: 'Hasło',
     inviteTitle: 'Zaproś innych',
@@ -333,6 +335,7 @@ const STR = {
     namePh: 'Nombre del hogar',
     nameChips: ['Mi casa', 'El nido', 'La base', 'La cabaña'],
     usersTitle: 'Crea tu cuenta',
+    usersSub: 'Esta es la cuenta de administración: la del propietario del hogar.',
     userPh: 'Nombre de usuario',
     passPh: 'Contraseña',
     inviteTitle: 'Invita a otros',
@@ -585,8 +588,9 @@ function ShelfStack({
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
-    // Phones ground the stack at the bottom; the lg split centres it.
-    <div className="w-full max-w-[560px] md:max-w-[720px] lg:max-w-[54%] mx-auto min-h-full flex flex-col justify-end lg:justify-center gap-3 pb-12 lg:pb-0">
+    // Phones ground the stack at the bottom; lg seats it in the lower half of
+    // the house mask, clear of the angled roof.
+    <div className="w-full max-w-[560px] md:max-w-[720px] lg:max-w-[54%] mx-auto min-h-full flex flex-col justify-end gap-3 pb-12 lg:pb-[8%]">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -739,15 +743,6 @@ function PillInput({
         className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
         style={{ color: TEXT, WebkitTextSecurity: secret && !show ? 'disc' : undefined } as React.CSSProperties}
       />
-      {value && (
-        <Press
-          aria-label="Clear"
-          onClick={() => onChange('')}
-          className="size-[38px] rounded-full flex items-center justify-center shrink-0 bg-white"
-        >
-          <IconX size={17} color={TEXT_2} />
-        </Press>
-      )}
       {secret && (
         <Press
           aria-label={show ? 'Hide password' : 'Show password'}
@@ -755,6 +750,15 @@ function PillInput({
           className="size-[38px] rounded-full flex items-center justify-center shrink-0 bg-white"
         >
           {show ? <IconEyeOff size={17} color={TEXT_2} /> : <IconEye size={17} color={TEXT_2} />}
+        </Press>
+      )}
+      {value && (
+        <Press
+          aria-label="Clear"
+          onClick={() => onChange('')}
+          className="size-[38px] rounded-full flex items-center justify-center shrink-0 bg-white"
+        >
+          <IconX size={17} color={TEXT_2} />
         </Press>
       )}
     </div>
@@ -1315,6 +1319,23 @@ function AreasSheet({
               >
                 {isOn ? <IconCheck size={22} /> : <Icon size={22} />}
                 <span className="text-[14px] font-semibold tracking-[-0.28px] whitespace-nowrap">{name}</span>
+                {/* a selected room grows a "+" — one tap adds another of the
+                    same kind ("Bedroom 2"), which joins the rail as its own chip */}
+                {isOn && (
+                  <span
+                    role="button"
+                    aria-label={`Add another ${name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      let n = 2;
+                      while (customRooms.includes(`${name} ${n}`)) n++;
+                      addCustomRoom(`${name} ${n}`);
+                    }}
+                    className="-mr-1 flex size-[24px] items-center justify-center rounded-full bg-white/25"
+                  >
+                    <IconPlus size={15} />
+                  </span>
+                )}
               </Press>
             );
           })}
@@ -1371,7 +1392,7 @@ function MailboxArt({ prefs }: { prefs: Record<string, boolean> }) {
   ];
   const anyOn = cards.length > 0;
   return (
-    <div className="obv2-art obv2-art-bottom flex-1 flex items-end justify-center min-h-0 pb-4">
+    <div className="obv2-art obv2-art-bottom flex-1 flex items-end justify-center min-h-0 pb-4 lg:pb-[14%]">
       <div className="flex flex-col items-center">
         <div className="relative w-[260px] h-[76px]">
           <AnimatePresence>
@@ -2400,7 +2421,7 @@ export default function OnboardingV2Page() {
       case 'name':
         return { title: L.nameTitle };
       case 'users':
-        return { title: L.usersTitle };
+        return { title: L.usersTitle, sub: L.usersSub };
       case 'invite':
         return { title: L.inviteTitle, sub: L.inviteSub };
       case 'location':
@@ -2536,7 +2557,7 @@ export default function OnboardingV2Page() {
             {/* A landscape photo frame; focusing it develops the photo into a
                 real, draggable map with the home badge fixed dead-centre. */}
             <div className="w-full max-w-[350px] md:max-w-[480px] lg:max-w-[58%] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
-              <div className="w-full h-[250px] md:h-[320px] lg:h-[280px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
+              <div className="w-full h-[250px] md:h-[320px] lg:h-[calc(280px*var(--obv2-art-scale,1))] rounded-[14px] overflow-hidden bg-[#edf3f5]">
                 {mapActive ? (
                   <MapPicker center={center} onChange={setLocation} />
                 ) : (
@@ -2803,7 +2824,7 @@ export default function OnboardingV2Page() {
         return (
           <>
             {L.analytics.map(({ key, label, desc }) => (
-              <div key={key} className="flex items-center justify-between gap-3 px-3 py-1.5">
+              <div key={key} className="flex items-center justify-between gap-3 px-3 py-1.5 lg:py-1">
                 <div className="flex flex-col min-w-0">
                   <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT }}>
                     {label}
@@ -3062,7 +3083,7 @@ export default function OnboardingV2Page() {
             <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
-              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,calc(100vh-410px),700px)] lg:aspect-square lg:shrink-0">
+              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,max(380px,calc(100vh-550px)),700px)] lg:aspect-square lg:shrink-0">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -3081,16 +3102,11 @@ export default function OnboardingV2Page() {
                   {art}
                 </motion.div>
               </AnimatePresence>
-              </div>
-            </div>
-            {/* static bottom sheet — its contents crossfade per step. On lg it
-                is the right half of the screen: a white pane with the heading
-                and the form, vertically centred. */}
-            <div className="relative lg:flex-none lg:h-[340px] lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-6 lg:overflow-y-auto">
-              {/* toast — discovery ticks, invite confirmations: rises over the sheet */}
+              {/* toast — discovery ticks, invite confirmations: rests on the
+                  bottom edge of the artwork (the mask's flat floor on lg) */}
               <AnimatePresence>
                 {toast && (
-                  <div className="absolute -top-[64px] inset-x-0 z-30 flex justify-center pointer-events-none lg:fixed lg:top-auto lg:bottom-3">
+                  <div className="absolute bottom-2 inset-x-0 z-30 flex justify-center pointer-events-none lg:bottom-6">
                     <motion.div
                       key={toast.id}
                       initial={{ opacity: 0, y: 12, scale: 0.95 }}
@@ -3105,6 +3121,12 @@ export default function OnboardingV2Page() {
                   </div>
                 )}
               </AnimatePresence>
+              </div>
+            </div>
+            {/* static bottom sheet — its contents crossfade per step. On lg it
+                is the right half of the screen: a white pane with the heading
+                and the form, vertically centred. */}
+            <div className="relative lg:flex-none lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-8">
               {/* runs on past the sheet's top edge so the rounded corners
                   don't notch a hard stop into the gradient */}
               {/* mobile only — on desktop the floating card carries a shadow */}
@@ -3113,11 +3135,9 @@ export default function OnboardingV2Page() {
                 className="absolute -top-20 inset-x-0 h-[116px] pointer-events-none lg:hidden"
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10) 36px, transparent)' }}
               />
-            {/* lg: sticky top fade — the mirror of the bottom one; sits over the
-                pane's padding until scrolling slides content beneath it */}
-            <div aria-hidden className="hidden lg:block sticky top-0 w-full h-8 shrink-0 -mb-8 z-10 pointer-events-none bg-gradient-to-b from-white to-transparent" />
-            {/* lg: the heading leads the form pane — display-sized, centred */}
-            <div className="hidden lg:block w-full max-w-[440px] mb-9 text-center">
+            {/* lg: the heading leads the form pane — display-sized, centred.
+                Fixed-height zone so 1- and 2-line subs never shift the sheet */}
+            <div className="hidden lg:flex lg:flex-col lg:justify-center lg:min-h-[100px] w-full max-w-[440px] mb-5 text-center">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={stepKey}
@@ -3140,8 +3160,12 @@ export default function OnboardingV2Page() {
             <div
               className={clsx(
                 'relative bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)] w-full max-w-[640px] mx-auto',
-                // lg: no card chrome — the form sits naked on the white pane.
-                'lg:max-w-[440px] lg:rounded-none lg:shadow-none lg:bg-transparent lg:m-0 lg:p-0',
+                // lg: no card chrome — the form sits naked on the white pane,
+                // in a fixed-height slot so steps can't shift the layout.
+                'lg:max-w-[440px] lg:rounded-none lg:shadow-none lg:bg-transparent lg:m-0 lg:p-0 lg:h-[350px]',
+                // only the steps that can outgrow the slot scroll — the rest
+                // stay overflow-visible so e.g. the address dropdown can escape
+                (step === 'areas' || step === 'permissions') && 'lg:overflow-y-auto',
                 compact && typing && 'obv2-hide-cta',
               )}
               onFocusCapture={(e) => {
@@ -3164,10 +3188,10 @@ export default function OnboardingV2Page() {
                   {sheet}
                 </motion.div>
               </AnimatePresence>
+              {/* lg: sticky scroll fade — pinned to the slot's bottom edge while
+                  a tall step has more below, slides away at the end of scroll */}
+              <div aria-hidden className="hidden lg:block sticky bottom-0 w-full h-12 shrink-0 pointer-events-none bg-gradient-to-t from-white to-transparent" />
             </div>
-            {/* lg: sticky scroll fade — pinned to the slot's bottom edge while
-                a tall step has more below, slides away at the end of scroll */}
-            <div aria-hidden className="hidden lg:block sticky bottom-0 w-full h-12 shrink-0 pointer-events-none bg-gradient-to-t from-white to-transparent" />
             </div>
             </div>
           </div>
