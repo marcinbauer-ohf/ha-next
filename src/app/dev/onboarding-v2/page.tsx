@@ -1057,7 +1057,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
               of the door on phones (the door bleeds off the left edge there),
               left of it on lg where the door stands centred */}
           <div
-            className="absolute left-[calc(100%+22px)] top-[4px] flex flex-col items-center cursor-pointer lg:left-auto lg:right-[calc(100%+22px)]"
+            className="absolute left-[calc(100%+22px)] top-[4px] flex flex-col items-center cursor-pointer lg:left-auto lg:right-[calc(100%+44px)]"
             onClick={(e) => {
               e.stopPropagation();
               setPoke('frame');
@@ -1082,7 +1082,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
           </div>
           {/* a little entryway cabinet under the picture (lg only — on phones
               that wall spot doesn't exist) */}
-          <div aria-hidden className="hidden lg:flex absolute right-[calc(100%+38px)] bottom-0 flex-col">
+          <div aria-hidden className="hidden lg:flex absolute right-[calc(100%+58px)] bottom-0 flex-col">
             <div className="relative w-[96px] h-[44px] bg-white rounded-[10px] shadow-[0_2px_5px_rgba(0,0,0,0.06)]">
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[14px] h-[4px] rounded-full bg-[#e6e6e6]" />
             </div>
@@ -1131,7 +1131,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         </div>
         {/* the wall arrangement on the right — both shelves share a left edge;
             on lg it steps beside the centred door */}
-        <div className="absolute left-[158px] top-[calc(50%+56px)] -translate-y-1/2 flex flex-col gap-7 items-start lg:left-[calc(50%+100px)] lg:top-[calc(50%-8px)]">
+        <div className="absolute left-[158px] top-[calc(50%+56px)] -translate-y-1/2 flex flex-col gap-7 items-start lg:left-[calc(50%+124px)] lg:top-[calc(50%-8px)]">
           <div className="flex items-end gap-4">
             {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices */}
             <div className="relative flex flex-col items-start">
@@ -2938,7 +2938,7 @@ export default function OnboardingV2Page() {
             <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} structure={structure} L={L} onBack={back} />
           </div>
         ) : (
-          <div className="h-full flex flex-col">
+          <div className="h-full flex flex-col lg:bg-white">
             {/* static app bar — the step heading lives here, on a fade that
                 runs on below it so artwork dissolves as it nears the bar. */}
             {/* lg: the bar floats over both panes so they run to the top */}
@@ -2948,7 +2948,7 @@ export default function OnboardingV2Page() {
                 className="absolute top-full -mt-px inset-x-0 h-10 pointer-events-none lg:hidden"
                 style={{ background: `linear-gradient(to bottom, ${SURFACE}, transparent)` }}
               />
-              <div className="relative flex items-center justify-between gap-2 min-h-[44px] w-full max-w-[640px] mx-auto lg:max-w-none">
+              <div className="relative flex items-center justify-between gap-2 min-h-[44px] w-full max-w-[640px] mx-auto lg:max-w-[1200px]">
                 {step === 'welcome' ? (
                   <Press
                     onClick={() => setWelcomeMenuOpen((v) => !v)}
@@ -3047,14 +3047,14 @@ export default function OnboardingV2Page() {
               )}
             </div>
             {/* lg: one row splits the screen — the story on the left, the
-                action on the right */}
-            <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
+                action on the right, the whole column capped and centred */}
+            <div className="flex-1 min-h-0 flex flex-col lg:flex-row lg:w-full lg:max-w-[1200px] lg:mx-auto">
             {/* only the artwork slides between steps. lg: the column hugs the
                 house; the form pane takes whatever width remains */}
             <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-1/2 lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
-              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(39vw,68vh,900px)] lg:aspect-square lg:shrink-0">
+              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(39vw,68vh,560px)] lg:aspect-square lg:shrink-0">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
