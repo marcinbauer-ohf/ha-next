@@ -3053,16 +3053,16 @@ export default function OnboardingV2Page() {
               )}
             </div>
             {/* lg: one centred stack — the masked story on top, the action
-                right below it. The house is anchored (fixed top offset, fixed
-                size) and the form gets the fixed remainder, scrolling inside
-                when a step runs tall — so nothing jumps between steps. */}
-            <div className="flex-1 min-h-0 flex flex-col lg:w-full lg:max-w-[1200px] lg:mx-auto lg:items-center lg:justify-start">
+                right below it. House and form slot are both fixed-size, so the
+                centred group cannot shift between steps — tall steps scroll
+                inside the slot instead. */}
+            <div className="flex-1 min-h-0 flex flex-col lg:w-full lg:max-w-[1200px] lg:mx-auto lg:items-center lg:justify-center">
             {/* only the artwork slides between steps. lg: the column hugs the
                 house; the form pane takes whatever width remains */}
-            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:pt-16 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
+            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
-              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,calc(100vh-390px),700px)] lg:aspect-square lg:shrink-0">
+              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,calc(100vh-410px),700px)] lg:aspect-square lg:shrink-0">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -3086,7 +3086,7 @@ export default function OnboardingV2Page() {
             {/* static bottom sheet — its contents crossfade per step. On lg it
                 is the right half of the screen: a white pane with the heading
                 and the form, vertically centred. */}
-            <div className="relative lg:flex-1 lg:min-h-0 lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-6 lg:overflow-y-auto">
+            <div className="relative lg:flex-none lg:h-[340px] lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-6 lg:overflow-y-auto">
               {/* toast — discovery ticks, invite confirmations: rises over the sheet */}
               <AnimatePresence>
                 {toast && (
