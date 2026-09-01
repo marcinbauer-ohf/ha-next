@@ -2171,6 +2171,14 @@ export default function OnboardingV2Page() {
   // continue button may fall out of frame (hidden via .obv2-hide-cta).
   const [typing, setTyping] = useState(false);
 
+  // Experiment: ?alt swaps the desktop's white paper for a grainy sky-blue
+  // gradient (the house cutout stays as-is). Set post-mount so SSR matches.
+  const [altBg, setAltBg] = useState(false);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setAltBg(new URLSearchParams(window.location.search).has('alt')));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   // A stable `id` updates an existing toast in place (same key → no re-mount,
   // no re-animation) while each call still extends its lifetime via `seq`.
   const toastSeq = useRef(0);
@@ -2871,7 +2879,7 @@ export default function OnboardingV2Page() {
 
   return (
     <div
-      className="fixed inset-0 overflow-hidden onboarding-v2"
+      className={clsx('fixed inset-0 overflow-hidden onboarding-v2', altBg && 'obv2-alt')}
       style={{ background: SURFACE, fontFamily: 'var(--font-onest), Onest, system-ui, sans-serif' }}
     >
       {/* The app smooths every radius into a squircle (globals.css data-squircle
@@ -2910,6 +2918,22 @@ export default function OnboardingV2Page() {
            (map, shelves) sizes via layout instead: a transform would break
            leaflet drags & scrolling. */
         @media (min-width: 768px) and (min-height: 720px) { .onboarding-v2 { --obv2-art-scale: 1.2; } }
+        /* ?alt experiment: the desktop paper becomes a grainy sky-blue
+           gradient; the house cutout stays gray, headings flip to white */
+        @media (min-width: 1024px) {
+          .obv2-alt {
+            background:
+              url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.07'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E"),
+              radial-gradient(90% 80% at 85% 55%, rgba(255,255,255,0.4), transparent 62%),
+              radial-gradient(70% 60% at 6% 96%, rgba(236,247,252,0.85), transparent 55%),
+              radial-gradient(65% 60% at 0% 0%, rgba(8,58,94,0.5), transparent 60%),
+              #3fa1d4 !important;
+          }
+          .obv2-alt .obv2-paper { background: transparent; }
+          .obv2-alt .obv2-pane-title { color: #ffffff !important; }
+          .obv2-alt .obv2-pane-sub { color: rgba(255, 255, 255, 0.85) !important; }
+          .obv2-alt .obv2-fade { display: none; }
+        }
         /* on lg the stage element sets --obv2-art-scale inline from its own
            measured size, so art and house stay in one fixed proportion */
         .obv2-art { transform: scale(var(--obv2-art-scale, 1)); }
@@ -2966,7 +2990,7 @@ export default function OnboardingV2Page() {
             <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} structure={structure} L={L} onBack={back} />
           </div>
         ) : (
-          <div className="h-full flex flex-col lg:bg-white">
+          <div className="obv2-paper h-full flex flex-col lg:bg-white">
             {/* static app bar — the step heading lives here, on a fade that
                 runs on below it so artwork dissolves as it nears the bar. */}
             {/* lg: the bar floats over both panes so they run to the top */}
@@ -3081,7 +3105,7 @@ export default function OnboardingV2Page() {
             <div className="flex-1 min-h-0 flex flex-col lg:w-full lg:max-w-[1200px] lg:mx-auto lg:items-center lg:justify-center">
             {/* only the artwork slides between steps. lg: the column hugs the
                 house; the form pane takes whatever width remains */}
-            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
+            <div className="obv2-paper flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:overflow-visible">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
               <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,max(380px,calc(100vh-550px)),700px)] lg:aspect-square lg:shrink-0">
@@ -3103,11 +3127,13 @@ export default function OnboardingV2Page() {
                   {art}
                 </motion.div>
               </AnimatePresence>
-              {/* toast — discovery ticks, invite confirmations: rests on the
-                  bottom edge of the artwork (the mask's flat floor on lg) */}
+              </div>
+              {/* toast — discovery ticks, invite confirmations. On lg it sits
+                  OUTSIDE the stage (the mask would clip it) and straddles the
+                  house's bottom edge, half in, half out */}
               <AnimatePresence>
                 {toast && (
-                  <div className="absolute bottom-2 inset-x-0 z-30 flex justify-center pointer-events-none lg:bottom-6">
+                  <div className="absolute bottom-2 inset-x-0 z-30 flex justify-center pointer-events-none lg:bottom-0 lg:translate-y-1/2">
                     <motion.div
                       key={toast.id}
                       initial={{ opacity: 0, y: 12, scale: 0.95 }}
@@ -3127,12 +3153,11 @@ export default function OnboardingV2Page() {
                   </div>
                 )}
               </AnimatePresence>
-              </div>
             </div>
             {/* static bottom sheet — its contents crossfade per step. On lg it
                 is the right half of the screen: a white pane with the heading
                 and the form, vertically centred. */}
-            <div className="relative lg:flex-none lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-8">
+            <div className="obv2-paper relative lg:flex-none lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-8">
               {/* runs on past the sheet's top edge so the rounded corners
                   don't notch a hard stop into the gradient */}
               {/* mobile only — on desktop the floating card carries a shadow */}
@@ -3153,11 +3178,11 @@ export default function OnboardingV2Page() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.18 }}
                 >
-                  <h1 className="text-[38px] font-semibold tracking-[-1.14px] leading-[1.12]" style={{ color: TEXT }}>
+                  <h1 className="obv2-pane-title text-[38px] font-semibold tracking-[-1.14px] leading-[1.12]" style={{ color: TEXT }}>
                     {paneTitle}
                   </h1>
                   {paneSub && (
-                    <p className="mt-3 text-[16px] leading-snug tracking-[-0.32px] max-w-[400px] mx-auto" style={{ color: TEXT_2 }}>
+                    <p className="obv2-pane-sub mt-3 text-[16px] leading-snug tracking-[-0.32px] max-w-[400px] mx-auto" style={{ color: TEXT_2 }}>
                       {paneSub}
                     </p>
                   )}
@@ -3197,7 +3222,7 @@ export default function OnboardingV2Page() {
               </AnimatePresence>
               {/* lg: sticky scroll fade — pinned to the slot's bottom edge while
                   a tall step has more below, slides away at the end of scroll */}
-              <div aria-hidden className="hidden lg:block sticky bottom-0 w-full h-12 shrink-0 pointer-events-none bg-gradient-to-t from-white to-transparent" />
+              <div aria-hidden className="obv2-fade hidden lg:block sticky bottom-0 w-full h-12 shrink-0 pointer-events-none bg-gradient-to-t from-white to-transparent" />
             </div>
             </div>
             </div>
