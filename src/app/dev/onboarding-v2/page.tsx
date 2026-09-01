@@ -1088,21 +1088,22 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
             planks can run off the right edge, mirroring the door's bleed */}
         <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start">
           <div className="flex items-end gap-4">
-            {/* the map in a landscape photo frame, hung from a wire on a nail */}
+            {/* the map in a landscape photo frame, hung from a wire on a nail —
+                a tap swings the whole thing around that nail */}
             <div
               className="flex flex-col items-center cursor-pointer"
               onClick={() => setPoke('frame')}
-              style={{ animation: 'obv2-sway 7s ease-in-out infinite' }}
+              onAnimationEnd={poke === 'frame' ? endPoke : undefined}
+              style={{
+                transformOrigin: 'top center',
+                animation: poke === 'frame' ? 'obv2-hang-swing 1.1s ease-in-out' : 'obv2-sway 7s ease-in-out infinite',
+              }}
             >
               <svg aria-hidden width="64" height="22" viewBox="0 0 64 22" fill="none" className="-mb-[4px]">
                 <path d="M4 22 L32 4 L60 22" stroke="#d2d2d2" strokeWidth="2" strokeLinecap="round" />
                 <circle cx="32" cy="3.5" r="2.5" fill="#c4c4c4" />
               </svg>
-              <div
-                className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
-                onAnimationEnd={poke === 'frame' ? endPoke : undefined}
-                style={{ animation: poke === 'frame' ? 'obv2-pop 0.7s ease' : undefined }}
-              >
+              <div className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
                 <div className="w-[104px] h-[70px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
                   <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
                     <IconMapPin size={26} color={ACCENT} />
@@ -2831,6 +2832,16 @@ export default function OnboardingV2Page() {
         @media (min-width: 1440px) and (min-height: 800px) { .onboarding-v2 { --obv2-art-scale: 1.7; } }
         .obv2-art { transform: scale(var(--obv2-art-scale, 1)); }
         .obv2-art-bottom { transform-origin: 50% 100%; }
+        /* lg experiment: the whole page is white, and the gray stage shows
+           only through a cutout shaped like the Home Assistant house */
+        @media (min-width: 1024px) {
+          .obv2-stage {
+            clip-path: url(#obv2-house);
+            background: ${SURFACE};
+            overflow: hidden;
+          }
+        }
+        @keyframes obv2-hang-swing { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 60% { transform: rotate(5deg); } 85% { transform: rotate(-2deg); } }
         /* name step, large screens: focusing the input zooms into the door
            instead of sliding the scene (the slide stays for phones) */
         .obv2-name-door { transition: transform 0.6s cubic-bezier(0.32, 0.72, 0.25, 1); }
@@ -2846,6 +2857,15 @@ export default function OnboardingV2Page() {
           .obv2-rotate { display: flex; }
         }
       `}</style>
+      {/* the HA-house cutout the lg art stage clips to (objectBoundingBox
+          units so it scales with the stage) */}
+      <svg aria-hidden width="0" height="0" className="absolute">
+        <defs>
+          <clipPath id="obv2-house" clipPathUnits="objectBoundingBox">
+            <path d="M0.06 0.36 L0.46 0.05 Q0.5 0.02 0.54 0.05 L0.94 0.36 Q0.98 0.4 0.98 0.45 L0.98 0.9 Q0.98 0.98 0.9 0.98 L0.1 0.98 Q0.02 0.98 0.02 0.9 L0.02 0.45 Q0.02 0.4 0.06 0.36 Z" />
+          </clipPath>
+        </defs>
+      </svg>
       {/* full-bleed at every size — inner pieces cap their own widths */}
       <div className="relative w-full" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
@@ -2965,7 +2985,9 @@ export default function OnboardingV2Page() {
                 action on the right */}
             <div className="flex-1 md:grow-[3] min-h-0 flex flex-col lg:flex-row">
             {/* only the artwork slides between steps */}
-            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex lg:flex-col lg:justify-center">
+            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
+              {/* lg: the gray stage lives inside the house-shaped cutout */}
+              <div className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(86%,76vh)] lg:aspect-square lg:shrink-0">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -2998,6 +3020,7 @@ export default function OnboardingV2Page() {
                   {art}
                 </motion.div>
               </AnimatePresence>
+              </div>
             </div>
             {/* static bottom sheet — its contents crossfade per step. On lg it
                 is the right half of the screen: a white pane with the heading
