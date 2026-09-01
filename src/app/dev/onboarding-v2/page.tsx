@@ -471,9 +471,12 @@ function Press({
       onClick={onClick}
       whileTap={{ scale: 0.93, filter: brighten ? 'brightness(1.7)' : 'brightness(0.9)' }}
       transition={{ type: 'spring', stiffness: 600, damping: 32 }}
-      className={className}
+      className={clsx('obv2-press', className)}
       style={style}
     >
+      {/* hover affordance: the halo copies the button's own background and
+          grows past its edges — the container swells, the contents hold still */}
+      <span aria-hidden className="obv2-press-halo" />
       {children}
     </motion.button>
   );
@@ -2954,6 +2957,25 @@ export default function OnboardingV2Page() {
              triangle pulls the shape's mass below the geometric middle */
           .obv2-art.obv2-keys { transform: translateY(17%) scale(var(--obv2-art-scale, 1)); }
         }
+        /* hover affordance on every Press button: a background-copying halo
+           grows 3px past the edges; contents never transform */
+        .obv2-press { position: relative; isolation: isolate; }
+        .obv2-press-halo {
+          position: absolute; inset: 0; z-index: -1; border-radius: inherit;
+          background: inherit; pointer-events: none; transition: inset 0.16s ease;
+        }
+        @media (hover: hover) { .obv2-press:hover .obv2-press-halo { inset: -3px; } }
+
+        /* page-load choreography: top bar → mask pops → its contents → sheet */
+        @keyframes obv2-enter-fade { from { opacity: 0; } }
+        @keyframes obv2-enter-pop { from { opacity: 0; transform: scale(0.9); } }
+        @keyframes obv2-enter-rise { from { opacity: 0; transform: translateY(16px); } }
+        @keyframes obv2-enter-drop { from { opacity: 0; transform: translateY(-10px); } }
+        .obv2-in-top { animation: obv2-enter-drop 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.05s backwards; }
+        .obv2-in-stage { animation: obv2-enter-pop 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.25s backwards; }
+        .obv2-in-art { animation: obv2-enter-fade 0.5s ease 0.6s backwards; }
+        .obv2-in-sheet { animation: obv2-enter-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.75s backwards; }
+
         @keyframes obv2-hang-swing { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 60% { transform: rotate(5deg); } 85% { transform: rotate(-2deg); } }
         /* name step, large screens: focusing the input zooms into the door
            instead of sliding the scene (the slide stays for phones) */
@@ -2994,7 +3016,7 @@ export default function OnboardingV2Page() {
             {/* static app bar — the step heading lives here, on a fade that
                 runs on below it so artwork dissolves as it nears the bar. */}
             {/* lg: the bar floats over both panes so they run to the top */}
-            <div className="px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-1 relative z-20 lg:absolute lg:top-0 lg:inset-x-0 lg:px-6">
+            <div className="obv2-in-top px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-1 relative z-20 lg:absolute lg:top-0 lg:inset-x-0 lg:px-6">
               <div
                 aria-hidden
                 className="absolute top-full -mt-px inset-x-0 h-10 pointer-events-none lg:hidden"
@@ -3108,7 +3130,8 @@ export default function OnboardingV2Page() {
             <div className="obv2-paper flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:overflow-visible">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
-              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,max(380px,calc(100vh-550px)),700px)] lg:aspect-square lg:shrink-0">
+              <div ref={stageRef} className="obv2-stage obv2-in-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,max(380px,calc(100vh-550px)),700px)] lg:aspect-square lg:shrink-0">
+              <div className="obv2-in-art h-full w-full">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -3127,6 +3150,7 @@ export default function OnboardingV2Page() {
                   {art}
                 </motion.div>
               </AnimatePresence>
+              </div>
               </div>
               {/* toast — discovery ticks, invite confirmations. On lg it sits
                   OUTSIDE the stage (the mask would clip it) and straddles the
@@ -3157,7 +3181,7 @@ export default function OnboardingV2Page() {
             {/* static bottom sheet — its contents crossfade per step. On lg it
                 is the right half of the screen: a white pane with the heading
                 and the form, vertically centred. */}
-            <div className="obv2-paper relative lg:flex-none lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-8">
+            <div className="obv2-paper obv2-in-sheet relative lg:flex-none lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-8">
               {/* runs on past the sheet's top edge so the rounded corners
                   don't notch a hard stop into the gradient */}
               {/* mobile only — on desktop the floating card carries a shadow */}
