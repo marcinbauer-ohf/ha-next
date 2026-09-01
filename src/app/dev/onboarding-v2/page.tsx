@@ -1041,8 +1041,9 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
           would collide with the heading above it */}
       <div className="obv2-art obv2-welcome flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
         {/* the door bleeds off the left edge, standing on its mat */}
+        {/* lg: the door stands centred in the house */}
         <div
-          className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer"
+          className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer lg:left-1/2 lg:-translate-x-1/2"
           onClick={knock}
         >
           <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} open={gaveUp} onPokeEnd={endPoke} />
@@ -1051,13 +1052,39 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
             className="mt-[18px] ml-[8px] w-[168px] h-[34px] bg-white rounded-[12px]"
             style={{ transform: 'skewX(32deg)' }}
           />
+          {/* the map in a landscape photo frame, hung right of the doorframe
+              from a wire on a nail — a tap swings the whole thing around it */}
+          <div
+            className="absolute left-[calc(100%+22px)] top-[4px] flex flex-col items-center cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPoke('frame');
+            }}
+            onAnimationEnd={poke === 'frame' ? endPoke : undefined}
+            style={{
+              transformOrigin: 'top center',
+              animation: poke === 'frame' ? 'obv2-hang-swing 1.1s ease-in-out' : 'obv2-sway 7s ease-in-out infinite',
+            }}
+          >
+            <svg aria-hidden width="64" height="22" viewBox="0 0 64 22" fill="none" className="-mb-[4px]">
+              <path d="M4 22 L32 4 L60 22" stroke="#d2d2d2" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="32" cy="3.5" r="2.5" fill="#c4c4c4" />
+            </svg>
+            <div className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
+              <div className="w-[104px] h-[70px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
+                <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
+                  <IconMapPin size={26} color={ACCENT} />
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
         {/* the answerer: walks out of the held-open door, bottom on the floor
             line, and keeps going until it leaves the scene (and the screen) */}
         {catOut && (
           <div
             aria-hidden
-            className="absolute left-[20px] top-1/2 pointer-events-none z-10"
+            className="absolute left-[20px] top-1/2 pointer-events-none z-10 lg:left-[calc(50%-16px)]"
             style={{ marginTop: 161, animation: 'obv2-cat-walk 4.4s ease-in 0.7s both' }}
             onAnimationEnd={() => setCatOut(false)}
           >
@@ -1087,33 +1114,10 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
             <span className="absolute top-[12px] right-[13px] size-[8px] rounded-full" style={{ background: ACCENT }} />
           </div>
         </div>
-        {/* the wall arrangement on the right — left-anchored so the shelf
-            planks can run off the right edge, mirroring the door's bleed */}
-        <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start">
+        {/* the wall arrangement on the right — both shelves share a left edge;
+            on lg it steps beside the centred door */}
+        <div className="absolute left-[158px] top-[calc(50%+56px)] -translate-y-1/2 flex flex-col gap-7 items-start lg:left-[calc(50%+100px)]">
           <div className="flex items-end gap-4">
-            {/* the map in a landscape photo frame, hung from a wire on a nail —
-                a tap swings the whole thing around that nail */}
-            <div
-              className="flex flex-col items-center cursor-pointer"
-              onClick={() => setPoke('frame')}
-              onAnimationEnd={poke === 'frame' ? endPoke : undefined}
-              style={{
-                transformOrigin: 'top center',
-                animation: poke === 'frame' ? 'obv2-hang-swing 1.1s ease-in-out' : 'obv2-sway 7s ease-in-out infinite',
-              }}
-            >
-              <svg aria-hidden width="64" height="22" viewBox="0 0 64 22" fill="none" className="-mb-[4px]">
-                <path d="M4 22 L32 4 L60 22" stroke="#d2d2d2" strokeWidth="2" strokeLinecap="round" />
-                <circle cx="32" cy="3.5" r="2.5" fill="#c4c4c4" />
-              </svg>
-              <div className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
-                <div className="w-[104px] h-[70px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
-                  <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
-                    <IconMapPin size={26} color={ACCENT} />
-                  </span>
-                </div>
-              </div>
-            </div>
             {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices */}
             <div className="relative flex flex-col items-start">
               <div className="w-[54px] flex flex-col items-center">
@@ -1178,7 +1182,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
                 ))}
               </div>
             </div>
-            <div className="mt-[8px] w-[290px] h-[30px] bg-white rounded-[10px]" />
+            <div className="mt-[8px] w-[290px] lg:w-[266px] h-[30px] bg-white rounded-[10px]" />
           </div>
         </div>
       </div>
@@ -2054,9 +2058,9 @@ export default function OnboardingV2Page() {
     if (!el) return;
     const apply = () => {
       if (window.matchMedia('(min-width: 1024px)').matches) {
-        // 555 is the reference width the scenes were composed at; the welcome
+        // 617 is the reference width the scenes were composed at; the welcome
         // still life applies its own fit factor on top (see .obv2-welcome).
-        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 555).toFixed(3));
+        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 617).toFixed(3));
       } else {
         el.style.removeProperty('--obv2-art-scale');
       }
@@ -2870,7 +2874,7 @@ export default function OnboardingV2Page() {
           /* the welcome still life fits INSIDE the house: a touch smaller than
              the shared scale and shifted below the roof slope so neither the
              door's top corner nor the shelf clips against the cutout */
-          .obv2-art.obv2-welcome { transform: translate(3%, 8%) scale(calc(var(--obv2-art-scale, 1) * 0.8)); }
+          .obv2-art.obv2-welcome { transform: translateY(8%) scale(calc(var(--obv2-art-scale, 1) * 0.8)); }
         }
         @keyframes obv2-hang-swing { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 60% { transform: rotate(5deg); } 85% { transform: rotate(-2deg); } }
         /* name step, large screens: focusing the input zooms into the door
