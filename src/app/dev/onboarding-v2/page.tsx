@@ -2123,7 +2123,7 @@ export default function OnboardingV2Page() {
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
   const [a11yMenuOpen, setA11yMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
-  const [toast, setToast] = useState<{ id: string; msg: string; seq: number } | null>(null);
+  const [toast, setToast] = useState<{ id: string; msg: string; seq: number; keySeed?: string } | null>(null);
   // Touch devices get the choreographed focus: artwork settles into its
   // keyboard framing first, THEN the field focuses and the keyboard rises.
   const [coarse] = useState(
@@ -2174,9 +2174,9 @@ export default function OnboardingV2Page() {
   // A stable `id` updates an existing toast in place (same key → no re-mount,
   // no re-animation) while each call still extends its lifetime via `seq`.
   const toastSeq = useRef(0);
-  const showToast = (msg: string, id?: string) => {
+  const showToast = (msg: string, id?: string, keySeed?: string) => {
     const seq = ++toastSeq.current;
-    setToast({ id: id ?? `t-${seq}`, msg, seq });
+    setToast({ id: id ?? `t-${seq}`, msg, seq, keySeed });
     setTimeout(() => setToast((t) => (t && t.seq === seq ? null : t)), 2800);
   };
 
@@ -2370,7 +2370,8 @@ export default function OnboardingV2Page() {
     if (!inviteValid) return;
     addInvite(email);
     setInviteDraft('');
-    showToast(L.inviteToast(email));
+    // the invitee's freshly cut key rides along in the toast
+    showToast(L.inviteToast(email), undefined, email);
   };
 
   // The floors/areas just built become the dashboard's sections; each area
@@ -2479,7 +2480,7 @@ export default function OnboardingV2Page() {
         );
       case 'users':
         return (
-          <div className="obv2-art obv2-keys flex-1 flex items-center justify-center min-h-0 overflow-hidden">
+          <div className="obv2-art obv2-keys flex-1 flex items-center justify-center min-h-0 overflow-hidden lg:overflow-visible">
             {/* Focusing a credential turns the key horizontal, ready for its lock. */}
             <div
               className="transition-transform duration-500 ease-out"
@@ -2501,7 +2502,7 @@ export default function OnboardingV2Page() {
         );
       case 'invite':
         return (
-          <div className="obv2-art obv2-keys flex-1 flex items-center justify-center min-h-0 relative overflow-hidden">
+          <div className="obv2-art obv2-keys flex-1 flex items-center justify-center min-h-0 relative overflow-hidden lg:overflow-visible">
             {/* the ring holds exactly your key + everyone invited */}
             <div
               className="relative transition-transform duration-500 ease-out"
@@ -3113,10 +3114,15 @@ export default function OnboardingV2Page() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 12, scale: 0.95 }}
                       transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-                      className="rounded-full px-5 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.2)] text-[14px] font-semibold tracking-[-0.28px] max-w-[90%] truncate text-white"
+                      className="rounded-full px-5 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.2)] text-[14px] font-semibold tracking-[-0.28px] max-w-[90%] text-white flex items-center gap-2.5"
                       style={{ background: INK }}
                     >
-                      {toast.msg}
+                      {toast.keySeed && (
+                        <span aria-hidden className="shrink-0 -my-1 -rotate-90">
+                          <KeySvg cutSeed={toast.keySeed} styleSeed={toast.keySeed} color="#ffffff" height={26} />
+                        </span>
+                      )}
+                      <span className="truncate">{toast.msg}</span>
                     </motion.div>
                   </div>
                 )}
