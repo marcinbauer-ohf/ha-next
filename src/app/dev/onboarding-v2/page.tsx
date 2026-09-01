@@ -586,7 +586,7 @@ function ShelfStack({
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
     // Phones ground the stack at the bottom; the lg split centres it.
-    <div className="w-full max-w-[560px] md:max-w-[720px] mx-auto min-h-full flex flex-col justify-end lg:justify-center gap-3 pb-12 lg:pb-0">
+    <div className="w-full max-w-[560px] md:max-w-[720px] lg:max-w-[86%] mx-auto min-h-full flex flex-col justify-end lg:justify-center gap-3 pb-12 lg:pb-0">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -1039,7 +1039,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
           stands centred instead of stretching apart */}
       {/* not scaled: the scene's door is already display-sized, and growth
           would collide with the heading above it */}
-      <div className="flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
+      <div className="obv2-art flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
         {/* the door bleeds off the left edge, standing on its mat */}
         <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={knock}>
           <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} open={gaveUp} onPokeEnd={endPoke} />
@@ -2051,7 +2051,7 @@ export default function OnboardingV2Page() {
     if (!el) return;
     const apply = () => {
       if (window.matchMedia('(min-width: 1024px)').matches) {
-        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 460).toFixed(3));
+        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 430).toFixed(3));
       } else {
         el.style.removeProperty('--obv2-art-scale');
       }
@@ -2414,7 +2414,8 @@ export default function OnboardingV2Page() {
             <div className={clsx('obv2-name-door shrink-0', nameFocused && 'obv2-zoomed')}>
               <Door name={homeName} height={310} />
             </div>
-            <div aria-hidden className="[flex-grow:1]" />
+            {/* lg: the door sits low in the house so its top clears the roof */}
+            <div aria-hidden className="[flex-grow:1] lg:[flex-grow:0.3]" />
           </div>
         );
       case 'users':
@@ -2496,8 +2497,8 @@ export default function OnboardingV2Page() {
             </svg>
             {/* A landscape photo frame; focusing it develops the photo into a
                 real, draggable map with the home badge fixed dead-centre. */}
-            <div className="w-full max-w-[350px] md:max-w-[480px] lg:max-w-[620px] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
-              <div className="w-full h-[250px] md:h-[320px] lg:h-[420px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
+            <div className="w-full max-w-[350px] md:max-w-[480px] lg:max-w-[78%] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
+              <div className="w-full h-[250px] md:h-[320px] lg:h-[300px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
                 {mapActive ? (
                   <MapPicker center={center} onChange={setLocation} />
                 ) : (
@@ -2865,9 +2866,9 @@ export default function OnboardingV2Page() {
         @keyframes obv2-hang-swing { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 60% { transform: rotate(5deg); } 85% { transform: rotate(-2deg); } }
         /* name step, large screens: focusing the input zooms into the door
            instead of sliding the scene (the slide stays for phones) */
-        .obv2-name-door { transition: transform 0.6s cubic-bezier(0.32, 0.72, 0.25, 1); }
+        .obv2-name-door { transition: transform 0.6s cubic-bezier(0.32, 0.72, 0.25, 1); transform: scale(var(--obv2-art-scale, 1)); }
         @media (min-width: 1024px) {
-          .obv2-name-door.obv2-zoomed { transform: scale(1.35); }
+          .obv2-name-door.obv2-zoomed { transform: scale(calc(var(--obv2-art-scale, 1) * 1.15)); }
         }
         @keyframes obv2-vacuum { 0%, 45% { transform: translateX(var(--obv2-vac-park, 300px)); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
