@@ -2052,7 +2052,7 @@ export default function OnboardingV2Page() {
     if (!el) return;
     const apply = () => {
       if (window.matchMedia('(min-width: 1024px)').matches) {
-        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 380).toFixed(3));
+        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 470).toFixed(3));
       } else {
         el.style.removeProperty('--obv2-art-scale');
       }
