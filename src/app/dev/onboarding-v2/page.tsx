@@ -1080,14 +1080,16 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
               </div>
             </div>
           </div>
-          {/* a pair of shoes parked by the door, under the picture (lg only —
-              on phones that wall spot doesn't exist) */}
-          <div aria-hidden className="hidden lg:flex absolute right-[calc(100%+38px)] bottom-0 items-end gap-[7px]">
-            {[0, 1].map((i) => (
-              <div key={i} className="relative w-[44px] h-[19px] bg-white rounded-l-[7px] rounded-r-[13px] shadow-[0_2px_4px_rgba(0,0,0,0.06)]">
-                <span className="absolute left-[6px] top-[5px] w-[12px] h-[3px] rounded-full bg-[#e6e6e6]" />
-              </div>
-            ))}
+          {/* a little entryway cabinet under the picture (lg only — on phones
+              that wall spot doesn't exist) */}
+          <div aria-hidden className="hidden lg:flex absolute right-[calc(100%+38px)] bottom-0 flex-col">
+            <div className="relative w-[96px] h-[44px] bg-white rounded-[10px] shadow-[0_2px_5px_rgba(0,0,0,0.06)]">
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[14px] h-[4px] rounded-full bg-[#e6e6e6]" />
+            </div>
+            <div className="flex justify-between px-[10px]">
+              <span className="w-[8px] h-[10px] bg-white rounded-b-[4px]" />
+              <span className="w-[8px] h-[10px] bg-white rounded-b-[4px]" />
+            </div>
           </div>
         </div>
         {/* the answerer: walks out of the held-open door, bottom on the floor
@@ -1115,10 +1117,12 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         {/* a robot vacuum makes the occasional cleaning pass at doormat level —
             drawn in profile like the rest of the scene: a low puck with its
             lidar turret up top */}
+        {/* lg: shifted left so its sweep covers the floor by the cabinet, never
+            the doormat under the centred door — and it visits far less often */}
         <div
           aria-hidden
-          className="absolute left-[200px] top-1/2 pointer-events-none"
-          style={{ marginTop: 159, animation: 'obv2-vacuum 18s ease-in-out infinite' }}
+          className="obv2-vac absolute left-[200px] top-1/2 pointer-events-none lg:-left-[60px]"
+          style={{ marginTop: 159 }}
         >
           <div className="relative w-[116px] h-[32px] bg-white rounded-[10px] shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
             <span className="absolute -top-[12px] left-1/2 -translate-x-1/2 w-[32px] h-[13px] bg-white rounded-t-[6px]" />
@@ -2906,6 +2910,10 @@ export default function OnboardingV2Page() {
           .obv2-name-door.obv2-zoomed { transform: scale(calc(var(--obv2-art-scale, 1) * 1.15)); }
         }
         @keyframes obv2-vacuum { 0%, 45% { transform: translateX(var(--obv2-vac-park, 300px)); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
+        .obv2-vac { animation: obv2-vacuum 18s ease-in-out infinite; }
+        /* same sweep, but parked off-house for most of a much longer loop */
+        @keyframes obv2-vacuum-lg { 0%, 72% { transform: translateX(var(--obv2-vac-park, 300px)); } 78% { transform: translateX(46px); } 81% { transform: translateX(66px); } 87% { transform: translateX(-34px); } 91% { transform: translateX(-14px); } 96%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
+        @media (min-width: 1024px) { .obv2-vac { animation: obv2-vacuum-lg 40s ease-in-out infinite; } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
         /* Phones are portrait-only: landscape gets a rotate prompt instead of
            a broken layout. Coarse pointer keeps short desktop windows out. */
