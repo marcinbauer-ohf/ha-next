@@ -1046,7 +1046,9 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
           className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer lg:left-1/2 lg:-translate-x-1/2"
           onClick={knock}
         >
-          <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} open={gaveUp} onPokeEnd={endPoke} />
+          <motion.div layoutId="obv2-door">
+            <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} open={gaveUp} onPokeEnd={endPoke} />
+          </motion.div>
           {/* the doormat — a flat slab at the doorstep, skewed away from the door */}
           <div
             className="mt-[18px] ml-[8px] w-[168px] h-[34px] bg-white rounded-[12px]"
@@ -2366,7 +2368,9 @@ export default function OnboardingV2Page() {
     : Array.from({ length: 6 }, (_, i) => makeCard(L, i, 'seed'));
 
   const next = () => {
-    setDir(1);
+    // welcome → name: no slide — the scene fades and the shared-layout door
+    // carries over (see layoutId="obv2-door")
+    setDir(step === 'welcome' ? 0 : 1);
     setToast(null);
     if (step === 'areas' && floorIndex < floors - 1) {
       setFloorIndex(floorIndex + 1);
@@ -2376,7 +2380,7 @@ export default function OnboardingV2Page() {
     setStep(ORDER[ORDER.indexOf(step) + 1]);
   };
   const back = () => {
-    setDir(-1);
+    setDir(step === 'name' ? 0 : -1);
     setToast(null);
     if (step === 'areas' && floorIndex > 0) {
       setFloorIndex(floorIndex - 1);
@@ -2444,7 +2448,9 @@ export default function OnboardingV2Page() {
               )}
             />
             <div className={clsx('obv2-name-door shrink-0', nameFocused && 'obv2-zoomed')}>
-              <Door name={homeName} height={310} />
+              <motion.div layoutId="obv2-door">
+                <Door name={homeName} height={310} />
+              </motion.div>
             </div>
             {/* lg: the door sits low in the house so its top clears the roof */}
             <div aria-hidden className="[flex-grow:1] lg:[flex-grow:0.3]" />
