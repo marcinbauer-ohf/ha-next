@@ -1052,10 +1052,12 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
             className="mt-[18px] ml-[8px] w-[168px] h-[34px] bg-white rounded-[12px]"
             style={{ transform: 'skewX(32deg)' }}
           />
-          {/* the map in a landscape photo frame, hung right of the doorframe
-              from a wire on a nail — a tap swings the whole thing around it */}
+          {/* the map in a landscape photo frame, hung beside the doorframe from
+              a wire on a nail — a tap swings the whole thing around it. Right
+              of the door on phones (the door bleeds off the left edge there),
+              left of it on lg where the door stands centred */}
           <div
-            className="absolute left-[calc(100%+22px)] top-[4px] flex flex-col items-center cursor-pointer"
+            className="absolute left-[calc(100%+22px)] top-[4px] flex flex-col items-center cursor-pointer lg:left-auto lg:right-[calc(100%+22px)]"
             onClick={(e) => {
               e.stopPropagation();
               setPoke('frame');
@@ -1116,7 +1118,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         </div>
         {/* the wall arrangement on the right — both shelves share a left edge;
             on lg it steps beside the centred door */}
-        <div className="absolute left-[158px] top-[calc(50%+56px)] -translate-y-1/2 flex flex-col gap-7 items-start lg:left-[calc(50%+100px)]">
+        <div className="absolute left-[158px] top-[calc(50%+56px)] -translate-y-1/2 flex flex-col gap-7 items-start lg:left-[calc(50%+100px)] lg:top-[calc(50%+24px)]">
           <div className="flex items-end gap-4">
             {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices */}
             <div className="relative flex flex-col items-start">
@@ -2874,7 +2876,7 @@ export default function OnboardingV2Page() {
           /* the welcome still life fits INSIDE the house: a touch smaller than
              the shared scale and shifted below the roof slope so neither the
              door's top corner nor the shelf clips against the cutout */
-          .obv2-art.obv2-welcome { transform: translateY(8%) scale(calc(var(--obv2-art-scale, 1) * 0.8)); }
+          .obv2-art.obv2-welcome { transform: translateY(10%) scale(calc(var(--obv2-art-scale, 1) * 0.8)); }
         }
         @keyframes obv2-hang-swing { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 60% { transform: rotate(5deg); } 85% { transform: rotate(-2deg); } }
         /* name step, large screens: focusing the input zooms into the door
