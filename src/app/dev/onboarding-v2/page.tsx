@@ -588,9 +588,9 @@ function ShelfStack({
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
-    // Phones ground the stack at the bottom; lg seats it in the lower half of
-    // the house mask, clear of the angled roof.
-    <div className="w-full max-w-[560px] md:max-w-[720px] lg:max-w-[54%] mx-auto min-h-full flex flex-col justify-end gap-3 pb-12 lg:pb-[8%]">
+    // Phones ground the stack at the bottom; lg centres it in the house body —
+    // the rectangle below the roof slope (pt mirrors the roof's 36%).
+    <div className="w-full max-w-[560px] md:max-w-[720px] lg:max-w-[54%] mx-auto min-h-full flex flex-col justify-end lg:justify-center gap-3 pb-12 lg:pb-[6%] lg:pt-[38%]">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -1392,7 +1392,7 @@ function MailboxArt({ prefs }: { prefs: Record<string, boolean> }) {
   ];
   const anyOn = cards.length > 0;
   return (
-    <div className="obv2-art obv2-art-bottom flex-1 flex items-end justify-center min-h-0 pb-4 lg:pb-[14%]">
+    <div className="obv2-art obv2-art-bottom flex-1 flex items-end justify-center min-h-0 pb-4 lg:pb-[17%]">
       <div className="flex flex-col items-center">
         <div className="relative w-[260px] h-[76px]">
           <AnimatePresence>
@@ -2548,7 +2548,7 @@ export default function OnboardingV2Page() {
         );
       case 'location':
         return (
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-2 lg:translate-y-[8%]">
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-2 lg:translate-y-[10%]">
             {/* the frame hangs from a wire on a nail, like any picture would */}
             <svg aria-hidden width="160" height="44" viewBox="0 0 160 44" fill="none" className="-mb-[6px] shrink-0">
               <path d="M8 44 L80 7 L152 44" stroke="#c9c9c9" strokeWidth="2.5" strokeLinecap="round" />
@@ -2927,7 +2927,7 @@ export default function OnboardingV2Page() {
           .obv2-art.obv2-welcome { transform: translateY(calc(10% + 40px)) scale(calc(var(--obv2-art-scale, 1) * 0.8)); }
           /* the keychain hangs at the house's OPTICAL centre — the roof
              triangle pulls the shape's mass below the geometric middle */
-          .obv2-art.obv2-keys { transform: translateY(12%) scale(var(--obv2-art-scale, 1)); }
+          .obv2-art.obv2-keys { transform: translateY(17%) scale(var(--obv2-art-scale, 1)); }
         }
         @keyframes obv2-hang-swing { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 60% { transform: rotate(5deg); } 85% { transform: rotate(-2deg); } }
         /* name step, large screens: focusing the input zooms into the door
@@ -3136,8 +3136,9 @@ export default function OnboardingV2Page() {
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10) 36px, transparent)' }}
               />
             {/* lg: the heading leads the form pane — display-sized, centred.
-                Fixed-height zone so 1- and 2-line subs never shift the sheet */}
-            <div className="hidden lg:flex lg:flex-col lg:justify-center lg:min-h-[100px] w-full max-w-[440px] mb-5 text-center">
+                Fixed-height zone, top-anchored: the title sits at the exact
+                same y on every step; subs of any length flow below it */}
+            <div className="hidden lg:flex lg:flex-col lg:justify-start lg:min-h-[100px] w-full max-w-[440px] mb-5 text-center">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={stepKey}
@@ -3165,7 +3166,7 @@ export default function OnboardingV2Page() {
                 'lg:max-w-[440px] lg:rounded-none lg:shadow-none lg:bg-transparent lg:m-0 lg:p-0 lg:h-[350px]',
                 // only the steps that can outgrow the slot scroll — the rest
                 // stay overflow-visible so e.g. the address dropdown can escape
-                (step === 'areas' || step === 'permissions') && 'lg:overflow-y-auto',
+                (step === 'areas' || step === 'permissions') && 'lg:overflow-y-auto lg:overflow-x-hidden',
                 compact && typing && 'obv2-hide-cta',
               )}
               onFocusCapture={(e) => {
