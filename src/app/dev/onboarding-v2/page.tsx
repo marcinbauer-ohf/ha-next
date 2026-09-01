@@ -1021,7 +1021,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
   };
   return (
     <div className="flex-1 min-h-0 w-full flex flex-col">
-      <div className="text-center pt-7 pb-2 md:pt-3">
+      <div className="text-center pt-7 pb-2 md:pt-3 lg:hidden">
         <h1 className="text-[32px] md:text-[42px] font-semibold tracking-[-0.96px] md:tracking-[-1.26px] leading-tight" style={{ color: TEXT }}>
           {L.welcomeTitle}
         </h1>
@@ -2313,6 +2313,10 @@ export default function OnboardingV2Page() {
 
   const allAnalyticsOn = ANALYTIC_KEYS.every((k) => prefs[k]);
 
+  // lg split layout: the welcome step's in-art heading moves to the form pane.
+  const paneTitle = step === 'welcome' ? L.welcomeTitle : heading.title;
+  const paneSub = step === 'welcome' ? L.welcomeSub : heading.sub;
+
   const art = (() => {
     switch (step) {
       case 'welcome':
@@ -2724,11 +2728,12 @@ export default function OnboardingV2Page() {
         .onboarding-v2 { --obv2-vac-park: 300px; --obv2-art-scale: 1; }
         @media (min-width: 768px) { .onboarding-v2 { --obv2-vac-park: 70vw; } }
         /* The illustrations grow with the screen — stepped so they always fit
-           the art region's height. Interactive art (map, shelves) sizes via
-           layout instead: a transform would break leaflet drags & scrolling. */
+           the art region. From lg the art only gets HALF the width (split
+           layout), so the steps stay modest; no 4K ambitions. Interactive art
+           (map, shelves) sizes via layout instead: a transform would break
+           leaflet drags & scrolling. */
         @media (min-width: 768px) and (min-height: 720px) { .onboarding-v2 { --obv2-art-scale: 1.2; } }
-        @media (min-width: 1200px) and (min-height: 880px) { .onboarding-v2 { --obv2-art-scale: 1.4; } }
-        @media (min-width: 1600px) and (min-height: 1080px) { .onboarding-v2 { --obv2-art-scale: 1.7; } }
+        @media (min-width: 1440px) and (min-height: 800px) { .onboarding-v2 { --obv2-art-scale: 1.5; } }
         .obv2-art { transform: scale(var(--obv2-art-scale, 1)); }
         .obv2-art-bottom { transform-origin: 50% 100%; }
         @keyframes obv2-vacuum { 0%, 45% { transform: translateX(var(--obv2-vac-park, 300px)); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
@@ -2750,13 +2755,14 @@ export default function OnboardingV2Page() {
           <div className="h-full flex flex-col">
             {/* static app bar — the step heading lives here, on a fade that
                 runs on below it so artwork dissolves as it nears the bar. */}
-            <div className="px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-1 relative z-20">
+            {/* lg: the bar floats over both panes so they run to the top */}
+            <div className="px-5 pt-[calc(env(safe-area-inset-top)+12px)] pb-1 relative z-20 lg:absolute lg:top-0 lg:inset-x-0 lg:px-6">
               <div
                 aria-hidden
-                className="absolute top-full -mt-px inset-x-0 h-10 pointer-events-none"
+                className="absolute top-full -mt-px inset-x-0 h-10 pointer-events-none lg:hidden"
                 style={{ background: `linear-gradient(to bottom, ${SURFACE}, transparent)` }}
               />
-              <div className="relative flex items-center justify-between gap-2 min-h-[44px] w-full max-w-[640px] mx-auto">
+              <div className="relative flex items-center justify-between gap-2 min-h-[44px] w-full max-w-[640px] mx-auto lg:max-w-none">
                 {step === 'welcome' ? (
                   <Press
                     onClick={() => setWelcomeMenuOpen((v) => !v)}
@@ -2854,8 +2860,11 @@ export default function OnboardingV2Page() {
               </div>
               )}
             </div>
+            {/* lg: one row splits the screen — the story on the left, the
+                action on the right */}
+            <div className="flex-1 md:grow-[3] min-h-0 flex flex-col lg:flex-row">
             {/* only the artwork slides between steps */}
-            <div className="flex-1 md:grow-[3] min-h-0 relative px-5 overflow-hidden">
+            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex lg:flex-col lg:justify-center">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -2871,9 +2880,10 @@ export default function OnboardingV2Page() {
                   transition={{ type: 'spring', stiffness: 380, damping: 34 }}
                   className="h-full w-full flex flex-col"
                 >
-                  {/* desktop: the heading lives display-sized in the artboard */}
+                  {/* tablet: the heading lives display-sized in the artboard;
+                      on lg it moves to the form pane instead */}
                   {heading.title != null && (
-                    <div className="hidden md:block text-center pt-3 pb-2 shrink-0">
+                    <div className="hidden md:block lg:hidden text-center pt-3 pb-2 shrink-0">
                       <h1 className="text-[42px] font-semibold tracking-[-1.26px] leading-tight" style={{ color: TEXT }}>
                         {heading.title}
                       </h1>
@@ -2888,13 +2898,14 @@ export default function OnboardingV2Page() {
                 </motion.div>
               </AnimatePresence>
             </div>
-            {/* static bottom sheet — its contents crossfade per step. The
-                gradient scrim above it pushes the artwork into the background. */}
-            <div className="relative">
+            {/* static bottom sheet — its contents crossfade per step. On lg it
+                is the right half of the screen: a white pane with the heading
+                and the form, vertically centred. */}
+            <div className="relative lg:w-1/2 lg:flex-none lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-12 lg:overflow-y-auto">
               {/* toast — discovery ticks, invite confirmations: rises over the sheet */}
               <AnimatePresence>
                 {toast && (
-                  <div className="absolute -top-[64px] inset-x-0 z-30 flex justify-center pointer-events-none">
+                  <div className="absolute -top-[64px] inset-x-0 z-30 flex justify-center pointer-events-none lg:top-auto lg:bottom-10">
                     <motion.div
                       key={toast.id}
                       initial={{ opacity: 0, y: 12, scale: 0.95 }}
@@ -2917,11 +2928,34 @@ export default function OnboardingV2Page() {
                 className="absolute -top-20 inset-x-0 h-[116px] pointer-events-none md:hidden"
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10) 36px, transparent)' }}
               />
+            {/* lg: the heading leads the form pane — display-sized, left-aligned */}
+            <div className="hidden lg:block w-full max-w-[440px] mb-9">
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div
+                  key={stepKey}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <h1 className="text-[38px] font-semibold tracking-[-1.14px] leading-[1.12]" style={{ color: TEXT }}>
+                    {paneTitle}
+                  </h1>
+                  {paneSub && (
+                    <p className="mt-3 text-[16px] leading-snug tracking-[-0.32px] max-w-[400px]" style={{ color: TEXT_2 }}>
+                      {paneSub}
+                    </p>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
             <div
               className={clsx(
                 'relative bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)] w-full max-w-[640px] mx-auto',
-                // Desktop: not pinned — a floating card under the artwork.
+                // Tablet: not pinned — a floating card under the artwork.
                 'md:rounded-[32px] md:mb-8 md:pt-6 md:pb-6 md:px-8 md:shadow-[0_16px_50px_rgba(0,0,0,0.10)]',
+                // lg: no card chrome — the form sits naked on the white pane.
+                'lg:max-w-[440px] lg:rounded-none lg:shadow-none lg:bg-transparent lg:m-0 lg:p-0',
                 compact && typing && 'obv2-hide-cta',
               )}
               onFocusCapture={(e) => {
@@ -2939,15 +2973,16 @@ export default function OnboardingV2Page() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.16 }}
-                  className="flex flex-col gap-2 w-full max-w-[480px] mx-auto"
+                  className="flex flex-col gap-2 w-full max-w-[480px] mx-auto lg:max-w-none lg:mx-0"
                 >
                   {sheet}
                 </motion.div>
               </AnimatePresence>
             </div>
             </div>
-            {/* desktop: pushes the floating card up to roughly two-thirds height */}
-            <div aria-hidden className="hidden md:block grow basis-0" />
+            </div>
+            {/* tablet: pushes the floating card up to roughly two-thirds height */}
+            <div aria-hidden className="hidden md:block lg:hidden grow basis-0" />
           </div>
         )}
       </div>
