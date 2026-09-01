@@ -2431,7 +2431,7 @@ export default function OnboardingV2Page() {
         );
       case 'users':
         return (
-          <div className="obv2-art flex-1 flex items-center justify-center min-h-0 overflow-hidden">
+          <div className="obv2-art obv2-keys flex-1 flex items-center justify-center min-h-0 overflow-hidden">
             {/* Focusing a credential turns the key horizontal, ready for its lock. */}
             <div
               className="transition-transform duration-500 ease-out"
@@ -2453,7 +2453,7 @@ export default function OnboardingV2Page() {
         );
       case 'invite':
         return (
-          <div className="obv2-art flex-1 flex items-center justify-center min-h-0 relative overflow-hidden">
+          <div className="obv2-art obv2-keys flex-1 flex items-center justify-center min-h-0 relative overflow-hidden">
             {/* the ring holds exactly your key + everyone invited */}
             <div
               className="relative transition-transform duration-500 ease-out"
@@ -2500,7 +2500,7 @@ export default function OnboardingV2Page() {
         );
       case 'location':
         return (
-          <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-2">
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-2 lg:translate-y-[8%]">
             {/* the frame hangs from a wire on a nail, like any picture would */}
             <svg aria-hidden width="160" height="44" viewBox="0 0 160 44" fill="none" className="-mb-[6px] shrink-0">
               <path d="M8 44 L80 7 L152 44" stroke="#c9c9c9" strokeWidth="2.5" strokeLinecap="round" />
@@ -2508,8 +2508,8 @@ export default function OnboardingV2Page() {
             </svg>
             {/* A landscape photo frame; focusing it develops the photo into a
                 real, draggable map with the home badge fixed dead-centre. */}
-            <div className="w-full max-w-[350px] md:max-w-[480px] lg:max-w-[48%] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
-              <div className="w-full h-[250px] md:h-[320px] lg:h-[220px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
+            <div className="w-full max-w-[350px] md:max-w-[480px] lg:max-w-[58%] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
+              <div className="w-full h-[250px] md:h-[320px] lg:h-[280px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
                 {mapActive ? (
                   <MapPicker center={center} onChange={setLocation} />
                 ) : (
@@ -2877,6 +2877,9 @@ export default function OnboardingV2Page() {
              the shared scale and shifted below the roof slope so neither the
              door's top corner nor the shelf clips against the cutout */
           .obv2-art.obv2-welcome { transform: translateY(10%) scale(calc(var(--obv2-art-scale, 1) * 0.8)); }
+          /* the keychain hangs at the house's OPTICAL centre — the roof
+             triangle pulls the shape's mass below the geometric middle */
+          .obv2-art.obv2-keys { transform: translateY(12%) scale(var(--obv2-art-scale, 1)); }
         }
         @keyframes obv2-hang-swing { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 60% { transform: rotate(5deg); } 85% { transform: rotate(-2deg); } }
         /* name step, large screens: focusing the input zooms into the door
