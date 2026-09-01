@@ -586,7 +586,7 @@ function ShelfStack({
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
     // Phones ground the stack at the bottom; the lg split centres it.
-    <div className="w-full max-w-[560px] md:max-w-[720px] lg:max-w-[86%] mx-auto min-h-full flex flex-col justify-end lg:justify-center gap-3 pb-12 lg:pb-0">
+    <div className="w-full max-w-[560px] md:max-w-[720px] lg:max-w-[54%] mx-auto min-h-full flex flex-col justify-end lg:justify-center gap-3 pb-12 lg:pb-0">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -2052,7 +2052,7 @@ export default function OnboardingV2Page() {
     if (!el) return;
     const apply = () => {
       if (window.matchMedia('(min-width: 1024px)').matches) {
-        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 470).toFixed(3));
+        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 940).toFixed(3));
       } else {
         el.style.removeProperty('--obv2-art-scale');
       }
@@ -2498,8 +2498,8 @@ export default function OnboardingV2Page() {
             </svg>
             {/* A landscape photo frame; focusing it develops the photo into a
                 real, draggable map with the home badge fixed dead-centre. */}
-            <div className="w-full max-w-[350px] md:max-w-[480px] lg:max-w-[78%] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
-              <div className="w-full h-[250px] md:h-[320px] lg:h-[300px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
+            <div className="w-full max-w-[350px] md:max-w-[480px] lg:max-w-[48%] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
+              <div className="w-full h-[250px] md:h-[320px] lg:h-[220px] rounded-[14px] overflow-hidden bg-[#edf3f5]">
                 {mapActive ? (
                   <MapPicker center={center} onChange={setLocation} />
                 ) : (
