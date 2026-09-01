@@ -1080,6 +1080,15 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
               </div>
             </div>
           </div>
+          {/* a pair of shoes parked by the door, under the picture (lg only —
+              on phones that wall spot doesn't exist) */}
+          <div aria-hidden className="hidden lg:flex absolute right-[calc(100%+38px)] bottom-0 items-end gap-[7px]">
+            {[0, 1].map((i) => (
+              <div key={i} className="relative w-[44px] h-[19px] bg-white rounded-l-[7px] rounded-r-[13px] shadow-[0_2px_4px_rgba(0,0,0,0.06)]">
+                <span className="absolute left-[6px] top-[5px] w-[12px] h-[3px] rounded-full bg-[#e6e6e6]" />
+              </div>
+            ))}
+          </div>
         </div>
         {/* the answerer: walks out of the held-open door, bottom on the floor
             line, and keeps going until it leaves the scene (and the screen) */}
@@ -1118,7 +1127,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         </div>
         {/* the wall arrangement on the right — both shelves share a left edge;
             on lg it steps beside the centred door */}
-        <div className="absolute left-[158px] top-[calc(50%+56px)] -translate-y-1/2 flex flex-col gap-7 items-start lg:left-[calc(50%+100px)] lg:top-[calc(50%+24px)]">
+        <div className="absolute left-[158px] top-[calc(50%+56px)] -translate-y-1/2 flex flex-col gap-7 items-start lg:left-[calc(50%+100px)] lg:top-[calc(50%-8px)]">
           <div className="flex items-end gap-4">
             {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices */}
             <div className="relative flex flex-col items-start">
@@ -1134,7 +1143,15 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
                 <div className="relative w-[10px] h-[42px] bg-white rounded-t-full" />
                 <div className="relative w-[26px] h-[8px] bg-white rounded-full" />
               </div>
-              {/* its shelf runs off the right edge of the scene */}
+              {/* a small potted plant keeps the ZBT company on its shelf */}
+              <div aria-hidden className="absolute right-[16px] bottom-[30px] flex flex-col items-center">
+                <div className="flex items-end -mb-[3px]">
+                  <span className="w-[10px] h-[22px] bg-white rounded-full -rotate-[24deg] translate-x-[4px]" />
+                  <span className="w-[10px] h-[27px] bg-white rounded-full" />
+                  <span className="w-[10px] h-[19px] bg-white rounded-full rotate-[24deg] -translate-x-[4px]" />
+                </div>
+                <div className="w-[26px] h-[16px] bg-white rounded-b-[8px] rounded-t-[3px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]" />
+              </div>
               <div className="relative mt-[6px] w-[170px] h-[30px] bg-white rounded-[10px]" />
             </div>
           </div>
@@ -1184,7 +1201,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
                 ))}
               </div>
             </div>
-            <div className="mt-[8px] w-[290px] lg:w-[266px] h-[30px] bg-white rounded-[10px]" />
+            <div className="mt-[8px] w-[170px] h-[30px] bg-white rounded-[10px]" />
           </div>
         </div>
       </div>
@@ -2876,7 +2893,7 @@ export default function OnboardingV2Page() {
           /* the welcome still life fits INSIDE the house: a touch smaller than
              the shared scale and shifted below the roof slope so neither the
              door's top corner nor the shelf clips against the cutout */
-          .obv2-art.obv2-welcome { transform: translateY(10%) scale(calc(var(--obv2-art-scale, 1) * 0.8)); }
+          .obv2-art.obv2-welcome { transform: translateY(calc(10% + 40px)) scale(calc(var(--obv2-art-scale, 1) * 0.8)); }
           /* the keychain hangs at the house's OPTICAL centre — the roof
              triangle pulls the shape's mass below the geometric middle */
           .obv2-art.obv2-keys { transform: translateY(12%) scale(var(--obv2-art-scale, 1)); }
