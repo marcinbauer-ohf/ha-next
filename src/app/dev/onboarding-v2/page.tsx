@@ -1039,11 +1039,10 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
           stands centred instead of stretching apart */}
       {/* not scaled: the scene's door is already display-sized, and growth
           would collide with the heading above it */}
-      <div className="obv2-art flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
+      <div className="obv2-art obv2-welcome flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
         {/* the door bleeds off the left edge, standing on its mat */}
-        {/* lg: the door parks centred at the house bottom — the logo's door */}
         <div
-          className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer lg:left-1/2 lg:-translate-x-[88px] lg:top-auto lg:bottom-[5%] lg:translate-y-0"
+          className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer"
           onClick={knock}
         >
           <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} open={gaveUp} onPokeEnd={endPoke} />
@@ -1090,8 +1089,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         </div>
         {/* the wall arrangement on the right — left-anchored so the shelf
             planks can run off the right edge, mirroring the door's bleed */}
-        {/* lg: the wall arrangement steps aside to flank the centred door */}
-        <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start lg:left-[calc(50%+112px)] lg:top-[54%]">
+        <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start">
           <div className="flex items-end gap-4">
             {/* the map in a landscape photo frame, hung from a wire on a nail —
                 a tap swings the whole thing around that nail */}
@@ -2056,8 +2054,8 @@ export default function OnboardingV2Page() {
     if (!el) return;
     const apply = () => {
       if (window.matchMedia('(min-width: 1024px)').matches) {
-        // 555 puts the welcome door at ~30% of the house width — the same
-        // door-to-house proportion as the Home Assistant logo.
+        // 555 is the reference width the scenes were composed at; the welcome
+        // still life applies its own fit factor on top (see .obv2-welcome).
         el.style.setProperty('--obv2-art-scale', (el.clientWidth / 555).toFixed(3));
       } else {
         el.style.removeProperty('--obv2-art-scale');
@@ -2869,6 +2867,10 @@ export default function OnboardingV2Page() {
             background: ${SURFACE};
             overflow: hidden;
           }
+          /* the welcome still life fits INSIDE the house: a touch smaller than
+             the shared scale and shifted below the roof slope so neither the
+             door's top corner nor the shelf clips against the cutout */
+          .obv2-art.obv2-welcome { transform: translate(3%, 8%) scale(calc(var(--obv2-art-scale, 1) * 0.8)); }
         }
         @keyframes obv2-hang-swing { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-8deg); } 60% { transform: rotate(5deg); } 85% { transform: rotate(-2deg); } }
         /* name step, large screens: focusing the input zooms into the door
