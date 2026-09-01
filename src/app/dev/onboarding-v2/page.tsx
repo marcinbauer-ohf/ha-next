@@ -469,14 +469,12 @@ function Press({
       type="button"
       aria-label={ariaLabel}
       onClick={onClick}
+      whileHover={{ filter: brighten ? 'brightness(1.35)' : 'brightness(0.93)' }}
       whileTap={{ scale: 0.93, filter: brighten ? 'brightness(1.7)' : 'brightness(0.9)' }}
       transition={{ type: 'spring', stiffness: 600, damping: 32 }}
-      className={clsx('obv2-press', className)}
+      className={className}
       style={style}
     >
-      {/* hover affordance: the halo copies the button's own background and
-          grows past its edges — the container swells, the contents hold still */}
-      <span aria-hidden className="obv2-press-halo" />
       {children}
     </motion.button>
   );
@@ -2175,10 +2173,25 @@ export default function OnboardingV2Page() {
   const [typing, setTyping] = useState(false);
 
   // Experiment: ?alt swaps the desktop's white paper for a grainy sky-blue
-  // gradient (the house cutout stays as-is). Set post-mount so SSR matches.
+  // gradient (the house cutout stays as-is). Sticky: once seen it persists in
+  // localStorage until ?alt=off. Set post-mount so SSR matches.
   const [altBg, setAltBg] = useState(false);
   useEffect(() => {
-    const raf = requestAnimationFrame(() => setAltBg(new URLSearchParams(window.location.search).has('alt')));
+    const raf = requestAnimationFrame(() => {
+      const p = new URLSearchParams(window.location.search);
+      let on: boolean;
+      try {
+        if (p.has('alt')) {
+          on = !['0', 'off', 'false'].includes((p.get('alt') ?? '').toLowerCase());
+          localStorage.setItem('obv2_alt', on ? '1' : '0');
+        } else {
+          on = localStorage.getItem('obv2_alt') === '1';
+        }
+      } catch {
+        on = p.has('alt');
+      }
+      setAltBg(on);
+    });
     return () => cancelAnimationFrame(raf);
   }, []);
 
@@ -2957,15 +2970,6 @@ export default function OnboardingV2Page() {
              triangle pulls the shape's mass below the geometric middle */
           .obv2-art.obv2-keys { transform: translateY(17%) scale(var(--obv2-art-scale, 1)); }
         }
-        /* hover affordance on every Press button: a background-copying halo
-           grows 3px past the edges; contents never transform */
-        .obv2-press { position: relative; isolation: isolate; }
-        .obv2-press-halo {
-          position: absolute; inset: 0; z-index: -1; border-radius: inherit;
-          background: inherit; pointer-events: none; transition: inset 0.16s ease;
-        }
-        @media (hover: hover) { .obv2-press:hover .obv2-press-halo { inset: -3px; } }
-
         /* page-load choreography: top bar → mask pops → its contents → sheet */
         @keyframes obv2-enter-fade { from { opacity: 0; } }
         @keyframes obv2-enter-pop { from { opacity: 0; transform: scale(0.9); } }
