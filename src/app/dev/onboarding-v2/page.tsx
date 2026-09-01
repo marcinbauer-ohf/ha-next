@@ -157,6 +157,7 @@ const STR = {
     inviteSub: 'Everyone gets their own key. You can also do this later.',
     invitePh: 'Email address',
     inviteHint: 'Everyone joins as a guest. You can make someone an admin later.',
+    inviteSend: 'Invite',
     inviteToast: (email: string) => `Invite sent — a key is waiting for ${email}`,
     locTitle: 'Where is your home?',
     locSub: 'Search, or drag the map until your home sits under the marker.',
@@ -247,6 +248,7 @@ const STR = {
     inviteSub: 'Każdy dostaje własny klucz. Możesz to zrobić też później.',
     invitePh: 'Adres e-mail',
     inviteHint: 'Każdy dołącza jako gość. Później możesz zrobić kogoś administratorem.',
+    inviteSend: 'Zaproś',
     inviteToast: (email: string) => `Zaproszenie wysłane — klucz czeka na ${email}`,
     locTitle: 'Gdzie jest twój dom?',
     locSub: 'Wyszukaj lub przesuwaj mapę, aż twój dom znajdzie się pod znacznikiem.',
@@ -337,6 +339,7 @@ const STR = {
     inviteSub: 'Cada uno recibe su propia llave. También puedes hacerlo más tarde.',
     invitePh: 'Correo electrónico',
     inviteHint: 'Todos se unen como invitados. Luego puedes hacer a alguien administrador.',
+    inviteSend: 'Invitar',
     inviteToast: (email: string) => `Invitación enviada — una llave espera a ${email}`,
     locTitle: '¿Dónde está tu hogar?',
     locSub: 'Busca o arrastra el mapa hasta que tu casa quede bajo el marcador.',
@@ -582,7 +585,8 @@ function ShelfStack({
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
   return (
-    <div className="w-full max-w-[560px] md:max-w-[720px] mx-auto min-h-full flex flex-col justify-end gap-3 pb-12">
+    // Phones ground the stack at the bottom; the lg split centres it.
+    <div className="w-full max-w-[560px] md:max-w-[720px] mx-auto min-h-full flex flex-col justify-end lg:justify-center gap-3 pb-12 lg:pb-0">
       <AnimatePresence>
         {order.map((i) => (
           <Shelf
@@ -840,7 +844,9 @@ function KeySvg({
     blade = `M${L} 18 L${R} 18 `;
     bits.forEach((b, i) => {
       const y = 27 + i * 8;
-      const depth = 3 + b * 5;
+      // Cap the cut depth: the blade is 7-9 units wide, and a valley deeper
+      // than ~5.5 pinches it to a sliver.
+      const depth = 2.5 + b * 3;
       blade += `L${R} ${y - 3} L${R - depth} ${y} L${R} ${y + 3} `;
     });
     blade += pointed
@@ -1082,17 +1088,26 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
             planks can run off the right edge, mirroring the door's bleed */}
         <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start">
           <div className="flex items-end gap-4">
-            {/* the map in a landscape photo frame */}
+            {/* the map in a landscape photo frame, hung from a wire on a nail */}
             <div
-              className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)] cursor-pointer"
+              className="flex flex-col items-center cursor-pointer"
               onClick={() => setPoke('frame')}
-              onAnimationEnd={poke === 'frame' ? endPoke : undefined}
-              style={{ animation: poke === 'frame' ? 'obv2-pop 0.7s ease' : 'obv2-sway 7s ease-in-out infinite' }}
+              style={{ animation: 'obv2-sway 7s ease-in-out infinite' }}
             >
-              <div className="w-[104px] h-[70px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
-                <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
-                  <IconMapPin size={26} color={ACCENT} />
-                </span>
+              <svg aria-hidden width="64" height="22" viewBox="0 0 64 22" fill="none" className="-mb-[4px]">
+                <path d="M4 22 L32 4 L60 22" stroke="#d2d2d2" strokeWidth="2" strokeLinecap="round" />
+                <circle cx="32" cy="3.5" r="2.5" fill="#c4c4c4" />
+              </svg>
+              <div
+                className="bg-white rounded-[16px] p-2 shadow-[0_2px_6px_rgba(0,0,0,0.06)]"
+                onAnimationEnd={poke === 'frame' ? endPoke : undefined}
+                style={{ animation: poke === 'frame' ? 'obv2-pop 0.7s ease' : undefined }}
+              >
+                <div className="w-[104px] h-[70px] rounded-[10px] bg-[#edf3f5] flex items-center justify-center">
+                  <span style={{ animation: 'obv2-bob 2.4s ease-in-out infinite' }}>
+                    <IconMapPin size={26} color={ACCENT} />
+                  </span>
+                </div>
               </div>
             </div>
             {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices */}
@@ -2002,17 +2017,20 @@ export default function OnboardingV2Page() {
   const [password, setPassword] = useState('');
   const [invited, setInvited] = useState<Invitee[]>([]);
   const [inviteDraft, setInviteDraft] = useState('');
-  const [inviteFocused, setInviteFocused] = useState(false);
-  // Grayed-out "who might live here" keys shown before the input is touched —
+  // Grayed-out "who might live here" keys floating beside the ring —
   // randomly cut on every visit.
   const [ghostSeeds] = useState(() =>
-    Array.from({ length: Math.random() < 0.5 ? 2 : 3 }, () => Math.random().toString(36).slice(2, 9)),
+    Array.from({ length: 2 }, () => Math.random().toString(36).slice(2, 9)),
   );
   const [location, setLocation] = useState<LatLng | null>(null);
   const [mapActive, setMapActive] = useState(false);
   const [center, setCenter] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(false);
   const [locQuery, setLocQuery] = useState('');
+  const [locSuggestions, setLocSuggestions] = useState<{ name: string; lat: number; lng: number }[]>([]);
+  // Picking a suggestion writes it back into the field — that write must not
+  // immediately re-open the dropdown.
+  const skipSuggest = useRef(false);
   const [flag, setFlag] = useState<string | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
@@ -2216,6 +2234,7 @@ export default function OnboardingV2Page() {
   const searchAddress = async () => {
     const q = locQuery.trim();
     if (!q) return;
+    setLocSuggestions([]);
     try {
       const r = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=${lang}`,
@@ -2230,6 +2249,42 @@ export default function OnboardingV2Page() {
     } catch {
       /* offline or blocked — the map stays where it was */
     }
+  };
+
+  // Typing pulls a handful of address suggestions, gently debounced.
+  useEffect(() => {
+    if (step !== 'location') return;
+    const q = locQuery.trim();
+    const t = setTimeout(async () => {
+      if (skipSuggest.current) {
+        skipSuggest.current = false;
+        return;
+      }
+      if (q.length < 3) {
+        setLocSuggestions([]);
+        return;
+      }
+      try {
+        const r = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&accept-language=${lang}`,
+        );
+        const j: { display_name: string; lat: string; lon: string }[] = await r.json();
+        setLocSuggestions(j.map((it) => ({ name: it.display_name, lat: parseFloat(it.lat), lng: parseFloat(it.lon) })));
+      } catch {
+        /* offline — no suggestions, search still works on Enter */
+      }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [step, locQuery, lang]);
+
+  const pickSuggestion = (s: { name: string; lat: number; lng: number }) => {
+    const here = { lat: s.lat, lng: s.lng };
+    setCenter(here);
+    setLocation(here);
+    setMapActive(true);
+    setLocSuggestions([]);
+    skipSuggest.current = true;
+    setLocQuery(s.name.split(',')[0]);
   };
 
   const inviteValid = /\S+@\S+\.\S+/.test(inviteDraft.trim());
@@ -2324,16 +2379,20 @@ export default function OnboardingV2Page() {
       case 'name':
         return (
           <div className="flex-1 flex flex-col items-center min-h-0 overflow-hidden py-2">
-            {/* No zoom: spacers centre the door; on focus the top one gives
-                way so the scene glides up and the nameplate stays in view
-                above the keyboard crop. */}
-            <div aria-hidden style={{ flexGrow: nameFocused ? 0.12 : 1, transition: 'flex-grow 0.5s ease' }} />
-            {/* the door is display-sized already — scaling it would collide
-                with the desktop in-art heading */}
-            <div className="shrink-0">
+            {/* Phones: spacers centre the door; on focus the top one gives way
+                so the scene glides up and the nameplate stays in view above
+                the keyboard crop. Large screens zoom into the door instead. */}
+            <div
+              aria-hidden
+              className={clsx(
+                'transition-[flex-grow] duration-500',
+                nameFocused ? '[flex-grow:0.12] lg:[flex-grow:1]' : '[flex-grow:1]',
+              )}
+            />
+            <div className={clsx('obv2-name-door shrink-0', nameFocused && 'obv2-zoomed')}>
               <Door name={homeName} height={310} />
             </div>
-            <div aria-hidden style={{ flexGrow: 1, transition: 'flex-grow 0.5s ease' }} />
+            <div aria-hidden className="[flex-grow:1]" />
           </div>
         );
       case 'users':
@@ -2361,43 +2420,58 @@ export default function OnboardingV2Page() {
       case 'invite':
         return (
           <div className="obv2-art flex-1 flex items-center justify-center min-h-0 relative overflow-hidden">
+            {/* the ring holds exactly your key + everyone invited */}
             <div
-              className="transition-transform duration-500 ease-out"
+              className="relative transition-transform duration-500 ease-out"
               style={{ transform: compact ? 'scale(0.68)' : undefined }}
             >
               <Keychain
                 keys={[
                   { id: 'admin', cutSeed: password || 'password', styleSeed: username || 'admin', color: INK },
                   ...invited.map((p) => ({ id: `inv-${p.email}`, cutSeed: p.email, styleSeed: p.email, color: p.admin ? INK : TEXT_2 })),
-                  // untouched input: grayed maybe-keys hint at the household to come
-                  ...(!inviteFocused && !inviteDraft.trim()
-                    ? ghostSeeds.map((s, i) => ({ id: `ghost-${i}`, cutSeed: s, styleSeed: s, color: '#cdcdcd', capColor: '#dedede' }))
-                    : []),
                 ]}
                 keyHeight={110}
                 ringSize={72}
               />
+              {/* two not-yet-connected keys float above the ring's shoulders;
+                  typing an email gives one of them its hue and cuts it live */}
+              {[
+                { cls: '-left-[88px] -top-[12px]', rot: -16, dur: '3.4s', delay: '0s', active: false },
+                { cls: '-right-[92px] -top-[30px]', rot: 18, dur: '3.9s', delay: '0.9s', active: true },
+              ].map((f, i) => {
+                const draft = inviteDraft.trim();
+                const live = f.active && draft.length > 0;
+                const seed = live ? draft : ghostSeeds[i] ?? `maybe-${i}`;
+                return (
+                  <div
+                    key={i}
+                    aria-hidden
+                    className={clsx('absolute pointer-events-none', f.cls)}
+                    style={{ animation: `obv2-bob ${f.dur} ease-in-out ${f.delay} infinite` }}
+                  >
+                    <div style={{ transform: `rotate(${f.rot}deg)` }}>
+                      <KeySvg
+                        cutSeed={seed}
+                        styleSeed={seed}
+                        color={live ? TEXT_2 : '#cfcfcf'}
+                        capColor={live ? undefined : '#e0e0e0'}
+                        height={72}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {/* while an email is being typed, their key drifts toward the ring */}
-            <AnimatePresence>
-              {inviteDraft.trim() && (
-                <motion.div
-                  key="ghost"
-                  initial={{ x: 130, y: -80, rotate: 32, opacity: 0 }}
-                  animate={{ x: 52, y: -18, rotate: 14, opacity: 0.6 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 1.2, ease: 'easeOut' }}
-                  className="absolute left-1/2 top-1/3 pointer-events-none"
-                >
-                  <KeySvg cutSeed={inviteDraft.trim()} styleSeed={inviteDraft.trim()} color={TEXT_DIM} height={compact ? 58 : 84} />
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         );
       case 'location':
         return (
-          <div className="flex-1 min-h-0 flex items-center justify-center py-2">
+          <div className="flex-1 min-h-0 flex flex-col items-center justify-center py-2">
+            {/* the frame hangs from a wire on a nail, like any picture would */}
+            <svg aria-hidden width="160" height="44" viewBox="0 0 160 44" fill="none" className="-mb-[6px] shrink-0">
+              <path d="M8 44 L80 7 L152 44" stroke="#c9c9c9" strokeWidth="2.5" strokeLinecap="round" />
+              <circle cx="80" cy="6" r="4" fill="#bdbdbd" />
+            </svg>
             {/* A landscape photo frame; focusing it develops the photo into a
                 real, draggable map with the home badge fixed dead-centre. */}
             <div className="w-full max-w-[350px] md:max-w-[480px] lg:max-w-[620px] bg-white rounded-[20px] p-2 pb-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] flex flex-col items-center gap-1">
@@ -2513,8 +2587,6 @@ export default function OnboardingV2Page() {
                 autoCapitalize="off"
                 value={inviteDraft}
                 onChange={(e) => setInviteDraft(e.target.value)}
-                onFocus={() => setInviteFocused(true)}
-                onBlur={() => setInviteFocused(false)}
                 onKeyDown={(e) => e.key === 'Enter' && submitInvite()}
                 placeholder={L.invitePh}
                 className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
@@ -2532,10 +2604,11 @@ export default function OnboardingV2Page() {
               <Press
                 aria-label="Send invite"
                 onClick={submitInvite}
-                className="size-[40px] rounded-full flex items-center justify-center shrink-0"
+                className="min-h-[40px] px-4 rounded-full flex items-center justify-center gap-1.5 shrink-0"
                 style={{ background: inviteValid ? ACCENT : '#ffffff', color: inviteValid ? '#fff' : TEXT_2 }}
               >
-                <IconUserPlus size={20} />
+                <IconUserPlus size={18} />
+                <span className="text-[14px] font-semibold tracking-[-0.28px]">{L.inviteSend}</span>
               </Press>
             </div>
             {/* every invite is a guest key — the caption says so instead of
@@ -2553,6 +2626,26 @@ export default function OnboardingV2Page() {
         return (
           <>
             {/* one field does both: type an address, or tap the target to be found */}
+            <div className="relative w-full">
+              {/* suggested addresses open upward, over the artwork */}
+              {locSuggestions.length > 0 && (
+                <div className="absolute bottom-full mb-2 inset-x-0 z-20 bg-white rounded-[20px] p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.16)] flex flex-col">
+                  {locSuggestions.map((s) => (
+                    <Press
+                      key={s.name}
+                      onClick={() => pickSuggestion(s)}
+                      className="text-left px-3.5 py-2 rounded-[14px] hover:bg-[#f3f3f3] min-w-0"
+                    >
+                      <span className="block text-[14px] font-semibold tracking-[-0.28px] truncate" style={{ color: TEXT }}>
+                        {s.name.split(',')[0]}
+                      </span>
+                      <span className="block text-[12px] truncate" style={{ color: TEXT_DIM }}>
+                        {s.name.split(',').slice(1).join(',').trim()}
+                      </span>
+                    </Press>
+                  ))}
+                </div>
+              )}
             <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] p-2 pl-5 flex items-center gap-2">
               <input
                 inputMode="search"
@@ -2584,6 +2677,7 @@ export default function OnboardingV2Page() {
               >
                 <IconCurrentLocation size={19} color={locating ? ACCENT : TEXT_2} />
               </Press>
+            </div>
             </div>
             <CtaButton label={L.cont} onClick={next} arrow />
           </>
@@ -2733,9 +2827,16 @@ export default function OnboardingV2Page() {
            (map, shelves) sizes via layout instead: a transform would break
            leaflet drags & scrolling. */
         @media (min-width: 768px) and (min-height: 720px) { .onboarding-v2 { --obv2-art-scale: 1.2; } }
-        @media (min-width: 1440px) and (min-height: 800px) { .onboarding-v2 { --obv2-art-scale: 1.5; } }
+        @media (min-width: 1024px) { .onboarding-v2 { --obv2-art-scale: 1.35; } }
+        @media (min-width: 1440px) and (min-height: 800px) { .onboarding-v2 { --obv2-art-scale: 1.7; } }
         .obv2-art { transform: scale(var(--obv2-art-scale, 1)); }
         .obv2-art-bottom { transform-origin: 50% 100%; }
+        /* name step, large screens: focusing the input zooms into the door
+           instead of sliding the scene (the slide stays for phones) */
+        .obv2-name-door { transition: transform 0.6s cubic-bezier(0.32, 0.72, 0.25, 1); }
+        @media (min-width: 1024px) {
+          .obv2-name-door.obv2-zoomed { transform: scale(1.35); }
+        }
         @keyframes obv2-vacuum { 0%, 45% { transform: translateX(var(--obv2-vac-park, 300px)); } 56% { transform: translateX(46px); } 63% { transform: translateX(66px); } 74% { transform: translateX(-34px); } 82% { transform: translateX(-14px); } 93%, 100% { transform: translateX(var(--obv2-vac-park, 300px)); } }
         @keyframes obv2-book-poke { 0%, 100% { transform: rotate(var(--lean, 0deg)); } 30% { transform: rotate(calc(var(--lean, 0deg) + 8deg)); } 65% { transform: rotate(calc(var(--lean, 0deg) - 4deg)); } }
         /* Phones are portrait-only: landscape gets a rotate prompt instead of
@@ -2912,8 +3013,8 @@ export default function OnboardingV2Page() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 12, scale: 0.95 }}
                       transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-                      className="bg-white rounded-full px-5 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.14)] text-[14px] font-semibold tracking-[-0.28px] max-w-[90%] truncate"
-                      style={{ color: TEXT }}
+                      className="rounded-full px-5 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.2)] text-[14px] font-semibold tracking-[-0.28px] max-w-[90%] truncate text-white"
+                      style={{ background: INK }}
                     >
                       {toast.msg}
                     </motion.div>
