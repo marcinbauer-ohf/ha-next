@@ -2041,6 +2041,27 @@ export default function OnboardingV2Page() {
   const [customRooms, setCustomRooms] = useState<string[]>([]);
   const [credFocused, setCredFocused] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
+  // lg keeps art and house in ONE proportion: the stage reports its measured
+  // width and the art scale follows it (460 = the reference design width).
+  // Below lg the media-query scale applies instead.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const inDashboard = step === 'dashboard';
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const apply = () => {
+      if (window.matchMedia('(min-width: 1024px)').matches) {
+        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 460).toFixed(3));
+      } else {
+        el.style.removeProperty('--obv2-art-scale');
+      }
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [inDashboard]);
+
   // Discovery never waits for onboarding: HA starts scanning the network the
   // moment it boots, so devices trickle in while the user is still at the door.
   const [found, setFound] = useState(0);
@@ -2828,8 +2849,8 @@ export default function OnboardingV2Page() {
            (map, shelves) sizes via layout instead: a transform would break
            leaflet drags & scrolling. */
         @media (min-width: 768px) and (min-height: 720px) { .onboarding-v2 { --obv2-art-scale: 1.2; } }
-        @media (min-width: 1024px) { .onboarding-v2 { --obv2-art-scale: 1.35; } }
-        @media (min-width: 1440px) and (min-height: 800px) { .onboarding-v2 { --obv2-art-scale: 1.7; } }
+        /* on lg the stage element sets --obv2-art-scale inline from its own
+           measured size, so art and house stay in one fixed proportion */
         .obv2-art { transform: scale(var(--obv2-art-scale, 1)); }
         .obv2-art-bottom { transform-origin: 50% 100%; }
         /* lg experiment: the whole page is white, and the gray stage shows
@@ -2916,7 +2937,7 @@ export default function OnboardingV2Page() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.18 }}
-                      className="text-[19px] font-semibold tracking-[-0.38px] truncate max-w-full md:hidden"
+                      className="text-[19px] font-semibold tracking-[-0.38px] truncate max-w-full lg:hidden"
                       style={{ color: TEXT }}
                     >
                       {heading.title}
@@ -2964,7 +2985,7 @@ export default function OnboardingV2Page() {
               {/* supporting copy under the app bar — folded away when the
                   keyboard is up so the artwork keeps as much room as possible */}
               {heading.sub != null && (
-              <div className={clsx('pt-1.5 flex items-start justify-center md:hidden', compact ? 'hidden' : 'min-h-[40px]')}>
+              <div className={clsx('pt-1.5 flex items-start justify-center lg:hidden', compact ? 'hidden' : 'min-h-[40px]')}>
                 <AnimatePresence mode="popLayout" initial={false}>
                   <motion.p
                     key={stepKey}
@@ -2983,11 +3004,13 @@ export default function OnboardingV2Page() {
             </div>
             {/* lg: one row splits the screen — the story on the left, the
                 action on the right */}
-            <div className="flex-1 md:grow-[3] min-h-0 flex flex-col lg:flex-row">
-            {/* only the artwork slides between steps */}
-            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
-              {/* lg: the gray stage lives inside the house-shaped cutout */}
-              <div className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(86%,76vh)] lg:aspect-square lg:shrink-0">
+            <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
+            {/* only the artwork slides between steps. lg: the column hugs the
+                house; the form pane takes whatever width remains */}
+            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-auto lg:px-12 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
+              {/* the gray stage lives inside the house-shaped cutout, capped
+                  at 600px; the art scales with it in one fixed proportion */}
+              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(44vw,76vh,600px)] lg:aspect-square lg:shrink-0">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -3003,20 +3026,6 @@ export default function OnboardingV2Page() {
                   transition={{ type: 'spring', stiffness: 380, damping: 34 }}
                   className="h-full w-full flex flex-col"
                 >
-                  {/* tablet: the heading lives display-sized in the artboard;
-                      on lg it moves to the form pane instead */}
-                  {heading.title != null && (
-                    <div className="hidden md:block lg:hidden text-center pt-3 pb-2 shrink-0">
-                      <h1 className="text-[42px] font-semibold tracking-[-1.26px] leading-tight" style={{ color: TEXT }}>
-                        {heading.title}
-                      </h1>
-                      {heading.sub && (
-                        <p className="text-[18px] tracking-[-0.36px] mt-2 mx-auto max-w-[620px]" style={{ color: TEXT_2 }}>
-                          {heading.sub}
-                        </p>
-                      )}
-                    </div>
-                  )}
                   {art}
                 </motion.div>
               </AnimatePresence>
@@ -3025,7 +3034,7 @@ export default function OnboardingV2Page() {
             {/* static bottom sheet — its contents crossfade per step. On lg it
                 is the right half of the screen: a white pane with the heading
                 and the form, vertically centred. */}
-            <div className="relative lg:w-1/2 lg:flex-none lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-12 lg:overflow-y-auto">
+            <div className="relative lg:flex-1 lg:min-w-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-12 lg:overflow-y-auto">
               {/* toast — discovery ticks, invite confirmations: rises over the sheet */}
               <AnimatePresence>
                 {toast && (
@@ -3049,7 +3058,7 @@ export default function OnboardingV2Page() {
               {/* mobile only — on desktop the floating card carries a shadow */}
               <div
                 aria-hidden
-                className="absolute -top-20 inset-x-0 h-[116px] pointer-events-none md:hidden"
+                className="absolute -top-20 inset-x-0 h-[116px] pointer-events-none lg:hidden"
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10) 36px, transparent)' }}
               />
             {/* lg: the heading leads the form pane — display-sized, left-aligned */}
@@ -3076,8 +3085,6 @@ export default function OnboardingV2Page() {
             <div
               className={clsx(
                 'relative bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)] w-full max-w-[640px] mx-auto',
-                // Tablet: not pinned — a floating card under the artwork.
-                'md:rounded-[32px] md:mb-8 md:pt-6 md:pb-6 md:px-8 md:shadow-[0_16px_50px_rgba(0,0,0,0.10)]',
                 // lg: no card chrome — the form sits naked on the white pane.
                 'lg:max-w-[440px] lg:rounded-none lg:shadow-none lg:bg-transparent lg:m-0 lg:p-0',
                 compact && typing && 'obv2-hide-cta',
@@ -3089,7 +3096,7 @@ export default function OnboardingV2Page() {
                 if ((e.target as HTMLElement).tagName === 'INPUT') setTyping(false);
               }}
             >
-              <div className="mx-auto w-[40px] h-[4px] rounded-full bg-[#e6e6e6] mb-2 md:hidden" />
+              <div className="mx-auto w-[40px] h-[4px] rounded-full bg-[#e6e6e6] mb-2 lg:hidden" />
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={stepKey}
@@ -3105,8 +3112,6 @@ export default function OnboardingV2Page() {
             </div>
             </div>
             </div>
-            {/* tablet: pushes the floating card up to roughly two-thirds height */}
-            <div aria-hidden className="hidden md:block lg:hidden grow basis-0" />
           </div>
         )}
       </div>
