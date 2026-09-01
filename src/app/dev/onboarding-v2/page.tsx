@@ -1039,10 +1039,13 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
           stands centred instead of stretching apart */}
       {/* not scaled: the scene's door is already display-sized, and growth
           would collide with the heading above it */}
-      {/* lg: sits a touch lower so the right column clears the roof slope */}
-      <div className="obv2-art flex-1 min-h-0 relative w-full max-w-[430px] mx-auto lg:top-[4%]">
+      <div className="obv2-art flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
         {/* the door bleeds off the left edge, standing on its mat */}
-        <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={knock}>
+        {/* lg: the door parks centred at the house bottom — the logo's door */}
+        <div
+          className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer lg:left-1/2 lg:-translate-x-[88px] lg:top-auto lg:bottom-[5%] lg:translate-y-0"
+          onClick={knock}
+        >
           <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} open={gaveUp} onPokeEnd={endPoke} />
           {/* the doormat — a flat slab at the doorstep, skewed away from the door */}
           <div
@@ -1087,7 +1090,8 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         </div>
         {/* the wall arrangement on the right — left-anchored so the shelf
             planks can run off the right edge, mirroring the door's bleed */}
-        <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start">
+        {/* lg: the wall arrangement steps aside to flank the centred door */}
+        <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start lg:left-[calc(50%+112px)] lg:top-[54%]">
           <div className="flex items-end gap-4">
             {/* the map in a landscape photo frame, hung from a wire on a nail —
                 a tap swings the whole thing around that nail */}
@@ -2052,7 +2056,9 @@ export default function OnboardingV2Page() {
     if (!el) return;
     const apply = () => {
       if (window.matchMedia('(min-width: 1024px)').matches) {
-        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 940).toFixed(3));
+        // 555 puts the welcome door at ~30% of the house width — the same
+        // door-to-house proportion as the Home Assistant logo.
+        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 555).toFixed(3));
       } else {
         el.style.removeProperty('--obv2-art-scale');
       }
@@ -3009,10 +3015,10 @@ export default function OnboardingV2Page() {
             <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
             {/* only the artwork slides between steps. lg: the column hugs the
                 house; the form pane takes whatever width remains */}
-            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-auto lg:px-12 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
+            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-1/2 lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
-              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(52vw,90vh,1200px)] lg:aspect-square lg:shrink-0">
+              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(39vw,68vh,900px)] lg:aspect-square lg:shrink-0">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -3036,7 +3042,7 @@ export default function OnboardingV2Page() {
             {/* static bottom sheet — its contents crossfade per step. On lg it
                 is the right half of the screen: a white pane with the heading
                 and the form, vertically centred. */}
-            <div className="relative lg:flex-1 lg:min-w-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-12 lg:overflow-y-auto">
+            <div className="relative lg:flex-none lg:w-1/2 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-12 lg:overflow-y-auto">
               {/* toast — discovery ticks, invite confirmations: rises over the sheet */}
               <AnimatePresence>
                 {toast && (
@@ -3063,8 +3069,8 @@ export default function OnboardingV2Page() {
                 className="absolute -top-20 inset-x-0 h-[116px] pointer-events-none lg:hidden"
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10) 36px, transparent)' }}
               />
-            {/* lg: the heading leads the form pane — display-sized, left-aligned */}
-            <div className="hidden lg:block w-full max-w-[440px] mb-9">
+            {/* lg: the heading leads the form pane — display-sized, centred */}
+            <div className="hidden lg:block w-full max-w-[440px] mb-9 text-center">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={stepKey}
@@ -3077,7 +3083,7 @@ export default function OnboardingV2Page() {
                     {paneTitle}
                   </h1>
                   {paneSub && (
-                    <p className="mt-3 text-[16px] leading-snug tracking-[-0.32px] max-w-[400px]" style={{ color: TEXT_2 }}>
+                    <p className="mt-3 text-[16px] leading-snug tracking-[-0.32px] max-w-[400px] mx-auto" style={{ color: TEXT_2 }}>
                       {paneSub}
                     </p>
                   )}
