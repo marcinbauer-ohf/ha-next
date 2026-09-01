@@ -3053,14 +3053,16 @@ export default function OnboardingV2Page() {
               )}
             </div>
             {/* lg: one centred stack — the masked story on top, the action
-                right below it */}
-            <div className="flex-1 min-h-0 flex flex-col lg:w-full lg:max-w-[1200px] lg:mx-auto lg:items-center lg:justify-center">
+                right below it. The house is anchored (fixed top offset, fixed
+                size) and the form gets the fixed remainder, scrolling inside
+                when a step runs tall — so nothing jumps between steps. */}
+            <div className="flex-1 min-h-0 flex flex-col lg:w-full lg:max-w-[1200px] lg:mx-auto lg:items-center lg:justify-start">
             {/* only the artwork slides between steps. lg: the column hugs the
                 house; the form pane takes whatever width remains */}
-            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
+            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:pt-16 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
-              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,calc(100vh-330px),700px)] lg:aspect-square lg:shrink-0">
+              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,calc(100vh-390px),700px)] lg:aspect-square lg:shrink-0">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -3084,7 +3086,7 @@ export default function OnboardingV2Page() {
             {/* static bottom sheet — its contents crossfade per step. On lg it
                 is the right half of the screen: a white pane with the heading
                 and the form, vertically centred. */}
-            <div className="relative lg:flex-none lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-8">
+            <div className="relative lg:flex-1 lg:min-h-0 lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-6 lg:overflow-y-auto">
               {/* toast — discovery ticks, invite confirmations: rises over the sheet */}
               <AnimatePresence>
                 {toast && (
@@ -3111,6 +3113,9 @@ export default function OnboardingV2Page() {
                 className="absolute -top-20 inset-x-0 h-[116px] pointer-events-none lg:hidden"
                 style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.10) 36px, transparent)' }}
               />
+            {/* lg: sticky top fade — the mirror of the bottom one; sits over the
+                pane's padding until scrolling slides content beneath it */}
+            <div aria-hidden className="hidden lg:block sticky top-0 w-full h-8 shrink-0 -mb-8 z-10 pointer-events-none bg-gradient-to-b from-white to-transparent" />
             {/* lg: the heading leads the form pane — display-sized, centred */}
             <div className="hidden lg:block w-full max-w-[440px] mb-9 text-center">
               <AnimatePresence mode="popLayout" initial={false}>
@@ -3160,6 +3165,9 @@ export default function OnboardingV2Page() {
                 </motion.div>
               </AnimatePresence>
             </div>
+            {/* lg: sticky scroll fade — pinned to the slot's bottom edge while
+                a tall step has more below, slides away at the end of scroll */}
+            <div aria-hidden className="hidden lg:block sticky bottom-0 w-full h-12 shrink-0 pointer-events-none bg-gradient-to-t from-white to-transparent" />
             </div>
             </div>
           </div>
