@@ -1039,7 +1039,8 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
           stands centred instead of stretching apart */}
       {/* not scaled: the scene's door is already display-sized, and growth
           would collide with the heading above it */}
-      <div className="obv2-art flex-1 min-h-0 relative w-full max-w-[430px] mx-auto">
+      {/* lg: sits a touch lower so the right column clears the roof slope */}
+      <div className="obv2-art flex-1 min-h-0 relative w-full max-w-[430px] mx-auto lg:top-[4%]">
         {/* the door bleeds off the left edge, standing on its mat */}
         <div className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer" onClick={knock}>
           <Door name={homeName} height={330} poked={poke === 'door'} held={catOut} open={gaveUp} onPokeEnd={endPoke} />
@@ -2051,7 +2052,7 @@ export default function OnboardingV2Page() {
     if (!el) return;
     const apply = () => {
       if (window.matchMedia('(min-width: 1024px)').matches) {
-        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 430).toFixed(3));
+        el.style.setProperty('--obv2-art-scale', (el.clientWidth / 380).toFixed(3));
       } else {
         el.style.removeProperty('--obv2-art-scale');
       }
@@ -3011,7 +3012,7 @@ export default function OnboardingV2Page() {
             <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-auto lg:px-12 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
-              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(44vw,76vh,600px)] lg:aspect-square lg:shrink-0">
+              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(52vw,90vh,1200px)] lg:aspect-square lg:shrink-0">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
