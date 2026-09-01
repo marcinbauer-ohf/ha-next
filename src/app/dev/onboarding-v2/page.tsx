@@ -3052,15 +3052,15 @@ export default function OnboardingV2Page() {
               </div>
               )}
             </div>
-            {/* lg: one row splits the screen — the story on the left, the
-                action on the right, the whole column capped and centred */}
-            <div className="flex-1 min-h-0 flex flex-col lg:flex-row lg:w-full lg:max-w-[1200px] lg:mx-auto">
+            {/* lg: one centred stack — the masked story on top, the action
+                right below it */}
+            <div className="flex-1 min-h-0 flex flex-col lg:w-full lg:max-w-[1200px] lg:mx-auto lg:items-center lg:justify-center">
             {/* only the artwork slides between steps. lg: the column hugs the
                 house; the form pane takes whatever width remains */}
-            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-1/2 lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
+            <div className="flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
-              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(39vw,68vh,560px)] lg:aspect-square lg:shrink-0">
+              <div ref={stageRef} className="obv2-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,calc(100vh-330px),700px)] lg:aspect-square lg:shrink-0">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
                   key={stepKey}
@@ -3084,11 +3084,11 @@ export default function OnboardingV2Page() {
             {/* static bottom sheet — its contents crossfade per step. On lg it
                 is the right half of the screen: a white pane with the heading
                 and the form, vertically centred. */}
-            <div className="relative lg:flex-none lg:w-1/2 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:px-12 lg:overflow-y-auto">
+            <div className="relative lg:flex-none lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-8">
               {/* toast — discovery ticks, invite confirmations: rises over the sheet */}
               <AnimatePresence>
                 {toast && (
-                  <div className="absolute -top-[64px] inset-x-0 z-30 flex justify-center pointer-events-none lg:top-auto lg:bottom-10">
+                  <div className="absolute -top-[64px] inset-x-0 z-30 flex justify-center pointer-events-none lg:fixed lg:top-auto lg:bottom-3">
                     <motion.div
                       key={toast.id}
                       initial={{ opacity: 0, y: 12, scale: 0.95 }}
