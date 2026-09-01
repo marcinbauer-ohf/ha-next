@@ -489,6 +489,7 @@ function Shelf({
   index,
   onSelect,
   onStraighten,
+  onRename,
 }: {
   label: string;
   books: Book[];
@@ -498,9 +499,12 @@ function Shelf({
   onSelect?: () => void;
   /** Tapping a leaning book stands it back up. */
   onStraighten?: (id: string) => void;
+  /** Tapping the floor name edits it in place. */
+  onRename?: (name: string) => void;
 }) {
   // Touching a standing book gives it a little wobble around its lean.
   const [pokedId, setPokedId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   return (
     <motion.div
       layout
@@ -559,11 +563,37 @@ function Shelf({
           </div>
         </div>
       )}
-      {/* the shelf plank — wood-rounded, not a pill */}
+      {/* the shelf plank — wood-rounded, not a pill. The name edits in place. */}
       <motion.div layout className="w-full bg-white rounded-[12px] min-h-[44px] flex items-center justify-center px-4">
-        <span className="text-[20px] font-semibold tracking-[-0.4px]" style={{ color: TEXT_DIM }}>
-          {label}
-        </span>
+        {editing ? (
+          <input
+            autoFocus
+            defaultValue={label}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            onBlur={(e) => {
+              setEditing(false);
+              onRename?.(e.target.value);
+            }}
+            className="w-full bg-transparent outline-none text-center text-[20px] font-semibold tracking-[-0.4px]"
+            style={{ color: TEXT_DIM }}
+          />
+        ) : (
+          <span
+            className={clsx('text-[20px] font-semibold tracking-[-0.4px]', onRename && 'cursor-text')}
+            style={{ color: TEXT_DIM }}
+            onClick={
+              onRename
+                ? (e) => {
+                    e.stopPropagation();
+                    setEditing(true);
+                  }
+                : undefined
+            }
+          >
+            {label}
+          </span>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -576,6 +606,8 @@ function ShelfStack({
   focusIndex,
   onSelect,
   onStraighten,
+  names,
+  onRename,
 }: {
   L: Copy;
   floors: number;
@@ -585,6 +617,9 @@ function ShelfStack({
   /** When set, tapping a shelf jumps to that floor. */
   onSelect?: (i: number) => void;
   onStraighten?: (id: string) => void;
+  /** Resolves a floor's display name (custom names override defaults). */
+  names?: (i: number) => string;
+  onRename?: (i: number, name: string) => void;
 }) {
   // Higher floors render first so the ground floor sits at the bottom.
   const order = Array.from({ length: floors }, (_, i) => floors - 1 - i);
@@ -596,13 +631,14 @@ function ShelfStack({
         {order.map((i) => (
           <Shelf
             key={`floor-${i}`}
-            label={floorName(L, i)}
+            label={names ? names(i) : floorName(L, i)}
             books={booksByFloor[i] ?? []}
             dimmed={focusIndex !== null && i !== focusIndex}
             showHeadroom={focusIndex === i}
             index={i}
             onSelect={onSelect && i !== focusIndex ? () => onSelect(i) : undefined}
             onStraighten={onStraighten}
+            onRename={onRename ? (name) => onRename(i, name) : undefined}
           />
         ))}
       </AnimatePresence>
@@ -868,9 +904,11 @@ function KeySvg({
         bits.map((b, i) => (
           <circle key={i} cx={mid + (b - 0.5) * 5} cy={28 + i * 8} r={1.2 + b * 1.4} fill={SURFACE} />
         ))}
-      {/* thin body-coloured collar, then the cap on top of everything */}
+      {/* thin body-coloured collar, then the cap on top of everything.
+          The bow drops just enough that its outer edge (r + stroke/2) never
+          pokes above the viewBox, where the svg would crop it flat. */}
       <rect x="12" y={15.5} width="8" height="4" rx="2" fill={color} />
-      <circle cx="16" cy="10" r={headR} stroke={cap} strokeWidth={headStroke} />
+      <circle cx="16" cy={Math.max(10, headR + headStroke / 2 + 0.75)} r={headR} stroke={cap} strokeWidth={headStroke} />
     </svg>
   );
 }
@@ -886,7 +924,7 @@ function Keychain({
 }) {
   const n = keys.length;
   return (
-    <div className="flex flex-col items-center">
+    <div className="relative flex flex-col items-center">
       <div
         className="rounded-full border-white bg-transparent shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
         style={{ width: ringSize, height: ringSize, borderWidth: ringSize * 0.16 }}
@@ -915,6 +953,13 @@ function Keychain({
           </div>
         ))}
       </div>
+      {/* the ring's front arc passes back OVER the keys, so they read as
+          threaded onto the ring rather than stacked behind it */}
+      <div
+        aria-hidden
+        className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full border-white bg-transparent"
+        style={{ width: ringSize, height: ringSize, borderWidth: ringSize * 0.16, clipPath: 'inset(50% 0 0 0)' }}
+      />
     </div>
   );
 }
@@ -1228,6 +1273,8 @@ function AreasArt({
   floorIndex,
   onSelectFloor,
   onStraighten,
+  names,
+  onRename,
 }: {
   L: Copy;
   floors: number;
@@ -1235,6 +1282,8 @@ function AreasArt({
   floorIndex: number;
   onSelectFloor: (i: number) => void;
   onStraighten: (id: string) => void;
+  names?: (i: number) => string;
+  onRename?: (i: number, name: string) => void;
 }) {
   const [stackScrolled, setStackScrolled] = useState(false);
   // Keep the focused shelf in view when hopping floors via tap or Continue.
@@ -1249,7 +1298,7 @@ function AreasArt({
         className="h-full overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={(e) => setStackScrolled(e.currentTarget.scrollTop > 8)}
       >
-        <ShelfStack L={L} floors={floors} booksByFloor={booksByFloor} focusIndex={floorIndex} onSelect={onSelectFloor} onStraighten={onStraighten} />
+        <ShelfStack L={L} floors={floors} booksByFloor={booksByFloor} focusIndex={floorIndex} onSelect={onSelectFloor} onStraighten={onStraighten} names={names} onRename={onRename} />
       </div>
       <div
         aria-hidden
@@ -2093,6 +2142,8 @@ export default function OnboardingV2Page() {
   const [floorIndex, setFloorIndex] = useState(0);
   const [booksByFloor, setBooksByFloor] = useState<Book[][]>([[]]);
   const [customRooms, setCustomRooms] = useState<string[]>([]);
+  // Custom floor names (tap a shelf's label to edit); empty falls back.
+  const [floorNames, setFloorNames] = useState<Record<number, string>>({});
   const [credFocused, setCredFocused] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
   // lg keeps art and house in ONE proportion: the stage reports its measured
@@ -2201,7 +2252,7 @@ export default function OnboardingV2Page() {
   const showToast = (msg: string, id?: string, keySeed?: string) => {
     const seq = ++toastSeq.current;
     setToast({ id: id ?? `t-${seq}`, msg, seq, keySeed });
-    setTimeout(() => setToast((t) => (t && t.seq === seq ? null : t)), 2800);
+    setTimeout(() => setToast((t) => (t && t.seq === seq ? null : t)), 4800);
   };
 
   // Each newly discovered device re-raises the toast with the running count.
@@ -2225,17 +2276,24 @@ export default function OnboardingV2Page() {
 
   const toggleRoom = useCallback(
     (room: string, Icon: TablerIcon) => {
+      // "Bedroom 2", "Bedroom 3", … are copies of "Bedroom" — unchecking the
+      // base room takes its copies off this floor too, and retires their
+      // chips unless another floor still uses them.
+      const rx = new RegExp(`^${room.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\d+$`);
+      const removing = (booksByFloor[floorIndex] ?? []).some((b) => b.room === room);
       setBooksByFloor((prev) => {
         const next = prev.map((f) => [...f]);
         while (next.length < floors) next.push([]);
-        const shelf = next[floorIndex];
-        const at = shelf.findIndex((b) => b.room === room);
-        if (at >= 0) shelf.splice(at, 1);
-        else shelf.push(makeBook(room, Icon));
+        if (removing) next[floorIndex] = next[floorIndex].filter((b) => b.room !== room && !rx.test(b.room));
+        else next[floorIndex].push(makeBook(room, Icon));
         return next;
       });
+      if (removing) {
+        const usedElsewhere = new Set(booksByFloor.flatMap((f, i) => (i === floorIndex ? [] : f.map((b) => b.room))));
+        setCustomRooms((prev) => prev.filter((n) => !rx.test(n) || usedElsewhere.has(n)));
+      }
     },
-    [floorIndex, floors],
+    [floorIndex, floors, booksByFloor],
   );
 
   const addCustomRoom = useCallback(
@@ -2402,7 +2460,7 @@ export default function OnboardingV2Page() {
   // starts with one or two example devices. Six flat placeholders if the
   // structure steps were skipped entirely.
   const structure: FloorSection[] = booksByFloor
-    .map((shelf, i) => ({ name: floorName(L, i), areas: shelf.map((b) => b.room) }))
+    .map((shelf, i) => ({ name: floorNames[i]?.trim() || floorName(L, i), areas: shelf.map((b) => b.room) }))
     .filter((f) => f.areas.length > 0);
   let seedIdx = 0;
   const cards: Card[] = structure.length
@@ -2458,7 +2516,7 @@ export default function OnboardingV2Page() {
           title: (
             <>
               <span style={{ color: TEXT_2 }}>{L.areasOn}</span>
-              <span>{floorName(L, floorIndex).toLowerCase()}</span>
+              <span>{(floorNames[floorIndex]?.trim() || floorName(L, floorIndex)).toLowerCase()}</span>
             </>
           ),
           sub: L.areasSub,
@@ -2612,11 +2670,29 @@ export default function OnboardingV2Page() {
       case 'floors':
         return (
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col justify-end">
-            <ShelfStack L={L} floors={floors} booksByFloor={[]} focusIndex={null} />
+            <ShelfStack
+              L={L}
+              floors={floors}
+              booksByFloor={[]}
+              focusIndex={null}
+              names={(i) => floorNames[i]?.trim() || floorName(L, i)}
+              onRename={(i, name) => setFloorNames((p) => ({ ...p, [i]: name }))}
+            />
           </div>
         );
       case 'areas':
-        return <AreasArt L={L} floors={floors} booksByFloor={booksByFloor} floorIndex={floorIndex} onSelectFloor={selectFloor} onStraighten={straightenBook} />;
+        return (
+          <AreasArt
+            L={L}
+            floors={floors}
+            booksByFloor={booksByFloor}
+            floorIndex={floorIndex}
+            onSelectFloor={selectFloor}
+            onStraighten={straightenBook}
+            names={(i) => floorNames[i]?.trim() || floorName(L, i)}
+            onRename={(i, name) => setFloorNames((p) => ({ ...p, [i]: name }))}
+          />
+        );
       case 'permissions':
         return <MailboxArt prefs={prefs} />;
       default:
@@ -2763,7 +2839,7 @@ export default function OnboardingV2Page() {
                 value={locQuery}
                 onChange={(e) => setLocQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && searchAddress()}
-                placeholder={L.locSearchPh}
+                placeholder={address ?? L.locSearchPh}
                 className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
                 style={{ color: TEXT }}
               />
@@ -2848,8 +2924,11 @@ export default function OnboardingV2Page() {
       case 'permissions':
         return (
           <>
+            {/* lg: two columns, so all four rows plus the bonus thank-you
+                letter fit the slot with no scrollbar or fade */}
+            <div className="contents lg:grid lg:grid-cols-2 lg:gap-x-4 lg:gap-y-2">
             {L.analytics.map(({ key, label, desc }) => (
-              <div key={key} className="flex items-center justify-between gap-3 px-3 py-1.5 lg:py-1">
+              <div key={key} className="flex items-center justify-between gap-3 px-3 py-1.5 lg:py-1 lg:px-1">
                 <div className="flex flex-col min-w-0">
                   <span className="text-[16px] font-semibold tracking-[-0.32px]" style={{ color: TEXT }}>
                     {label}
@@ -2861,6 +2940,7 @@ export default function OnboardingV2Page() {
                 <MiniToggle on={!!prefs[key]} onToggle={() => setPrefs({ ...prefs, [key]: !prefs[key] })} />
               </div>
             ))}
+            </div>
             {/* Sharing everything unlocks one more letter: a thank-you note. */}
             <AnimatePresence initial={false}>
               {allAnalyticsOn && (
