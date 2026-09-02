@@ -2538,7 +2538,10 @@ export default function OnboardingV2Page() {
            document must match the surface, or it flashes dark. */
         html, body { background: ${SURFACE}; }
         [data-squircle="on"] .onboarding-v2, [data-squircle="on"] .onboarding-v2 * { corner-shape: round; }
-        .obv2-hide-cta .obv2-cta { display: none; }
+        /* phones only: with the keyboard up the CTA may fall out of frame, so
+           it hides while typing. Desktop must never hide it — the compact
+           heuristic can misfire there after a window resize. */
+        @media (max-width: 1023px) { .obv2-hide-cta .obv2-cta { display: none; } }
         @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
         @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
         ${SCENES_KEYFRAMES}

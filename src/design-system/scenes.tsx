@@ -154,12 +154,13 @@ export function Keychain({
           </div>
         ))}
       </div>
-      {/* the ring's front arc passes back OVER the keys, so they read as
-          threaded onto the ring rather than stacked behind it */}
+      {/* splice: the full ring paints behind the keys (its left arc shows
+          there), and this right-half copy paints over them — so the ring
+          passes behind one side of each bow and in front of the other */}
       <div
         aria-hidden
         className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full border-white bg-transparent"
-        style={{ width: ringSize, height: ringSize, borderWidth: ringSize * 0.16, clipPath: 'inset(50% 0 0 0)' }}
+        style={{ width: ringSize, height: ringSize, borderWidth: ringSize * 0.16, clipPath: 'inset(0 0 0 50%)' }}
       />
     </div>
   );
