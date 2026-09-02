@@ -20,7 +20,6 @@ import { AnimatePresence, motion, useDragControls } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
   IconAccessible,
-  IconArrowRight,
   IconArmchair,
   IconBarbell,
   IconBath,
@@ -51,8 +50,6 @@ import {
   IconPlug,
   IconUserPlus,
   IconX,
-  IconEye,
-  IconEyeOff,
   IconHeart,
   IconDeviceTv,
   IconDroplet,
@@ -86,6 +83,10 @@ import {
   type Icon as TablerIcon,
 } from '@tabler/icons-react';
 import type { LatLng } from './MapPicker';
+import { capColorFor, color, keyHash } from '@/design-system/tokens';
+import { CtaButton, PillInput, Press, Toggle as MiniToggle } from '@/design-system/primitives';
+import { PopMenu } from '@/design-system/overlays';
+import { Door, KeySvg, Keychain, SCENES_KEYFRAMES } from '@/design-system/scenes';
 
 // leaflet reads `window` on import — keep it out of the server bundle.
 const MapPicker = dynamic(() => import('./MapPicker'), {
@@ -94,12 +95,12 @@ const MapPicker = dynamic(() => import('./MapPicker'), {
 });
 
 // ── Palette (values lifted from the Figma --ha/* tokens) ────────────────────
-const SURFACE = '#e6e6e6';
-const ACCENT = '#009ac7';
-const INK = '#202020';
-const TEXT = '#141414';
-const TEXT_2 = '#5e5e5e';
-const TEXT_DIM = '#989898';
+const SURFACE = color.surface;
+const ACCENT = color.accent;
+const INK = color.ink;
+const TEXT = color.text;
+const TEXT_2 = color.text2;
+const TEXT_DIM = color.textDim;
 
 const MAX_FLOORS = 5;
 
@@ -447,39 +448,6 @@ function makeBook(room: string, Icon: TablerIcon): Book {
   };
 }
 
-// ── Press button: scales down with a spring and shifts its color on press ───
-function Press({
-  className,
-  style,
-  onClick,
-  children,
-  brighten = false,
-  'aria-label': ariaLabel,
-}: {
-  className?: string;
-  style?: React.CSSProperties;
-  onClick?: () => void;
-  children: React.ReactNode;
-  /** Dark buttons lighten on press; light ones darken. */
-  brighten?: boolean;
-  'aria-label'?: string;
-}) {
-  return (
-    <motion.button
-      type="button"
-      aria-label={ariaLabel}
-      onClick={onClick}
-      whileHover={{ filter: brighten ? 'brightness(1.35)' : 'brightness(0.93)' }}
-      whileTap={{ scale: 0.93, filter: brighten ? 'brightness(1.7)' : 'brightness(0.9)' }}
-      transition={{ type: 'spring', stiffness: 600, damping: 32 }}
-      className={className}
-      style={style}
-    >
-      {children}
-    </motion.button>
-  );
-}
-
 // ── Shelf + stack ────────────────────────────────────────────────────────────
 function Shelf({
   label,
@@ -642,402 +610,6 @@ function ShelfStack({
           />
         ))}
       </AnimatePresence>
-    </div>
-  );
-}
-
-// ── Shared chrome ────────────────────────────────────────────────────────────
-function PopMenu({
-  open,
-  items,
-  onPick,
-  onPickItem,
-  leading,
-  align = 'left',
-}: {
-  open: boolean;
-  items: string[];
-  onPick: () => void;
-  /** Optional per-item hook, called with the item index before onPick. */
-  onPickItem?: (i: number) => void;
-  /** Optional per-item leading adornment (e.g. a flag emoji). */
-  leading?: string[];
-  align?: 'left' | 'right';
-}) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          initial={{ opacity: 0, y: -6, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -6, scale: 0.96 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 32 }}
-          className={clsx(
-            'absolute top-[52px] z-10 bg-white rounded-[20px] p-2 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col min-w-[220px]',
-            align === 'left' ? 'left-0' : 'right-0',
-          )}
-        >
-          {items.map((label, i) => (
-            <Press
-              key={label}
-              onClick={() => {
-                onPickItem?.(i);
-                onPick();
-              }}
-              className="text-left px-4 py-3 rounded-[14px] text-[15px] font-semibold tracking-[-0.3px] hover:bg-[#f3f3f3] flex items-center gap-2.5"
-              style={{ color: TEXT }}
-            >
-              {leading?.[i] && <span className="text-[17px] leading-none">{leading[i]}</span>}
-              <span>{label}</span>
-            </Press>
-          ))}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function CtaButton({
-  label,
-  onClick,
-  arrow = false,
-  disabled = false,
-}: {
-  label: string;
-  onClick: () => void;
-  arrow?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <Press
-      brighten
-      onClick={disabled ? undefined : onClick}
-      className={clsx(
-        'obv2-cta w-full min-h-[52px] rounded-full flex items-center justify-between px-3 text-white transition-opacity',
-        disabled && 'opacity-40 pointer-events-none',
-      )}
-      style={{ background: INK }}
-    >
-      <span className="size-[24px]" />
-      <span className="text-[16px] font-semibold tracking-[-0.32px]">{label}</span>
-      <span className="size-[24px] flex items-center justify-center">{arrow && <IconArrowRight size={20} />}</span>
-    </Press>
-  );
-}
-
-/** Shared pill text input used across the setup steps. */
-function PillInput({
-  value,
-  onChange,
-  placeholder,
-  secret = false,
-  delayFocus = false,
-  onFocus,
-  onBlur,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  /** Password-style field with a show/hide eye. */
-  secret?: boolean;
-  /**
-   * Choreograph the tap: fire onFocus (the artwork zoom) immediately but hold
-   * the actual focus — and with it the keyboard — until the zoom has landed.
-   */
-  delayFocus?: boolean;
-  onFocus?: () => void;
-  onBlur?: () => void;
-}) {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] pl-5 pr-2 flex items-center gap-1">
-      <input
-        // Always type="text": iOS hangs its password-manager UI (save/use
-        // existing password) off type="password", which this prototype never
-        // wants. The dots come from -webkit-text-security instead.
-        type="text"
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize={secret ? 'off' : undefined}
-        spellCheck={false}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onPointerDown={(e) => {
-          if (!delayFocus) return;
-          const el = e.currentTarget;
-          if (document.activeElement === el) return;
-          // Hopping between two inputs keeps the keyboard up — delaying the
-          // focus there just makes the UI stutter. Only choreograph the
-          // keyboard-raising first focus.
-          if (document.activeElement?.tagName === 'INPUT') return;
-          e.preventDefault();
-          onFocus?.();
-          setTimeout(() => el.focus(), 360);
-        }}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        className="flex-1 min-w-0 bg-transparent outline-none text-[17px] font-semibold tracking-[-0.34px] placeholder:text-[#989898]"
-        style={{ color: TEXT, WebkitTextSecurity: secret && !show ? 'disc' : undefined } as React.CSSProperties}
-      />
-      {secret && (
-        <Press
-          aria-label={show ? 'Hide password' : 'Show password'}
-          onClick={() => setShow((v) => !v)}
-          className="size-[38px] rounded-full flex items-center justify-center shrink-0 bg-white"
-        >
-          {show ? <IconEyeOff size={17} color={TEXT_2} /> : <IconEye size={17} color={TEXT_2} />}
-        </Press>
-      )}
-      {value && (
-        <Press
-          aria-label="Clear"
-          onClick={() => onChange('')}
-          className="size-[38px] rounded-full flex items-center justify-center shrink-0 bg-white"
-        >
-          <IconX size={17} color={TEXT_2} />
-        </Press>
-      )}
-    </div>
-  );
-}
-
-// ── Keys & keychain: every person in the home holds a key ───────────────────
-/** Plastic key-cap colors — picked by the person's style seed. */
-const KEY_CAPS = ['#009ac7', '#e8a33d', '#7bb662', '#d96c6c', '#8e7cc3', '#e58f65'];
-
-/** Stable hash used to cut and shape keys. */
-function keyHash(s: string): number {
-  let h = 7;
-  for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return h;
-}
-
-/** The cap color a person's key wears — reused wherever they're represented. */
-const capColorFor = (seed: string) => KEY_CAPS[keyHash(seed) % KEY_CAPS.length];
-
-function KeySvg({
-  cutSeed,
-  styleSeed,
-  color = INK,
-  capColor,
-  height = 88,
-}: {
-  /** Cuts the valley dips — for the admin this is the password. */
-  cutSeed: string;
-  /** Shapes the head and blade — the person's name/username. */
-  styleSeed?: string;
-  color?: string;
-  /** Overrides the seed-picked cap color — grayed placeholder keys use this. */
-  capColor?: string;
-  height?: number;
-}) {
-  const cut = keyHash(cutSeed);
-  const bits = Array.from({ length: 4 }, (_, i) => ((cut >> (i * 4)) & 15) / 15);
-  const s = keyHash(styleSeed ?? cutSeed);
-  // The style seed also picks the kind of key: a classic cut key, a modern
-  // dimple key, or a key card.
-  const kind = (s >> 6) % 3;
-  const headR = 6.5 + (s & 3) * 0.7;
-  const headStroke = 5 + ((s >> 2) & 3) * 0.7;
-  // Every person's key wears a small colored cap around the hole.
-  const cap = capColor ?? capColorFor(styleSeed ?? cutSeed);
-
-  if (kind === 2) {
-    // Key card: credit-card proportions (CR80, ~1.586:1) hung in portrait
-    // from a punched hole. The password embosses the number groups.
-    return (
-      <svg width={height * 0.64} height={height} viewBox="0 0 41 64" fill="none">
-        <path
-          fillRule="evenodd"
-          d="M4 1 L37 1 A3 3 0 0 1 40 4 L40 60 A3 3 0 0 1 37 63 L4 63 A3 3 0 0 1 1 60 L1 4 A3 3 0 0 1 4 1 Z M20.5 3.5 a3 3 0 1 0 0 6 a3 3 0 1 0 0 -6 Z"
-          fill={color}
-        />
-        {/* chip and magstripe */}
-        <rect x="6" y="14" width="9" height="7" rx="1.5" fill="#ffffff" opacity="0.45" />
-        <rect x="1" y="24" width="39" height="7" fill={cap} />
-        {/* the card number — each group embossed by the password */}
-        {bits.map((b, i) => (
-          <rect
-            key={i}
-            x={5 + i * 8.2}
-            y={47 + (b - 0.5) * 3}
-            width={4.5 + b * 3}
-            height="3"
-            rx="1.5"
-            fill="#ffffff"
-            opacity="0.45"
-          />
-        ))}
-        <rect x="5" y="55" width="14" height="2.5" rx="1.25" fill="#ffffff" opacity="0.3" />
-      </svg>
-    );
-  }
-
-  const L = 11 + ((s >> 4) & 1) * 2;
-  const R = 20;
-  const pointed = ((s >> 5) & 1) === 1;
-  let blade: string;
-  if (kind === 1) {
-    // Dimple key: a straight blade, the code drilled in as dimples.
-    blade = `M${L} 18 L${R} 18 L${R} 59 Q${R} 62 ${R - 3} 62 L${L + 3} 62 Q${L} 62 ${L} 59 Z`;
-  } else {
-    blade = `M${L} 18 L${R} 18 `;
-    bits.forEach((b, i) => {
-      const y = 27 + i * 8;
-      // Cap the cut depth: the blade is 7-9 units wide, and a valley deeper
-      // than ~5.5 pinches it to a sliver.
-      const depth = 2.5 + b * 3;
-      blade += `L${R} ${y - 3} L${R - depth} ${y} L${R} ${y + 3} `;
-    });
-    blade += pointed
-      ? `L${R} 57 L16 62 L${L} 58 Z`
-      : `L${R} 59 Q${R} 62 ${R - 3} 62 L${L + 3} 62 Q${L} 62 ${L} 59 Z`;
-  }
-  const mid = (L + R) / 2;
-  return (
-    <svg width={height * 0.5} height={height} viewBox="0 0 32 64" fill="none">
-      <path d={blade} fill={color} stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
-      {kind === 1 &&
-        // The password drills the dimples: position and depth per bit, spread
-        // wide enough that a new password visibly re-cuts the pattern.
-        bits.map((b, i) => (
-          <circle key={i} cx={mid + (b - 0.5) * 5} cy={28 + i * 8} r={1.2 + b * 1.4} fill={SURFACE} />
-        ))}
-      {/* thin body-coloured collar, then the cap on top of everything.
-          The bow drops just enough that its outer edge (r + stroke/2) never
-          pokes above the viewBox, where the svg would crop it flat. */}
-      <rect x="12" y={15.5} width="8" height="4" rx="2" fill={color} />
-      <circle cx="16" cy={Math.max(10, headR + headStroke / 2 + 0.75)} r={headR} stroke={cap} strokeWidth={headStroke} />
-    </svg>
-  );
-}
-
-function Keychain({
-  keys,
-  keyHeight = 88,
-  ringSize = 60,
-}: {
-  keys: { id: string; cutSeed: string; styleSeed?: string; color: string; capColor?: string }[];
-  keyHeight?: number;
-  ringSize?: number;
-}) {
-  const n = keys.length;
-  return (
-    <div className="relative flex flex-col items-center">
-      <div
-        className="rounded-full border-white bg-transparent shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-        style={{ width: ringSize, height: ringSize, borderWidth: ringSize * 0.16 }}
-      />
-      {/* keys tuck up so the ring passes through their holes — the punched
-          hole reveals the ring band behind it */}
-      <div className="relative w-full" style={{ height: keyHeight + 4, marginTop: -ringSize * 0.31 }}>
-        {keys.map((k, i) => (
-          <div key={k.id} className="absolute left-1/2 -translate-x-1/2">
-            <motion.div
-              initial={{ rotate: 0, y: -24, opacity: 0 }}
-              animate={{ rotate: (i - (n - 1) / 2) * 18, y: 0, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 16 }}
-              style={{ transformOrigin: 'top center' }}
-            >
-              {/* each key pendulums gently on the ring, out of phase */}
-              <div
-                style={{
-                  transformOrigin: 'top center',
-                  animation: `obv2-swing 3.6s ease-in-out ${i * 0.55}s infinite`,
-                }}
-              >
-                <KeySvg cutSeed={k.cutSeed} styleSeed={k.styleSeed} color={k.color} capColor={k.capColor} height={keyHeight} />
-              </div>
-            </motion.div>
-          </div>
-        ))}
-      </div>
-      {/* the ring's front arc passes back OVER the keys, so they read as
-          threaded onto the ring rather than stacked behind it */}
-      <div
-        aria-hidden
-        className="absolute top-0 left-1/2 -translate-x-1/2 rounded-full border-white bg-transparent"
-        style={{ width: ringSize, height: ringSize, borderWidth: ringSize * 0.16, clipPath: 'inset(50% 0 0 0)' }}
-      />
-    </div>
-  );
-}
-
-// ── The door: the home itself, its name written on it ───────────────────────
-function Door({
-  name,
-  height = 345,
-  poked = false,
-  held = false,
-  open = false,
-  onPokeEnd,
-}: {
-  name?: string;
-  height?: number;
-  /** One-shot open/close on tap; onPokeEnd fires when the swing finishes. */
-  poked?: boolean;
-  /** Longer open-and-stay swing — someone is coming out. */
-  held?: boolean;
-  /** The door gave up: stays open (hallway showing) until tapped shut. */
-  open?: boolean;
-  onPokeEnd?: () => void;
-}) {
-  const width = Math.round(height * 0.504);
-  // The door rests closed — an idle swing kept catching the eye mid-open and
-  // reading as "the door is open". It only swings when poked.
-  const animation = held
-    ? 'obv2-door-hold 4.8s ease-in-out'
-    : poked
-      ? 'obv2-door-once 1.2s ease-in-out'
-      : undefined;
-  return (
-    // Width pinned to the door: as a plain block this div stretches to its
-    // widest sibling-driven parent (the welcome mat), and the doorway layer —
-    // inset from THIS box — then pokes out past the door like it's ajar.
-    <div className="relative" style={{ perspective: 700, width }}>
-      {/* The door frame — without one the panel floats and reads as an OPEN
-          door; framed, it reads closed. */}
-      <div className="absolute -inset-[9px] rounded-[31px] bg-[#f4f4f4] shadow-[0_2px_10px_rgba(0,0,0,0.05)]" />
-      {/* The doorway — hidden behind the door until it swings open. */}
-      <div className="absolute inset-[3px] rounded-[24px] bg-[#d7d7d7] overflow-hidden">
-        {/* a tiny hallway waits inside: floor, a picture, a coat on its hook */}
-        <div className="absolute bottom-0 inset-x-0 h-[15%] bg-[#c9c9c9]" />
-        <div className="absolute left-[20%] top-[27%] w-[18%] h-[13%] rounded-[3px] bg-[#efefef]" />
-        <span className="absolute right-[24%] top-[27%] size-[5px] rounded-full bg-[#b9b9b9]" />
-        <div className="absolute right-[18%] top-[30%] w-[16%] h-[26%] rounded-t-full rounded-b-[5px] bg-[#c2c2c2]" />
-      </div>
-      <div
-        className="relative rounded-[24px] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-        onAnimationEnd={poked ? onPokeEnd : undefined}
-        style={{
-          width,
-          height,
-          transformOrigin: 'left center',
-          animation,
-          // "Gave up" state: no keyframes, just a sustained swing held by a
-          // transition until the next tap shuts it.
-          transform: open ? 'rotateY(-48deg)' : undefined,
-          transition: 'transform 0.9s ease-in-out',
-        }}
-      >
-        {/* the home name — the first thing the user sets up */}
-        {name ? (
-          <span
-            className="absolute left-0 right-0 text-center font-semibold px-2 truncate"
-            style={{ color: TEXT_2, top: Math.round(height * 0.19), fontSize: Math.max(12, Math.round(width * 0.105)), letterSpacing: '-0.02em' }}
-          >
-            {name}
-          </span>
-        ) : (
-          <div
-            className="absolute top-[68px] left-1/2 -translate-x-1/2 h-[10px] rounded-full bg-[#e6e6e6]"
-            style={{ width: Math.round(width * 0.41) }}
-          />
-        )}
-        {/* knob */}
-        <div className="absolute right-[16px] top-[54%] size-[14px] rounded-full bg-[#e6e6e6]" />
-      </div>
     </div>
   );
 }
@@ -1526,28 +1098,6 @@ function makeCard(L: Copy, i: number, idPrefix = 'card'): Card {
     toggle: d.toggle,
     on: i % 3 !== 1,
   };
-}
-
-function MiniToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={(e) => {
-        // Cards open their preview on tap — the toggle must not.
-        e.stopPropagation();
-        onToggle();
-      }}
-      className="w-[42px] h-[26px] shrink-0 rounded-full p-[3px] transition-colors duration-200"
-      style={{ background: on ? ACCENT : '#e3e3e3' }}
-    >
-      <span
-        className="block size-[20px] rounded-full bg-white shadow-sm transition-transform duration-200"
-        style={{ transform: on ? 'translateX(16px)' : undefined }}
-      />
-    </button>
-  );
 }
 
 type DashView = 'dashboard' | 'profile';
@@ -2991,8 +2541,7 @@ export default function OnboardingV2Page() {
         .obv2-hide-cta .obv2-cta { display: none; }
         @keyframes obv2-sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
         @keyframes obv2-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-        @keyframes obv2-door-once { 0% { transform: rotateY(0deg); } 45% { transform: rotateY(-34deg); } 100% { transform: rotateY(0deg); } }
-        @keyframes obv2-door-hold { 0% { transform: rotateY(0deg); } 13% { transform: rotateY(-46deg); } 80% { transform: rotateY(-44deg); } 100% { transform: rotateY(0deg); } }
+        ${SCENES_KEYFRAMES}
         /* the cat leaves the scene the same way the vacuum parks: past the
            phone edge on mobile, past the viewport on wide screens */
         @keyframes obv2-cat-walk { 0% { transform: translateX(0); } 100% { transform: translateX(calc(var(--obv2-vac-park, 300px) + 180px)); } }
@@ -3001,12 +2550,31 @@ export default function OnboardingV2Page() {
         @keyframes obv2-pop { 0%, 100% { transform: scale(1); } 40% { transform: scale(1.14); } }
         @keyframes obv2-pulse { 0% { transform: scale(0.25); opacity: 0.9; } 100% { transform: scale(1.4); opacity: 0; } }
         @keyframes obv2-quip { 0% { opacity: 0; transform: translateY(6px); } 8%, 78% { opacity: 1; transform: none; } 100% { opacity: 0; transform: none; } }
-        @keyframes obv2-swing { 0%, 100% { transform: rotate(-2.5deg); } 50% { transform: rotate(2.5deg); } }
         @keyframes obv2-fade-in { 0% { opacity: 0; transform: translateY(4px); } 100% { opacity: 1; transform: none; } }
         @keyframes obv2-nudge { 0%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } 60% { transform: translateY(1px); } }
         /* The vacuum parks off-frame: past the phone edge on mobile, and far
            enough right on wide screens that it leaves the viewport too. */
         .onboarding-v2 { --obv2-vac-park: 300px; --obv2-art-scale: 1; }
+        /* lg stack geometry — one set of knobs so short desktops get a compact
+           tier instead of a clipped page (total chrome ≈ gap+head+20+slot) */
+        .onboarding-v2 {
+          --obv2-stage-w: min(64vw, max(380px, calc(100vh - 550px)), 700px);
+          --obv2-head-h: 100px;
+          --obv2-slot-h: 350px;
+          --obv2-stage-gap: 32px;
+          /* top pad optically centres house + heading + a typical form
+             (~370px of chrome and content below the house) */
+          --obv2-top-pad: max(16px, calc((100vh - var(--obv2-stage-w) - 400px) / 2));
+        }
+        @media (max-height: 899px) {
+          .onboarding-v2 {
+            --obv2-stage-w: min(64vw, max(300px, calc(100vh - 450px)), 700px);
+            --obv2-head-h: 96px;
+            --obv2-slot-h: 300px;
+            --obv2-stage-gap: 12px;
+            --obv2-top-pad: max(12px, calc((100vh - var(--obv2-stage-w) - 350px) / 2));
+          }
+        }
         @media (min-width: 768px) { .onboarding-v2 { --obv2-vac-park: 70vw; } }
         /* The illustrations grow with the screen — stepped so they always fit
            the art region. From lg the art only gets HALF the width (split
@@ -3028,7 +2596,6 @@ export default function OnboardingV2Page() {
           .obv2-alt .obv2-paper { background: transparent; }
           .obv2-alt .obv2-pane-title { color: #ffffff !important; }
           .obv2-alt .obv2-pane-sub { color: rgba(255, 255, 255, 0.85) !important; }
-          .obv2-alt .obv2-fade { display: none; }
         }
         /* on lg the stage element sets --obv2-art-scale inline from its own
            measured size, so art and house stay in one fixed proportion */
@@ -3208,13 +2775,13 @@ export default function OnboardingV2Page() {
                 right below it. House and form slot are both fixed-size, so the
                 centred group cannot shift between steps — tall steps scroll
                 inside the slot instead. */}
-            <div className="flex-1 min-h-0 flex flex-col lg:w-full lg:max-w-[1200px] lg:mx-auto lg:items-center lg:justify-center">
+            <div className="flex-1 min-h-0 flex flex-col lg:w-full lg:max-w-[1200px] lg:mx-auto lg:items-center lg:justify-start">
             {/* only the artwork slides between steps. lg: the column hugs the
                 house; the form pane takes whatever width remains */}
-            <div className="obv2-paper flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:overflow-visible">
+            <div className="obv2-paper flex-1 min-h-0 relative px-5 overflow-hidden lg:flex-none lg:w-full lg:px-0 lg:mt-[var(--obv2-top-pad)] lg:bg-white lg:flex lg:flex-col lg:items-center lg:justify-center lg:overflow-visible">
               {/* the gray stage lives inside the house-shaped cutout, capped
                   at 600px; the art scales with it in one fixed proportion */}
-              <div ref={stageRef} className="obv2-stage obv2-in-stage relative h-full w-full lg:h-auto lg:w-[min(64vw,max(380px,calc(100vh-550px)),700px)] lg:aspect-square lg:shrink-0">
+              <div ref={stageRef} className="obv2-stage obv2-in-stage relative h-full w-full lg:h-auto lg:w-[var(--obv2-stage-w)] lg:aspect-square lg:shrink-0">
               <div className="obv2-in-art h-full w-full">
               <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                 <motion.div
@@ -3265,7 +2832,7 @@ export default function OnboardingV2Page() {
             {/* static bottom sheet — its contents crossfade per step. On lg it
                 is the right half of the screen: a white pane with the heading
                 and the form, vertically centred. */}
-            <div className="obv2-paper obv2-in-sheet relative lg:flex-none lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-8">
+            <div className="obv2-paper obv2-in-sheet relative lg:flex-none lg:w-full lg:bg-white lg:flex lg:flex-col lg:items-center lg:px-12 lg:pt-[var(--obv2-stage-gap)]">
               {/* runs on past the sheet's top edge so the rounded corners
                   don't notch a hard stop into the gradient */}
               {/* mobile only — on desktop the floating card carries a shadow */}
@@ -3277,7 +2844,7 @@ export default function OnboardingV2Page() {
             {/* lg: the heading leads the form pane — display-sized, centred.
                 Fixed-height zone, top-anchored: the title sits at the exact
                 same y on every step; subs of any length flow below it */}
-            <div className="hidden lg:flex lg:flex-col lg:justify-start lg:min-h-[100px] w-full max-w-[440px] mb-5 text-center">
+            <div className="hidden lg:flex lg:flex-col lg:justify-start lg:min-h-[var(--obv2-head-h)] w-full max-w-[440px] mb-5 text-center">
               <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                   key={stepKey}
@@ -3302,10 +2869,7 @@ export default function OnboardingV2Page() {
                 'relative bg-white rounded-t-[32px] px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+16px)] w-full max-w-[640px] mx-auto',
                 // lg: no card chrome — the form sits naked on the white pane,
                 // in a fixed-height slot so steps can't shift the layout.
-                'lg:max-w-[440px] lg:rounded-none lg:shadow-none lg:bg-transparent lg:m-0 lg:p-0 lg:h-[350px]',
-                // only the steps that can outgrow the slot scroll — the rest
-                // stay overflow-visible so e.g. the address dropdown can escape
-                (step === 'areas' || step === 'permissions') && 'lg:overflow-y-auto lg:overflow-x-hidden',
+                'lg:max-w-[440px] lg:rounded-none lg:shadow-none lg:bg-transparent lg:m-0 lg:p-0 lg:max-h-[var(--obv2-slot-h)]',
                 compact && typing && 'obv2-hide-cta',
               )}
               onFocusCapture={(e) => {
@@ -3328,9 +2892,6 @@ export default function OnboardingV2Page() {
                   {sheet}
                 </motion.div>
               </AnimatePresence>
-              {/* lg: sticky scroll fade — pinned to the slot's bottom edge while
-                  a tall step has more below, slides away at the end of scroll */}
-              <div aria-hidden className="obv2-fade hidden lg:block sticky bottom-0 w-full h-12 shrink-0 pointer-events-none bg-gradient-to-t from-white to-transparent" />
             </div>
             </div>
             </div>
