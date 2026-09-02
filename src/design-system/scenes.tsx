@@ -17,6 +17,18 @@ export const SCENES_KEYFRAMES = `
 `;
 
 // ── Keys: every person in the home holds a key ───────────────────────────────
+/** Where a key's hang-hole sits, in viewBox units (64-tall coordinate space).
+    The card punches its hole near the top edge; classic/dimple bows drop just
+    enough that their cap never crops against the viewBox. */
+export function keyHoleCy(cutSeed: string, styleSeed?: string): number {
+  const s = keyHash(styleSeed ?? cutSeed);
+  const kind = (s >> 6) % 3;
+  if (kind === 2) return 6.5;
+  const headR = 6.5 + (s & 3) * 0.7;
+  const headStroke = 5 + ((s >> 2) & 3) * 0.7;
+  return Math.max(10, headR + headStroke / 2 + 0.75);
+}
+
 export function KeySvg({
   cutSeed,
   styleSeed,
@@ -109,7 +121,7 @@ export function KeySvg({
           The bow drops just enough that its outer edge (r + stroke/2) never
           pokes above the viewBox, where the svg would crop it flat. */}
       <rect x="12" y={15.5} width="8" height="4" rx="2" fill={keyColor} />
-      <circle cx="16" cy={Math.max(10, headR + headStroke / 2 + 0.75)} r={headR} stroke={cap} strokeWidth={headStroke} />
+      <circle cx="16" cy={keyHoleCy(cutSeed, styleSeed)} r={headR} stroke={cap} strokeWidth={headStroke} />
     </svg>
   );
 }
@@ -130,29 +142,35 @@ export function Keychain({
         className="rounded-full border-white bg-transparent shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
         style={{ width: ringSize, height: ringSize, borderWidth: ringSize * 0.16 }}
       />
-      {/* keys tuck up so the ring passes through their holes — the punched
-          hole reveals the ring band behind it */}
+      {/* keys tuck up so the ring passes through their holes: each key hangs
+          so its own hole centre sits exactly on the ring's bottom band, and
+          swings pivot around that hole */}
       <div className="relative w-full" style={{ height: keyHeight + 4, marginTop: -ringSize * 0.31 }}>
-        {keys.map((k, i) => (
-          <div key={k.id} className="absolute left-1/2 -translate-x-1/2">
-            <motion.div
-              initial={{ rotate: 0, y: -24, opacity: 0 }}
-              animate={{ rotate: (i - (n - 1) / 2) * 18, y: 0, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 16 }}
-              style={{ transformOrigin: 'top center' }}
-            >
-              {/* each key pendulums gently on the ring, out of phase */}
-              <div
-                style={{
-                  transformOrigin: 'top center',
-                  animation: `obv2-swing 3.6s ease-in-out ${i * 0.55}s infinite`,
-                }}
+        {keys.map((k, i) => {
+          // the band's centre, measured inside this container
+          const bandY = ringSize * 0.23;
+          const holeY = (keyHoleCy(k.cutSeed, k.styleSeed) * keyHeight) / 64;
+          return (
+            <div key={k.id} className="absolute left-1/2 -translate-x-1/2" style={{ top: bandY - holeY }}>
+              <motion.div
+                initial={{ rotate: 0, y: -24, opacity: 0 }}
+                animate={{ rotate: (i - (n - 1) / 2) * 18, y: 0, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 16 }}
+                style={{ transformOrigin: `50% ${holeY}px` }}
               >
-                <KeySvg cutSeed={k.cutSeed} styleSeed={k.styleSeed} color={k.color} capColor={k.capColor} height={keyHeight} />
-              </div>
-            </motion.div>
-          </div>
-        ))}
+                {/* each key pendulums gently on the ring, out of phase */}
+                <div
+                  style={{
+                    transformOrigin: `50% ${holeY}px`,
+                    animation: `obv2-swing 3.6s ease-in-out ${i * 0.55}s infinite`,
+                  }}
+                >
+                  <KeySvg cutSeed={k.cutSeed} styleSeed={k.styleSeed} color={k.color} capColor={k.capColor} height={keyHeight} />
+                </div>
+              </motion.div>
+            </div>
+          );
+        })}
       </div>
       {/* splice: the full ring paints behind the keys (its left arc shows
           there), and this right-half copy paints over them — so the ring
