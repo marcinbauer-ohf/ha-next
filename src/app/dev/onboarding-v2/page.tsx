@@ -83,8 +83,8 @@ import {
   type Icon as TablerIcon,
 } from '@tabler/icons-react';
 import type { LatLng } from './MapPicker';
-import { capColorFor, color, keyHash } from '@/design-system/tokens';
-import { CtaButton, PillInput, Press, Toggle as MiniToggle } from '@/design-system/primitives';
+import { capColorFor, color, font, keyHash } from '@/design-system/tokens';
+import { CtaButton, Press, TextField, Toggle as MiniToggle } from '@/design-system/primitives';
 import { PopMenu } from '@/design-system/overlays';
 import { Door, KeySvg, Keychain, SCENES_KEYFRAMES } from '@/design-system/scenes';
 
@@ -418,7 +418,7 @@ const LANG_NAMES: Record<Lang, string> = { en: 'English', pl: 'Polski', es: 'Esp
 const LANG_FLAGS: Record<Lang, string> = { en: '🇬🇧', pl: '🇵🇱', es: '🇪🇸' };
 
 // Easter egg: whoever builds to the top of the stepper gets a tower.
-const floorName = (L: Copy, i: number) => (i === MAX_FLOORS - 1 ? L.tower : L.floors[i]);
+const floorName = (L: Copy, i: number) => L.floors[i];
 
 // ── Books ────────────────────────────────────────────────────────────────────
 interface Book {
@@ -936,7 +936,7 @@ function AreasSheet({
               <Press
                 key={name}
                 onClick={() => toggleRoom(name, Icon)}
-                className="flex items-center gap-2 p-2 pr-3 rounded-[12px]"
+                className="flex items-center gap-2 p-2 pr-3.5 rounded-full"
                 style={{ background: isOn ? ACCENT : '#f3f3f3', color: isOn ? '#ffffff' : INK }}
               >
                 {isOn ? <IconCheck size={22} /> : <Icon size={22} />}
@@ -972,7 +972,7 @@ function AreasSheet({
         />
       </div>
       {/* Add a custom room */}
-      <div className="w-full bg-[#f3f3f3] rounded-full min-h-[60px] p-2 pl-5 flex items-center justify-between gap-2">
+      <div className="w-full bg-[#f3f3f3] rounded-[16px] min-h-[60px] p-2 pl-5 flex items-center justify-between gap-2">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -1304,7 +1304,7 @@ function DashboardStep({
                   {section.items.map((label, ii) => {
                     const Icon = SETTINGS_ICONS[si][ii];
                     return (
-                      <Press key={label} className="flex items-center gap-3 px-2 py-1.5 rounded-[18px] text-left">
+                      <Press key={label} className="flex items-center gap-3 px-2 py-1.5 rounded-full text-left">
                         <span className="size-[38px] rounded-[12px] bg-[#f3f3f3] flex items-center justify-center shrink-0">
                           <Icon size={19} color={TEXT_2} />
                         </span>
@@ -1427,7 +1427,7 @@ function DashboardStep({
               >
                 {sheetTab === 'search' && (
                   <>
-                    <div className="w-full bg-[#f3f3f3] rounded-full min-h-[48px] px-4 flex items-center gap-2 shrink-0">
+                    <div className="w-full bg-[#f3f3f3] rounded-[16px] min-h-[48px] px-4 flex items-center gap-2 shrink-0">
                       <IconSearch size={18} color={TEXT_DIM} />
                       <input
                         value={query}
@@ -2044,7 +2044,9 @@ export default function OnboardingV2Page() {
     setStep(ORDER[ORDER.indexOf(step) - 1]);
   };
 
-  const stepKey = step === 'areas' ? `areas-${floorIndex}` : step;
+  // one key per STEP — hopping floors on the areas step must not slide the
+  // scene; only the shelf focus moves (ShelfStack handles that itself)
+  const stepKey = step;
 
   const heading: { title: React.ReactNode; sub?: string } = (() => {
     switch (step) {
@@ -2058,7 +2060,7 @@ export default function OnboardingV2Page() {
       case 'invite':
         return { title: L.inviteTitle, sub: L.inviteSub };
       case 'location':
-        return { title: L.locTitle, sub: L.locSub };
+        return { title: L.locTitle };
       case 'floors':
         return { title: L.floorsTitle, sub: L.floorsSub };
       case 'areas':
@@ -2264,7 +2266,7 @@ export default function OnboardingV2Page() {
                   <Press
                     key={chip}
                     onClick={() => setHomeName(chip)}
-                    className="px-3 py-2 rounded-[12px] text-[14px] font-semibold tracking-[-0.28px] whitespace-nowrap shrink-0"
+                    className="px-3.5 py-2 rounded-full text-[14px] font-semibold tracking-[-0.28px] whitespace-nowrap shrink-0"
                     style={{
                       background: homeName === chip ? ACCENT : '#f3f3f3',
                       color: homeName === chip ? '#ffffff' : INK,
@@ -2275,7 +2277,7 @@ export default function OnboardingV2Page() {
                 ))}
               </div>
             </div>
-            <PillInput
+            <TextField
               value={homeName}
               onChange={setHomeName}
               placeholder={L.namePh}
@@ -2288,7 +2290,7 @@ export default function OnboardingV2Page() {
       case 'users':
         return (
           <>
-            <PillInput
+            <TextField
               value={username}
               onChange={setUsername}
               placeholder={L.userPh}
@@ -2296,7 +2298,7 @@ export default function OnboardingV2Page() {
               onFocus={() => setCredFocused(true)}
               onBlur={() => setCredFocused(false)}
             />
-            <PillInput
+            <TextField
               value={password}
               onChange={setPassword}
               placeholder={L.passPh}
@@ -2311,7 +2313,7 @@ export default function OnboardingV2Page() {
       case 'invite':
         return (
           <>
-            <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] p-2 pl-5 flex items-center justify-between gap-2">
+            <div className="w-full bg-[#f3f3f3] rounded-[16px] min-h-[56px] p-2 pl-5 flex items-center justify-between gap-2">
               <input
                 type="email"
                 inputMode="email"
@@ -2367,7 +2369,7 @@ export default function OnboardingV2Page() {
                     <Press
                       key={s.name}
                       onClick={() => pickSuggestion(s)}
-                      className="text-left px-3.5 py-2 rounded-[14px] hover:bg-[#f3f3f3] min-w-0"
+                      className="text-left px-3.5 py-2 rounded-full hover:bg-[#f3f3f3] min-w-0"
                     >
                       <span className="block text-[14px] font-semibold tracking-[-0.28px] truncate" style={{ color: TEXT }}>
                         {s.name.split(',')[0]}
@@ -2379,7 +2381,7 @@ export default function OnboardingV2Page() {
                   ))}
                 </div>
               )}
-            <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] p-2 pl-5 flex items-center gap-2">
+            <div className="w-full bg-[#f3f3f3] rounded-[16px] min-h-[56px] p-2 pl-5 flex items-center gap-2">
               <input
                 inputMode="search"
                 enterKeyHint="search"
@@ -2418,16 +2420,6 @@ export default function OnboardingV2Page() {
       case 'floors':
         return (
           <>
-            {/* every floor count gets its quip; it says its line and bows out */}
-            <div className="min-h-[24px] flex items-center justify-center overflow-hidden">
-              <span
-                key={`${floors}-${lang}`}
-                className="text-center text-[14px] font-semibold tracking-[-0.28px]"
-                style={{ color: TEXT_2, animation: 'obv2-quip 3.4s ease forwards' }}
-              >
-                {L.quips[floors - 1]}
-              </span>
-            </div>
             <div className="w-full bg-[#f3f3f3] rounded-full min-h-[64px] p-2 flex items-center justify-between">
               <Press
                 aria-label="Fewer floors"
@@ -2445,7 +2437,12 @@ export default function OnboardingV2Page() {
               </span>
               <Press
                 aria-label="More floors"
-                onClick={() => setFloors(Math.min(MAX_FLOORS, floors + 1))}
+                onClick={() => {
+                  // the castle quip retired to a toast: it appears once, when
+                  // the house grows its fifth floor
+                  if (floors === MAX_FLOORS - 1) showToast(L.quips[MAX_FLOORS - 1]);
+                  setFloors(Math.min(MAX_FLOORS, floors + 1));
+                }}
                 className={clsx(
                   'size-[48px] rounded-full flex items-center justify-center transition-opacity',
                   floors >= MAX_FLOORS && 'opacity-30 pointer-events-none',
@@ -2526,7 +2523,7 @@ export default function OnboardingV2Page() {
   return (
     <div
       className={clsx('fixed inset-0 overflow-hidden onboarding-v2', altBg && 'obv2-alt')}
-      style={{ background: SURFACE, fontFamily: 'var(--font-onest), Onest, system-ui, sans-serif' }}
+      style={{ background: SURFACE, fontFamily: font }}
     >
       {/* The app smooths every radius into a squircle (globals.css data-squircle
           rule), which squares off this prototype's pill buttons. Figma uses true

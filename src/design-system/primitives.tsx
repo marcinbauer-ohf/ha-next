@@ -5,7 +5,7 @@
  * Pill-based, Onest semibold, spring-pressed. Light-only for now.
  */
 
-import { useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
@@ -23,7 +23,7 @@ import {
   IconX,
   type Icon as TablerIcon,
 } from '@tabler/icons-react';
-import { capColorFor, color, spring } from './tokens';
+import { capColorFor, color, ease, spring } from './tokens';
 
 // ── Press: the base pressable — spring scale + brightness shift ──────────────
 export function Press({
@@ -32,7 +32,9 @@ export function Press({
   onClick,
   children,
   brighten = false,
+  role,
   'aria-label': ariaLabel,
+  'aria-checked': ariaChecked,
 }: {
   className?: string;
   style?: React.CSSProperties;
@@ -40,15 +42,19 @@ export function Press({
   children: React.ReactNode;
   /** Dark buttons lighten on press; light ones darken. */
   brighten?: boolean;
+  role?: React.AriaRole;
   'aria-label'?: string;
+  'aria-checked'?: boolean;
 }) {
   return (
     <motion.button
       type="button"
+      role={role}
       aria-label={ariaLabel}
+      aria-checked={ariaChecked}
       onClick={onClick}
-      whileHover={{ filter: brighten ? 'brightness(1.35)' : 'brightness(0.93)' }}
-      whileTap={{ scale: 0.93, filter: brighten ? 'brightness(1.7)' : 'brightness(0.9)' }}
+      whileHover={{ filter: brighten ? 'brightness(1.15)' : 'brightness(0.93)' }}
+      whileTap={{ scale: 0.97 }}
       transition={spring.press}
       className={className}
       style={style}
@@ -76,7 +82,7 @@ export function CtaButton({
       brighten
       onClick={disabled ? undefined : onClick}
       className={clsx(
-        'obv2-cta w-full min-h-[52px] rounded-full flex items-center justify-between px-3 text-white transition-opacity',
+        'obv2-cta mt-3 w-full min-h-[52px] rounded-full flex items-center justify-between px-3 text-white transition-opacity',
         disabled && 'opacity-40 pointer-events-none',
       )}
       style={{ background: color.ink }}
@@ -88,7 +94,39 @@ export function CtaButton({
   );
 }
 
-/** Round icon button. 44px chrome-sized by default; 38–40px inside fields. */
+/** Labeled pill button. `md` for chrome, `sm` for inline/compact spots. */
+export function Button({
+  label,
+  onClick,
+  size = 'md',
+  tone = 'ink',
+  disabled = false,
+}: {
+  label: string;
+  onClick?: () => void;
+  size?: 'md' | 'sm';
+  tone?: 'ink' | 'field' | 'accent' | 'danger';
+  disabled?: boolean;
+}) {
+  const bg = { ink: color.ink, field: color.field, accent: color.accent, danger: color.danger }[tone];
+  return (
+    <Press
+      brighten={tone !== 'field'}
+      onClick={disabled ? undefined : onClick}
+      className={clsx(
+        'rounded-full font-semibold shrink-0 transition-opacity',
+        size === 'md' ? 'min-h-[44px] px-5 text-[15px] tracking-[-0.3px]' : 'min-h-[36px] px-4 text-[14px] tracking-[-0.28px]',
+        disabled && 'opacity-40 pointer-events-none',
+      )}
+      style={{ background: bg, color: tone === 'field' ? color.text : color.white }}
+    >
+      {label}
+    </Press>
+  );
+}
+
+/** Round icon button. `md` (44px) for chrome, `sm` (36px) for compact spots;
+ *  a number overrides (e.g. the 38px white circles inside fields). */
 export function IconButton({
   'aria-label': ariaLabel,
   onClick,
@@ -100,8 +138,9 @@ export function IconButton({
   onClick?: () => void;
   children: React.ReactNode;
   tone?: 'field' | 'white' | 'accent' | 'ink';
-  size?: number;
+  size?: 'md' | 'sm' | number;
 }) {
+  const px = size === 'md' ? 44 : size === 'sm' ? 36 : size;
   const bg = { field: color.field, white: color.white, accent: color.accent, ink: color.ink }[tone];
   return (
     <Press
@@ -109,7 +148,7 @@ export function IconButton({
       onClick={onClick}
       brighten={tone === 'accent' || tone === 'ink'}
       className="rounded-full flex items-center justify-center shrink-0"
-      style={{ background: bg, width: size, height: size }}
+      style={{ background: bg, width: px, height: px }}
     >
       {children}
     </Press>
@@ -117,12 +156,17 @@ export function IconButton({
 }
 
 // ── Inputs ───────────────────────────────────────────────────────────────────
-/** The canonical pill text input. */
-export function PillInput({
+/** The canonical text input — 16px rounding per the shape rule. Accent ring
+ *  on focus; a string in `error` paints a danger ring and prints the message
+ *  under the field. `label` renders on top; without one the placeholder
+ *  carries the meaning (fine for single-field steps, not for forms). */
+export function TextField({
   value,
   onChange,
   placeholder,
+  label,
   secret = false,
+  error,
   delayFocus = false,
   onFocus,
   onBlur,
@@ -130,8 +174,12 @@ export function PillInput({
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
+  /** Small label above the field — use it whenever a screen has 2+ fields. */
+  label?: string;
   /** Password-style field with a show/hide eye. */
   secret?: boolean;
+  /** Danger ring; a string also renders as a caption below the field. */
+  error?: string | boolean;
   /**
    * Choreograph the tap: fire onFocus (e.g. an artwork zoom) immediately but
    * hold the actual focus — and with it the keyboard — until it has landed.
@@ -142,7 +190,21 @@ export function PillInput({
 }) {
   const [show, setShow] = useState(false);
   return (
-    <div className="w-full bg-[#f3f3f3] rounded-full min-h-[56px] pl-5 pr-2 flex items-center gap-1">
+    <div className="w-full flex flex-col gap-1.5">
+    {label && (
+      <span className="px-5 text-[13px] font-semibold tracking-[-0.26px]" style={{ color: color.text2 }}>
+        {label}
+      </span>
+    )}
+    <div
+      className={clsx(
+        // Hover darkens like a chip; focus ring lands fast. Hover mutes while
+        // focused so the ring reads clean.
+        'w-full bg-[#f3f3f3] rounded-[16px] min-h-[56px] pl-5 pr-2 flex items-center gap-1',
+        'transition-[box-shadow,filter] duration-100 not-focus-within:hover:brightness-[0.93]',
+        error ? 'shadow-[0_0_0_2px_#d96c6c]' : 'focus-within:shadow-[0_0_0_2px_#009ac7]',
+      )}
+    >
       <input
         // Always type="text": iOS hangs its password-manager UI off
         // type="password"; the dots come from -webkit-text-security instead.
@@ -181,29 +243,39 @@ export function PillInput({
         </IconButton>
       )}
     </div>
+    {typeof error === 'string' && error && (
+      <span className="px-5 text-[13px] font-semibold tracking-[-0.26px]" style={{ color: color.danger }}>
+        {error}
+      </span>
+    )}
+    </div>
   );
 }
 
 // ── Selection controls ───────────────────────────────────────────────────────
-/** 42×26 switch. Safe inside tappable cards (stops propagation). */
+/** 42×26 switch. The knob snaps home like a physical toggle (ease.snap) and
+ *  the whole control presses like everything else.
+ *  Safe inside tappable cards (stops propagation). */
 export function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   return (
-    <button
+    <motion.button
       type="button"
       role="switch"
       aria-checked={on}
+      whileTap={{ scale: 0.97 }}
+      transition={spring.press}
       onClick={(e) => {
         e.stopPropagation();
         onToggle();
       }}
-      className="w-[42px] h-[26px] shrink-0 rounded-full p-[3px] transition-colors duration-200"
-      style={{ background: on ? color.accent : color.off }}
+      className="w-[42px] h-[26px] shrink-0 rounded-full p-[3px]"
+      style={{ background: on ? color.accent : color.off, transition: 'background-color 0.3s ease' }}
     >
       <span
-        className="block size-[20px] rounded-full bg-white shadow-sm transition-transform duration-200"
-        style={{ transform: on ? 'translateX(16px)' : undefined }}
+        className="block size-[20px] rounded-full bg-white shadow-sm"
+        style={{ transform: on ? 'translateX(16px)' : 'translateX(0)', transition: `transform 0.3s ${ease.snap}` }}
       />
-    </button>
+    </motion.button>
   );
 }
 
@@ -262,30 +334,40 @@ export function Chip({
     <Press
       onClick={onClick}
       className={clsx(
-        'flex items-center gap-2 rounded-[12px] whitespace-nowrap shrink-0',
-        Icon ? 'p-2 pr-3' : 'px-3 py-2',
+        'flex items-center gap-2 rounded-full whitespace-nowrap shrink-0',
+        Icon ? 'p-2 pr-3.5' : 'px-3.5 py-2',
       )}
       style={{ background: selected ? color.accent : color.field, color: selected ? color.white : color.ink }}
     >
       {Icon && (selected ? <IconCheck size={22} /> : <Icon size={22} />)}
       <span className="text-[14px] font-semibold tracking-[-0.28px]">{label}</span>
-      {selected && onAdd && (
+      {/* the "+" slides in on select instead of popping the chip wider */}
+      {onAdd && (
         <span
           role="button"
           aria-label={addLabel ?? `Add another ${label}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onAdd();
-          }}
-          className="-mr-1 flex size-[24px] items-center justify-center rounded-full bg-white/25"
+          onClick={
+            selected
+              ? (e) => {
+                  e.stopPropagation();
+                  onAdd();
+                }
+              : undefined
+          }
+          className={clsx(
+            'flex h-[24px] items-center justify-center rounded-full bg-white/25 overflow-hidden',
+            'transition-[width,opacity,margin] duration-200',
+            selected ? 'w-[24px] opacity-100 -mr-1' : 'w-0 opacity-0 -ml-2 pointer-events-none',
+          )}
         >
-          <IconPlus size={15} />
+          <IconPlus size={15} className="shrink-0" />
         </span>
       )}
     </Press>
   );
 }
 
+/** Only the box is interactive (and presses); the label is plain text. */
 export function Checkbox({
   checked,
   onChange,
@@ -296,24 +378,27 @@ export function Checkbox({
   label?: string;
 }) {
   return (
-    <Press onClick={() => onChange(!checked)} className="flex items-center gap-2.5 text-left" aria-label={label}>
-      <span
+    <span className="flex items-center gap-2.5">
+      <Press
         role="checkbox"
         aria-checked={checked}
-        className="size-[26px] rounded-[9px] flex items-center justify-center shrink-0 transition-colors duration-150"
-        style={{ background: checked ? color.accent : color.off }}
+        aria-label={label}
+        onClick={() => onChange(!checked)}
+        className="size-[26px] rounded-[9px] flex items-center justify-center shrink-0"
+        style={{ background: checked ? color.accent : color.off, transition: 'background-color 0.15s ease' }}
       >
         {checked && <IconCheck size={17} color={color.white} />}
-      </span>
+      </Press>
       {label && (
         <span className="text-[15px] font-semibold tracking-[-0.3px]" style={{ color: color.text }}>
           {label}
         </span>
       )}
-    </Press>
+    </span>
   );
 }
 
+/** Only the circle is interactive (and presses); the label is plain text. */
 export function Radio({
   selected,
   onSelect,
@@ -324,28 +409,32 @@ export function Radio({
   label?: string;
 }) {
   return (
-    <Press onClick={onSelect} className="flex items-center gap-2.5 text-left" aria-label={label}>
-      <span
+    <span className="flex items-center gap-2.5">
+      <Press
         role="radio"
         aria-checked={selected}
-        className="size-[26px] rounded-full flex items-center justify-center shrink-0 transition-colors duration-150"
-        style={{ background: selected ? color.accent : color.off }}
+        aria-label={label}
+        onClick={onSelect}
+        className="size-[26px] rounded-full flex items-center justify-center shrink-0"
+        style={{ background: selected ? color.accent : color.off, transition: 'background-color 0.15s ease' }}
       >
         <span
           className="size-[10px] rounded-full bg-white transition-transform duration-150"
           style={{ transform: selected ? 'scale(1)' : 'scale(0)' }}
         />
-      </span>
+      </Press>
       {label && (
         <span className="text-[15px] font-semibold tracking-[-0.3px]" style={{ color: color.text }}>
           {label}
         </span>
       )}
-    </Press>
+    </span>
   );
 }
 
-/** Pill segments; the active one slides between them. */
+/** A group of pill buttons on a field track. No traveling background — the
+ *  active state just lands where you click (long travel read slow) — and
+ *  every segment hovers and presses like any other button. */
 export function SegmentedControl({
   options,
   value,
@@ -355,31 +444,28 @@ export function SegmentedControl({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const id = useId();
   return (
-    <div className="w-full bg-[#f3f3f3] rounded-full p-1 flex">
-      {options.map((opt) => (
-        <button
-          key={opt}
-          type="button"
-          onClick={() => onChange(opt)}
-          className="relative flex-1 min-w-0 h-[40px] rounded-full flex items-center justify-center px-2"
-        >
-          {opt === value && (
-            <motion.span
-              layoutId={`${id}-pill`}
-              transition={spring.pop}
-              className="absolute inset-0 rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-            />
-          )}
-          <span
-            className="relative text-[14px] font-semibold tracking-[-0.28px] truncate transition-colors duration-150"
-            style={{ color: opt === value ? color.text : color.text2 }}
+    <div className="w-full bg-[#f3f3f3] rounded-full p-1 flex gap-1">
+      {options.map((opt) => {
+        const active = opt === value;
+        return (
+          <Press
+            key={opt}
+            onClick={() => onChange(opt)}
+            className={clsx(
+              'flex-1 min-w-0 min-h-[40px] rounded-full px-2 flex items-center justify-center transition-colors duration-150',
+              active ? 'bg-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]' : 'hover:bg-[#e9e9e9]',
+            )}
           >
-            {opt}
-          </span>
-        </button>
-      ))}
+            <span
+              className="text-[14px] font-semibold tracking-[-0.28px] truncate transition-colors duration-150"
+              style={{ color: active ? color.text : color.text2 }}
+            >
+              {opt}
+            </span>
+          </Press>
+        );
+      })}
     </div>
   );
 }
@@ -430,6 +516,8 @@ export function Slider({
   disabled?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // The whole control grows a touch while a drag is live — the grab affordance.
+  const [pressed, setPressed] = useState(false);
   const set = (clientX: number) => {
     const el = ref.current;
     if (!el) return;
@@ -452,18 +540,26 @@ export function Slider({
       }}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
+        setPressed(true);
         set(e.clientX);
       }}
       onPointerMove={(e) => e.buttons === 1 && set(e.clientX)}
+      onPointerUp={() => setPressed(false)}
+      onLostPointerCapture={() => setPressed(false)}
       className={clsx(
         'relative w-full h-[44px] rounded-full bg-[#f3f3f3] overflow-hidden touch-none cursor-pointer select-none',
         disabled && 'opacity-40 pointer-events-none',
       )}
     >
       <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${pct}%`, background: color.accent }} />
+      {/* only the handle reacts to the grab — it grows under the pointer */}
       <span
-        className="absolute top-1/2 -translate-y-1/2 w-[4px] h-[18px] rounded-full bg-white shadow-sm"
-        style={{ left: `max(8px, calc(${pct}% - 12px))` }}
+        className="absolute top-1/2 w-[4px] h-[18px] rounded-full bg-white shadow-sm"
+        style={{
+          left: `max(8px, calc(${pct}% - 12px))`,
+          transform: `translateY(-50%) scale(${pressed ? 1.45 : 1})`,
+          transition: 'transform 0.15s ease',
+        }}
       />
     </div>
   );
@@ -587,7 +683,7 @@ export function ListRow({
     </>
   );
   return onClick ? (
-    <Press onClick={onClick} className="flex items-center gap-3 px-2 py-1.5 rounded-[18px] w-full">
+    <Press onClick={onClick} className="flex items-center gap-3 px-2 py-1.5 rounded-full w-full">
       {body}
     </Press>
   ) : (
