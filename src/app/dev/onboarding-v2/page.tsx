@@ -746,22 +746,24 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
             on lg it steps beside the centred door */}
         <div className="absolute left-[158px] top-[calc(50%+56px)] -translate-y-1/2 flex flex-col gap-7 items-start">
           <div className="flex items-end gap-4">
-            {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices */}
+            {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices.
+                It stands down the shelf, clear of the picture hanging above
+                the shelf's left end */}
             <div className="relative flex flex-col items-start">
-              <div className="w-[54px] flex flex-col items-center">
+              <div className="ml-[120px] w-[54px] flex flex-col items-center">
                 {[0, 1].map((i) => (
                   <span
                     key={i}
                     aria-hidden
-                    className="absolute -top-[16px] left-[27px] size-[40px] rounded-full border-2 border-white"
+                    className="absolute -top-[16px] left-[147px] size-[40px] rounded-full border-2 border-white"
                     style={{ marginLeft: -20, animation: `obv2-pulse 2.6s ease-out ${i * 1.3}s infinite` }}
                   />
                 ))}
                 <div className="relative w-[10px] h-[42px] bg-white rounded-t-full" />
                 <div className="relative w-[26px] h-[8px] bg-white rounded-full" />
               </div>
-              {/* a small potted plant keeps the ZBT company on its shelf */}
-              <div aria-hidden className="absolute right-[16px] bottom-[30px] flex flex-col items-center">
+              {/* a small potted plant on the shelf's left stretch, under the picture */}
+              <div aria-hidden className="absolute left-[10px] bottom-[30px] flex flex-col items-center">
                 <div className="flex items-end -mb-[3px]">
                   <span className="w-[10px] h-[22px] bg-white rounded-full -rotate-[24deg] translate-x-[4px]" />
                   <span className="w-[10px] h-[27px] bg-white rounded-full" />
