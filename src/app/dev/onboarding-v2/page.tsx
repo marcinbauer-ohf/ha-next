@@ -682,7 +682,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         {/* the door bleeds off the left edge, standing on its mat */}
         {/* lg: the door stands centred in the house */}
         <div
-          className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer"
+          className="absolute -left-[52px] top-1/2 -translate-y-1/2 cursor-pointer lg:left-1/2 lg:-translate-x-1/2"
           onClick={knock}
         >
           <motion.div layoutId="obv2-door">
@@ -698,7 +698,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
               of the door on phones (the door bleeds off the left edge there),
               left of it on lg where the door stands centred */}
           <div
-            className="absolute left-[calc(100%+22px)] top-[4px] flex flex-col items-center cursor-pointer"
+            className="absolute left-[calc(100%+22px)] top-[4px] flex flex-col items-center cursor-pointer lg:left-auto lg:right-[calc(100%+44px)]"
             onClick={(e) => {
               e.stopPropagation();
               setPoke('frame');
@@ -721,13 +721,24 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
               </div>
             </div>
           </div>
+          {/* a little entryway cabinet under the picture (lg only — on phones
+              that wall spot doesn't exist) */}
+          <div aria-hidden className="hidden lg:flex absolute right-[calc(100%+58px)] bottom-0 flex-col">
+            <div className="relative w-[96px] h-[44px] bg-white rounded-[10px] shadow-[0_2px_5px_rgba(0,0,0,0.06)]">
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[14px] h-[4px] rounded-full bg-[#e6e6e6]" />
+            </div>
+            <div className="flex justify-between px-[10px]">
+              <span className="w-[8px] h-[10px] bg-white rounded-b-[4px]" />
+              <span className="w-[8px] h-[10px] bg-white rounded-b-[4px]" />
+            </div>
+          </div>
         </div>
         {/* the answerer: walks out of the held-open door, bottom on the floor
             line, and keeps going until it leaves the scene (and the screen) */}
         {catOut && (
           <div
             aria-hidden
-            className="absolute left-[20px] top-1/2 pointer-events-none z-10"
+            className="absolute left-[20px] top-1/2 pointer-events-none z-10 lg:left-[calc(50%-16px)]"
             style={{ marginTop: 161, animation: 'obv2-cat-walk 4.4s ease-in 0.7s both' }}
             onAnimationEnd={() => setCatOut(false)}
           >
@@ -751,7 +762,7 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
             the doormat under the centred door — and it visits far less often */}
         <div
           aria-hidden
-          className="obv2-vac absolute left-[200px] top-1/2 pointer-events-none"
+          className="obv2-vac absolute left-[200px] top-1/2 pointer-events-none lg:-left-[60px]"
           style={{ marginTop: 159 }}
         >
           <div className="relative w-[116px] h-[32px] bg-white rounded-[10px] shadow-[0_2px_6px_rgba(0,0,0,0.08)]">
@@ -761,27 +772,38 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         </div>
         {/* the wall arrangement on the right — both shelves share a left edge;
             on lg it steps beside the centred door */}
-        {/* raised so the antenna's shelf line meets the picture frame's bottom
-            edge — shelf and picture hang at the same level */}
-        <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start">
+        {/* phones: raised so the antenna's shelf line meets the picture frame's
+            bottom edge, with the key shelf tucked closer beneath it.
+            lg: steps beside the centred door, as before */}
+        <div className="absolute left-[158px] top-[calc(50%-32px)] -translate-y-1/2 flex flex-col gap-4 items-start lg:left-[calc(50%+124px)] lg:top-[calc(50%-8px)] lg:gap-7">
           <div className="flex items-end gap-4">
             {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices.
-                Its whole shelf starts to the RIGHT of the hung picture and runs
-                on until the house wall (or the screen edge) cuts it off */}
-            <div className="relative ml-[132px] flex flex-col items-start">
-              <div className="ml-[10px] w-[54px] flex flex-col items-center">
+                Phones: its whole shelf starts to the RIGHT of the hung picture
+                and runs until the screen edge cuts it off. lg: the short shelf
+                with the plant, beside the centred door */}
+            <div className="relative ml-[132px] flex flex-col items-start lg:ml-0">
+              <div className="ml-[10px] w-[54px] flex flex-col items-center lg:ml-0">
                 {[0, 1].map((i) => (
                   <span
                     key={i}
                     aria-hidden
-                    className="absolute -top-[16px] left-[37px] size-[40px] rounded-full border-2 border-white"
+                    className="absolute -top-[16px] left-[37px] size-[40px] rounded-full border-2 border-white lg:left-[27px]"
                     style={{ marginLeft: -20, animation: `obv2-pulse 2.6s ease-out ${i * 1.3}s infinite` }}
                   />
                 ))}
                 <div className="relative w-[10px] h-[42px] bg-white rounded-t-full" />
                 <div className="relative w-[26px] h-[8px] bg-white rounded-full" />
               </div>
-              <div className="relative mt-[6px] w-[440px] h-[30px] bg-white rounded-[10px]" />
+              {/* a small potted plant keeps the ZBT company (lg's short shelf only) */}
+              <div aria-hidden className="hidden lg:flex absolute right-[16px] bottom-[30px] flex-col items-center">
+                <div className="flex items-end -mb-[3px]">
+                  <span className="w-[10px] h-[22px] bg-white rounded-full -rotate-[24deg] translate-x-[4px]" />
+                  <span className="w-[10px] h-[27px] bg-white rounded-full" />
+                  <span className="w-[10px] h-[19px] bg-white rounded-full rotate-[24deg] -translate-x-[4px]" />
+                </div>
+                <div className="w-[26px] h-[16px] bg-white rounded-b-[8px] rounded-t-[3px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]" />
+              </div>
+              <div className="relative mt-[6px] w-[440px] h-[30px] bg-white rounded-[10px] lg:w-[170px]" />
             </div>
           </div>
           {/* your key and the area books, standing together on a shelf */}
