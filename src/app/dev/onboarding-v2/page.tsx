@@ -889,7 +889,7 @@ function AreasSheet({
   floorIndex: number;
   booksByFloor: Book[][];
   toggleRoom: (room: string, Icon: TablerIcon) => void;
-  addCustomRoom: (name: string) => void;
+  addCustomRoom: (name: string, Icon?: TablerIcon) => void;
   customRooms: string[];
   /** "Next floor" while floors remain, "Continue" on the last one. */
   ctaLabel: string;
@@ -920,7 +920,11 @@ function AreasSheet({
         >
           {[
             ...L.rooms.map((name, i) => ({ name, Icon: ROOM_ICONS[i] })),
-            ...customRooms.map((name) => ({ name, Icon: IconDoor })),
+            // a multiple of a predefined room keeps that room's icon on its chip
+            ...customRooms.map((name) => {
+              const base = L.rooms.indexOf(name.replace(/ \d+$/, ''));
+              return { name, Icon: base >= 0 ? ROOM_ICONS[base] : IconDoor };
+            }),
           ].map(({ name, Icon }) => {
             const isOn = selected.has(name);
             return (
@@ -942,7 +946,7 @@ function AreasSheet({
                       e.stopPropagation();
                       let n = 2;
                       while (customRooms.includes(`${name} ${n}`)) n++;
-                      addCustomRoom(`${name} ${n}`);
+                      addCustomRoom(`${name} ${n}`, Icon);
                     }}
                     className="-mr-1 flex size-[24px] items-center justify-center rounded-full bg-white/25"
                   >
@@ -1838,12 +1842,14 @@ export default function OnboardingV2Page() {
   );
 
   const addCustomRoom = useCallback(
-    (name: string) => {
+    // multiples of a predefined room ("Bedroom 2") pass the base room's icon;
+    // truly custom rooms fall back to the door
+    (name: string, Icon: TablerIcon = IconDoor) => {
       setCustomRooms((prev) => (prev.includes(name) ? prev : [...prev, name]));
       setBooksByFloor((prev) => {
         const next = prev.map((f) => [...f]);
         while (next.length < floors) next.push([]);
-        if (!next[floorIndex].some((b) => b.room === name)) next[floorIndex].push(makeBook(name, IconDoor));
+        if (!next[floorIndex].some((b) => b.room === name)) next[floorIndex].push(makeBook(name, Icon));
         return next;
       });
     },
