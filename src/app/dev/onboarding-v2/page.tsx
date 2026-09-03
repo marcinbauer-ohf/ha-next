@@ -761,7 +761,9 @@ function WelcomeArt({ homeName, L }: { homeName: string; L: Copy }) {
         </div>
         {/* the wall arrangement on the right — both shelves share a left edge;
             on lg it steps beside the centred door */}
-        <div className="absolute left-[158px] top-[calc(50%+56px)] -translate-y-1/2 flex flex-col gap-7 items-start">
+        {/* raised so the antenna's shelf line meets the picture frame's bottom
+            edge — shelf and picture hang at the same level */}
+        <div className="absolute left-[158px] top-[calc(50%-26px)] -translate-y-1/2 flex flex-col gap-7 items-start">
           <div className="flex items-end gap-4">
             {/* the Home Assistant ZBT-2 — antenna up, chatting with the devices.
                 Its whole shelf starts to the RIGHT of the hung picture and runs
