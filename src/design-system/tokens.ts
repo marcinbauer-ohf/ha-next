@@ -64,3 +64,10 @@ export const spring = {
 
 /** The system face — Onest is loaded by the root layout. */
 export const font = 'var(--font-onest), Onest, system-ui, sans-serif';
+
+/** Snappy settle with a touch of overshoot — a real-life toggle. The one
+ *  curve for toggles, segmented controls, and anything that clicks into
+ *  place. */
+export const ease = {
+  snap: 'cubic-bezier(0.7, 0, 0.3, 1.4)',
+} as const;
