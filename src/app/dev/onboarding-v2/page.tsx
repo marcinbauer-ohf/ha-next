@@ -103,8 +103,6 @@ const TEXT_2 = color.text2;
 const TEXT_DIM = color.textDim;
 
 const MAX_FLOORS = 5;
-// Moving-day sources — brand names, shared across languages.
-const MIGRATE_SOURCES = ['Google Home', 'Amazon Alexa', 'Apple Home', 'SmartThings', 'Home Assistant'];
 
 // ── Copy: EN/PL — the flag button on the welcome bar toggles ─────────────────
 type Lang = 'en' | 'pl' | 'es';
@@ -148,12 +146,7 @@ const STR = {
     finish: 'Finish',
     skip: 'Skip for now',
     custom: 'Custom',
-    customMenu: ['Restore from a backup', 'Migrate from another system', 'Learn about Home Assistant'],
-    migrateTitle: 'Where are you moving from?',
-    migrateOther: 'Somewhere else',
-    migrateHintHA: 'Best move there is — we can bring everything over from a backup.',
-    migrateHintOther: 'Your devices move with you. Rooms and automations get a fresh start here.',
-    migrateToast: 'Boxes packed — we’ll unpack once you’re in',
+    customMenu: ['Restore from a backup', 'Learn about Home Assistant'],
     a11yMenu: ['Larger text', 'High contrast', 'Reduce motion', 'Spoken hints'],
     nameTitle: 'Name your home',
     namePh: 'Home name',
@@ -245,12 +238,7 @@ const STR = {
     finish: 'Zakończ',
     skip: 'Na razie pomiń',
     custom: 'Inne',
-    customMenu: ['Przywróć z kopii zapasowej', 'Przenieś się z innego systemu', 'Poznaj Home Assistant'],
-    migrateTitle: 'Skąd się przeprowadzasz?',
-    migrateOther: 'Skądinąd',
-    migrateHintHA: 'Najlepsza możliwa przeprowadzka — przeniesiemy wszystko z kopii zapasowej.',
-    migrateHintOther: 'Urządzenia przeprowadzają się z tobą. Pokoje i automatyzacje zaczną tu od nowa.',
-    migrateToast: 'Kartony spakowane — rozpakujemy je po wejściu',
+    customMenu: ['Przywróć z kopii zapasowej', 'Poznaj Home Assistant'],
     a11yMenu: ['Większy tekst', 'Wysoki kontrast', 'Ogranicz animacje', 'Podpowiedzi głosowe'],
     nameTitle: 'Nazwij swój dom',
     namePh: 'Nazwa domu',
@@ -342,12 +330,7 @@ const STR = {
     finish: 'Terminar',
     skip: 'Omitir por ahora',
     custom: 'Opciones',
-    customMenu: ['Restaurar desde una copia', 'Migrar desde otro sistema', 'Conoce Home Assistant'],
-    migrateTitle: '¿De dónde te mudas?',
-    migrateOther: 'De otro sitio',
-    migrateHintHA: 'La mejor mudanza posible: lo traemos todo desde una copia de seguridad.',
-    migrateHintOther: 'Tus dispositivos se mudan contigo. Las habitaciones y automatizaciones empiezan de nuevo aquí.',
-    migrateToast: 'Cajas listas — las desempacamos al entrar',
+    customMenu: ['Restaurar desde una copia', 'Conoce Home Assistant'],
     a11yMenu: ['Texto más grande', 'Alto contraste', 'Menos animaciones', 'Indicaciones de voz'],
     nameTitle: 'Nombra tu hogar',
     namePh: 'Nombre del hogar',
@@ -1679,7 +1662,6 @@ function DashboardStep({
 // ── Flow ─────────────────────────────────────────────────────────────────────
 type Step =
   | 'welcome'
-  | 'migrate'
   | 'name'
   | 'users'
   | 'invite'
@@ -1751,8 +1733,6 @@ export default function OnboardingV2Page() {
   // moment it boots, so devices trickle in while the user is still at the door.
   const [found, setFound] = useState(0);
   const [welcomeMenuOpen, setWelcomeMenuOpen] = useState(false);
-  // Moving day: which system the user is moving from (migrate side-track).
-  const [migrateFrom, setMigrateFrom] = useState<string | null>(null);
   const [a11yMenuOpen, setA11yMenuOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [toast, setToast] = useState<{ id: string; msg: string; seq: number; keySeed?: string } | null>(null);
@@ -2066,13 +2046,6 @@ export default function OnboardingV2Page() {
     setStep(ORDER[ORDER.indexOf(step) + 1]);
   };
   const back = () => {
-    // the migrate side-track isn't in ORDER — back always returns to the door
-    if (step === 'migrate') {
-      setDir(-1);
-      setToast(null);
-      setStep('welcome');
-      return;
-    }
     setDir(step === 'name' ? 0 : -1);
     setToast(null);
     if (step === 'areas' && floorIndex > 0) {
@@ -2092,8 +2065,6 @@ export default function OnboardingV2Page() {
       case 'welcome':
         // The welcome heading lives display-sized in the artboard instead.
         return { title: null };
-      case 'migrate':
-        return { title: L.migrateTitle };
       case 'name':
         return { title: L.nameTitle };
       case 'users':
@@ -2131,29 +2102,6 @@ export default function OnboardingV2Page() {
     switch (step) {
       case 'welcome':
         return <WelcomeArt homeName={homeName} L={L} />;
-      case 'migrate':
-        // moving day: taped cardboard boxes waiting on the floor
-        return (
-          <div className="obv2-art obv2-art-bottom flex-1 flex items-end justify-center min-h-0 pb-4 lg:pb-[17%]">
-            <div className="relative w-[300px] h-[190px]">
-              {/* the big box, tape band down the middle, flap line up top */}
-              <div className="absolute left-[42px] bottom-0 w-[128px] h-[100px] bg-white rounded-[12px] shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-                <span className="absolute left-1/2 -translate-x-1/2 top-0 w-[18px] h-full bg-[#ececec]" />
-                <span className="absolute inset-x-[10px] top-[26px] h-[3px] rounded-full bg-[#e6e6e6]" />
-              </div>
-              {/* the small box, tilted on top */}
-              <div className="absolute left-[64px] bottom-[96px] w-[76px] h-[58px] bg-white rounded-[10px] shadow-[0_2px_6px_rgba(0,0,0,0.06)] -rotate-[6deg]">
-                <span className="absolute left-1/2 -translate-x-1/2 top-0 w-[13px] h-full bg-[#ececec]" />
-              </div>
-              {/* the flat neighbour, label scribble on its face */}
-              <div className="absolute right-[28px] bottom-0 w-[96px] h-[72px] bg-white rounded-[10px] shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
-                <span className="absolute left-[12px] top-[16px] w-[42px] h-[3px] rounded-full bg-[#e6e6e6]" />
-                <span className="absolute left-[12px] top-[25px] w-[28px] h-[3px] rounded-full bg-[#e6e6e6]" />
-                <span className="absolute right-[12px] top-[14px] size-[14px] rounded-[3px]" style={{ background: ACCENT, opacity: 0.85 }} />
-              </div>
-            </div>
-          </div>
-        );
       case 'name':
         return (
           <div className="flex-1 flex flex-col items-center min-h-0 overflow-hidden py-2">
@@ -2320,46 +2268,6 @@ export default function OnboardingV2Page() {
     switch (step) {
       case 'welcome':
         return <CtaButton label={L.begin} onClick={next} />;
-      case 'migrate':
-        return (
-          <>
-            <div className="flex flex-wrap justify-center gap-2">
-              {[...MIGRATE_SOURCES, L.migrateOther].map((src) => {
-                const on = migrateFrom === src;
-                return (
-                  <Press
-                    key={src}
-                    onClick={() => setMigrateFrom(on ? null : src)}
-                    className="min-h-[44px] px-4 rounded-full text-[15px] font-semibold tracking-[-0.3px]"
-                    style={{ background: on ? ACCENT : '#f3f3f3', color: on ? '#ffffff' : INK }}
-                  >
-                    {src}
-                  </Press>
-                );
-              })}
-            </div>
-            {/* honest expectations per source — HA is the only true import */}
-            <p
-              className={clsx(
-                'min-h-[40px] px-2 text-center text-[13px] tracking-[-0.26px] transition-opacity',
-                migrateFrom ? 'opacity-100' : 'opacity-0',
-              )}
-              style={{ color: TEXT_2 }}
-            >
-              {migrateFrom === 'Home Assistant' ? L.migrateHintHA : L.migrateHintOther}
-            </p>
-            <CtaButton
-              label={L.cont}
-              disabled={!migrateFrom}
-              arrow
-              onClick={() => {
-                showToast(L.migrateToast);
-                setDir(1);
-                setStep('name');
-              }}
-            />
-          </>
-        );
       case 'name':
         return (
           <>
@@ -2851,15 +2759,6 @@ export default function OnboardingV2Page() {
                   <PopMenu
                     open={welcomeMenuOpen}
                     onPick={() => setWelcomeMenuOpen(false)}
-                    onPickItem={(i: number) => {
-                      setWelcomeMenuOpen(false);
-                      // "Migrate from another system" → the moving-day step
-                      if (i === 1) {
-                        setDir(1);
-                        setToast(null);
-                        setStep('migrate');
-                      }
-                    }}
                     items={L.customMenu}
                   />
                 )}
