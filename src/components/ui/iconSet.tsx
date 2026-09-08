@@ -24,7 +24,7 @@ const LS_KEY = 'ha-flag-icon-set';
 
 // ---- tiny external store (so only icons re-render on swap, not every flag) ----
 
-let current: IconSet = 'tabler';
+let current: IconSet = 'mdi';
 if (typeof window !== 'undefined') {
   const stored = localStorage.getItem(LS_KEY);
   if (stored && (ICON_SETS as string[]).includes(stored)) current = stored as IconSet;
@@ -51,7 +51,7 @@ function subscribe(cb: () => void): () => void {
 }
 
 export function useIconSet(): IconSet {
-  return useSyncExternalStore(subscribe, getIconSet, () => 'tabler');
+  return useSyncExternalStore(subscribe, getIconSet, () => 'mdi');
 }
 
 // ---- lazy MDI path -> kebab-name reverse map ----

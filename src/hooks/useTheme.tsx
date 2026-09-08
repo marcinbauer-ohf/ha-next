@@ -115,10 +115,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return stored || 'gradient';
   });
 
-  // Squircle corners are on by default; only an explicit '0' disables them.
+  // Squircle corners are off by default; only an explicit '1' enables them.
   const [squircle, setSquircleState] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('ha-squircle-pref') !== '0';
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('ha-squircle-pref') === '1';
   });
 
   const [density, setDensityState] = useState<Density>(() => {

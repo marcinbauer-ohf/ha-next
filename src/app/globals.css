@@ -168,8 +168,8 @@
    `corner-shape` only alters corners that already carry a border-radius, so
    square elements are untouched and this is imperceptible on themes with tiny
    radii (eink, fallout) — only the soft, rounded themes visibly benefit.
-   Driven by the data-squircle attribute on <html> (set in useTheme); enabled
-   by default. Progressive enhancement: silently ignored where unsupported. */
+   Driven by the data-squircle attribute on <html> (set in useTheme); off by
+   default, opt-in. Progressive enhancement: silently ignored where unsupported. */
 @supports (corner-shape: squircle) {
   [data-squircle="on"] * {
     corner-shape: squircle;
