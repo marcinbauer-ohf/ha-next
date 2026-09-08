@@ -173,6 +173,12 @@ export function batteryCandidates(entities: Entities): HassEntity[] {
   );
 }
 
+/** A device's charge level (0–100), or undefined when it runs on mains. */
+export function deviceBatteryLevel(entities: HassEntity[]): number | undefined {
+  const e = batteryCandidates(Object.fromEntries(entities.map((x) => [x.entity_id, x])))[0];
+  return e ? numeric(e) : undefined;
+}
+
 /** Resolve a configured id list against the store, dropping anything gone. */
 function resolve(entities: Entities, ids: string[]): HassEntity[] {
   return ids.map((id) => entities[id]).filter(Boolean) as HassEntity[];

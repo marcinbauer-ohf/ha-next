@@ -50,7 +50,7 @@ export function Toast({ icon, iconColor = 'text-ha-blue', caption, title, subtit
       tabIndex={clickable ? 0 : undefined}
       onClick={onClick}
       onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick!(); } } : undefined}
-      className={`w-full px-ha-2 py-ha-2 lg:px-ha-4 lg:py-ha-3 rounded-ha-2xl lg:rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50${clickable ? ' cursor-pointer hover:bg-surface-lower/95 active:scale-[0.98] transition-[background-color,transform]' : ''}`}
+      className={`toast-inverted w-full px-ha-2 py-ha-2 lg:px-ha-4 lg:py-ha-3 rounded-ha-2xl lg:rounded-ha-3xl bg-surface-default/95 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] border border-surface-low/50${clickable ? ' cursor-pointer hover:bg-surface-lower/95 active:scale-[0.98] transition-[background-color,transform]' : ''}`}
     >
       <div className="flex items-center gap-ha-2 lg:gap-ha-3">
         <div className="shrink-0 relative w-8 h-8 lg:w-11 lg:h-11">
@@ -235,7 +235,7 @@ export function ToastStack({ toasts }: { toasts: ToastStackItem[] }) {
           animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
           exit={exit}
           transition={SPRING_CONTAINER}
-          className={`${root ? 'absolute' : 'fixed'} corner-toast z-[65] pointer-events-auto`}
+          className={`${root ? 'absolute' : 'fixed'} corner-toast toast-invert-capture z-[65] pointer-events-auto`}
         >
           <div className={`transition-opacity duration-150 ease-out ${hideForNav ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <StackedCards toasts={toasts} swipeToDismiss={!isDesktop} />
@@ -271,7 +271,7 @@ function StackedCards({ toasts, swipeToDismiss }: { toasts: ToastStackItem[]; sw
             transition={SPRING_STACK}
             aria-hidden
           >
-            <div className="h-full rounded-ha-3xl bg-surface-default/95 border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]" />
+            <div className="toast-inverted h-full rounded-ha-3xl bg-surface-default/95 border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)]" />
           </motion.div>
         ))}
       </AnimatePresence>

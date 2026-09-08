@@ -24,7 +24,7 @@ const LS_KEY = 'ha-flag-icon-set';
 
 // ---- tiny external store (so only icons re-render on swap, not every flag) ----
 
-let current: IconSet = 'mdi';
+let current: IconSet = 'tabler';
 if (typeof window !== 'undefined') {
   const stored = localStorage.getItem(LS_KEY);
   if (stored && (ICON_SETS as string[]).includes(stored)) current = stored as IconSet;
@@ -51,7 +51,7 @@ function subscribe(cb: () => void): () => void {
 }
 
 export function useIconSet(): IconSet {
-  return useSyncExternalStore(subscribe, getIconSet, () => 'mdi');
+  return useSyncExternalStore(subscribe, getIconSet, () => 'tabler');
 }
 
 // ---- lazy MDI path -> kebab-name reverse map ----
@@ -232,6 +232,9 @@ const ALIASES: Record<Exclude<IconSet, 'mdi'>, Record<string, string>> = {
     'map-marker-outline': 'map-pin', web: 'globe', play: 'player-play', pause: 'player-pause',
     lightbulb: 'bulb', speaker: 'speakerphone', wrench: 'tool', thermometer: 'temperature',
     'information-outline': 'info-circle',
+    'battery-10': 'battery-1', 'battery-20': 'battery-1', 'battery-30': 'battery-2', 'battery-40': 'battery-2',
+    'battery-50': 'battery-2', 'battery-60': 'battery-3', 'battery-70': 'battery-3', 'battery-80': 'battery-4',
+    'battery-90': 'battery-4', 'battery-alert-variant-outline': 'battery-exclamation',
   },
   phosphor: {
     close: 'x', flash: 'lightning', 'chevron-right': 'caret-right', update: 'arrows-clockwise',

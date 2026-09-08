@@ -41,6 +41,14 @@ export function keyHash(s: string): number {
 /** The cap color a person's key wears — reused wherever they're represented. */
 export const capColorFor = (seed: string) => KEY_CAPS[keyHash(seed) % KEY_CAPS.length];
 
+/**
+ * Shape rule: anything CLICKABLE is a pill (`rounded-full`) — buttons, chips,
+ * segments, menu items, tappable rows. INPUTS are 16px. Surfaces step up:
+ * popover 20, card 24, sheet 32. State controls keep their semantic shapes
+ * (checkbox = rounded square, radio = circle, toggle = pill by nature).
+ */
+export const radius = { input: 16, popover: 20, card: 24, sheet: 32 } as const;
+
 export const shadow = {
   rest: '0 2px 8px rgba(0,0,0,0.06)',
   float: '0 8px 30px rgba(0,0,0,0.12)',
@@ -62,12 +70,12 @@ export const spring = {
   drop: { type: 'spring', stiffness: 320, damping: 17, mass: 0.9 },
 } as const;
 
-/** The system face — Onest is loaded by the root layout. */
-export const font = 'var(--font-onest), Onest, system-ui, sans-serif';
-
-/** Snappy settle with a touch of overshoot — a real-life toggle. The one
- *  curve for toggles, segmented controls, and anything that clicks into
- *  place. */
+/** CSS easings. `snap` eases in slowly then snaps home with a slight
+ *  overshoot — a real-life toggle. The one curve for toggles, segmented
+ *  controls, and anything else that clicks into place. */
 export const ease = {
   snap: 'cubic-bezier(0.7, 0, 0.3, 1.4)',
 } as const;
+
+/** The system face — Geist is loaded by the root layout (--font-geist). */
+export const font = 'var(--font-geist), Geist, system-ui, sans-serif';

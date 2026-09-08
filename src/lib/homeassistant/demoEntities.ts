@@ -468,8 +468,8 @@ export function createDemoEntities(now = new Date()): HassEntities {
       },
       timestamp
     ),
-    'sensor.front_door_lock_battery': createEntity(
-      'sensor.front_door_lock_battery',
+    'sensor.front_door_battery': createEntity(
+      'sensor.front_door_battery',
       '8',
       {
         friendly_name: 'Front Door Lock Battery',
@@ -488,11 +488,11 @@ export function createDemoEntities(now = new Date()): HassEntities {
       },
       timestamp
     ),
-    'sensor.living_room_thermostat_battery': createEntity(
-      'sensor.living_room_thermostat_battery',
+    'sensor.bedroom_battery': createEntity(
+      'sensor.bedroom_battery',
       '94',
       {
-        friendly_name: 'Living Room Thermostat Battery',
+        friendly_name: 'Bedroom Thermostat Battery',
         device_class: 'battery',
         unit_of_measurement: '%',
       },

@@ -275,7 +275,7 @@ export function TopBar() {
             past the content edge. */}
         <div
           className="flex items-center gap-ha-3 transition-[padding] duration-300 ease-out"
-          style={{ paddingLeft: showBack ? undefined : `calc(${immersiveMode ? '0px' : 'var(--ha-space-3)'} + var(--dct-pad, 10px))` }}
+          style={{ paddingLeft: showBack ? undefined : `calc(${immersiveMode ? '0px' : 'var(--ha-space-3)'} + var(--dct-pad, calc(10px * var(--ha-density, 1))))` }}
         >
           {showBack && (
             <button
@@ -308,7 +308,6 @@ export function TopBar() {
               {mobileTitle(false)}
             </div>
           ))}
-          {!showBack && editPencil}
         </div>
 
         {/* Back pages: heading on the bar's centre axis, so the arrow on the
@@ -318,12 +317,13 @@ export function TopBar() {
         {showBack && (
           <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 flex max-w-[62%] -translate-x-1/2 -translate-y-1/2 items-center gap-ha-1">
             {mobileTitle(true)}
-            {editPencil && <span className="pointer-events-auto">{editPencil}</span>}
           </div>
         )}
 
-        {/* Mobile Actions */}
+        {/* Mobile Actions — the pencil lives with the other actions here,
+            next to the plus, rather than beside the heading as on desktop. */}
         <div className="flex items-center gap-ha-2">
+          {editPencil}
           {primaryAction && (
             <button 
               onClick={primaryAction.onClick}

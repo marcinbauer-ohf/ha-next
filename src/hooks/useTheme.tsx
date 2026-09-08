@@ -3,12 +3,14 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { MotionConfig } from 'framer-motion';
 import {
+  mdiArrowExpandVertical,
   mdiWhiteBalanceSunny,
   mdiWeatherNight,
   mdiThemeLightDark,
   mdiPalette,
 } from '@mdi/js';
 import { flashHud } from '@/lib/hudFlashBus';
+import { canFireBareShortcut, matchShortcut } from '@/lib/keyboardShortcuts';
 
 // Note: the CSS gates the shared Material rules on [data-theme^="material"] and
 // the shared default rules on [data-theme^="default"], so any future variant of
@@ -81,6 +83,13 @@ const THEME_LABEL: Record<Theme, string> = {
   'material-ha': 'HA Material',
   eink: 'E-ink',
   fallout: 'Fallout',
+};
+
+export const DENSITIES: Density[] = ['compact', 'default', 'spacious'];
+const DENSITY_LABEL: Record<Density, string> = {
+  compact: 'Compact',
+  default: 'Default',
+  spacious: 'Spacious',
 };
 
 function isTheme(value: string | null): value is Theme {
@@ -279,6 +288,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           icon: mdiPalette,
         });
       }
+      // Bare P cycles DENSITY (gaps and padding app-wide). A plain letter, not a
+      // mod chord: every free ⌘/Ctrl+⇧ letter left was already a browser command
+      // (⌘⇧G is Find Previous), and a page can't preventDefault those.
+      if (canFireBareShortcut(e) && matchShortcut(e, 'global.density')) {
+        e.preventDefault();
+        const next = DENSITIES[(DENSITIES.indexOf(density) + 1) % DENSITIES.length];
+        setDensity(next);
+        flashHud({ shortcutId: 'global.density', value: DENSITY_LABEL[next], icon: mdiArrowExpandVertical });
+      }
       // Cmd/Ctrl + Shift + U to toggle SQUIRCLE corners. No HUD flash here —
       // squircle already fires its own corner toast (in AppShell) on any change.
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'u') {
@@ -289,7 +307,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleMode, toggleSquircle, setTheme, mode, theme]);
+  }, [toggleMode, toggleSquircle, setTheme, setDensity, mode, theme, density]);
 
   return (
     <ThemeContext.Provider value={{ theme, mode, background, squircle, density, toggleTheme, toggleMode, toggleBackground, toggleSquircle, setTheme, setMode, setBackground, setSquircle, setDensity, a11y, toggleA11y }}>

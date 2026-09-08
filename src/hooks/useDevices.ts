@@ -133,13 +133,16 @@ const SINGLE_DOMAINS = new Set([
 function buildFromEntities(allEntities: HassEntities, withDemoAreas: boolean): HassDevice[] {
   const devices: HassDevice[] = [];
   const sensors: HassEntity[] = [];
+  const batteries: HassEntity[] = [];
 
   for (const entity of Object.values(allEntities)) {
     const domain = entity.entity_id.split('.')[0];
-    // Diagnostics stay out of the dashboard: standalone battery sensors feed
-    // the Home Center, and demo data can opt entities out explicitly.
+    // Diagnostics stay out of the dashboard: battery sensors never get a card of
+    // their own — they ride along on the device they name (`sensor.front_door_battery`
+    // → `lock.front_door`), else feed only the Home Center. Demo data can opt
+    // entities out explicitly.
     if (entity.attributes.dashboard_hidden === true) continue;
-    if (domain === 'sensor' && entity.attributes.device_class === 'battery') continue;
+    if (domain === 'sensor' && entity.attributes.device_class === 'battery') { batteries.push(entity); continue; }
     if (SINGLE_DOMAINS.has(domain)) {
       devices.push({
         id: entity.entity_id,
@@ -179,6 +182,11 @@ function buildFromEntities(allEntities: HassEntities, withDemoAreas: boolean): H
       entities: sorted,
       primaryEntity: sorted[0],
     });
+  }
+
+  for (const b of batteries) {
+    const base = b.entity_id.replace(/^sensor\./, '').replace(/_battery$/, '');
+    devices.find((d) => d.id.split('.')[1] === base)?.entities.push(b);
   }
 
   return devices;

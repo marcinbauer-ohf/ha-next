@@ -22,7 +22,7 @@ export function SectionHeader({ title, href }: { title: string; href?: string })
       className="-mx-ha-1 pr-ha-1 py-ha-2 mb-ha-1"
       // The negative margin gives the link a little bleed for its hit area, so
       // the card's inset has to be added back on top of it.
-      style={{ paddingLeft: 'calc(var(--ha-space-1) + var(--dct-pad, 10px))' }}
+      style={{ paddingLeft: 'calc(var(--ha-space-1) + var(--dct-pad, calc(10px * var(--ha-density, 1))))' }}
       data-section-header
     >
       {href ? (

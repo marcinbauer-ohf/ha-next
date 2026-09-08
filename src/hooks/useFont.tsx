@@ -46,6 +46,13 @@ export interface FontOption {
 /** Fonts bundled at build time via next/font/google (always present). */
 const BUNDLED_FONTS: FontOption[] = [
   {
+    key: 'geist',
+    label: 'Geist',
+    caption: 'OFL · minimalist modern (Vercel) — the default',
+    stack: 'var(--font-geist), "Geist", system-ui, sans-serif',
+    tracking: '-0.012em',
+  },
+  {
     key: 'theme',
     label: 'Theme default',
     caption: 'Use whatever the active theme defines',
@@ -150,7 +157,6 @@ const GOOGLE_EXPERIMENT_FONTS: GoogleFontDef[] = [
   // Google Fonts, so they load through the same lazy-loader. ──
   { family: 'Exo 2', note: 'techno · futuristic', tracking: '-0.005em' },
   { family: 'Jura', note: 'geometric · futuristic', tracking: '0.01em' },
-  { family: 'Geist', note: 'minimalist modern (Vercel)', tracking: '-0.012em' },
   { family: 'Geist Mono', note: 'modern mono (Vercel)', features: '"zero" 1' },
   { family: 'Unbounded', note: 'geometric · display', tracking: '-0.01em' },
   { family: 'Onest', note: 'clean modern', tracking: '-0.008em' },
@@ -212,9 +218,9 @@ function isFontKey(value: string | null): value is FontKey {
 
 export function FontProvider({ children }: { children: ReactNode }) {
   const [font, setFontState] = useState<FontKey>(() => {
-    if (typeof window === 'undefined') return 'theme';
+    if (typeof window === 'undefined') return 'geist';
     const stored = localStorage.getItem('ha-font-pref');
-    return isFontKey(stored) ? stored : 'theme';
+    return isFontKey(stored) ? stored : 'geist';
   });
 
   // Apply the selected font — plus its per-face typographic tuning — to the

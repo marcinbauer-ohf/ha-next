@@ -12,6 +12,7 @@ import { useCloseOnScreensaver } from '@/contexts';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useSheetDrag } from '@/hooks/useSheetDrag';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { processConversation, startVoiceAssist, type VoiceAssistSession } from '@/lib/homeassistant';
 import { SheetGrabber } from './SheetGrabber';
 import {
@@ -73,6 +74,7 @@ export function AssistantOverlay() {
   const pathname = usePathname();
   const { assistantOpen, initialQuery, closeAssistant } = useAssistantContext();
   const { connected, demoMode } = useHomeAssistant();
+  const { assistVisualizationEnabled } = useFeatureFlags();
   const dark = useIsDarkMode();
   useCloseOnScreensaver(assistantOpen, closeAssistant);
   const [query, setQuery] = useState('');
@@ -268,6 +270,11 @@ export function AssistantOverlay() {
         ? 'Speaking…'
         : `Tap the orb and speak, or type below`;
 
+  // Plain mode (the "Advanced Assist visualization" flag off): no orb, no
+  // suggestions — the mic moves into the input pill and the sheet is just the
+  // conversation and the field.
+  const plain = !assistVisualizationEnabled;
+
   // Orb dressing per state — the ring is a conic HA-blue gradient that spins
   // while thinking, pulses while speaking, and breathes at rest.
   const ringClass =
@@ -334,7 +341,7 @@ export function AssistantOverlay() {
           </div>
 
           {/* The face — same orb as the lock screen, sheet-sized */}
-          <div className={`flex flex-col items-center gap-ha-3 pt-ha-2 pb-ha-4 px-ha-4 transition-all duration-500 ${
+          {!plain && <div className={`flex flex-col items-center gap-ha-3 pt-ha-2 pb-ha-4 px-ha-4 transition-all duration-500 ${
             visible ? 'opacity-100' : 'opacity-0'
           }`}>
             <div ref={orbScaleRef} className="transition-transform duration-150 ease-out">
@@ -379,7 +386,7 @@ export function AssistantOverlay() {
               </button>
             </div>
             <p className="text-sm text-text-secondary">{statusText}</p>
-          </div>
+          </div>}
 
           {/* Conversation — same glass bubbles as the lock screen */}
           <div className="px-ha-4 pb-ha-3">
@@ -438,6 +445,19 @@ export function AssistantOverlay() {
                 // 16px on touch screens — smaller fonts make iOS zoom on focus.
                 className="flex-1 bg-transparent text-base lg:text-sm text-text-primary placeholder-text-tertiary outline-none"
               />
+              {plain && (
+                <button
+                  type="button"
+                  onClick={() => void handleMicClick()}
+                  aria-label={listening ? 'Stop listening' : 'Start voice input'}
+                  aria-pressed={listening}
+                  className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                    listening ? 'bg-ha-blue text-white' : 'text-text-secondary hover:bg-surface-mid'
+                  }`}
+                >
+                  <Icon path={listening ? mdiStop : mdiMicrophone} size={20} />
+                </button>
+              )}
               <button
                 type="submit"
                 aria-label="Send"
@@ -452,7 +472,7 @@ export function AssistantOverlay() {
           </div>
 
           {/* Suggestions — glass chips on the dark scene */}
-          <div className={`px-ha-4 pb-ha-6 transition-all duration-300 delay-150 ${
+          {!plain && <div className={`px-ha-4 pb-ha-6 transition-all duration-300 delay-150 ${
             visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}>
             <div className="w-full max-w-lg mx-auto">
@@ -474,7 +494,7 @@ export function AssistantOverlay() {
                 ))}
               </div>
             </div>
-          </div>
+          </div>}
         </div>
       </div>
     </div>

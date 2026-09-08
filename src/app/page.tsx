@@ -39,6 +39,7 @@ import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, us
 import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
 import { usePullToRevealContext, useHeader, useEditMode, useToast, useDebugFlags } from '@/contexts';
 import { TipStack, type TipStackTip } from '@/components/ui/TipStack';
+import { deviceBatteryLevel } from '@/lib/summaryConfig';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { OffscreenChangeHints } from '@/components/ui/OffscreenChangeHints';
 import { ScrollIndexRail } from '@/components/ui/ScrollIndexRail';
@@ -719,6 +720,7 @@ export default function DashboardPage() {
           // "On" alone says little about a light or a speaker — stateExtras adds
           // its colour / source / setpoint, and the colour as a dot.
           details: primaryExtras.details,
+          battery: deviceBatteryLevel(device.entities),
           dotColor: primaryExtras.accentRgb ? `rgb(${primaryExtras.accentRgb.join(' ')})` : undefined,
           lastChanged: primaryEntity.last_changed,
           active: isOn(primaryEntity),

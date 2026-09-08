@@ -2,12 +2,13 @@
 
 import { useRef, useCallback, useState, memo } from 'react';
 import { clsx } from 'clsx';
-import { mdiPower, mdiAlertCircleOutline, mdiPencil } from '@mdi/js';
+import { mdiPower, mdiAlertCircleOutline, mdiPencil, mdiBattery, mdiBattery10, mdiBattery20, mdiBattery30, mdiBattery40, mdiBattery50, mdiBattery60, mdiBattery70, mdiBattery80, mdiBattery90, mdiBatteryAlertVariantOutline } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { RollingNumericValue } from '../ui/RollingNumericValue';
 import { EntityMiniSparkline, type MiniSparklinePoint } from '../ui/EntityMiniSparkline';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
 import { useDebugFlags } from '@/contexts';
+import { lowBatteryAt, useSummaryConfig } from '@/lib/summaryConfig';
 import { formatHoverTime } from './EntityDetailPanel';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -47,6 +48,14 @@ export interface DeviceCardV2Entity {
   details?: string[];
   /** A colour worth a dot before the state (a light's current colour). */
   dotColor?: string;
+  /** Charge level 0–100 for battery-powered devices — draws a small cell after the state. */
+  battery?: number;
+}
+
+const BATTERY_STEPS = [mdiBattery10, mdiBattery20, mdiBattery30, mdiBattery40, mdiBattery50, mdiBattery60, mdiBattery70, mdiBattery80, mdiBattery90, mdiBattery];
+function batteryIcon(level: number, low: boolean): string {
+  if (low) return mdiBatteryAlertVariantOutline;
+  return BATTERY_STEPS[Math.min(9, Math.max(0, Math.round(level / 10) - 1))];
 }
 
 /**
@@ -114,6 +123,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
   // `classic` is the previous layout (image left, name/state + toggle bottom).
   // `hideCardImages` drops the product render from either one.
   const { hideCardImagesEnabled } = useDebugFlags();
+  const batteryLow = lowBatteryAt(useSummaryConfig());
   const hasPicture = !!primary.entityPicture;
   const rawState = primary.state.toLowerCase();
   const isUnavailable = rawState === 'unavailable' || rawState === 'unknown';
@@ -158,9 +168,9 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
     )}>
       {areaName && (
         <p
-          className={clsx('font-medium leading-none truncate ha-card-marquee mb-1', showFeed ? 'text-white/75' : 'text-text-tertiary')}
+          className={clsx('font-medium leading-none truncate ha-card-marquee mb-ha-1', showFeed ? 'text-white/75' : 'text-text-tertiary')}
           style={{
-            fontSize: 'var(--dct-area-size, 12px)',
+            fontSize: 'var(--dct-area-size, calc(12px * var(--ha-type-scale, 1)))',
             textTransform: 'var(--dct-area-transform, none)' as 'none',
             letterSpacing: 'var(--dct-area-tracking, normal)',
           }}
@@ -171,7 +181,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           line, so this one wraps rather than marqueeing. */}
       <p
         className={clsx('leading-tight line-clamp-2', showFeed ? 'text-white' : 'text-text-primary')}
-        style={{ fontSize: 'var(--dct-name-size, 15px)', fontWeight: 'var(--dct-name-weight, 600)' }}
+        style={{ fontSize: 'var(--dct-name-size, calc(16px * var(--ha-type-scale, 1)))', fontWeight: 'var(--dct-name-weight, 600)' }}
       >{primary.name}</p>
       {isUnavailable ? (
         <div className="flex items-baseline gap-1.5 mt-1">
@@ -192,8 +202,8 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         <p
           className={clsx('font-medium truncate ha-card-marquee', showFeed ? 'text-white/85' : 'text-text-secondary')}
           style={{
-            fontSize: 'var(--dct-state-size, 13px)',
-            marginTop: 'var(--dct-state-gap, 1px)',
+            fontSize: 'var(--dct-state-size, calc(14px * var(--ha-type-scale, 1)))',
+            marginTop: 'var(--dct-state-gap, calc(1px * var(--ha-density, 1)))',
             fontFamily: 'var(--dct-state-font, var(--font-mono))',
           }}
         >
@@ -215,6 +225,16 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                 ・{d}
               </span>
             ))}
+            {/* Battery-powered devices get a small cell on the same line, red
+                once the charge dips under the Home Center's low threshold. */}
+            {!hoverPoint && primary.battery != null && (
+              <span
+                className={clsx('ml-1.5 inline-flex items-center align-middle', primary.battery <= batteryLow ? 'text-red-500' : showFeed ? 'text-white/60' : 'text-text-tertiary')}
+                title={`Battery ${Math.round(primary.battery)}%`}
+              >
+                ・<Icon path={batteryIcon(primary.battery, primary.battery <= batteryLow)} size={14} className="inline-block" />
+              </span>
+            )}
             {hoverPoint?.ts != null && (
               <span className={clsx('ml-1.5 text-[11px] font-semibold uppercase tracking-wide', showFeed ? 'text-white/60' : 'text-text-tertiary')}>
                 {formatHoverTime(hoverPoint.ts)}
@@ -334,7 +354,12 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         // Imageless: the icon is flush against the card edge with nothing to
         // buffer it (no render, no scrim), so it needs more room than the
         // picture layouts do.
-        style={{ padding: hideCardImagesEnabled ? 'var(--dct-pad, 14px)' : 'var(--dct-pad, 10px)' }}
+        // Every metric below is a `var(--dct-*, calc(N * --ha-density))`: the card
+        // tuner's explicit override still wins, and otherwise the Density setting
+        // scales it. Scaling card height, row height and the masonry gap by the
+        // same factor is what keeps the lattice described below intact at any
+        // density — (base + gap) stays a whole multiple of the row height.
+        style={{ padding: hideCardImagesEnabled ? 'var(--dct-pad, calc(14px * var(--ha-density, 1)))' : 'var(--dct-pad, calc(10px * var(--ha-density, 1)))' }}
         className={clsx(
           'flex flex-col justify-between relative overflow-hidden transition-colors',
           hasSecondary ? 'rounded-t-ha-2xl' : 'rounded-ha-2xl',
@@ -360,7 +385,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           // same base: the *differences* between neighbours are still whole
           // secondary rows, so columns keep lining up.
           hideCardImagesEnabled
-            ? 'min-h-[64px]'
+            ? 'min-h-[calc(64px*var(--ha-density,1))]'
             // Desktop pins the height rather than flooring it. A product render
             // is square and sized by width, and `h-full` inside an indefinite row
             // measures from its own aspect — so at four columns the *image* was
@@ -375,7 +400,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             // setting the card's height, well past the 140px floor. Anywhere a
             // card is wide enough for its render to out-measure the floor needs
             // the definite height, and that starts at the tablet.
-            : 'min-h-[var(--dct-min-h,140px)] md:min-h-0 md:h-[var(--dct-min-h,116px)]',
+            : 'min-h-[var(--dct-min-h,calc(140px*var(--ha-density,1)))] md:min-h-0 md:h-[var(--dct-min-h,calc(116px*var(--ha-density,1)))]',
           //
           editMode
             ? 'bg-surface-default hover:bg-surface-low'
@@ -492,7 +517,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                   // 44px there to match the shorter card's lattice (see the
                   // card-height note above). The tuner's `--dct-row-h` still
                   // overrides both.
-                  'flex min-h-[var(--dct-row-h,52px)] items-center gap-3 px-3 border-t border-surface-lower transition-colors lg:min-h-[var(--dct-row-h,44px)]',
+                  'flex min-h-[var(--dct-row-h,calc(52px*var(--ha-density,1)))] items-center gap-ha-3 px-ha-3 border-t border-surface-lower transition-colors lg:min-h-[var(--dct-row-h,calc(44px*var(--ha-density,1)))]',
                   entityUnavailable
                     ? 'opacity-50 cursor-default'
                     : editMode
@@ -527,7 +552,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                     nothing on screen, and marqueeing its full width because the
                     container it measures against is narrower than its own text. */}
                 <span
-                  style={entity.size === 'sm' ? undefined : { fontSize: 'var(--dct-row-size, 15px)' }}
+                  style={entity.size === 'sm' ? undefined : { fontSize: 'var(--dct-row-size, calc(16px * var(--ha-type-scale, 1)))' }}
                   className={clsx(
                     'flex-1 min-w-[40%] truncate ha-card-marquee',
                     entity.size === 'sm' ? 'text-xs text-text-secondary' : 'text-text-primary',
@@ -596,6 +621,7 @@ function entityFieldsEqual(a?: DeviceCardV2Entity, b?: DeviceCardV2Entity): bool
     a.corner === b.corner &&
     a.cornerLabel === b.cornerLabel &&
     a.dotColor === b.dotColor &&
+    a.battery === b.battery &&
     (a.details ?? []).join('|') === (b.details ?? []).join('|')
   );
 }

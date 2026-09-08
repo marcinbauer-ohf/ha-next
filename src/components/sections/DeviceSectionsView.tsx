@@ -5,6 +5,7 @@ import { mdiImageOffOutline } from '@mdi/js';
 import { ModalSheet } from '@/components/layout/ModalSheet';
 import { SectionHeader } from './SectionHeader';
 import { DeviceCardV2 } from '@/components/cards/DeviceCardV2';
+import { deviceBatteryLevel } from '@/lib/summaryConfig';
 import { DeferredCard } from '@/components/cards/DeferredCard';
 import { EntityDetailPanel } from '@/components/cards/EntityDetailPanel';
 import { DeviceCardEditPanel } from '@/components/cards/DeviceCardEditPanel';
@@ -129,6 +130,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
           name: device.name,
           state: stateLabel(primaryEntity),
           details: primaryExtras.details,
+          battery: deviceBatteryLevel(device.entities),
           dotColor: primaryExtras.accentRgb ? `rgb(${primaryExtras.accentRgb.join(' ')})` : undefined,
           lastChanged: primaryEntity.last_changed,
           active: isOn(primaryEntity),

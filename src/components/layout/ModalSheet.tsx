@@ -25,9 +25,9 @@ interface ModalSheetProps {
    */
   label?: string;
   /**
-   * lg+ gets a sheet instead of the centered card: a drawer that drops out of
-   * the dashboard panel's top edge, where the summary chips that open it live.
-   * For dialogs that are read rather than worked in. Falls back to the
+   * lg+ gets a sheet instead of the centered card: a drawer that rises from
+   * the dashboard panel's bottom edge, the same way the Assist-family sheets
+   * do. For dialogs that are read rather than worked in. Falls back to the
    * viewport-wide bottom sheet where there is no panel to sit in (the
    * screensaver).
    */
@@ -174,9 +174,9 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
           tabIndex={-1}
           className={clsx(
             'flex justify-center pointer-events-auto outline-none',
-            // Contained: a drawer hanging off the panel's top edge, which is
-            // where the chips that open it are. Everywhere else: bottom sheet.
-            asSheet ? 'absolute dashboard-panel-clip items-start' : 'fixed inset-0 items-end',
+            // Contained: a drawer rising from the panel's bottom edge, inside
+            // the panel's clip. Everywhere else: viewport-wide bottom sheet.
+            asSheet ? 'absolute dashboard-panel-clip items-end' : 'fixed inset-0 items-end',
             !sheetOnDesktop && 'lg:items-center',
           )}
           style={{ zIndex: 200 + below }}
@@ -223,42 +223,40 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
           </motion.div>}
 
           {/* Bottom sheet — springs up; drag the grabber down to dismiss. The
-              contained variant is the same object flipped: it comes down from
-              the top of the dashboard panel and drags upward to dismiss.
+              contained variant is the same object inside the dashboard panel.
 
               Two elements, because the contained card floats inset from every
-              panel edge (Home Center's skin) and a card with a 24px top margin
-              only travels its own height on `y: -100%`, parking the last 24px
+              panel edge (Home Center's skin) and a card with a 24px bottom margin
+              only travels its own height on `y: 100%`, parking the last 24px
               inside the clip. So the inset lives as *padding* on the animated
               wrapper: its height is the card plus the gap, which is exactly the
               distance the card has to move to clear the panel. No fudge factor,
               no fade to hide a leftover sliver. */}
           <motion.div
             key="sheet"
-            initial={{ y: asSheet ? '-100%' : '100%' }}
+            initial={{ y: '100%' }}
             // Covered: narrower and a nudge away from its anchored edge, so its
             // rounded free edge sticks out past the sheet that opened over it.
-            animate={recede(above, asSheet)}
-            exit={{ y: asSheet ? '-100%' : '100%' }}
+            animate={recede(above)}
+            exit={{ y: '100%' }}
             transition={SHEET_SPRING}
             drag="y"
             dragListener={false}
             dragControls={dragControls}
             dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={asSheet ? { top: 0.9, bottom: 0 } : { top: 0, bottom: 0.9 }}
+            dragElastic={{ top: 0, bottom: 0.9 }}
             onDragEnd={(_, info) => {
-              const away = asSheet ? -1 : 1;
-              if (info.offset.y * away > 120 || info.velocity.y * away > 800) onClose();
+              if (info.offset.y > 120 || info.velocity.y > 800) onClose();
             }}
             className={clsx(
               'relative flex w-full flex-col',
               !sheetOnDesktop && 'lg:hidden',
               // The panel gap, as padding rather than margin — see above.
-              asSheet && 'px-ha-6 pt-ha-6',
+              asSheet && 'px-ha-6 pb-ha-6',
             )}
             style={{
               maxHeight: asSheet ? '92%' : '82dvh',
-              transformOrigin: asSheet ? 'bottom center' : 'top center',
+              transformOrigin: 'top center',
             }}
           >
           {/* The card. Home Center's skin, value for value: floating, fully
@@ -274,14 +272,12 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             )}
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + var(--ha-space-4, 16px))' }}
           >
-            {!asSheet && (
-              <div
-                className="flex justify-center pt-ha-2 pb-0 touch-none cursor-grab active:cursor-grabbing"
-                onPointerDown={(e) => dragControls.start(e)}
-              >
-                <SheetGrabber />
-              </div>
-            )}
+            <div
+              className="flex shrink-0 justify-center pt-ha-2 pb-0 touch-none cursor-grab active:cursor-grabbing"
+              onPointerDown={(e) => dragControls.start(e)}
+            >
+              <SheetGrabber />
+            </div>
             {/* Overscroll hands the gesture to the sheet: keep pulling down once
                 the content is already at its top and the sheet comes with you,
                 so dismissing never means aiming for the little grabber. */}
@@ -325,16 +321,6 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
                 {content}
               </div>
             </div>
-            {/* The drawer's grab affordance sits on its free edge — the bottom
-                one, since this variant hangs from the top. */}
-            {asSheet && (
-              <div
-                className="flex shrink-0 justify-center pt-ha-1 pb-0 touch-none cursor-grab active:cursor-grabbing"
-                onPointerDown={(e) => dragControls.start(e)}
-              >
-                <SheetGrabber />
-              </div>
-            )}
           </div>
           </motion.div>
         </div>

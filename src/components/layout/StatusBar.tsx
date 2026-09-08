@@ -9,7 +9,7 @@ import { SettingsGlyph } from '../ui/SettingsGlyph';
 import { Tooltip } from '../ui/Tooltip';
 import { CircularProgress } from '../ui/CircularProgress';
 import { RollingNumericValue } from '../ui/RollingNumericValue';
-import { useHomeAssistant, useHomeCenterPrefs, useFeatureFlags } from '@/hooks';
+import { useHomeAssistant, useHomeCenterPrefs } from '@/hooks';
 import { useAssistantContext, useHomeCenterContext, useDebugFlags } from '@/contexts';
 import { useActivities } from '@/hooks/useActivities';
 import { dismissActivity } from '@/lib/activities/dismissals';
@@ -301,7 +301,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const { toggleAssistant } = useAssistantContext();
   const { toggleHomeCenter } = useHomeCenterContext();
   const { hideHomeCenterEnabled } = useDebugFlags();
-  const { assistVisualizationEnabled } = useFeatureFlags();
   const { data: activityData, activities } = useActivities();
   const { visibleSections } = useHomeCenterPrefs();
   const [currentTime, setCurrentTime] = useState({ hours: '', minutes: '' });
@@ -1025,10 +1024,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
 
         {/* Ask your home — always-visible entry to the assistant overlay,
             styled as the same quiet field as the lock screen's talk widget:
-            flat pill, left-aligned text, trailing chevron, no mic chrome.
-            Hidden with the lock screen's widget when the assistant
-            visualization is off; search / ⌘K still reach Assist. */}
-        {assistVisualizationEnabled && (
+            flat pill, left-aligned text, trailing chevron, no mic chrome. */}
         <button
           type="button"
           onClick={() => toggleAssistant()}
@@ -1040,7 +1036,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
           </span>
           <Icon path={mdiChevronRight} size={20} className="text-text-tertiary flex-shrink-0" />
         </button>
-        )}
 
         {/* Scrollable Container for Activities */}
         <div className="flex-1 min-w-0 relative group">

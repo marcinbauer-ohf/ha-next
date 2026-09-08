@@ -129,6 +129,11 @@
      own --spacing: that scale also drives the w-, h- and inset- utilities, so touching it would
      resize icons and controls, not just the space between them. */
   --ha-density: 1;
+  /* Type follows density at HALF its rate: a spacious dashboard wants bigger
+     text, but a compact one still has to be readable (0.75 density = 0.875
+     type, 1.4 = 1.2). Only the fixed-px card type reads this — everything sized
+     in rem already follows the a11y "Bigger text" toggle's root font size. */
+  --ha-type-scale: calc(1 + (var(--ha-density) - 1) * 0.5);
   --ha-space-0: 0px;
   --ha-space-1: calc(4px * var(--ha-density));
   --ha-space-2: calc(8px * var(--ha-density));
@@ -1801,6 +1806,24 @@
 .ha-indeterminate-bar {
   width: 40%;
   animation: ha-indeterminate-slide 1.4s ease-in-out infinite;
+}
+
+/* Inverted toast surface: ink and paper swap so the banner pops on every
+   theme (dark card on light themes, light card on dark). The stack container
+   captures the theme's colours, then the card remaps the shared tokens from
+   those captures — every text and surface utility inside inverts for free. */
+.toast-invert-capture {
+  --toast-inv-bg: var(--ha-color-text-primary);
+  --toast-inv-fg: var(--ha-color-surface-default);
+}
+.toast-inverted {
+  --ha-color-surface-default: var(--toast-inv-bg);
+  --ha-color-surface-low: color-mix(in srgb, var(--toast-inv-bg) 90%, var(--toast-inv-fg));
+  --ha-color-surface-mid: color-mix(in srgb, var(--toast-inv-bg) 84%, var(--toast-inv-fg));
+  --ha-color-surface-lower: color-mix(in srgb, var(--toast-inv-bg) 78%, var(--toast-inv-fg));
+  --ha-color-text-primary: var(--toast-inv-fg);
+  --ha-color-text-secondary: color-mix(in srgb, var(--toast-inv-fg) 72%, var(--toast-inv-bg));
+  --ha-color-text-tertiary: color-mix(in srgb, var(--toast-inv-fg) 55%, var(--toast-inv-bg));
 }
 
 /* Toast position.

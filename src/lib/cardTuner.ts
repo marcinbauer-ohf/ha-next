@@ -7,7 +7,9 @@
 // re-rendering a single memoized card.
 //
 // Only overrides are stored — an untouched slider leaves no var behind, so the
-// card's baked-in fallbacks stay the single source of truth for defaults.
+// card's baked-in fallbacks stay the single source of truth for defaults. Those
+// fallbacks are density-scaled (`calc(N * var(--ha-type-scale))`), so a slider
+// here pins an absolute px value and opts that one metric out of Density.
 
 import { useSyncExternalStore } from 'react';
 
@@ -39,9 +41,9 @@ export interface CardTunerToggle {
 
 export const CARD_TUNER_PARAMS: CardTunerParam[] = [
   // ── Type ──
-  { id: 'nameSize', cssVar: '--dct-name-size', label: 'Name size', group: 'Type', min: 12, max: 22, step: 0.5, unit: 'px', defaultValue: 15 },
+  { id: 'nameSize', cssVar: '--dct-name-size', label: 'Name size', group: 'Type', min: 12, max: 22, step: 0.5, unit: 'px', defaultValue: 16 },
   { id: 'nameWeight', cssVar: '--dct-name-weight', label: 'Name weight', group: 'Type', min: 400, max: 800, step: 100, unit: '', defaultValue: 600 },
-  { id: 'stateSize', cssVar: '--dct-state-size', label: 'State size', group: 'Type', min: 10, max: 18, step: 0.5, unit: 'px', defaultValue: 13 },
+  { id: 'stateSize', cssVar: '--dct-state-size', label: 'State size', group: 'Type', min: 10, max: 18, step: 0.5, unit: 'px', defaultValue: 14 },
   { id: 'stateGap', cssVar: '--dct-state-gap', label: 'Name → state gap', group: 'Type', min: 0, max: 12, step: 1, unit: 'px', defaultValue: 1 },
   { id: 'areaSize', cssVar: '--dct-area-size', label: 'Area size', group: 'Type', min: 9, max: 15, step: 0.5, unit: 'px', defaultValue: 12 },
   // ── Layout ──
@@ -55,7 +57,7 @@ export const CARD_TUNER_PARAMS: CardTunerParam[] = [
   { id: 'sparkAlpha', cssVar: '--dct-spark-alpha', label: 'Sparkline opacity', group: 'Image & graph', min: 0, max: 1, step: 0.05, unit: '', defaultValue: 1 },
   // ── Secondary rows ──
   { id: 'rowH', cssVar: '--dct-row-h', label: 'Row height', group: 'Secondary rows', min: 36, max: 72, step: 2, unit: 'px', defaultValue: 52 },
-  { id: 'rowSize', cssVar: '--dct-row-size', label: 'Row text size', group: 'Secondary rows', min: 11, max: 17, step: 0.5, unit: 'px', defaultValue: 15 },
+  { id: 'rowSize', cssVar: '--dct-row-size', label: 'Row text size', group: 'Secondary rows', min: 11, max: 18, step: 0.5, unit: 'px', defaultValue: 16 },
 ];
 
 export const CARD_TUNER_TOGGLES: CardTunerToggle[] = [

@@ -1,8 +1,6 @@
 'use client';
 
 import { clsx } from 'clsx';
-import { mdiPower } from '@mdi/js';
-import { Icon } from './Icon';
 import { haptic } from '@/lib/haptics';
 
 interface ToggleSwitchProps {
@@ -31,13 +29,10 @@ const TRACK = {
 } as const;
 const KNOB = { sm: 'w-[24px] h-[24px]', md: 'w-[30px] h-[30px]', lg: 'w-[34px] h-[34px]', xl: 'w-[50px] h-[50px]' } as const;
 const SHIFT = { sm: 'translate-x-[20px]', md: 'translate-x-[26px]', lg: 'translate-x-[32px]', xl: 'translate-x-[46px]' } as const;
-const GLYPH = { sm: 12, md: 15, lg: 17, xl: 24 } as const;
 
 /**
- * Pill toggle for binary on/off entities. The knob carries a power glyph that
- * takes the track's colour when on — so the state reads from the glyph, the
- * knob position AND the fill, rather than colour alone (which fails for the
- * ~8% of men with red/green colour blindness, and in a photo of the screen).
+ * Pill toggle for binary on/off entities. State reads from the knob position
+ * and the track fill; the knob itself is a plain disc.
  */
 export function ToggleSwitch({ on, onToggle, size = 'md', disabled, label }: ToggleSwitchProps) {
   return (
@@ -58,16 +53,10 @@ export function ToggleSwitch({ on, onToggle, size = 'md', disabled, label }: Tog
       role="switch"
     >
       <div className={clsx(
-        'flex items-center justify-center rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.28)] transition-transform duration-200 ease-out',
+        'rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.28)] transition-transform duration-200 ease-out',
         KNOB[size],
         on ? SHIFT[size] : 'translate-x-0',
-      )}>
-        <Icon
-          path={mdiPower}
-          size={GLYPH[size]}
-          className={clsx('transition-colors', on ? 'text-green-600' : 'text-text-tertiary')}
-        />
-      </div>
+      )} />
     </button>
   );
 }

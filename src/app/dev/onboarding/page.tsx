@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OnboardingFlow } from '@/components/onboarding';
 import { FinaleStep } from '@/components/onboarding/steps/FinaleStep';
-import { resetOnboarding } from '@/lib/onboarding';
+import { launchOnboarding } from '@/lib/onboarding';
 
 /**
  * /dev/ bypasses AppShell, so the dashboard the finale reveals doesn't exist
@@ -72,12 +72,12 @@ export default function OnboardingPreviewPage() {
           <button
             type="button"
             onClick={() => {
-              resetOnboarding();
+              launchOnboarding();
               router.push('/');
             }}
             className="h-11 px-ha-5 rounded-full bg-surface-low text-text-primary text-sm font-semibold hover:bg-surface-mid transition-colors"
           >
-            Reset gate &amp; open app
+            Launch in the app
           </button>
         </div>
       </div>

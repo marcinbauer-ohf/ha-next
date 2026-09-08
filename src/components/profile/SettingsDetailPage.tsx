@@ -15,6 +15,7 @@ import { ProfileSettings } from './ProfileSettings';
 import { ShortcutList } from '@/components/ui/KeyboardShortcutsDialog';
 import { openShortcutsHelp } from '@/lib/keyboardShortcuts';
 import { toggleCardTunerPanel } from '@/lib/cardTuner';
+import { launchOnboarding } from '@/lib/onboarding';
 import { SystemStatusPanel, type HomeCenterSection } from '@/components/ui/SystemStatusPanel';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { useHeader, useScreensaver, useAddContext, useDebugFlags, type BreadcrumbItem } from '@/contexts';
@@ -1092,13 +1093,13 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           ]}
         />
         <ChoiceGroup<Density>
-          label="Density"
+          label="Density · P cycles"
           value={density}
           onChange={setDensity}
           options={[
             { value: 'compact', label: 'Compact', caption: 'Tighter — more on screen' },
             { value: 'default', label: 'Default', caption: 'Balanced spacing' },
-            { value: 'spacious', label: 'Spacious', caption: 'More air around everything' },
+            { value: 'spacious', label: 'Spacious', caption: 'More air, and larger card text' },
           ]}
         />
         <ChoiceGroup<Theme>
@@ -1248,7 +1249,7 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           />
           <ToggleRow
             label="Advanced Assist visualization"
-            description="Show the summary of your home on the lock screen, and the “Ask your home” field in the bottom bar. Turn it off for a plain clock — you can still ask your home from search."
+            description="Show the summary of your home on the lock screen, and the orb and suggestions in the Assist sheet. Turn it off for a plain clock and a simple chat field."
             checked={assistVisualizationEnabled}
             onToggle={toggleAssistVisualization}
           />
@@ -1603,6 +1604,12 @@ export function SettingsDetailPage({ slug, panelMode, onEditorFocusChange, onSel
           description="Desktop drops the whole bottom bar (Ask your home, activities and the clock pill); mobile drops the Home Center tab. Its settings entry is hidden on both."
           checked={hideHomeCenterEnabled}
           onToggle={toggleHideHomeCenter}
+        />
+        <ActionRow
+          label="Onboarding v1"
+          description="Play the first-run flow over the home dashboard. It no longer runs on its own for new visitors."
+          buttonLabel="Launch"
+          onClick={() => { launchOnboarding(); router.push('/'); }}
         />
         <ActionRow
           label="Device card tuner"

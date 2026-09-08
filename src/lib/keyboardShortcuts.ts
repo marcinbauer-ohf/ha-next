@@ -54,6 +54,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: 'global.home', group: 'Global', label: 'Go to home dashboard', keys: [{ key: 'h' }, { key: 'h', mod: true, hidden: true }] },
   { id: 'global.settings', group: 'Global', label: 'Toggle settings', keys: [{ key: 's' }] },
   { id: 'global.sidebar', group: 'Global', label: 'Toggle sidebar', keys: [{ key: 'b', mod: true }] },
+  { id: 'global.density', group: 'Global', label: 'Cycle density (compact / default / spacious)', keys: [{ key: 'p' }], displayOnly: true },
   { id: 'global.help', group: 'Global', label: 'Show keyboard shortcuts', keys: [{ key: '?' }] },
   { id: 'global.color-mode', group: 'Global', label: 'Toggle light / dark mode', keys: [{ key: 'd', mod: true, shift: true }], displayOnly: true },
   { id: 'global.theme', group: 'Global', label: 'Cycle theme', keys: [{ key: 'y', mod: true, shift: true }], displayOnly: true },

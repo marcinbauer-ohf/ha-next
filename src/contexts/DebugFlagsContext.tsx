@@ -12,8 +12,9 @@ import { createContext, useCallback, useContext, useState, type ReactNode } from
 // Prototyping: strip the Home Center + assistant chrome. Desktop loses the whole
 // bottom bar, mobile loses the Home Center tab, and both lose the settings entry.
 const LS_HIDE_HOME_CENTER_KEY = 'ha-flag-hide-home-center';
-// Prototyping: drop the product render from device cards. The mdi entity icon
-// takes its place beside the name/state and the cards shrink a lattice step.
+// Drop the product render from device cards; the entity icon takes its place
+// beside the name/state and the cards shrink a lattice step. Defaults ON —
+// only an explicit '0' brings the renders back.
 const LS_HIDE_CARD_IMAGES_KEY = 'ha-flag-hide-card-images';
 // Sidebar hover preview thumbnails default OFF (opt-in with '1'); the home
 // dashboard's filter pill defaults ON (only an explicit '0' opts out).
@@ -72,8 +73,8 @@ export function DebugFlagsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const [hideCardImagesEnabled, setHideCardImagesEnabledState] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(LS_HIDE_CARD_IMAGES_KEY) === '1';
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(LS_HIDE_CARD_IMAGES_KEY) !== '0';
   });
 
   const toggleHideCardImages = useCallback(() => {

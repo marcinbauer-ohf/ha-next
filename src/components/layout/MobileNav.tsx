@@ -1929,6 +1929,18 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         style={{ opacity: isSheetVisible ? 1 : 0 }}
       />
       <div className="relative z-10 px-edge flex justify-center">
+        {/* Tap-to-reveal wrapper: once the bar has tucked itself away the nub is
+            only a few px tall, so a ::before extends its hit area well past the
+            visible sliver. Sits outside the overflow-hidden pill so it isn't
+            clipped, and the pill's own drag listeners keep working inside it. */}
+        <div
+          className={`relative flex justify-center ${isSheetVisible ? 'w-full' : ''} ${
+            isBottomRowHidden && !isSheetVisible
+              ? "before:absolute before:bottom-[-14px] before:left-1/2 before:h-20 before:w-56 before:-translate-x-1/2 before:content-['']"
+              : ''
+          }`}
+          onClick={isBottomRowHidden && !isSheetVisible ? () => { setScrollHidden(false); setHideFromInactivity(false); } : undefined}
+        >
         <div
           ref={navPillRef}
           // Closed, the pill hugs the tab strip; the drawer needs the full width.
@@ -2578,6 +2590,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
 

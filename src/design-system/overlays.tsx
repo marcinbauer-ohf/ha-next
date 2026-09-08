@@ -76,7 +76,7 @@ export function PopMenu({
                 onPickItem?.(i);
                 onPick();
               }}
-              className="text-left px-4 py-3 rounded-[14px] text-[15px] font-semibold tracking-[-0.3px] hover:bg-[#f3f3f3] flex items-center gap-2.5"
+              className="text-left px-4 py-3 rounded-full text-[15px] font-semibold tracking-[-0.3px] hover:bg-[#f3f3f3] flex items-center gap-2.5"
               style={{ color: color.text }}
             >
               {leading?.[i] && <span className="text-[17px] leading-none">{leading[i]}</span>}

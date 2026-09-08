@@ -63,5 +63,5 @@ export function DeferredCard({ children, entityId }: DeferredCardProps) {
   // leaves the masonry on the same height rhythm as a mounted one and nothing
   // reflows when it mounts. Reading the token rather than repeating the number
   // keeps the two from drifting apart the way they had.
-  return <div ref={ref} data-entity-id={entityId} aria-hidden className="min-h-[var(--dct-min-h,140px)] lg:min-h-[var(--dct-min-h,116px)]" />;
+  return <div ref={ref} data-entity-id={entityId} aria-hidden className="min-h-[var(--dct-min-h,calc(140px*var(--ha-density,1)))] lg:min-h-[var(--dct-min-h,calc(116px*var(--ha-density,1)))]" />;
 }
