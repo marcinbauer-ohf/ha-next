@@ -2515,7 +2515,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         >
           {/* Concentric rounding: outer pill is --mobile-nav-radius with ha-2 (8px)
               side padding, so this inner strip is that radius minus 8px. */}
-          <div className="mobile-nav-tabs flex items-center justify-center gap-ha-6 rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-6 h-12">
+          <div className="mobile-nav-tabs flex items-center justify-center gap-ha-6 rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-6 h-11">
             <button
               type="button"
               onClick={handleDashboardsTap}
@@ -2534,7 +2534,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                   pathname === '/' && !statusExpanded ? 'opacity-100' : 'opacity-0'
                 }`}
               />
-              <svg width="26" height="24" viewBox="0 0 20 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <svg width="24" height="22" viewBox="0 0 20 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                 <path d="M16 0C18.2091 0 20 1.79086 20 4V14C20 16.2091 18.2091 18 16 18H4C1.79086 18 1.61066e-08 16.2091 0 14V4C0 1.79086 1.79086 6.44256e-08 4 0H16ZM4 11.5859C2.89546 11.5859 2.00004 12.4814 2 13.5859V14C2.00011 15.1045 2.8955 16 4 16H10V13.5859C9.99996 12.4814 9.10454 11.5859 8 11.5859H4ZM12 16H16C17.1046 16 18 15.1046 18 14V4C18 2.89543 17.1046 2 16 2H12V16ZM6.70703 2.29297C6.31652 1.9025 5.68348 1.9025 5.29297 2.29297L2.29297 5.29297C2.10552 5.48048 2.00002 5.73486 2 6V8.58594C2.0002 9.13805 2.44784 9.58594 3 9.58594H9C9.55216 9.58594 9.9998 9.13805 10 8.58594V6C9.99998 5.73486 9.89448 5.48048 9.70703 5.29297L6.70703 2.29297Z"/>
               </svg>
               <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
@@ -2550,7 +2550,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
               }`}
             >
               <span className="relative inline-flex">
-                <Icon path={mdiMagnify} size={28} />
+                <Icon path={mdiMagnify} size={24} />
                 {/* AI spark — signifies the search also answers with the assistant */}
                 <Icon path={mdiStarFourPoints} size={11} exact className="absolute -top-0.5 -right-0.5" />
               </span>
@@ -2568,7 +2568,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                 isHomeCenterSurfaceVisible ? 'text-ha-blue' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              <Icon path={HOME_CENTER_ICON} size={28} />
+              <Icon path={HOME_CENTER_ICON} size={24} />
               <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
                 isHomeCenterSurfaceVisible ? 'opacity-100' : 'opacity-0'
               }`} />

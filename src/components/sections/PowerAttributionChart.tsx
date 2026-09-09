@@ -274,11 +274,11 @@ export function PowerAttributionChart({ meter: chosenMeter }: { meter?: HassEnti
                 <span className="truncate text-[12px] font-medium text-text-secondary">{t.device.name}</span>
               </span>
               {/* timeline track aligned to the same window as the chart above */}
-              <span className="relative h-3.5 rounded-ha-sm bg-surface-low overflow-hidden">
+              <span className="relative h-3.5 rounded-ha-md bg-surface-low overflow-hidden">
                 {t.intervals.map(([s, e], i) => (
                   <span
                     key={i}
-                    className="absolute inset-y-0 rounded-ha-sm"
+                    className="absolute inset-y-0 rounded-ha-md"
                     style={{
                       left: `${frac(s) * 100}%`,
                       width: `${Math.max(0.5, (frac(e) - frac(s)) * 100)}%`,

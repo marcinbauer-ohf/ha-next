@@ -103,7 +103,7 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
         <div className="flex flex-col items-start leading-tight">
           <span className={clsx(
             translucent ? 'text-white/70' : 'text-text-secondary',
-            isLg ? 'text-sm' : isMd ? 'text-xs' : 'text-[11px]'
+            isLg ? 'text-sm' : isMd ? 'text-xs' : 'text-[12px]'
           )}>{title}</span>
           {/* Mono, same as a device card's state line — readings should look
               like readings wherever they show up. */}

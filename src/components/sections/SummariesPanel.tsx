@@ -134,6 +134,8 @@ export function useLiveSummaryItems(areaEntities?: HassEntities, areaSensors?: A
       }] : []),
       // Batteries only earn a chip in a home that has them, and only shout
       // when one is actually low — otherwise it's the lowest reading, quietly.
+      // Maintenance, so the dashboard and room rows filter it out: it rides
+      // the Home Center's glance row (and the screensaver) only.
       ...(batteries.length > 0 ? [{
         id: 'battery' as GlanceId,
         icon: batteriesLow > 0 ? mdiBatteryAlertVariantOutline : mdiBattery,
@@ -329,7 +331,7 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
         )}>
           <span className={clsx(
             translucent ? 'text-white/70' : 'text-text-secondary',
-            isLg ? 'text-sm' : isMd ? 'text-xs' : 'text-[11px]'
+            isLg ? 'text-sm' : isMd ? 'text-xs' : 'text-[12px]'
           )}>
             People
           </span>
@@ -439,7 +441,10 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
  * room has nothing worth summarising.
  */
 export function AreaSummaryRow({ entities, areaName, areaSensors }: { entities: HassEntities; areaName: string; areaSensors?: AreaSensors }) {
-  const items = useLiveSummaryItems(entities, areaSensors);
+  // Batteries are maintenance, not living conditions — a low cell belongs with
+  // updates and broken things in the Home Center, not on the dashboard everyone
+  // in the house uses. The chip still exists; this row just doesn't carry it.
+  const items = useLiveSummaryItems(entities, areaSensors).filter(i => i.id !== 'battery');
   const { ref, onScroll, style } = useEdgeFade();
   const scope = useMemo<SummaryScope>(() => ({ entities, areaName }), [entities, areaName]);
 
@@ -486,7 +491,10 @@ interface MobileSummaryRowProps {
 }
 
 export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraContent, extraRef, narrowPreview = false, onOverlayChange }: MobileSummaryRowProps) {
-  const liveSummaryItems = useLiveSummaryItems();
+  // Batteries are maintenance, not living conditions — a low cell belongs with
+  // updates and broken things in the Home Center, not on the dashboard everyone
+  // in the house uses. The chip still exists; this row just doesn't carry it.
+  const liveSummaryItems = useLiveSummaryItems().filter(i => i.id !== 'battery');
   const { ref: chipsScrollRef, onScroll: onChipsScroll, style: chipsFadeStyle } = useEdgeFade();
 
   // Chips scroll away, but a small upward drag brings them back from anywhere in

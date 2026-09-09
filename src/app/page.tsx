@@ -974,7 +974,7 @@ export default function DashboardPage() {
                             {favoriteDevices.length === 0 && (
                               <p className="text-sm text-text-tertiary mb-ha-2">Drag devices here to favorite them.</p>
                             )}
-                            <div className={`grid gap-ha-4 items-start ${gridCols ?? MASONRY_GRID_CLASS}`}>
+                            <div className={`grid gap-ha-3 items-start ${gridCols ?? MASONRY_GRID_CLASS}`}>
                               {paddedSlots.map((device, i) => (
                                 <GridSlot key={device ? device.id : `fav-empty-${i}`} droppableId={slotId(FAVORITES_KEY, i)} dragId={device ? cardDragId(FAVORITES_KEY, device.id) : undefined}>
                                   {device && (
@@ -991,9 +991,9 @@ export default function DashboardPage() {
                         const colArrays: HassDevice[][] = Array.from({ length: masonryCols }, () => []);
                         favoriteDevices.forEach((d, i) => colArrays[i % masonryCols].push(d));
                         return (
-                          <div className="flex gap-ha-4 items-start">
+                          <div className="flex gap-ha-3 items-start">
                             {colArrays.map((col, ci) => (
-                              <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">
+                              <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
                                 {col.map(device => (
                                   <DeferredCard key={device.id} entityId={cardPrimaryEntityId(device)}>{renderCard(device, { forceArea: true })}</DeferredCard>
                                 ))}
@@ -1009,7 +1009,7 @@ export default function DashboardPage() {
                   <div key={`${groupBy}-${activeFloorId ?? 'all'}`} className="ha-view-enter space-y-ha-8">
                   {visibleSections.map(({ key, title, devices: sectionDevices, kind }) => {
                     const slots = resolveSlots(sectionDevices, sectionOrders[key]);
-                    const editGridClass = `grid gap-ha-4 items-start ${gridCols ?? MASONRY_GRID_CLASS}`;
+                    const editGridClass = `grid gap-ha-3 items-start ${gridCols ?? MASONRY_GRID_CLASS}`;
 
                     // Edit grid is a slot canvas: pad to full rows, and when
                     // every slot is taken open one extra empty row so cards
@@ -1046,9 +1046,9 @@ export default function DashboardPage() {
                           );
                           slots.forEach((d, i) => { if (d) colArrays[i % masonryCols].push(d); });
                           return (
-                            <div className="flex gap-ha-4 items-start">
+                            <div className="flex gap-ha-3 items-start">
                               {colArrays.map((col, ci) => (
-                                <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">
+                                <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
                                   {col.map(device => (
                                     <DeferredCard key={device.id} entityId={cardPrimaryEntityId(device)}>{renderCard(device)}</DeferredCard>
                                   ))}

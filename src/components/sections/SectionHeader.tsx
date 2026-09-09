@@ -19,7 +19,7 @@ import { NavChevron } from '../ui/NavChevron';
 export function SectionHeader({ title, href }: { title: string; href?: string }) {
   return (
     <div
-      className="-mx-ha-1 pr-ha-1 py-ha-2 mb-ha-1"
+      className="-mx-ha-1 pr-ha-1 py-ha-2"
       // The negative margin gives the link a little bleed for its hit area, so
       // the card's inset has to be added back on top of it.
       style={{ paddingLeft: 'calc(var(--ha-space-1) + var(--dct-pad, calc(10px * var(--ha-density, 1))))' }}
@@ -27,11 +27,11 @@ export function SectionHeader({ title, href }: { title: string; href?: string })
     >
       {href ? (
         <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
-          <span className="text-xl font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
+          <span className="text-lg font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
           <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
         </Link>
       ) : (
-        <span className="text-xl font-semibold text-text-primary">{title}</span>
+        <span className="text-lg font-semibold text-text-primary">{title}</span>
       )}
     </div>
   );

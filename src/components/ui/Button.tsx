@@ -7,12 +7,15 @@ import { Icon } from './Icon';
 // Button — the labelled action. Its counterpart for glyph-only controls is
 // IconButton; anything with words belongs here.
 //
-// The shape is the one the app already converged on by hand: a 44px pill-ish
+// The shape is the one the app already converged on by hand: a 40px pill-ish
 // tile (rounded-ha-xl), sentence-case `text-sm font-semibold`, glyph and label
 // on a ha-2 gap. What had drifted was everything around it — three heights, four
 // press scales, and two different "confirm" colours (blue and green) doing the
 // same job on adjacent screens. Green stayed with state (a switch that is on, an
 // alarm that is armed); the accent carries actions.
+//
+// Heights are the app's three control tiers — 32 / 40 / 48 — shared with
+// IconButton, Chip (40) and SegmentedControl (40).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ButtonVariant = 'primary' | 'neutral' | 'ghost' | 'danger';
@@ -30,8 +33,8 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const SIZE: Record<ButtonSize, { box: string; glyph: number }> = {
-  sm: { box: 'h-9 px-ha-3 text-[13px] gap-ha-1', glyph: 16 },
-  md: { box: 'h-11 px-ha-4 text-sm gap-ha-2', glyph: 18 },
+  sm: { box: 'h-8 px-ha-3 text-xs gap-ha-1', glyph: 16 },
+  md: { box: 'h-10 px-ha-4 text-sm gap-ha-2', glyph: 18 },
   lg: { box: 'h-12 px-ha-5 text-base gap-ha-2', glyph: 20 },
 };
 

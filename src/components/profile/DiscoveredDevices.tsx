@@ -15,6 +15,7 @@ import {
 import { DiscoverySetupSheet } from './DiscoverySetup';
 import { DeviceCardV2 } from '../cards/DeviceCardV2';
 import { SectionHeader } from '../sections/SectionHeader';
+import { getSettingsHref } from './settingsNavigation';
 import {
   demoDiscoveries,
   discoveryFromFlow,
@@ -617,12 +618,17 @@ function PendingDeviceCard({ row }: { row: PendingRow }) {
  */
 export function PendingDeviceSection({ columns }: { columns: number }) {
   const found = usePendingRows().filter((r) => r.kind === 'found');
+  // The heading links to the full list — Devices & Services, where the same
+  // finds are rows sorted above everything already set up (see PENDING_GROUP).
+  // Admin-only, like that page: a non-admin following it would just bounce to
+  // the settings root, so they get the plain heading.
+  const { isAdmin } = useHomeAssistant();
   if (found.length === 0) return null;
   const cols: PendingRow[][] = Array.from({ length: Math.max(1, columns) }, () => []);
   found.forEach((row, i) => cols[i % cols.length].push(row));
   return (
-    <div data-section-key="__found__" data-section-title="Found in your home">
-      <SectionHeader title="Found in your home" />
+    <div data-section-key="__found__" data-section-title="Found in your home" className="ha-found-panel">
+      <SectionHeader title="Found in your home" href={isAdmin ? getSettingsHref('devices') : undefined} />
       <div className="flex items-start gap-ha-4">
         {cols.map((col, ci) => (
           <div key={ci} className="flex min-w-0 flex-1 flex-col gap-ha-4">

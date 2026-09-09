@@ -15,26 +15,29 @@ interface ToggleSwitchProps {
   disabled?: boolean;
   /** Accessible name, for switches whose label isn't wired up by a <label>. */
   label?: string;
+  /** Placement only — the track's own metrics stay with the size. */
+  className?: string;
 }
 
-// Deliberately bigger than Home Assistant's own switch. A dashboard card is
-// glanced at from across a room and hit with a thumb, so the control is sized
-// for the hand, not for density: the `md` track is a 40px-tall hit target with a
-// 30px knob, matching the 48px bento control grid it sits next to.
+// Sized like a system switch (iOS 51×31, Material 52×32), not bigger: the `md`
+// track rides the name row of a two-column phone card, where every extra pixel
+// of switch is a pixel the name can't have. The hit area is the card row itself
+// (44px+), so the track doesn't have to be the touch target. Heights land on
+// the 8px control grid the rest of the app uses (26 / 32 / 38 / 44).
 const TRACK = {
-  sm: 'w-[52px] h-[32px] px-[3px]',
-  md: 'w-[64px] h-[38px] px-[4px]',
-  lg: 'w-[76px] h-[44px] px-[5px]',
-  xl: 'w-[108px] h-[62px] px-[6px]',
+  sm: 'w-[44px] h-[26px] px-[3px]',
+  md: 'w-[52px] h-[32px] px-[3px]',
+  lg: 'w-[64px] h-[38px] px-[4px]',
+  xl: 'w-[76px] h-[44px] px-[5px]',
 } as const;
-const KNOB = { sm: 'w-[24px] h-[24px]', md: 'w-[30px] h-[30px]', lg: 'w-[34px] h-[34px]', xl: 'w-[50px] h-[50px]' } as const;
-const SHIFT = { sm: 'translate-x-[20px]', md: 'translate-x-[26px]', lg: 'translate-x-[32px]', xl: 'translate-x-[46px]' } as const;
+const KNOB = { sm: 'w-[20px] h-[20px]', md: 'w-[26px] h-[26px]', lg: 'w-[30px] h-[30px]', xl: 'w-[34px] h-[34px]' } as const;
+const SHIFT = { sm: 'translate-x-[18px]', md: 'translate-x-[20px]', lg: 'translate-x-[26px]', xl: 'translate-x-[32px]' } as const;
 
 /**
  * Pill toggle for binary on/off entities. State reads from the knob position
  * and the track fill; the knob itself is a plain disc.
  */
-export function ToggleSwitch({ on, onToggle, size = 'md', disabled, label }: ToggleSwitchProps) {
+export function ToggleSwitch({ on, onToggle, size = 'md', disabled, label, className }: ToggleSwitchProps) {
   return (
     <button
       disabled={disabled}
@@ -47,6 +50,7 @@ export function ToggleSwitch({ on, onToggle, size = 'md', disabled, label }: Tog
         on
           ? 'bg-green-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.12)]'
           : 'bg-surface-mid hover:bg-surface-lower shadow-[inset_0_1px_2px_rgba(0,0,0,0.10)]',
+        className,
       )}
       aria-checked={on}
       aria-label={label}

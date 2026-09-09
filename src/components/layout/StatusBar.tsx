@@ -1005,7 +1005,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         would trap an open activity dialog below the z-[150] scrim. Drop the
         z-index while a dialog is open so the z-[200] card escapes to the root
         stacking context and floats above the scrim — like the device dialog. */}
-    <footer className={`hidden lg:flex items-center justify-between pr-6 pt-ha-2 pb-6 col-span-full ${isActivityDialogOpen ? '' : 'z-50'} transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : 'opacity-100'}`} data-component="StatusBar">
+    <footer className={`hidden lg:flex items-center justify-between pr-6 pt-ha-2 pb-ha-4 col-span-full ${isActivityDialogOpen ? '' : 'z-50'} transition-opacity duration-300 ${editModeFade ? 'opacity-30 pointer-events-none' : 'opacity-100'}`} data-component="StatusBar">
       {/* Left side widgets */}
       <div className="flex items-center flex-1 min-w-0 mr-4 gap-ha-5">
         {/* User profile avatar — same hamburger-behind-avatar composition as
@@ -1029,7 +1029,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
           type="button"
           onClick={() => toggleAssistant()}
           aria-label="Ask your home"
-          className="flex items-center gap-ha-2 bg-surface-low rounded-full px-ha-4 h-12 flex-shrink-0 min-w-[220px] border border-surface-low hover:bg-surface-mid hover:border-ha-blue/40 transition-colors active:scale-[0.98]"
+          className="flex items-center gap-ha-2 bg-surface-low rounded-full px-ha-4 h-10 flex-shrink-0 min-w-[200px] border border-surface-low hover:bg-surface-mid hover:border-ha-blue/40 transition-colors active:scale-[0.98]"
         >
           <span className="flex-1 text-sm text-text-secondary text-left">
             Ask your home…
@@ -1168,7 +1168,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           e.stopPropagation();
                           minimizeActivityWidget();
                         }}
-                        className="h-12 rounded-full bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
+                        className="h-10 rounded-full bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
                         style={{ width: activityWidgetWidths['release-notes-widget'] }}
                       >
                         <Icon path={mdiChevronDown} size={20} />
@@ -1230,7 +1230,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                           e.stopPropagation();
                           minimizeActivityWidget();
                         }}
-                        className="h-12 rounded-full bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
+                        className="h-10 rounded-full bg-green-500/15 border border-green-500/25 text-green-600 flex items-center justify-center hover:bg-green-500/25 transition-colors"
                         style={{ width: activityWidgetWidths['release-notes-widget'] }}
                       >
                         <Icon path={mdiChevronDown} size={20} />
@@ -1249,7 +1249,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         ? openActivityWidgetDialog(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')
                         : openActivityWidget(visibleReleaseNotes.length > 1 ? 'list-release-notes' : releaseNote.entity_id, 'release-notes-widget')
                     )}
-                    className="relative flex items-center gap-ha-3 bg-surface-low rounded-full px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer"
+                    className="relative flex items-center gap-ha-3 bg-surface-low rounded-full px-ha-3 h-10 transition-all hover:bg-surface-mid cursor-pointer"
                   >
                     <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                       <div className="relative">
@@ -1465,7 +1465,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['media-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -1530,7 +1530,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['media-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -1549,7 +1549,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')
                       : openActivityWidget(activePlayers.length > 1 ? 'list-media' : player.entity_id, 'media-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 bg-surface-low rounded-full px-ha-3 h-12 transition-all hover:bg-surface-mid cursor-pointer ${player.status.isStale ? 'opacity-70' : ''}`}
+                  className={`relative flex items-center gap-ha-3 bg-surface-low rounded-full px-ha-3 h-10 transition-all hover:bg-surface-mid cursor-pointer ${player.status.isStale ? 'opacity-70' : ''}`}
                 >
                   <div className={`flex items-center gap-ha-3 transition-opacity ${showPreview ? 'opacity-0' : 'opacity-100'}`}>
                     <div className="relative">
@@ -1797,7 +1797,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
+                      className="h-10 rounded-full bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
                       style={{ width: activityWidgetWidths['timer-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -1866,7 +1866,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
+                      className="h-10 rounded-full bg-fill-primary-normal border border-fill-primary-quiet text-ha-blue flex items-center justify-center hover:opacity-90 transition-opacity"
                       style={{ width: activityWidgetWidths['timer-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -1885,7 +1885,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
                       : openActivityWidget(activeTimers.length > 1 ? 'list-timer' : timer.entity_id, 'timer-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-10 transition-all cursor-pointer ${
                     timer.status.phase === 'ended'
                       ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : 'bg-surface-low hover:bg-surface-mid'
@@ -2101,7 +2101,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      className="h-10 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
                       style={{ width: activityWidgetWidths['camera-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2162,7 +2162,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      className="h-10 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
                       style={{ width: activityWidgetWidths['camera-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2181,7 +2181,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
                       : openActivityWidget(activeCameras.length > 1 ? 'list-camera' : camera.entity_id, 'camera-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-10 transition-all cursor-pointer ${
                     camera.status.phase === 'ended'
                       ? 'bg-surface-low hover:bg-surface-mid'
                       : 'bg-red-500/10 border border-red-500/20 hover:bg-red-500/15'
@@ -2404,7 +2404,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['printer-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2473,7 +2473,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['printer-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2492,7 +2492,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')
                       : openActivityWidget(activePrinters.length > 1 ? 'list-printer' : printer.entity_id, 'printer-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-10 transition-all cursor-pointer ${
                     printer.status.phase === 'ended' && printer.status.endLabel === 'Print complete'
                       ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : 'bg-surface-low hover:bg-surface-mid'
@@ -2775,7 +2775,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['vacuum-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2844,7 +2844,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['vacuum-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -2863,7 +2863,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeVacuums.length > 1 ? 'list-vacuum' : vacuum.entity_id, 'vacuum-widget')
                       : openActivityWidget(activeVacuums.length > 1 ? 'list-vacuum' : vacuum.entity_id, 'vacuum-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-10 transition-all cursor-pointer ${
                     vacuum.status.phase === 'ended'
                       ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : 'bg-surface-low hover:bg-surface-mid'
@@ -3112,7 +3112,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['update-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3179,7 +3179,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['update-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3198,7 +3198,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeUpdateInstalls.length > 1 ? 'list-update' : update.entity_id, 'update-widget')
                       : openActivityWidget(activeUpdateInstalls.length > 1 ? 'list-update' : update.entity_id, 'update-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-10 transition-all cursor-pointer ${
                     isComplete ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15' : 'bg-surface-low hover:bg-surface-mid'
                   } ${update.status.isStale ? 'opacity-70' : ''} ${isAlerting(update.status, nowMs) ? 'ha-status-pulse' : ''}`}
                 >
@@ -3431,7 +3431,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['backup-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3498,7 +3498,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
+                      className="h-10 rounded-full bg-surface-low border border-surface-mid text-text-secondary flex items-center justify-center hover:bg-surface-mid transition-colors"
                       style={{ width: activityWidgetWidths['backup-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3517,7 +3517,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeBackups.length > 1 ? 'list-backup' : backup.entity_id, 'backup-widget')
                       : openActivityWidget(activeBackups.length > 1 ? 'list-backup' : backup.entity_id, 'backup-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-10 transition-all cursor-pointer ${
                     isComplete
                       ? failed ? 'bg-red-500/10 border border-red-500/20 hover:bg-red-500/15' : 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : 'bg-surface-low hover:bg-surface-mid'
@@ -3727,7 +3727,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      className="h-10 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
                       style={{ width: activityWidgetWidths['alarm-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3788,7 +3788,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                         e.stopPropagation();
                         minimizeActivityWidget();
                       }}
-                      className="h-12 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
+                      className="h-10 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center hover:bg-red-500/20 transition-colors"
                       style={{ width: activityWidgetWidths['alarm-widget'] }}
                     >
                       <Icon path={mdiChevronDown} size={20} />
@@ -3807,7 +3807,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
                       ? openActivityWidgetDialog(activeAlarms.length > 1 ? 'list-alarm' : alarm.entity_id, 'alarm-widget')
                       : openActivityWidget(activeAlarms.length > 1 ? 'list-alarm' : alarm.entity_id, 'alarm-widget')
                   )}
-                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-12 transition-all cursor-pointer ${
+                  className={`relative flex items-center gap-ha-3 rounded-full px-ha-3 h-10 transition-all cursor-pointer ${
                     isComplete
                       ? 'bg-green-500/10 border border-green-500/20 hover:bg-green-500/15'
                       : isTriggered
@@ -3874,7 +3874,7 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
         {/* The status pill toggles the Home Center bento overlay — clicking it
             again while open closes it. */}
         <button
-          className={`flex items-center gap-ha-3 bg-surface-low rounded-full px-ha-4 h-12 hover:bg-surface-mid transition-all duration-300 active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50 ${statusPulsing ? 'ha-status-pulse' : ''}`}
+          className={`flex items-center gap-ha-3 bg-surface-low rounded-full px-ha-4 h-10 hover:bg-surface-mid transition-all duration-300 active:scale-95 cursor-pointer outline-none ring-offset-2 focus:ring-2 ring-ha-blue/50 ${statusPulsing ? 'ha-status-pulse' : ''}`}
           onClick={toggleHomeCenter}
         >
         {/* Status indicators — order and visibility follow Home Center prefs */}

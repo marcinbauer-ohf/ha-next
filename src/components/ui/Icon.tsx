@@ -7,16 +7,17 @@ interface IconProps {
   path: string;
   size?: number;
   className?: string;
-  /** Opt out of the 24px legibility floor — for highly-recognizable glyphs
+  /** Opt out of the 20px legibility floor — for highly-recognizable glyphs
    *  (info, eye, exclamation) that read fine, and look better, inline + small. */
   exact?: boolean;
 }
 
 export function Icon({ path, size = 24, className, exact = false }: IconProps) {
-  // EXPERIMENT: 24px legibility floor — pictograms read poorly below 24, so
-  // bump anything smaller up to 24. Remove this line to restore per-call sizes.
-  // `exact` bypasses the floor for the few glyphs that are clear at small sizes.
-  const renderSize = exact ? size : Math.max(size, 24);
+  // 20px legibility floor — pictograms read poorly below 20, so bump anything
+  // smaller up to 20. (Was 24: that inflated ~380 declared 16–22px glyphs and
+  // made every icon the biggest thing in its row.) `exact` bypasses the floor
+  // for the few glyphs that are clear at small sizes.
+  const renderSize = exact ? size : Math.max(size, 20);
 
   // DEBUG icon-set swap. Default 'mdi' = render the MDI path below (zero extra
   // work). When an alt set is active, Alt is the resolved component (or null

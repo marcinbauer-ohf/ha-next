@@ -544,7 +544,7 @@
    using them stops getting the pill; upgrade to a shared `.ha-btn` class if
    button styling ever needs more than this. */
 [data-theme="material-ha"] button:is(.rounded-ha-md, .rounded-ha-lg),
-[data-theme="material-ha"] button.rounded-ha-xl:is(.h-9, .h-10, .h-11, .h-12) {
+[data-theme="material-ha"] button.rounded-ha-xl:is(.h-8, .h-9, .h-10, .h-11, .h-12) {
   border-radius: var(--ha-radius-pill);
 }
 
@@ -2721,4 +2721,23 @@ html[data-reduce-transparency] *::before,
 html[data-reduce-transparency] *::after {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+/* The "Found in your home" section sits on its own panel — a notch darker than
+   the page, so what the home found reads as a separate tray rather than more of
+   the dashboard. One value works in both themes: mixing the page surface toward
+   black darkens the light ramp and deepens the dark one. Full-bleed by the edge
+   padding it then pays back as its own, so the cards inside stay on the same
+   left edge as the cards above. */
+.ha-found-panel {
+  margin-inline: calc(-1 * var(--ha-edge-padding));
+  padding: var(--ha-space-1) var(--ha-edge-padding) var(--ha-edge-padding);
+  border-radius: var(--ha-radius-3xl);
+  background: color-mix(in srgb, var(--ha-color-surface-lower) 90%, #000);
+}
+
+/* On phones the bleed reaches the screen edges, so the corners have nothing to
+   round against — square it off. */
+@media (max-width: 1023px) {
+  .ha-found-panel { border-radius: 0; }
 }

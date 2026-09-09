@@ -169,7 +169,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
 
   return (
     <>
-      <div className="space-y-ha-8">
+      <div className="space-y-ha-6">
         {sections.map(section => {
           const visibleDevices = section.devices.filter(d => !isCardEmpty(d));
           if (visibleDevices.length === 0) return null;
@@ -185,9 +185,9 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
               style={{ scrollMarginTop: 'calc(var(--app-topbar-clear, 0px) + var(--dashboard-sticky-top, 0px) + 3rem + var(--ha-space-2))' }}
             >
               <SectionHeader title={section.title} href={section.href} />
-              <div className="flex gap-ha-4 items-start">
+              <div className="flex gap-ha-3 items-start">
                 {colArrays.map((col, ci) => (
-                  <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-4">
+                  <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
                     {col.map(device => (
                       <div
                         key={device.id}

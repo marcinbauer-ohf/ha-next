@@ -138,8 +138,8 @@ function LabelMultiSelect({
             onClick={() => toggle(l.label_id)}
             className={
               on
-                ? 'rounded-ha-full border border-ha-blue/40 bg-fill-primary-quiet px-ha-3 py-ha-1 text-[13px] font-semibold text-ha-blue'
-                : 'rounded-ha-full border border-surface-lower bg-surface-low px-ha-3 py-ha-1 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-mid'
+                ? 'rounded-full border border-ha-blue/40 bg-fill-primary-quiet px-ha-3 py-ha-1 text-[13px] font-semibold text-ha-blue'
+                : 'rounded-full border border-surface-lower bg-surface-low px-ha-3 py-ha-1 text-[13px] font-medium text-text-secondary transition-colors hover:bg-surface-mid'
             }
           >
             {l.name}

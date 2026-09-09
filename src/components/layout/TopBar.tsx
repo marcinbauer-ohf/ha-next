@@ -125,7 +125,7 @@ export function TopBar() {
         text={title}
         direction={titleDirection}
         reverse={titleReverse}
-        className={`${subtitle ? 'text-lg' : 'text-2xl'} font-semibold text-text-primary capitalize`}
+        className={`${subtitle ? 'text-lg' : 'text-xl'} font-semibold text-text-primary capitalize`}
       />
       {sectionCrumbLine}
     </div>
@@ -159,7 +159,7 @@ export function TopBar() {
   // page like Home and a subtitled/breadcrumbed one like Settings. Standalone
   // gets the larger 2xl size; eyebrow/breadcrumb shapes use xl.
   const desktopStandalone = !hasTrail && !subtitle;
-  const desktopTitleSize = desktopStandalone ? 'text-2xl' : 'text-xl';
+  const desktopTitleSize = desktopStandalone ? 'text-xl' : 'text-lg';
   const desktopTitleContent = (
     // min-w-0 + truncate: the row caps this block at the centred search pill's
     // left edge (half the row, less half the pill), so a long title ellipsises
@@ -202,7 +202,7 @@ export function TopBar() {
       ? { icon: pencilIcon, label: pencilLabel === 'Edit' ? 'Edit dashboard' : pencilLabel, onClick: toggleEditMode }
       : null;
   const editPencil = pencilTarget && !isEditing && (
-    <IconButton icon={pencilTarget.icon} label={pencilTarget.label} size="sm" tone="quiet" shape="square" exact onClick={pencilTarget.onClick} />
+    <IconButton icon={pencilTarget.icon} label={pencilTarget.label} size="md" tone="quiet" shape="square" exact onClick={pencilTarget.onClick} />
   );
   return (
     <header className="group/bar relative h-full py-ha-2 px-ha-0" data-component="TopBar">
@@ -232,7 +232,7 @@ export function TopBar() {
           the shell's gutters are asymmetric, and half of that difference would
           otherwise pull the pill off the midpoint. */}
       {!isEditing && (
-        <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 items-center h-11 w-[min(30rem,34vw)] pl-ha-4 pr-ha-2 rounded-full bg-surface-low hover:bg-surface-mid/60 transition-colors group">
+        <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 items-center h-10 w-[min(30rem,34vw)] pl-ha-4 pr-ha-2 rounded-full bg-surface-low hover:bg-surface-mid/60 transition-colors group">
           <button
             type="button"
             onClick={openSearch}
@@ -284,7 +284,7 @@ export function TopBar() {
               aria-label="Back"
               // relative z-10: sit above the title's RollingText fade-gutter
               // (negative-margin box) so it can't steal the tap on the arrow.
-              className="relative z-10 flex h-11 w-11 -ml-2.5 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
+              className="relative z-10 flex h-10 w-10 -ml-2.5 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-surface-low hover:text-text-primary"
             >
               <Icon path={mdiArrowLeft} size={24} />
             </button>
@@ -327,7 +327,7 @@ export function TopBar() {
           {primaryAction && (
             <button 
               onClick={primaryAction.onClick}
-              className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors"
+              className="p-ha-2 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors"
             >
               <Icon path={primaryAction.icon} size={24} />
             </button>
@@ -335,7 +335,7 @@ export function TopBar() {
           {!isEditing && isAdmin && (
             <button
               onClick={() => setAddMenuOpen(true)}
-              className={`p-ha-3 rounded-ha-xl transition-colors ${
+              className={`p-ha-2 rounded-ha-xl transition-colors ${
                 theme === 'glass'
                     ? 'bg-ha-blue/20 text-ha-blue hover:bg-ha-blue/30 border border-white/10'
                   : theme === 'teenage'
@@ -382,7 +382,7 @@ export function TopBar() {
         {primaryAction && (
           <button 
             onClick={primaryAction.onClick}
-            className="p-ha-3 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors"
+            className="p-ha-2 rounded-ha-xl hover:bg-surface-low text-text-secondary transition-colors"
           >
             <Icon path={primaryAction.icon} size={24} />
           </button>
@@ -391,7 +391,7 @@ export function TopBar() {
           <button
             ref={desktopAddButtonRef}
             onClick={() => setAddMenuOpen(true)}
-            className={`p-ha-3 rounded-ha-xl transition-colors ${
+            className={`p-ha-2 rounded-ha-xl transition-colors ${
               theme === 'glass'
                 ? 'bg-ha-blue/20 text-ha-blue hover:bg-ha-blue/30 border border-white/10'
                 : theme === 'teenage'

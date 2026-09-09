@@ -77,7 +77,7 @@ export function SearchField({
         // that swaps this field for a header doesn't shift under you.
         lg
           ? 'h-11 gap-ha-3 rounded-ha-3xl bg-surface-default px-ha-5 lg:h-[50px]'
-          : 'h-12 gap-ha-3 rounded-ha-2xl bg-surface-low px-ha-4',
+          : 'h-12 gap-ha-3 rounded-ha-2xl bg-surface-low px-ha-4 lg:h-10 lg:rounded-ha-xl',
         className,
       )}
     >

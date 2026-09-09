@@ -10,10 +10,9 @@ import { Icon } from './Icon';
 // and its states to say "this is a control", so those are the parts that must
 // not drift.
 //
-// Three sizes, and nothing between them. The glyph stays 24px (the project's
-// legibility floor) and the box grows around it, so the scale is really a scale
-// of breathing room and hit area:
-//   sm  36px  inside a dense row (a chip's clear ✕, a list row's action)
+// Three sizes, and nothing between them — the 32 / 40 / 48 control tiers shared
+// with Button. The glyph steps 18 / 20 / 22 and the box grows around it:
+//   sm  32px  inside a dense row (a chip's clear ✕, a list row's action)
 //   md  40px  the default — headers, toolbars, panel chrome
 //   lg  48px  the primary touch target on a phone sheet or an overlay,
 //             and the same 48px as Button's `lg` so the two line up in a row.
@@ -43,7 +42,7 @@ interface IconButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElem
 }
 
 const BOX: Record<IconButtonSize, string> = {
-  sm: 'h-9 w-9',
+  sm: 'h-8 w-8',
   md: 'h-10 w-10',
   lg: 'h-12 w-12',
 };

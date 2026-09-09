@@ -29,14 +29,14 @@ export function SegmentedControl<T extends string>({
   iconOnly = false,
 }: SegmentedControlProps<T>) {
   return (
-    // h-8 is the shared control height: this and a filter chip sit on the same
-    // row in the stores and have to line up.
+    // h-10 is the shared md control height: this and a filter Chip (also h-10)
+    // sit on the same row in the stores and have to line up.
     //
     // Card surface + hairline, not surface-mid: mid is a hair off surface-lower in
     // light and *darker* than it in dark, so the control dissolved into whatever
     // page or dialog it sat on. A white card with an edge reads on both.
     <div className={clsx(
-      'inline-flex h-8 items-center rounded-ha-xl border border-surface-lower bg-surface-default p-[3px] gap-[2px]',
+      'inline-flex h-10 items-center rounded-ha-xl border border-surface-lower bg-surface-default p-[3px] gap-[2px]',
       className,
     )}>
       {segments.map(seg => (
@@ -49,7 +49,7 @@ export function SegmentedControl<T extends string>({
           aria-pressed={seg.value === value}
           className={clsx(
             'flex-1 flex h-full items-center justify-center gap-1 rounded-ha-lg text-sm font-medium transition-all duration-200 whitespace-nowrap',
-            iconOnly ? 'w-8 px-0' : 'px-ha-3',
+            iconOnly ? 'w-10 px-0' : 'px-ha-3',
             // Picked is a thumb, not a tint: the segment one step up the surface
             // ladder from the track, with full-strength text. Colour is reserved
             // for live device state, and the chips and cards say "chosen" with a
