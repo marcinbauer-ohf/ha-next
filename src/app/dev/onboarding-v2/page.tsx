@@ -192,6 +192,9 @@ const STR = {
     ],
     thanksTitle: 'Say thanks 💌',
     thanksDesc: 'Send a thank-you note to the Open Home Foundation',
+    doneTitle: 'Your home is ready',
+    doneBody: 'This is where your dashboard would open — the devices we found while you were still at the door, waiting in the rooms you just built. That part is its own exploration. This one was about the first five minutes.',
+    doneHint: 'Reload the page to walk through it again',
     floors: ['Ground floor', 'First floor', 'Second floor', 'Third floor', 'Fourth floor'],
     tower: 'The tower 🏰',
     rooms: ['Living room', 'Kitchen', 'Bedroom', 'Bathroom', 'Office', 'Dining room', 'Hallway', 'Kids room', 'Laundry', 'Garage', 'Gym', 'Garden', 'Stairway', 'Studio'],
@@ -284,6 +287,9 @@ const STR = {
     ],
     thanksTitle: 'Podziękuj 💌',
     thanksDesc: 'Wyślij podziękowanie do Open Home Foundation',
+    doneTitle: 'Twój dom jest gotowy',
+    doneBody: 'Tutaj otworzyłby się twój panel — urządzenia znalezione, gdy stałeś jeszcze przed drzwiami, czekają w pokojach, które właśnie ułożyłeś. To już osobna historia. Ta była o pierwszych pięciu minutach.',
+    doneHint: 'Odśwież stronę, aby przejść to jeszcze raz',
     floors: ['Parter', 'Pierwsze piętro', 'Drugie piętro', 'Trzecie piętro', 'Czwarte piętro'],
     tower: 'Wieża 🏰',
     rooms: ['Salon', 'Kuchnia', 'Sypialnia', 'Łazienka', 'Biuro', 'Jadalnia', 'Przedpokój', 'Pokój dzieci', 'Pralnia', 'Garaż', 'Siłownia', 'Ogród', 'Schody', 'Pracownia'],
@@ -376,6 +382,9 @@ const STR = {
     ],
     thanksTitle: 'Da las gracias 💌',
     thanksDesc: 'Envía un agradecimiento a la Open Home Foundation',
+    doneTitle: 'Tu hogar está listo',
+    doneBody: 'Aquí se abriría tu panel — los dispositivos que encontramos mientras seguías en la puerta, esperando en las habitaciones que acabas de crear. Esa parte es otra exploración. Esta trataba de los primeros cinco minutos.',
+    doneHint: 'Recarga la página para recorrerlo de nuevo',
     floors: ['Planta baja', 'Primera planta', 'Segunda planta', 'Tercera planta', 'Cuarta planta'],
     tower: 'La torre 🏰',
     rooms: ['Salón', 'Cocina', 'Dormitorio', 'Baño', 'Oficina', 'Comedor', 'Pasillo', 'Cuarto de niños', 'Lavadero', 'Garaje', 'Gimnasio', 'Jardín', 'Escalera', 'Estudio'],
@@ -1118,6 +1127,38 @@ type SheetTab = 'search' | 'activity' | 'dashboards';
 const barFade = (dir: 'top' | 'bottom'): React.CSSProperties => ({
   background: `linear-gradient(to ${dir === 'top' ? 'bottom' : 'top'}, rgba(230,230,230,0.97) 45%, rgba(230,230,230,0))`,
 });
+
+/**
+ * The dashboard prototype below is parked: what happens after onboarding is a
+ * separate exploration, and showing half of it invites feedback on the wrong
+ * thing. The flow ends on a note instead. Flip this to bring it back.
+ */
+const SHOW_DASHBOARD = false;
+
+/** The parked finale — a note to read, nothing to tap. */
+function DoneMessage({ L }: { L: Copy }) {
+  return (
+    <div className="h-full w-full flex items-center justify-center px-7" style={{ background: SURFACE }}>
+      <div
+        className="w-full max-w-[540px] flex flex-col items-center text-center gap-4"
+        style={{ animation: 'obv2-fade-in 0.6s ease both' }}
+      >
+        <h1
+          className="text-[32px] md:text-[38px] font-semibold leading-[1.12] tracking-[-0.96px] md:tracking-[-1.14px]"
+          style={{ color: TEXT }}
+        >
+          {L.doneTitle}
+        </h1>
+        <p className="text-[16px] leading-snug tracking-[-0.32px]" style={{ color: TEXT_2 }}>
+          {L.doneBody}
+        </p>
+        <span className="text-[13px] tracking-[-0.26px] pt-1" style={{ color: TEXT_DIM }}>
+          {L.doneHint}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function DashboardStep({
   homeName,
@@ -2672,7 +2713,11 @@ export default function OnboardingV2Page() {
       <div className="relative w-full" style={{ height: vvh ?? '100%' }}>
         {step === 'dashboard' ? (
           <div className="relative h-full overflow-hidden">
-            <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} structure={structure} L={L} onBack={back} />
+            {SHOW_DASHBOARD ? (
+              <DashboardStep homeName={homeName} username={username} invited={invited} initialCards={cards} structure={structure} L={L} onBack={back} />
+            ) : (
+              <DoneMessage L={L} />
+            )}
           </div>
         ) : (
           <div className="obv2-paper h-full flex flex-col lg:bg-white">
