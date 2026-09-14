@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { mdiFormatFont } from '@mdi/js';
 import { flashHud } from '@/lib/hudFlashBus';
+import { isStandaloneRoute } from '@/lib/standaloneRoutes';
 
 /**
  * Live typeface switcher for the prototype.
@@ -259,6 +260,7 @@ export function FontProvider({ children }: { children: ReactNode }) {
   // Quick live toggle: Cmd/Ctrl + Shift + F cycles the typeface.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isStandaloneRoute(window.location.pathname)) return;
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault();
         cycleFont();

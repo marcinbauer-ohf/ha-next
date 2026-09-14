@@ -20,6 +20,7 @@ import { SetupScreen } from '@/components/ui/SetupScreen';
 import { Preloader } from '@/components/ui/Preloader';
 import { OnboardingFlow } from '@/components/onboarding';
 import { isOnboardingActive, useOnboardingGate } from '@/lib/onboarding';
+import { isStandaloneRoute } from '@/lib/standaloneRoutes';
 import { RouteTransition } from '@/components/layout/RouteTransition';
 import { announceDiscovery, pickDiscoveries } from '@/lib/deviceDiscovery';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -57,6 +58,15 @@ function scrollActiveRouteToTop(pathname: string): boolean {
 }
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
+  // Standalone routes render bare — and they must not mount AppShellContent at
+  // all. An early return inside it still runs every hook above the return, so
+  // the shell's global effects (the discovery and install toasts, the ⌘K /
+  // settings / home shortcuts, the vacuum simulator, thumbnail capture) went on
+  // firing over the prototypes.
+  if (isStandaloneRoute(pathname)) {
+    return <>{children}</>;
+  }
   return (
     <Suspense fallback={<div className="min-h-screen bg-surface-lower">{children}</div>}>
       <AppShellContent>{children}</AppShellContent>
@@ -633,10 +643,6 @@ function AppShellContent({ children }: AppShellProps) {
 
   if (!hydrated) {
     return null;
-  }
-
-  if (pathname.startsWith('/dev/') || pathname.startsWith('/spin')) {
-    return <>{children}</>;
   }
 
   if (!configured) {

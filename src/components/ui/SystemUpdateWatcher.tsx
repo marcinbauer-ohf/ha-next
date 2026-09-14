@@ -15,6 +15,8 @@ import {
   UPDATE_PREVIEW_STEPS,
 } from '@/lib/systemUpdatePreview';
 import { SystemUpdateOverlay, type SystemUpdatePhase } from './SystemUpdateOverlay';
+import { usePathname } from 'next/navigation';
+import { isStandaloneRoute } from '@/lib/standaloneRoutes';
 
 type Phase = 'idle' | SystemUpdatePhase;
 
@@ -40,7 +42,16 @@ const PREVIEW_SHORTCUT_ENABLED = process.env.NODE_ENV !== 'production';
  *                 dropped after we already saw activity; latched here
  *   settling    — socket back and update/restart cleared; brief "ready" beat → idle
  */
+/** Standalone routes never get the overlay — it is full-screen app chrome, and
+    a real restart mid-demo would swallow a prototype whole. The split keeps the
+    watcher's hooks from mounting there at all. */
 export function SystemUpdateWatcher() {
+  const pathname = usePathname();
+  if (isStandaloneRoute(pathname)) return null;
+  return <SystemUpdateWatcherActive />;
+}
+
+function SystemUpdateWatcherActive() {
   const { demoMode, configured } = useHomeAssistant();
   const alive = useConnectionAlive();
   const restartPending = useRestartPending();

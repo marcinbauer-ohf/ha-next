@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useIdleTimer } from '@/hooks';
 import { ScreensaverClock } from '@/components/ui/ScreensaverClock';
 import { useOnboardingGate } from '@/lib/onboarding';
+import { isStandaloneRoute } from '@/lib/standaloneRoutes';
 
 const SCREENSAVER_TIMEOUT = 60000; // 1 minute of inactivity
 
@@ -62,7 +63,7 @@ export function ScreensaverProvider({ children }: ScreensaverProviderProps) {
   // Prototype spinoffs under /dev/ own the whole screen and aren't part of the
   // screensaver's project — idling (or ⌘⇧S) there must not summon the clock.
   const pathname = usePathname();
-  const suppressed = onboardingActive || pathname.startsWith('/dev/');
+  const suppressed = onboardingActive || isStandaloneRoute(pathname);
 
   const { wake } = useIdleTimer({
     timeout: SCREENSAVER_TIMEOUT,

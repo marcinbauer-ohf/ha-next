@@ -11,6 +11,7 @@ import {
 } from '@mdi/js';
 import { flashHud } from '@/lib/hudFlashBus';
 import { canFireBareShortcut, matchShortcut } from '@/lib/keyboardShortcuts';
+import { isStandaloneRoute } from '@/lib/standaloneRoutes';
 
 // Note: the CSS gates the shared Material rules on [data-theme^="material"] and
 // the shared default rules on [data-theme^="default"], so any future variant of
@@ -262,6 +263,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Keyboard shortcut: Cmd/Ctrl + Shift + D to toggle MODE
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Prototypes own the whole screen — retheming the app underneath them
+      // (and persisting it) is not theirs to trigger.
+      if (isStandaloneRoute(window.location.pathname)) return;
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         const modes: ColorMode[] = ['light', 'dark', 'system'];
