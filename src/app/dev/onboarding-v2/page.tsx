@@ -33,6 +33,7 @@ import {
   IconHorseToy,
   IconMinus,
   IconPlant,
+  IconPencil,
   IconPlus,
   IconSearch,
   IconClockHour4,
@@ -162,7 +163,7 @@ const STR = {
     inviteSend: 'Invite',
     inviteToast: (email: string) => `Invite sent — a key is waiting for ${email}`,
     locTitle: 'Where is your home?',
-    locSub: 'Search, or drag the map until your home sits under the marker.',
+    locSub: 'It sets your sunrise, sunset and local weather.',
     locate: 'Use my location',
     locating: 'Finding you…',
     locSearchPh: 'Search for an address',
@@ -257,7 +258,7 @@ const STR = {
     inviteSend: 'Zaproś',
     inviteToast: (email: string) => `Zaproszenie wysłane — klucz czeka na ${email}`,
     locTitle: 'Gdzie jest twój dom?',
-    locSub: 'Wyszukaj lub przesuwaj mapę, aż twój dom znajdzie się pod znacznikiem.',
+    locSub: 'Ustala wschód i zachód słońca oraz lokalną pogodę.',
     locate: 'Użyj mojej lokalizacji',
     locating: 'Szukam cię…',
     locSearchPh: 'Szukaj adresu',
@@ -352,7 +353,7 @@ const STR = {
     inviteSend: 'Invitar',
     inviteToast: (email: string) => `Invitación enviada — una llave espera a ${email}`,
     locTitle: '¿Dónde está tu hogar?',
-    locSub: 'Busca o arrastra el mapa hasta que tu casa quede bajo el marcador.',
+    locSub: 'Define tu amanecer, atardecer y el tiempo local.',
     locate: 'Usar mi ubicación',
     locating: 'Buscándote…',
     locSearchPh: 'Buscar una dirección',
@@ -557,7 +558,10 @@ function Shelf({
           />
         ) : (
           <span
-            className={clsx('text-[20px] font-semibold tracking-[-0.4px]', onRename && 'cursor-text')}
+            className={clsx(
+              'flex items-center gap-1.5 text-[20px] font-semibold tracking-[-0.4px]',
+              onRename && 'cursor-text',
+            )}
             style={{ color: TEXT_DIM }}
             onClick={
               onRename
@@ -569,6 +573,9 @@ function Shelf({
             }
           >
             {label}
+            {/* the plank says it can be renamed — without it the tap target is
+                invisible and nobody finds it */}
+            {onRename && <IconPencil size={15} stroke={2} className="shrink-0 opacity-60" />}
           </span>
         )}
       </motion.div>
@@ -905,6 +912,7 @@ function AreasSheet({
   booksByFloor,
   toggleRoom,
   addCustomRoom,
+  addAnotherRoom,
   customRooms,
   ctaLabel,
   onNext,
@@ -914,12 +922,20 @@ function AreasSheet({
   booksByFloor: Book[][];
   toggleRoom: (room: string, Icon: TablerIcon) => void;
   addCustomRoom: (name: string, Icon?: TablerIcon) => void;
+  addAnotherRoom: (room: string, Icon: TablerIcon) => void;
   customRooms: string[];
   /** "Next floor" while floors remain, "Continue" on the last one. */
   ctaLabel: string;
   onNext: () => void;
 }) {
-  const selected = new Set((booksByFloor[floorIndex] ?? []).map((b) => b.room));
+  const books = booksByFloor[floorIndex] ?? [];
+  const selected = new Set(books.map((b) => b.room));
+  // How many of this room stand on the focused shelf — the room itself plus its
+  // numbered copies ("Bedroom", "Bedroom 2", …), which have no chips of their own.
+  const countOf = (room: string) => {
+    const copy = new RegExp(`^${room.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\d+$`);
+    return books.filter((b) => b.room === room || copy.test(b.room)).length;
+  };
   const [draft, setDraft] = useState('');
   const railRef = useRef<HTMLDivElement>(null);
   const [railEnd, setRailEnd] = useState(false);
@@ -951,6 +967,7 @@ function AreasSheet({
             }),
           ].map(({ name, Icon }) => {
             const isOn = selected.has(name);
+            const count = isOn ? countOf(name) : 0;
             return (
               <Press
                 key={name}
@@ -960,17 +977,25 @@ function AreasSheet({
               >
                 {isOn ? <IconCheck size={22} /> : <Icon size={22} />}
                 <span className="text-[14px] font-semibold tracking-[-0.28px] whitespace-nowrap">{name}</span>
-                {/* a selected room grows a "+" — one tap adds another of the
-                    same kind ("Bedroom 2"), which joins the rail as its own chip */}
+                {/* two of a room and up, the chip says how many — the copies are
+                    books on the shelf, not extra chips */}
+                {count > 1 && (
+                  <span
+                    aria-label={`${count} of them`}
+                    className="min-w-[20px] h-[20px] px-1.5 flex items-center justify-center rounded-full bg-white/25 text-[12px] font-semibold tabular-nums"
+                  >
+                    {count}
+                  </span>
+                )}
+                {/* the "+" is always the chip's last element, so its position
+                    never shifts as the count appears or grows */}
                 {isOn && (
                   <span
                     role="button"
                     aria-label={`Add another ${name}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      let n = 2;
-                      while (customRooms.includes(`${name} ${n}`)) n++;
-                      addCustomRoom(`${name} ${n}`, Icon);
+                      addAnotherRoom(name, Icon);
                     }}
                     className="-mr-1 flex size-[24px] items-center justify-center rounded-full bg-white/25"
                   >
@@ -1897,6 +1922,24 @@ export default function OnboardingV2Page() {
     [floorIndex, floors, booksByFloor],
   );
 
+  // The "+" on a selected chip adds another of the same room. The copy is a
+  // book on the shelf only — it never joins the rail as its own chip, so the
+  // chip can carry the count instead of the rail growing "Bedroom 2", "3", …
+  const addAnotherRoom = useCallback(
+    (room: string, Icon: TablerIcon) => {
+      setBooksByFloor((prev) => {
+        const next = prev.map((f) => [...f]);
+        while (next.length < floors) next.push([]);
+        const taken = new Set(next[floorIndex].map((b) => b.room));
+        let n = 2;
+        while (taken.has(`${room} ${n}`)) n++;
+        next[floorIndex].push(makeBook(`${room} ${n}`, Icon));
+        return next;
+      });
+    },
+    [floorIndex, floors],
+  );
+
   const addCustomRoom = useCallback(
     // multiples of a predefined room ("Bedroom 2") pass the base room's icon;
     // truly custom rooms fall back to the door
@@ -2113,7 +2156,7 @@ export default function OnboardingV2Page() {
       case 'invite':
         return { title: L.inviteTitle, sub: L.inviteSub };
       case 'location':
-        return { title: L.locTitle };
+        return { title: L.locTitle, sub: L.locSub };
       case 'floors':
         return { title: L.floorsTitle, sub: L.floorsSub };
       case 'areas':
@@ -2467,7 +2510,13 @@ export default function OnboardingV2Page() {
               </Press>
             </div>
             </div>
-            <CtaButton label={L.cont} onClick={next} arrow />
+            {/* Placing the home is worth doing, not worth blocking on — the
+                same shape the invite step uses: a real Continue once there is
+                something to continue with, and a quiet way past it. */}
+            <CtaButton label={L.cont} onClick={next} arrow disabled={!location} />
+            <Press onClick={next} className="obv2-cta mx-auto px-4 py-1 text-[15px] font-semibold tracking-[-0.3px]">
+              <span style={{ color: TEXT_2 }}>{L.skip}</span>
+            </Press>
           </>
         );
       case 'floors':
@@ -2516,6 +2565,7 @@ export default function OnboardingV2Page() {
             booksByFloor={booksByFloor}
             toggleRoom={toggleRoom}
             addCustomRoom={addCustomRoom}
+            addAnotherRoom={addAnotherRoom}
             customRooms={customRooms}
             ctaLabel={floorIndex < floors - 1 ? L.nextFloor : L.cont}
             onNext={next}
