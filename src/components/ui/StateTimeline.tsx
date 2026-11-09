@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 /** One stretch of time the entity held a single state. `start`/`end` are unix seconds. */
 export interface StateSegment {
@@ -42,18 +42,6 @@ function fmtDur(sec: number): string {
   return mm ? `${h}h ${mm}m` : `${h}h`;
 }
 
-/** Paint one cell: solid when it held a single state, hard-stop gradient when it flapped. */
-function cellStyle(parts: { state: string; from: number; to: number }[]): CSSProperties | undefined {
-  if (parts.length === 0) return undefined;
-  if (parts.length === 1) return { backgroundColor: stateColor(parts[0].state) };
-  // Two stops per part (start + end at the same colour) so transitions are edges, not blends.
-  const stops = parts.flatMap(p => {
-    const c = stateColor(p.state);
-    return [`${c} ${(p.from * 100).toFixed(2)}%`, `${c} ${(p.to * 100).toFixed(2)}%`];
-  });
-  return { backgroundImage: `linear-gradient(to right, ${stops.join(',')})` };
-}
-
 const TARGET_CELL_PX = 7; // aim for ~7px cells; cell count adapts to width
 
 /**
@@ -63,7 +51,7 @@ const TARGET_CELL_PX = 7; // aim for ~7px cells; cell count adapts to width
  * collapses to sub-pixel slivers when an entity flaps), and a per-state legend
  * sums total time. The categorical analogue of the numeric sparkline.
  */
-export function StateTimeline({ segments, startTs, endTs, compact, fill, onHover }: {
+export function StateTimeline({ segments, startTs, endTs, compact, fill, onHover, axis }: {
   segments: StateSegment[];
   startTs: number;
   endTs: number;
@@ -76,6 +64,8 @@ export function StateTimeline({ segments, startTs, endTs, compact, fill, onHover
    * entity read at that moment instead of what it reads now.
    */
   onHover?: (hit: { state: string; ts: number } | null) => void;
+  /** Time labels drawn directly under the bar, above the legend. */
+  axis?: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -117,7 +107,29 @@ export function StateTimeline({ segments, startTs, endTs, compact, fill, onHover
     return out;
   }, [segments, startTs, cellDur, cellCount]);
 
-  // Legend — total time per state across the window.
+  // The whole bar as one hard-stop gradient. It used to be a flex row of cell
+  // boxes, and fractional cell widths left hairline seams between neighbours of
+  // the same colour — one paint has no joins to show.
+  const barPaint = useMemo(() => {
+    const n = cells.length;
+    const stops: string[] = [];
+    cells.forEach((parts, i) => {
+      let at = 0;
+      const push = (c: string, from: number, to: number) => {
+        if (to <= from) return;
+        stops.push(`${c} ${(((i + from) / n) * 100).toFixed(3)}%`, `${c} ${(((i + to) / n) * 100).toFixed(3)}%`);
+      };
+      for (const p of parts) {
+        push('transparent', at, p.from);
+        push(stateColor(p.state), p.from, p.to);
+        at = p.to;
+      }
+      push('transparent', at, 1);
+    });
+    return `linear-gradient(to right, ${stops.join(',')})`;
+  }, [cells]);
+
+
   const legend = useMemo(() => {
     const totals = new Map<string, number>();
     for (const s of segments) totals.set(s.state, (totals.get(s.state) ?? 0) + (s.end - s.start));
@@ -143,9 +155,11 @@ export function StateTimeline({ segments, startTs, endTs, compact, fill, onHover
         ref={ref}
         // Both variants are 36px: compact is the dialog's 24h strip, which sits
         // in the 48px control row and should fill it, not float inside it.
-        className={fill ? 'flex min-h-0 w-full flex-1 gap-px rounded-ha-lg overflow-hidden' : 'flex w-full gap-px rounded-ha-lg overflow-hidden h-9'}
+        // No gap between cells: a state that held for an hour reads as one solid
+        // block, not a barcode. Only a real change of state draws an edge.
+        className={fill ? 'min-h-0 w-full flex-1 rounded-ha-md bg-surface-mid' : 'h-9 w-full rounded-ha-lg bg-surface-mid'}
         data-sheet-drag="none"
-        style={{ touchAction: 'pan-y' }}
+        style={{ touchAction: 'pan-y', backgroundImage: barPaint }}
         onPointerDown={(e) => {
           if (e.pointerType === 'mouse') return;
           try { (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId); } catch { /* stale pointer */ }
@@ -161,22 +175,16 @@ export function StateTimeline({ segments, startTs, endTs, compact, fill, onHover
         role="img"
         aria-label="State history heatmap"
       >
-        {cells.map((parts, i) => (
-          <div
-            key={i}
-            className="h-full flex-1 bg-surface-low transition-[filter] hover:brightness-125"
-            style={cellStyle(parts)}
-          />
-        ))}
       </div>
 
       {/* Legend: total time per state */}
-      {!compact && <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-0.5">
+      {axis}
+      {!compact && <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
         {legend.map(([state, dur]) => (
-          <span key={state} className="inline-flex items-center gap-1 text-[11px] text-text-tertiary">
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stateColor(state) }} />
+          <span key={state} className="inline-flex items-center gap-1.5 text-xs leading-4 text-text-secondary">
+            <span className="h-2 w-2 shrink-0 rounded-[3px]" style={{ backgroundColor: stateColor(state) }} />
             <span className="truncate">{prettyState(state)}</span>
-            <span className="text-text-secondary font-medium tabular-nums">{fmtDur(dur)}</span>
+            <span className="font-mono text-text-primary">{fmtDur(dur)}</span>
           </span>
         ))}
       </div>}

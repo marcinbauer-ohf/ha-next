@@ -134,6 +134,11 @@ function buildFromEntities(allEntities: HassEntities, withDemoAreas: boolean): H
   const devices: HassDevice[] = [];
   const sensors: HassEntity[] = [];
   const batteries: HassEntity[] = [];
+  // Demo entities that belong to another entity's device (`demo_parent`): a
+  // vacuum's filter sensor, a lock's door contact. They never get a card of
+  // their own; they join their parent's, so demo devices have several
+  // entities the way real ones do.
+  const children: HassEntity[] = [];
 
   for (const entity of Object.values(allEntities)) {
     const domain = entity.entity_id.split('.')[0];
@@ -142,6 +147,7 @@ function buildFromEntities(allEntities: HassEntities, withDemoAreas: boolean): H
     // → `lock.front_door`), else feed only the Home Center. Demo data can opt
     // entities out explicitly.
     if (entity.attributes.dashboard_hidden === true) continue;
+    if (typeof entity.attributes.demo_parent === 'string') { children.push(entity); continue; }
     if (domain === 'sensor' && entity.attributes.device_class === 'battery') { batteries.push(entity); continue; }
     if (SINGLE_DOMAINS.has(domain)) {
       devices.push({
@@ -187,6 +193,10 @@ function buildFromEntities(allEntities: HassEntities, withDemoAreas: boolean): H
   for (const b of batteries) {
     const base = b.entity_id.replace(/^sensor\./, '').replace(/_battery$/, '');
     devices.find((d) => d.id.split('.')[1] === base)?.entities.push(b);
+  }
+
+  for (const c of children) {
+    devices.find((d) => d.id === c.attributes.demo_parent)?.entities.push(c);
   }
 
   return devices;

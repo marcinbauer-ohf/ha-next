@@ -39,6 +39,7 @@ import { useImmersiveMode, useHomeAssistant, useDevices, useDeviceCardConfig, us
 import { ScrollFadeEdge } from '@/components/ui/ScrollFadeEdge';
 import { usePullToRevealContext, useHeader, useEditMode, useToast, useDebugFlags } from '@/contexts';
 import { TipStack, type TipStackTip } from '@/components/ui/TipStack';
+import { HALogo } from '@/components/ui/HALogo';
 import { deviceBatteryLevel } from '@/lib/summaryConfig';
 import { SetupScreen } from '@/components/ui/SetupScreen';
 import { OffscreenChangeHints } from '@/components/ui/OffscreenChangeHints';
@@ -376,12 +377,10 @@ export default function DashboardPage() {
       list.push({
         id: 'connect-ha',
         icon: mdiHomeAssistant,
-        title: 'You’re exploring a demo home',
-        body: 'You’re looking at a sample home. Connect your Home Assistant to see your real rooms and devices here.',
-        actions: [
-          { label: 'Connect my home', primary: true, onClick: () => setSetupOpen(true) },
-          { label: 'Keep the demo', onClick: dismissConnectTip },
-        ],
+        media: <HALogo size={40} className="shrink-0" />,
+        title: 'This is a demo home',
+        body: 'Connect to see yours.',
+        actions: [{ label: 'Connect', primary: true, onClick: () => setSetupOpen(true) }],
         onDismiss: dismissConnectTip,
       });
     }
@@ -389,12 +388,9 @@ export default function DashboardPage() {
       list.push({
         id: 'configure-dashboard',
         icon: mdiAutoFix,
-        title: 'Finish setting up your dashboard',
-        body: 'Let us fill in each device card automatically with sensible choices. You can fine-tune anything later.',
-        actions: [
-          { label: 'Auto-configure', primary: true, onClick: autoConfigureDevices },
-          { label: 'Dismiss', onClick: dismissOnboarding },
-        ],
+        title: 'Set up your cards',
+        body: 'We’ll pick what each one shows.',
+        actions: [{ label: 'Set up', primary: true, onClick: autoConfigureDevices }],
         onDismiss: dismissOnboarding,
       });
     }
@@ -974,7 +970,7 @@ export default function DashboardPage() {
                             {favoriteDevices.length === 0 && (
                               <p className="text-sm text-text-tertiary mb-ha-2">Drag devices here to favorite them.</p>
                             )}
-                            <div className={`grid gap-ha-3 items-start ${gridCols ?? MASONRY_GRID_CLASS}`}>
+                            <div className={`grid gap-ha-3 lg:gap-ha-4 items-start ${gridCols ?? MASONRY_GRID_CLASS}`}>
                               {paddedSlots.map((device, i) => (
                                 <GridSlot key={device ? device.id : `fav-empty-${i}`} droppableId={slotId(FAVORITES_KEY, i)} dragId={device ? cardDragId(FAVORITES_KEY, device.id) : undefined}>
                                   {device && (
@@ -991,9 +987,9 @@ export default function DashboardPage() {
                         const colArrays: HassDevice[][] = Array.from({ length: masonryCols }, () => []);
                         favoriteDevices.forEach((d, i) => colArrays[i % masonryCols].push(d));
                         return (
-                          <div className="flex gap-ha-3 items-start">
+                          <div className="flex gap-ha-3 lg:gap-ha-4 items-start">
                             {colArrays.map((col, ci) => (
-                              <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
+                              <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3 lg:gap-ha-4">
                                 {col.map(device => (
                                   <DeferredCard key={device.id} entityId={cardPrimaryEntityId(device)}>{renderCard(device, { forceArea: true })}</DeferredCard>
                                 ))}
@@ -1009,7 +1005,7 @@ export default function DashboardPage() {
                   <div key={`${groupBy}-${activeFloorId ?? 'all'}`} className="ha-view-enter space-y-ha-8">
                   {visibleSections.map(({ key, title, devices: sectionDevices, kind }) => {
                     const slots = resolveSlots(sectionDevices, sectionOrders[key]);
-                    const editGridClass = `grid gap-ha-3 items-start ${gridCols ?? MASONRY_GRID_CLASS}`;
+                    const editGridClass = `grid gap-ha-3 lg:gap-ha-4 items-start ${gridCols ?? MASONRY_GRID_CLASS}`;
 
                     // Edit grid is a slot canvas: pad to full rows, and when
                     // every slot is taken open one extra empty row so cards
@@ -1046,9 +1042,9 @@ export default function DashboardPage() {
                           );
                           slots.forEach((d, i) => { if (d) colArrays[i % masonryCols].push(d); });
                           return (
-                            <div className="flex gap-ha-3 items-start">
+                            <div className="flex gap-ha-3 lg:gap-ha-4 items-start">
                               {colArrays.map((col, ci) => (
-                                <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
+                                <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3 lg:gap-ha-4">
                                   {col.map(device => (
                                     <DeferredCard key={device.id} entityId={cardPrimaryEntityId(device)}>{renderCard(device)}</DeferredCard>
                                   ))}
@@ -1110,7 +1106,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Entity detail / card edit — modal dialog */}
-          <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel} maxWidth={620} transitionKey={panelMode}>
+          <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel} maxWidth={620} transitionKey={panelMode} anchorTop>
             {selectedDevice && panelMode === 'entity' && allPanelEntities.length > 0 && (
               <EntityDetailPanel
                 initialEntityId={selectedEntityId ?? allPanelEntities[0].entityId}

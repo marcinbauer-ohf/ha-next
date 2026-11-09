@@ -1,7 +1,9 @@
 'use client';
 
 import { clsx } from 'clsx';
+import { READING } from '@/lib/utils';
 import { Icon } from '../ui/Icon';
+import { IconBadge } from '../ui/IconBadge';
 import type { SummaryCardProps } from '@/types';
 
 const colorClasses = {
@@ -65,6 +67,7 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
   if (compact) {
     const isLg = size === 'lg';
     const isMd = size === 'md';
+    const isSm = !isLg && !isMd;
 
     return (
       <Tag
@@ -75,43 +78,66 @@ export function SummaryCard({ icon, title, state, color = 'default', compact = f
           isLg ? 'gap-ha-3 px-ha-5 py-ha-3 rounded-ha-2xl' :
           isMd ? 'gap-ha-2 px-ha-4 py-2.5 rounded-ha-xl' :
           // Fixed height, not padding: the chips carry different innards
-          // (glyphs, stacked avatars) and only a set height keeps the row even.
-          'gap-ha-2 px-ha-3 h-10 rounded-full',
+          // (badges, stacked avatars) and only a set height keeps the row even.
+          // Insets come from that height, not from density: a 32px badge in a
+          // 48px pill sits (48 − 32) / 2 = 8px from every edge it touches, 10px
+          // from its text, and the round text end gets 18. Density scales the
+          // space *between* chips, never the room inside one.
+          'gap-2.5 pl-2 pr-[18px] h-12 rounded-full',
           'whitespace-nowrap',
           interactive,
+          // A chip that carries a state tone stands up off the row; neutral
+          // chips lie flat. Not over the screensaver, where the glass is the
+          // chip's edge and a shadow would only muddy the scene under it.
+          isSm && !translucent && color !== 'default' && 'ha-lift',
           translucent ? translucentFill
             : color === 'danger' ? `${colorClasses.danger} [--ha-hover-grow:var(--ha-color-fill-danger-normal)]`
             : OPAQUE_CHIP_FILL,
           className,
         )}
       >
-        <div className={clsx('flex-shrink-0', translucent ? 'text-white' : iconColorClasses[color])}>
-          <Icon path={icon} size={isLg ? 28 : isMd ? 22 : 18} />
-        </div>
+        {/* sm takes the tinted badge, which carries the chip's colour. md/lg
+            keep the bare glyph: their 22/28 icons sit off the badge's 32/40
+            tiers, and a 40 badge would change those chips' height. */}
+        {isSm ? (
+          <IconBadge icon={icon} size={32} tone={translucent ? 'onImage' : color} />
+        ) : (
+          <div className={clsx('flex-shrink-0', translucent ? 'text-white' : iconColorClasses[color])}>
+            <Icon path={icon} size={isLg ? 28 : 22} />
+          </div>
+        )}
         {/* No reading to show (an entity chip, which is just what it is): one
             line at the value's size — the label alone would sit small and lost
             in a 40px pill. */}
         {state === undefined ? (
           <span className={clsx(
-            'font-medium',
+            isSm ? 'font-semibold' : 'font-medium',
             translucent ? 'text-white' : 'text-text-primary',
-            isLg ? 'text-xl' : isMd ? 'text-base' : 'text-[13px]',
+            isLg ? 'text-xl' : isMd ? 'text-base' : 'text-xs',
           )}>{title}</span>
         ) : (
         /* Label above the value: the value alone ("3 on", "42 W") doesn't say
-           what it's counting once the chips are read out of context. */
-        <div className="flex flex-col items-start leading-tight">
+           what it's counting once the chips are read out of context.
+           sm reads like a device card — the category names itself (13, 600,
+           primary) and the status sits under it (13, 400, secondary); two 16px
+           lines fill the 40px pill. md/lg keep the small label over a big
+           value, which is what those sizes are for. */
+        <div className={clsx('flex flex-col items-start', isSm ? 'leading-4' : 'leading-tight')}>
           <span className={clsx(
-            translucent ? 'text-white/70' : 'text-text-secondary',
-            isLg ? 'text-sm' : isMd ? 'text-xs' : 'text-[12px]'
+            isSm
+              ? ['text-xs font-semibold', translucent ? 'text-white' : 'text-text-primary']
+              : [translucent ? 'text-white/70' : 'text-text-secondary', isLg ? 'text-sm' : 'text-xs'],
           )}>{title}</span>
-          {/* Mono, same as a device card's state line — readings should look
-              like readings wherever they show up. */}
+          {/* Mono for a reading ("21.2°C avg", "3 on"), the sans for a word
+              ("All locked") — the device card's state line draws the same rule. */}
           <span className={clsx(
-            'font-mono font-medium text-left',
-            translucent ? 'text-white' : 'text-text-primary',
-            isLg ? 'text-xl' : isMd ? 'text-base' : 'text-[13px]'
-          )}>{state}</span>
+            'text-left',
+            isSm
+              ? ['text-xs font-normal', translucent ? 'text-white/70' : 'text-text-secondary']
+              : ['font-semibold', translucent ? 'text-white' : 'text-text-primary', isLg ? 'text-xl' : 'text-base'],
+          )}>{typeof state === 'string' && READING.test(state)
+            ? (() => { const [, num, rest] = state.match(/^(\S+)(.*)$/)!; return <><span className="font-mono">{num}</span>{rest}</>; })()
+            : state}</span>
         </div>
         )}
       </Tag>

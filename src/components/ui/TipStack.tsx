@@ -2,7 +2,8 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { mdiClose } from '@mdi/js';
-import { Icon } from './Icon';
+import { Button } from './Button';
+import { IconBadge } from './IconBadge';
 import { IconButton } from './IconButton';
 
 export interface TipStackAction {
@@ -14,8 +15,11 @@ export interface TipStackAction {
 export interface TipStackTip {
   id: string;
   icon: string;
+  /** Artwork shown instead of the icon badge — a logo, at 40px. */
+  media?: React.ReactNode;
   title: string;
-  body: string;
+  /** One short line. The title carries the message; this only says what the button gets you. */
+  body?: string;
   actions?: TipStackAction[];
   /** Called when the tip's ✕ is pressed. The parent removes the tip from `tips`. */
   onDismiss: () => void;
@@ -29,15 +33,13 @@ const PEEK_STEP = 8;
 /** How many hidden cards may peek out below the front one. */
 const MAX_PEEK = 2;
 
-// The dashboard surface is bg-surface-lower and the tip tint is translucent, so
-// every layer gets an opaque surface-lower backing — without it the peeking
-// cards would shine through the front card.
+// A tip is a card like any other on the dashboard: the white surface, no tint.
+// Colour stays in the badge. The hairline is what separates the peeking cards
+// from the one in front of them.
 function TipSurface({ children }: { children?: React.ReactNode }) {
   return (
-    <div className="rounded-ha-2xl bg-surface-lower h-full">
-      <div className="rounded-ha-2xl bg-ha-blue/8 border border-ha-blue/15 h-full">
-        {children}
-      </div>
+    <div className="h-full rounded-ha-2xl border border-text-primary/[0.06] bg-surface-default">
+      {children}
     </div>
   );
 }
@@ -99,32 +101,28 @@ export function TipStack({ tips }: { tips: TipStackTip[] }) {
                 transition={SPRING}
               >
                 <TipSurface>
-                  <div className="p-ha-3 flex items-start gap-ha-3">
-                    <div className="w-8 h-8 rounded-ha-lg bg-ha-blue/15 flex items-center justify-center shrink-0">
-                      <Icon path={front.icon} size={18} className="text-ha-blue" />
+                  {/* One line: who is speaking, what it is, the one thing to do
+                      about it, and the way out. The ✕ is the "no thanks" — a
+                      second text button saying the same thing was just noise.
+                      Fixed 12px insets around the 40px mark, like a device card. */}
+                  <div className="flex items-center gap-3 p-3 pr-2">
+                    {front.media ?? <IconBadge icon={front.icon} tone="primary" size={40} />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px] font-semibold leading-5 text-text-primary">{front.title}</p>
+                      {front.body && <p className="text-xs leading-4 text-text-secondary">{front.body}</p>}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-text-primary">{front.title}</p>
-                      <p className="text-xs text-text-secondary mt-0.5 leading-snug">{front.body}</p>
-                      {front.actions && front.actions.length > 0 && (
-                        <div className="flex gap-ha-2 mt-ha-2">
-                          {front.actions.map(action => (
-                            <button
-                              key={action.label}
-                              onClick={action.onClick}
-                              className={
-                                action.primary
-                                  ? 'text-xs font-semibold text-white bg-ha-blue rounded-ha-lg px-ha-3 py-1 hover:bg-ha-blue/90 active:scale-95 transition-all'
-                                  : 'text-xs text-text-secondary hover:text-text-primary transition-colors px-ha-2 py-1'
-                              }
-                            >
-                              {action.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <IconButton icon={mdiClose} label="Dismiss tip" size="sm" tone="quiet" onClick={front.onDismiss} />
+                    {front.actions?.map(action => (
+                      <Button
+                        key={action.label}
+                        size="sm"
+                        variant={action.primary ? 'primary' : 'neutral'}
+                        onClick={action.onClick}
+                        className="shrink-0"
+                      >
+                        {action.label}
+                      </Button>
+                    ))}
+                    <IconButton icon={mdiClose} label="Dismiss" size="sm" tone="quiet" onClick={front.onDismiss} />
                   </div>
                 </TipSurface>
               </motion.div>

@@ -27,6 +27,7 @@ const DEMO_ENTITY_AREAS: Record<string, string> = {
   'media_player.simulated': 'living_room',
   'climate.home': 'living_room',
   'vacuum.downstairs': 'living_room',
+  'binary_sensor.living_room_motion': 'living_room',
 
   'light.kitchen_pendants': 'kitchen',
   'switch.coffee_station': 'kitchen',
@@ -41,8 +42,10 @@ const DEMO_ENTITY_AREAS: Record<string, string> = {
   'light.bedroom_lamp': 'bedroom',
   'climate.bedroom': 'bedroom',
   'media_player.simulated_display': 'bedroom',
+  'fan.bedroom_purifier': 'bedroom',
 
   'lock.front_door': 'outside',
+  'switch.ev_charger': 'outside',
   'binary_sensor.camera_simulated': 'outside',
   'binary_sensor.camera_simulated_garage': 'outside',
   'sensor.outdoor_temperature': 'outside',
@@ -289,6 +292,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
       {
         friendly_name: 'Front Door Camera',
         event_type: 'Person detected',
+        device_class: 'occupancy',
         entity_picture: '/camera_doorbell.png',
       },
       timestamp
@@ -299,6 +303,7 @@ export function createDemoEntities(now = new Date()): HassEntities {
       {
         friendly_name: 'Garage Camera',
         event_type: 'Motion detected',
+        device_class: 'motion',
         entity_picture: '/camera_doorbell.png',
       },
       timestamp
@@ -555,6 +560,241 @@ export function createDemoEntities(now = new Date()): HassEntities {
         friendly_name: 'Family Calendar',
         message: 'Home Assistant design review',
         start_time: fortyTwoMinutesFromNow,
+      },
+      timestamp
+    ),
+    // ── Devices with more than one entity ───────────────────────────────────
+    // `demo_parent` hangs an entity on another entity's device (see
+    // buildFromEntities), so the vacuum, thermostat, lock, purifier, charger
+    // and motion sensor each carry several — the way real devices do. The
+    // washer's extra sensors join it by their shared `washer_` prefix.
+    'sensor.washer_remaining': createEntity(
+      'sensor.washer_remaining',
+      '32',
+      {
+        friendly_name: 'Washer Remaining',
+        unit_of_measurement: 'min',
+      },
+      timestamp
+    ),
+    'sensor.washer_power': createEntity(
+      'sensor.washer_power',
+      '410',
+      {
+        friendly_name: 'Washer Power',
+        unit_of_measurement: 'W',
+      },
+      timestamp
+    ),
+    'sensor.washer_cycles': createEntity(
+      'sensor.washer_cycles',
+      '128',
+      {
+        friendly_name: 'Washer Cycles',
+      },
+      timestamp
+    ),
+    'sensor.downstairs_battery': createEntity(
+      'sensor.downstairs_battery',
+      '74',
+      {
+        friendly_name: 'Robot Vacuum Battery',
+        unit_of_measurement: '%',
+        device_class: 'battery',
+        demo_parent: 'vacuum.downstairs',
+      },
+      timestamp
+    ),
+    'sensor.downstairs_filter': createEntity(
+      'sensor.downstairs_filter',
+      '82',
+      {
+        friendly_name: 'Robot Vacuum Filter',
+        unit_of_measurement: '%',
+        demo_parent: 'vacuum.downstairs',
+      },
+      timestamp
+    ),
+    'sensor.downstairs_cleaned_area': createEntity(
+      'sensor.downstairs_cleaned_area',
+      '48',
+      {
+        friendly_name: 'Robot Vacuum Cleaned Area',
+        unit_of_measurement: 'm²',
+        demo_parent: 'vacuum.downstairs',
+      },
+      timestamp
+    ),
+    'select.downstairs_suction': createEntity(
+      'select.downstairs_suction',
+      'Balanced',
+      {
+        friendly_name: 'Robot Vacuum Suction',
+        options: ['Quiet', 'Balanced', 'Turbo', 'Max'],
+        demo_parent: 'vacuum.downstairs',
+      },
+      timestamp
+    ),
+    'switch.downstairs_child_lock': createEntity(
+      'switch.downstairs_child_lock',
+      'off',
+      {
+        friendly_name: 'Robot Vacuum Child Lock',
+        demo_parent: 'vacuum.downstairs',
+      },
+      timestamp
+    ),
+    'sensor.home_humidity': createEntity(
+      'sensor.home_humidity',
+      '45',
+      {
+        friendly_name: 'Thermostat Humidity',
+        unit_of_measurement: '%',
+        device_class: 'humidity',
+        demo_parent: 'climate.home',
+      },
+      timestamp
+    ),
+    'sensor.home_heating_today': createEntity(
+      'sensor.home_heating_today',
+      '3.2',
+      {
+        friendly_name: 'Thermostat Heating Today',
+        unit_of_measurement: 'h',
+        demo_parent: 'climate.home',
+      },
+      timestamp
+    ),
+    'switch.home_eco_mode': createEntity(
+      'switch.home_eco_mode',
+      'off',
+      {
+        friendly_name: 'Thermostat Eco Mode',
+        demo_parent: 'climate.home',
+      },
+      timestamp
+    ),
+    'binary_sensor.front_door_contact': createEntity(
+      'binary_sensor.front_door_contact',
+      'off',
+      {
+        friendly_name: 'Front Door Contact',
+        device_class: 'door',
+        demo_parent: 'lock.front_door',
+      },
+      timestamp
+    ),
+    'switch.front_door_auto_lock': createEntity(
+      'switch.front_door_auto_lock',
+      'on',
+      {
+        friendly_name: 'Front Door Auto Lock',
+        demo_parent: 'lock.front_door',
+      },
+      timestamp
+    ),
+    'fan.bedroom_purifier': createEntity(
+      'fan.bedroom_purifier',
+      'on',
+      {
+        friendly_name: 'Air Purifier',
+        percentage: 40,
+      },
+      timestamp
+    ),
+    'sensor.bedroom_purifier_pm25': createEntity(
+      'sensor.bedroom_purifier_pm25',
+      '6',
+      {
+        friendly_name: 'Air Purifier PM2.5',
+        unit_of_measurement: 'µg/m³',
+        demo_parent: 'fan.bedroom_purifier',
+      },
+      timestamp
+    ),
+    'sensor.bedroom_purifier_filter': createEntity(
+      'sensor.bedroom_purifier_filter',
+      '61',
+      {
+        friendly_name: 'Air Purifier Filter',
+        unit_of_measurement: '%',
+        demo_parent: 'fan.bedroom_purifier',
+      },
+      timestamp
+    ),
+    'switch.bedroom_purifier_child_lock': createEntity(
+      'switch.bedroom_purifier_child_lock',
+      'off',
+      {
+        friendly_name: 'Air Purifier Child Lock',
+        demo_parent: 'fan.bedroom_purifier',
+      },
+      timestamp
+    ),
+    'switch.ev_charger': createEntity(
+      'switch.ev_charger',
+      'off',
+      {
+        friendly_name: 'EV Charger',
+      },
+      timestamp
+    ),
+    'sensor.ev_charger_status': createEntity(
+      'sensor.ev_charger_status',
+      'Plugged in',
+      {
+        friendly_name: 'EV Charger Status',
+        demo_parent: 'switch.ev_charger',
+      },
+      timestamp
+    ),
+    'sensor.ev_charger_session': createEntity(
+      'sensor.ev_charger_session',
+      '14.2',
+      {
+        friendly_name: 'EV Charger Session',
+        unit_of_measurement: 'kWh',
+        demo_parent: 'switch.ev_charger',
+      },
+      timestamp
+    ),
+    'sensor.ev_charger_rate': createEntity(
+      'sensor.ev_charger_rate',
+      '0',
+      {
+        friendly_name: 'EV Charger Rate',
+        unit_of_measurement: 'kW',
+        demo_parent: 'switch.ev_charger',
+      },
+      timestamp
+    ),
+    'binary_sensor.living_room_motion': createEntity(
+      'binary_sensor.living_room_motion',
+      'off',
+      {
+        friendly_name: 'Living Room Motion',
+        device_class: 'motion',
+      },
+      timestamp
+    ),
+    'sensor.living_room_motion_illuminance': createEntity(
+      'sensor.living_room_motion_illuminance',
+      '120',
+      {
+        friendly_name: 'Living Room Motion Illuminance',
+        unit_of_measurement: 'lx',
+        demo_parent: 'binary_sensor.living_room_motion',
+      },
+      timestamp
+    ),
+    'sensor.living_room_motion_battery': createEntity(
+      'sensor.living_room_motion_battery',
+      '91',
+      {
+        friendly_name: 'Living Room Motion Battery',
+        unit_of_measurement: '%',
+        device_class: 'battery',
+        demo_parent: 'binary_sensor.living_room_motion',
       },
       timestamp
     ),

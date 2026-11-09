@@ -40,6 +40,7 @@ import {
 import { Dropdown, Icon } from '../ui';
 import { useEntity, useHomeAssistant } from '@/hooks/useHomeAssistant';
 import { stateLabel } from '@/lib/homeassistant/entityHelpers';
+import { READING } from '@/lib/utils';
 import type { HassEntity } from '@/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,6 +60,7 @@ function attr<T>(e: HassEntity, key: string): T | undefined {
 /**
  * Every domain's secondary buttons live in the same grid: uniform 48px cells on
  * a shared column track, so a 1-col pill and a 2-col rounded rect sit flush.
+ * Setpoints (− reading +) are the exception — see Stepper.
  * `cols` is inlined as a style (Tailwind can't see a dynamic grid-cols-N).
  */
 export function ControlGrid({ cols, children }: { cols: number; children: React.ReactNode }) {
@@ -109,7 +111,8 @@ export function ControlButton({
             : 'bg-surface-default text-text-secondary hover:bg-surface-low hover:text-text-primary',
       )}
     >
-      {icon ? <Icon path={icon} size={22} /> : <span className="truncate">{text}</span>}
+      {/* 24: the glyph of the 48 tier. */}
+      {icon ? <Icon path={icon} size={24} /> : <span className="truncate">{text}</span>}
     </button>
   );
 }
@@ -133,8 +136,33 @@ export function ReadoutCell({
       style={span > 1 ? { gridColumn: `span ${span} / span ${span}` } : undefined}
       className="flex h-12 flex-col items-center justify-center rounded-ha-xl border border-surface-mid px-ha-2"
     >
-      <span className="text-2xl font-bold font-mono leading-none text-text-primary tabular-nums">{value}</span>
-      {caption && <span className="mt-0.5 text-[11px] leading-tight text-text-tertiary">{caption}</span>}
+      <span className={clsx(
+        'text-2xl font-semibold leading-none text-text-primary tabular-nums',
+        typeof value === 'string' && READING.test(value) && 'font-mono',
+      )}>{value}</span>
+      {caption && <span className="mt-0.5 text-xs leading-tight text-text-tertiary">{caption}</span>}
+    </div>
+  );
+}
+
+/**
+ * − reading +: a setpoint. The two presses are 48px circles hugging a reading
+ * that takes the rest of the row, so they read as a pair either side of the
+ * number rather than as two more pills in a grid. `children` is the reading — a
+ * ReadoutCell, or a NumberInput where the value is typed.
+ */
+function Stepper({ lowerLabel, raiseLabel, onLower, onRaise, children }: {
+  lowerLabel: string;
+  raiseLabel: string;
+  onLower: () => void;
+  onRaise: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex w-full items-center gap-ha-2 [&>button]:w-12 [&>button]:shrink-0 [&>button]:px-0">
+      <ControlButton label={lowerLabel} icon={mdiMinus} onClick={onLower} />
+      <div className="min-w-0 flex-1">{children}</div>
+      <ControlButton label={raiseLabel} icon={mdiPlus} onClick={onRaise} />
     </div>
   );
 }
@@ -323,9 +351,9 @@ export function DateTimeInput({
  */
 export function ReadRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex min-h-11 w-full items-center justify-between gap-ha-3 rounded-ha-xl bg-surface-default px-ha-3 py-2">
+    <div className="flex min-h-12 w-full items-center justify-between gap-ha-3 rounded-ha-xl bg-surface-default px-ha-3 py-2">
       <span className="text-sm text-text-secondary">{label}</span>
-      <span className="text-sm font-medium font-mono text-text-primary text-right">{value}</span>
+      <span className={clsx('text-right text-sm text-text-primary', READING.test(value) && 'font-mono tabular-nums')}>{value}</span>
     </div>
   );
 }
@@ -424,7 +452,7 @@ export function ControlSlider({
     <div className="flex items-center gap-ha-3 w-full px-ha-3">
       {icon && (
         <span className="flex w-7 shrink-0 items-center justify-center">
-          <Icon path={icon} size={18} className="text-text-secondary" />
+          <Icon path={icon} size={20} className="text-text-secondary" />
         </span>
       )}
       <div
@@ -686,36 +714,45 @@ function ClimateControls({ entity }: { entity: HassEntity }) {
   return (
     <div className="w-full flex flex-col gap-ha-3">
       {action && (
-        <p className="text-center text-xs font-semibold uppercase tracking-wider text-text-tertiary">
+        <p className="text-center text-xs text-text-secondary first-letter:uppercase">
           {words(action)}
           {current != null && ` · now ${current.toFixed(1)}°`}
         </p>
       )}
       {target == null && low != null && high != null && (
-        // Range setpoint: one ± row per end, stacked, sharing the reading cell.
+        // Range setpoint: one ± row per end, stacked.
         <div className="flex flex-col gap-ha-2">
-          <ControlGrid cols={4}>
-            <ControlButton label="Lower heat-to temperature" icon={mdiMinus} onClick={() => setRange(low - step, high)} />
-            <ReadoutCell value={`${low.toFixed(step < 1 ? 1 : 0)}°`} caption="Heat to" />
-            <ControlButton label="Raise heat-to temperature" icon={mdiPlus} onClick={() => setRange(low + step, high)} />
-          </ControlGrid>
-          <ControlGrid cols={4}>
-            <ControlButton label="Lower cool-to temperature" icon={mdiMinus} onClick={() => setRange(low, high - step)} />
-            <ReadoutCell value={`${high.toFixed(step < 1 ? 1 : 0)}°`} caption="Cool to" />
-            <ControlButton label="Raise cool-to temperature" icon={mdiPlus} onClick={() => setRange(low, high + step)} />
-          </ControlGrid>
+          <Stepper
+            lowerLabel="Lower heat-to temperature"
+            raiseLabel="Raise heat-to temperature"
+            onLower={() => setRange(low - step, high)}
+            onRaise={() => setRange(low + step, high)}
+          >
+            <ReadoutCell value={`${low.toFixed(step < 1 ? 1 : 0)}°`} caption="Heat to" span={1} />
+          </Stepper>
+          <Stepper
+            lowerLabel="Lower cool-to temperature"
+            raiseLabel="Raise cool-to temperature"
+            onLower={() => setRange(low, high - step)}
+            onRaise={() => setRange(low, high + step)}
+          >
+            <ReadoutCell value={`${high.toFixed(step < 1 ? 1 : 0)}°`} caption="Cool to" span={1} />
+          </Stepper>
         </div>
       )}
       {target != null && (
-        // Setpoint: pills either side of a wide reading cell, same grid track.
-        <ControlGrid cols={4}>
-          <ControlButton label="Decrease target temperature" icon={mdiMinus} onClick={() => setTarget(target - step)} />
+        <Stepper
+          lowerLabel="Decrease target temperature"
+          raiseLabel="Increase target temperature"
+          onLower={() => setTarget(target - step)}
+          onRaise={() => setTarget(target + step)}
+        >
           <ReadoutCell
             value={`${target.toFixed(step < 1 ? 1 : 0)}°`}
             caption={current != null ? `Currently ${current.toFixed(1)}°` : undefined}
+            span={1}
           />
-          <ControlButton label="Increase target temperature" icon={mdiPlus} onClick={() => setTarget(target + step)} />
-        </ControlGrid>
+        </Stepper>
       )}
       {/* HVAC mode is a selector in HA — one active value out of a list — so it
           gets the same dropdown as every other selector, not a row of buttons. */}
@@ -882,7 +919,7 @@ function MediaControls({ entity }: { entity: HassEntity }) {
             onClick={() => call('volume_mute', { is_volume_muted: !muted })}
             className={clsx('flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition-colors', muted ? 'bg-fill-primary-normal text-ha-blue' : 'bg-surface-low text-text-secondary hover:bg-surface-mid')}
           >
-            <Icon path={muted ? mdiVolumeMute : mdiVolumeHigh} size={18} />
+            <Icon path={muted ? mdiVolumeMute : mdiVolumeHigh} size={24} />
           </button>
           <div className="flex-1">
             <ControlSlider
@@ -1012,11 +1049,14 @@ function NumberControls({ entity }: { entity: HassEntity }) {
   // range/step ratio over 256), and so do we.
   if (mode === 'box' || (mode === 'auto' && (max - min) / step > 256)) {
     return (
-      <div className="flex w-full items-center gap-ha-2">
-        <ControlButton label="Decrease value" icon={mdiMinus} onClick={() => set(Math.max(min, value - step))} />
+      <Stepper
+        lowerLabel="Decrease value"
+        raiseLabel="Increase value"
+        onLower={() => set(Math.max(min, value - step))}
+        onRaise={() => set(Math.min(max, value + step))}
+      >
         <NumberInput value={value} min={min} max={max} unit={unit || undefined} onCommit={set} />
-        <ControlButton label="Increase value" icon={mdiPlus} onClick={() => set(Math.min(max, value + step))} />
-      </div>
+      </Stepper>
     );
   }
   return (
@@ -1207,14 +1247,18 @@ function WaterHeaterControls({ entity }: { entity: HassEntity }) {
   return (
     <div className="w-full flex flex-col gap-ha-3">
       {target != null && (
-        <ControlGrid cols={4}>
-          <ControlButton label="Decrease temperature" icon={mdiMinus} onClick={() => call('set_temperature', { temperature: Math.max(min, target - 1) })} />
+        <Stepper
+          lowerLabel="Decrease temperature"
+          raiseLabel="Increase temperature"
+          onLower={() => call('set_temperature', { temperature: Math.max(min, target - 1) })}
+          onRaise={() => call('set_temperature', { temperature: Math.min(max, target + 1) })}
+        >
           <ReadoutCell
             value={`${Math.round(target)}°`}
             caption={current != null ? `Currently ${Math.round(current)}°` : undefined}
+            span={1}
           />
-          <ControlButton label="Increase temperature" icon={mdiPlus} onClick={() => call('set_temperature', { temperature: Math.min(max, target + 1) })} />
-        </ControlGrid>
+        </Stepper>
       )}
       {modes.length > 0 && (
         <OptionControl label="Operation" options={modes} value={attr<string>(entity, 'operation_mode')} onSelect={(v) => call('set_operation_mode', { operation_mode: v })} />
@@ -1437,12 +1481,14 @@ function CounterControls({ entity }: { entity: HassEntity }) {
   const call = (service: string) =>
     callService({ domain: 'counter', service, target: { entity_id: entity.entity_id } });
   return (
-    <ControlGrid cols={4}>
-      <ControlButton label="Decrement" icon={mdiMinus} onClick={() => call('decrement')} />
-      <ReadoutCell value={entity.state} />
-      <ControlButton label="Increment" icon={mdiPlus} onClick={() => call('increment')} />
-      <ControlButton label="Reset counter" icon={mdiRestart} onClick={() => call('reset')} span={4} />
-    </ControlGrid>
+    <div className="flex w-full flex-col gap-ha-2">
+      <Stepper lowerLabel="Decrement" raiseLabel="Increment" onLower={() => call('decrement')} onRaise={() => call('increment')}>
+        <ReadoutCell value={entity.state} span={1} />
+      </Stepper>
+      <ControlGrid cols={1}>
+        <ControlButton label="Reset counter" icon={mdiRestart} onClick={() => call('reset')} />
+      </ControlGrid>
+    </div>
   );
 }
 

@@ -349,7 +349,7 @@ export function EnergyDetailPanel({ onClose }: { onClose: () => void }) {
     headlineIsToday && 'used today',
     kwhToday !== null && config.price > 0 && fmtMoney(kwhToday * config.price),
     solarToday !== null && `${fmtKwh(solarToday)} kWh solar`,
-  ].filter(Boolean).join(' ・ ') || 'Live draw';
+  ].filter(Boolean).join(' · ') || 'Live draw';
 
   const points = series.map((b) => b.value);
   const xFractions = series.length > 1
@@ -418,8 +418,8 @@ export function EnergyDetailPanel({ onClose }: { onClose: () => void }) {
 
             {tab === 'daily' && !loading && series.length > 0 && (
               <p className="text-center text-[11px] font-medium text-text-tertiary">
-                {fmtKwh(dailyTotal)} kWh over {series.length} days ・ {fmtKwh(dailyTotal / series.length)} kWh a day
-                {config.price > 0 && ` ・ ${fmtMoney(dailyTotal * config.price)} total`}
+                {fmtKwh(dailyTotal)} kWh over {series.length} days · {fmtKwh(dailyTotal / series.length)} kWh a day
+                {config.price > 0 && ` · ${fmtMoney(dailyTotal * config.price)} total`}
               </p>
             )}
           </div>

@@ -327,7 +327,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
   const [timerProgress, setTimerProgress] = useState<Record<string, number>>({});
   const use24HourClock = useMemo(() => systemPrefers24HourClock(), []);
   const [isAM, setIsAM] = useState(true);
-  const [colonVisible, setColonVisible] = useState(true);
   // Widget container refs
   const widgetContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -714,7 +713,6 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
       const hours = now.getHours();
       const displayHours = use24HourClock ? hours.toString().padStart(2, '0') : (hours % 12 || 12).toString();
       setIsAM(hours < 12);
-      setColonVisible((prev) => !prev);
       setNowMs(now.getTime());
       setCurrentTime({
         hours: displayHours,
@@ -3884,15 +3882,12 @@ export function StatusBar({ connectionStatus, onProfileToggle, editModeFade }: S
           <div className="flex items-center gap-ha-1">
             <span className="text-base font-semibold text-text-primary tabular-nums" style={{ fontFamily: 'var(--ha-font-family-base, system-ui)' }}>
               {currentTime.hours}
-              <span className={colonVisible ? 'opacity-100' : 'opacity-0'}>:</span>
+              :
               {currentTime.minutes}
             </span>
             <div className="flex items-center gap-ha-1">
               {!use24HourClock && (
-                <div className="flex flex-col text-[13px] font-medium leading-tight">
-                  <span className={isAM ? 'text-text-primary' : 'text-text-disabled'}>AM</span>
-                  <span className={!isAM ? 'text-text-primary' : 'text-text-disabled'}>PM</span>
-                </div>
+                <span className="text-[13px] font-medium text-text-secondary">{isAM ? 'AM' : 'PM'}</span>
               )}
               {/* Connection status dot - next to AM/PM */}
               {connectionStatus && (

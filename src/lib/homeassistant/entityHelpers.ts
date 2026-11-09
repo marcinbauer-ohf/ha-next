@@ -236,7 +236,7 @@ function colorName([r, g, b]: [number, number, number]): string {
 }
 
 export interface StateExtras {
-  /** Short facts to append after the state, joined by "・" on the card. */
+  /** Short facts to append after the state, joined by "·" on the card. */
   details: string[];
   /** A colour worth showing as a dot (a light's current colour). */
   accentRgb?: [number, number, number];
@@ -244,8 +244,8 @@ export interface StateExtras {
 
 /**
  * What else is worth saying about a device beyond "On". A light that is on is
- * really "On ・ Warm white"; a thermostat is "Heat ・ 21°"; a speaker is
- * "Playing ・ Spotify". Deliberately excludes anything the corner badge already
+ * really "On · Warm white"; a thermostat is "Heat · 21°"; a speaker is
+ * "Playing · Spotify". Deliberately excludes anything the corner badge already
  * shows (brightness, fan speed, position, volume, current temp) so the card
  * never prints the same number twice.
  */
@@ -391,7 +391,7 @@ export function deviceFeedEntity(entities: HassEntity[]): HassEntity | undefined
  * the rule lives in one place instead of drifting between copies.
  */
 export function panelEntitiesForDevice(
-  device: { name: string; entities: HassEntity[] },
+  device: { name: string; entities: HassEntity[]; categories?: Record<string, string> },
   config: { slots: { entity_id: string; section: string }[] },
   toggleEntity: (entityId: string, state: string) => void,
   haUrl?: string,
@@ -430,6 +430,7 @@ export function panelEntitiesForDevice(
       pressable,
       unit: (e.attributes.unit_of_measurement as string | undefined) ?? undefined,
       entityPicture: picture ? (picture.startsWith('http') ? picture : `${haUrl ?? ''}${picture}`) : undefined,
+      category: device.categories?.[e.entity_id],
       onToggle: (toggleable || pressable) ? () => toggleEntity(e.entity_id, e.state) : undefined,
     }];
   });

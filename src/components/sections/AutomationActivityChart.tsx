@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { mdiRobot, mdiChevronRight } from '@mdi/js';
 import { Icon } from '../ui/Icon';
-import { Dropdown, HALoader, IconButton, SectionLabel } from '../ui';
+import { Dropdown, HALoader, IconButton } from '../ui';
 import { useAutomations, type AutomationSummary } from '@/hooks';
 import { useHomeAssistant } from '@/hooks/useHomeAssistant';
 import type { LogbookEntry } from '@/lib/homeassistant';
@@ -158,14 +158,14 @@ function SpanTicks({ span }: { span: Span }) {
   const labels: number[] = [];
   for (let i = 0; i <= buckets; i += every) labels.push(i);
   return (
-    <div className="relative mt-1 h-3">
+    <div className="relative mt-1.5 h-4">
       {labels.map((i) => {
         const f = i / buckets;
         const tx = f < 0.04 ? '0%' : f > 0.96 ? '-100%' : '-50%';
         const back = buckets - i;
         const label = i === buckets ? 'now' : bucketMs === HOUR_MS ? `-${back}h` : `-${back}d`;
         return (
-          <span key={i} className="absolute top-0 text-[10px] leading-none text-text-tertiary tabular-nums"
+          <span key={i} className="absolute top-0 text-xs leading-none text-text-tertiary tabular-nums"
             style={{ left: `${f * 100}%`, transform: `translateX(${tx})` }}>
             {label}
           </span>
@@ -345,22 +345,24 @@ export function AutomationActivityChart({ onOpenAutomation }: { onOpenAutomation
   if (automations.length === 0) return null;
 
   return (
-    <div>
-      {/* The period control sits with the chart it changes, like every other
-          history in the app (see StatsChart's span dropdown). */}
-      <div className="mb-ha-2 flex items-center gap-ha-2">
-        <SectionLabel inset>When they ran</SectionLabel>
-        <Dropdown
-          className="ml-auto shrink-0"
-          options={SPAN_OPTIONS}
-          value={spanValue}
-          onChange={(next) => { setSpanValue(next); setSelectedBucket(null); }}
-        />
-      </div>
-      {loading ? (
-        <div className="flex h-32 items-center justify-center lg:h-40"><HALoader size="sm" /></div>
-      ) : (
-        <>
+    <div className="flex w-full flex-col">
+      {/* The chart on a card of its own, like every other history in the app
+          (see StatsChart): its title and the period control it answers to sit
+          inside with it, 12px in from every edge. The runs table follows as a
+          list of its own underneath. */}
+      <div className="flex w-full flex-col gap-ha-2 rounded-ha-2xl bg-surface-default p-3">
+        <div className="flex items-center gap-ha-2">
+          <span className="truncate text-sm font-medium text-text-secondary">When they ran</span>
+          <Dropdown
+            className="ml-auto shrink-0"
+            options={SPAN_OPTIONS}
+            value={spanValue}
+            onChange={(next) => { setSpanValue(next); setSelectedBucket(null); }}
+          />
+        </div>
+        {loading ? (
+          <div className="flex h-32 items-center justify-center lg:h-40"><HALoader size="sm" /></div>
+        ) : (
           <BarsView
             events={events}
             span={span}
@@ -369,17 +371,19 @@ export function AutomationActivityChart({ onOpenAutomation }: { onOpenAutomation
             onSelect={setSelectedBucket}
             highlightKey={highlightKey}
           />
-          <RunsTable
-            rows={rows}
-            label={tableLabel}
-            selected={selectedBucket != null}
-            palette={palette}
-            highlightKey={highlightKey}
-            onHighlight={setHighlightKey}
-            onOpen={(key) => onOpenAutomation?.(key)}
-            canOpen={(key) => !!onOpenAutomation && idSet.has(key)}
-          />
-        </>
+        )}
+      </div>
+      {!loading && (
+        <RunsTable
+          rows={rows}
+          label={tableLabel}
+          selected={selectedBucket != null}
+          palette={palette}
+          highlightKey={highlightKey}
+          onHighlight={setHighlightKey}
+          onOpen={(key) => onOpenAutomation?.(key)}
+          canOpen={(key) => !!onOpenAutomation && idSet.has(key)}
+        />
       )}
     </div>
   );

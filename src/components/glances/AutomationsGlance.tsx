@@ -89,7 +89,7 @@ export function AutomationsGlance({ compact, variant, size, translucent }: Autom
           // The same frame as every other summary chip: no header, the reading
           // first, then what's behind it. The chart carries its own runs table,
           // so it stays one column rather than taking the chart lane.
-          <DialogFrame onClose={close} size="large">
+          <DialogFrame onClose={close}>
             <DialogCard>
               <DialogHero
                 icon={mdiRobot}

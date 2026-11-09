@@ -38,7 +38,7 @@ import { useActivities } from '@/hooks/useActivities';
 import { dismissActivity } from '@/lib/activities/dismissals';
 import { endedDismissKey } from '@/lib/activities/ledger';
 import type { ActivityStatus } from '@/lib/activities/types';
-import { HomeCenterPillIndicators, HomeCenterStatusSections, HomeModeCard, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
+import { HomeCenterAttentionCount, HomeCenterPillIndicators, HomeCenterStatusSections, HomeModeCard, OpenHomeCenterButton } from '../sections/HomeCenterStatus';
 import { HomeCenterBento } from '../ui/HomeCenterOverlay';
 import { SheetHeader } from '../cards/dialogKit';
 import { SettingsNavPanel } from '@/components/profile';
@@ -65,7 +65,6 @@ import {
   mdiTimerOutline,
   mdiPause,
   mdiChevronRight,
-  mdiChevronUp,
   mdiMicrophone,
   mdiDevices,
   mdiClose,
@@ -75,7 +74,6 @@ import {
   mdiCreation,
   mdiPrinter3d,
   mdiViewDashboardOutline,
-  mdiStarFourPoints,
   mdiMinus,
   mdiPlus,
   mdiCheck,
@@ -455,6 +453,12 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
   const isBottomSurfaceEngaged = statusExpanded || isBottomSheetDragging;
   const sheetOpenProgress = isBottomSheetDragging ? bottomSheetDragProgress : (statusExpanded ? 1 : 0);
   const isSheetVisible = sheetOpenProgress > 0.001;
+  // The pill's shrink-to-fit width while closed, so the open can hold it there
+  // while the sheet grows tall and only then widen to the screen (see
+  // `ha-nav-pill-widen` in globals.css). Measured in the open handler rather
+  // than watched: it is the one moment the value is needed, and reading it then
+  // catches whatever the activities row above the tabs is currently doing to it.
+  const [closedPillWidth, setClosedPillWidth] = useState(0);
   // Collapse the activity + Home Center row away when it's redundant clutter:
   // (1) while the pull-up sheet is open on a navigation surface, and (2) on the
   // settings routes (Settings, its sub-pages incl. Home Center, and Profile),
@@ -710,6 +714,8 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
     if (!el) return;
     const apply = () => {
       document.documentElement.style.setProperty('--mobile-nav-height', `${el.offsetHeight}px`);
+      const pill = el.querySelector<HTMLElement>('.mobile-nav-pill');
+      if (pill) document.documentElement.style.setProperty('--mobile-nav-pill-width', `${pill.offsetWidth}px`);
     };
     apply();
     let ro: ResizeObserver | null = null;
@@ -720,6 +726,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
     return () => {
       ro?.disconnect();
       document.documentElement.style.removeProperty('--mobile-nav-height');
+      document.documentElement.style.removeProperty('--mobile-nav-pill-width');
     };
   }, []);
 
@@ -940,6 +947,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
       setIsBottomSheetDragging(false);
       setBottomSheetDragProgress(0);
       bottomSheetDragProgressRef.current = 0;
+      setClosedPillWidth(navPillRef.current?.offsetWidth ?? 0);
       if (isRevealed) close();
       if (searchOpen) closeSearch();
       setActivityListType(null);
@@ -977,6 +985,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
       setIsBottomSheetDragging(false);
       setBottomSheetDragProgress(0);
       bottomSheetDragProgressRef.current = 0;
+      setClosedPillWidth(navPillRef.current?.offsetWidth ?? 0);
       if (isRevealed) close();
       if (searchOpen) closeSearch();
       setActivityListType(null);
@@ -1928,13 +1937,26 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         } bg-black/70`}
         style={{ opacity: isSheetVisible ? 1 : 0 }}
       />
+      {/* The page's floating actions (filter, add) ride on top of the bar, in
+          the right corner. Anchored to the nav's own top edge, so when the bar
+          tucks itself away they drop with it into the space it leaves — still
+          the same small buttons. TopBar and the dashboard portal into the slots.
+          Gone while the pull-up sheet is open: the bar is the whole screen then. */}
+      <div
+        className={`absolute bottom-full right-0 z-10 mb-ha-2 flex items-center gap-ha-2 px-edge transition-opacity duration-200 ${
+          isSheetVisible ? 'pointer-events-none opacity-0' : 'opacity-100'
+        }`}
+      >
+        <div id="mobile-fab-filter" className="contents" />
+        <div id="mobile-fab-add" className="contents" />
+      </div>
       <div className="relative z-10 px-edge flex justify-center">
         {/* Tap-to-reveal wrapper: once the bar has tucked itself away the nub is
             only a few px tall, so a ::before extends its hit area well past the
             visible sliver. Sits outside the overflow-hidden pill so it isn't
             clipped, and the pill's own drag listeners keep working inside it. */}
         <div
-          className={`relative flex justify-center ${isSheetVisible ? 'w-full' : ''} ${
+          className={`relative flex w-full justify-center ${
             isBottomRowHidden && !isSheetVisible
               ? "before:absolute before:bottom-[-14px] before:left-1/2 before:h-20 before:w-56 before:-translate-x-1/2 before:content-['']"
               : ''
@@ -1943,26 +1965,32 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         >
         <div
           ref={navPillRef}
-          // Closed, the pill hugs the tab strip; the drawer needs the full width.
-          className={`mobile-nav-pill relative rounded-[var(--mobile-nav-radius)] bg-gradient-to-b from-surface-default/90 via-surface-low/80 to-surface-lower/70 p-px shadow-[0_-8px_24px_-18px_rgba(0,0,0,0.4),0_18px_32px_-26px_rgba(0,0,0,0.55)] overflow-hidden ${
-            isSheetVisible ? 'w-full' : 'w-auto'
-          }`}
+          // A solid bar across the screen (capped on a tablet): opaque surface,
+          // one hairline edge, tabs spread evenly. Nothing shares its row any
+          // more, so it no longer hugs the tab strip to leave room beside it.
+          className={`mobile-nav-pill relative w-full rounded-[var(--mobile-nav-radius)] bg-text-primary/[0.08] p-px shadow-[0_10px_30px_-12px_rgba(0,0,0,0.45)] overflow-hidden ${statusExpanded && !isBottomSheetDragging && closedPillWidth > 0 ? 'ha-nav-pill-widen' : ''}`}
           // Collapsed, the whole bar is the drag-up affordance; expanded, touch
           // handling goes back to the browser so the sheet content can scroll.
           style={{
+            '--nav-pill-closed-w': `${closedPillWidth}px`,
             touchAction: statusExpanded ? 'auto' : 'none',
             // Auto-hidden with nothing live to show, the leftover sliver keeps the
             // full tab-strip width — squeeze it down to a small nub instead. The
             // cap is inert until the last stretch of the hide (natural width is
             // ~290px), so it reads as a tuck-away rather than a width animation.
             // With activities up top the row still needs its real width.
-            maxWidth: isTopRowHidden && !isSheetVisible
-              ? `${60 + 500 * (1 - effectiveHideProgress)}px`
-              : undefined,
+            // Opening in two beats: the sheet grows tall first at the closed
+            // width (held here while a drag is in progress, by the keyframes
+            // once it commits), and only then widens to the screen.
+            maxWidth: isSheetVisible
+              ? (isBottomSheetDragging && closedPillWidth > 0 ? `${closedPillWidth}px` : undefined)
+              : isTopRowHidden
+                ? `${60 + 420 * (1 - effectiveHideProgress)}px`
+                : '480px',
             transition: `max-width ${SHEET_EASE}`,
-          }}
+          } as React.CSSProperties}
         >
-          <div className="relative rounded-[calc(var(--mobile-nav-radius)_-_1px)] bg-surface-default/95">
+          <div className="relative rounded-[calc(var(--mobile-nav-radius)_-_1px)] bg-surface-default">
             <div
               className="flex flex-col px-ha-2 pt-0 transition-[padding] duration-300 ease-out"
               // The residual bottom padding is all that's left once the rows
@@ -1972,7 +2000,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
               <div className="flex justify-center py-0 mb-0 shrink-0">
                 {/* Generous, mostly-invisible grab zone so a swipe that starts
                     anywhere near the pill's top edge reliably opens/closes the
-                    sheet — the visible pill bar itself is only 28×4px. */}
+                    sheet — the visible pill bar itself is only 32×3px. */}
                 <button
                   ref={bottomSheetHandleRef}
                   type="button"
@@ -1986,7 +2014,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                         : '-my-ha-2 h-6'
                   }`}
                 >
-                  <span className="w-7 h-[3px] rounded-full bg-text-secondary/30" />
+                  <SheetGrabber />
                 </button>
               </div>
               <div
@@ -2515,31 +2543,27 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
         >
           {/* Concentric rounding: outer pill is --mobile-nav-radius with ha-2 (8px)
               side padding, so this inner strip is that radius minus 8px. */}
-          <div className="mobile-nav-tabs flex items-center justify-center gap-ha-6 rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] px-ha-6 h-11">
+          <div className="mobile-nav-tabs flex items-stretch rounded-[calc(var(--mobile-nav-radius)_-_var(--ha-space-2))] h-11 [&>button]:flex-1">
             <button
               type="button"
               onClick={handleDashboardsTap}
               aria-label={pathname === '/' ? 'Browse dashboards and apps' : 'Home'}
-              className={`relative h-full px-ha-2 flex items-center justify-center text-text-secondary transition-colors ${
-                isDashboardsActive ? 'text-text-primary' : 'hover:text-text-primary'
+              className={`relative h-full px-ha-2 flex items-center justify-center transition-colors ${
+                isDashboardsActive ? 'text-ha-blue' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
               {/* Once you're home the tap changes meaning to "browse" — the caret
                   says there's more above, matching the sheet's drag handle. */}
-              <Icon
-                path={mdiChevronUp}
-                size={16}
-                exact
-                className={`absolute top-0 left-1/2 -translate-x-1/2 text-text-tertiary transition-opacity ${
+              <SheetGrabber
+                size="sm"
+                bent={pathname === '/' && !statusExpanded}
+                className={`absolute top-1 left-1/2 -translate-x-1/2 transition-opacity duration-500 ${
                   pathname === '/' && !statusExpanded ? 'opacity-100' : 'opacity-0'
                 }`}
               />
-              <svg width="24" height="22" viewBox="0 0 20 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <svg width="20" height="18" viewBox="0 0 20 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                 <path d="M16 0C18.2091 0 20 1.79086 20 4V14C20 16.2091 18.2091 18 16 18H4C1.79086 18 1.61066e-08 16.2091 0 14V4C0 1.79086 1.79086 6.44256e-08 4 0H16ZM4 11.5859C2.89546 11.5859 2.00004 12.4814 2 13.5859V14C2.00011 15.1045 2.8955 16 4 16H10V13.5859C9.99996 12.4814 9.10454 11.5859 8 11.5859H4ZM12 16H16C17.1046 16 18 15.1046 18 14V4C18 2.89543 17.1046 2 16 2H12V16ZM6.70703 2.29297C6.31652 1.9025 5.68348 1.9025 5.29297 2.29297L2.29297 5.29297C2.10552 5.48048 2.00002 5.73486 2 6V8.58594C2.0002 9.13805 2.44784 9.58594 3 9.58594H9C9.55216 9.58594 9.9998 9.13805 10 8.58594V6C9.99998 5.73486 9.89448 5.48048 9.70703 5.29297L6.70703 2.29297Z"/>
               </svg>
-              <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
-                isDashboardsActive ? 'opacity-100' : 'opacity-0'
-              }`} />
             </button>
             <button
               type="button"
@@ -2551,12 +2575,7 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
             >
               <span className="relative inline-flex">
                 <Icon path={mdiMagnify} size={24} />
-                {/* AI spark — signifies the search also answers with the assistant */}
-                <Icon path={mdiStarFourPoints} size={11} exact className="absolute -top-0.5 -right-0.5" />
               </span>
-              <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
-                isSearchActive ? 'opacity-100' : 'opacity-0'
-              }`} />
             </button>
             {/* Prototyping flag hides the Home Center tab (see DebugFlagsContext). */}
             {!hideHomeCenterEnabled && (
@@ -2568,23 +2587,18 @@ export function MobileNav({ freezeAutoHide = false, connectionStatus, onNavAutoH
                 isHomeCenterSurfaceVisible ? 'text-ha-blue' : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              <Icon path={HOME_CENTER_ICON} size={24} />
-              <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
-                isHomeCenterSurfaceVisible ? 'opacity-100' : 'opacity-0'
-              }`} />
+              <span className="relative inline-flex">
+                <Icon path={HOME_CENTER_ICON} size={24} />
+                <HomeCenterAttentionCount className="absolute -right-1.5 -top-1" />
+              </span>
             </button>
             )}
             <button
               type="button"
               onClick={handleSettingsTap}
-              className={`relative h-full pl-ha-4 pr-ha-2 flex items-center justify-center transition-opacity ${
-                isSettingsActive ? 'opacity-100' : 'opacity-90 hover:opacity-100'
-              }`}
+              className="relative h-full px-ha-2 flex items-center justify-center"
             >
-              <SettingsGlyph hover={false} />
-              <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full bg-ha-blue transition-opacity ${
-                isSettingsActive ? 'opacity-100' : 'opacity-0'
-              }`} />
+              <SettingsGlyph hover={false} size="xs" active={isSettingsActive} />
             </button>
           </div>
         </div>

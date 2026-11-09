@@ -716,7 +716,7 @@ function AppShellContent({ children }: AppShellProps) {
         {/* TopBar - Desktop & Mobile persistent header */}
         <div
           data-component="MobileTopBar"
-          className={`h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] lg:h-16 lg:pt-0 bg-surface-lower lg:bg-transparent px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 lg:col-start-2 lg:col-span-2 lg:row-start-1 pointer-events-auto ${desktopTopBarStateClass}`}
+          className={`h-[calc(4rem+env(safe-area-inset-top,0px))] pt-[env(safe-area-inset-top,0px)] lg:h-16 lg:pt-0 bg-surface-lower/80 backdrop-blur-md lg:bg-transparent lg:backdrop-blur-none px-edge lg:pr-edge overflow-visible lg:overflow-hidden flex-shrink-0 absolute top-0 inset-x-0 z-30 lg:relative lg:top-auto lg:z-10 lg:col-start-2 lg:col-span-2 lg:row-start-1 pointer-events-auto ${desktopTopBarStateClass}`}
           style={mobileTopBarStyle}
         >
             {/* Mobile backdrop: the solid fill sits on THIS element, not on an

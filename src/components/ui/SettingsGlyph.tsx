@@ -18,7 +18,7 @@ import { resolveEntityPictureUrl } from '@/lib/utils';
  * `active` is the on-settings state (the mobile nav paints its own underline
  * instead and leaves this off). Hover animation is opt-out for the same reason.
  */
-export function SettingsGlyph({ active = false, hover = true }: { active?: boolean; hover?: boolean }) {
+export function SettingsGlyph({ active = false, hover = true, size = 'sm' }: { active?: boolean; hover?: boolean; size?: 'xs' | 'sm' }) {
   const { haUrl } = useHomeAssistant();
   const { data: activityData } = useActivities();
   const user = useMemo(() => ({
@@ -34,7 +34,7 @@ export function SettingsGlyph({ active = false, hover = true }: { active?: boole
           active ? 'ring-surface-mid bg-surface-mid' : 'ring-surface-low bg-surface-low',
         )}
       >
-        <Avatar src={user.picture} initials={user.initials} size="sm" />
+        <Avatar src={user.picture} initials={user.initials} size={size} />
       </span>
       <Icon
         path={mdiMenu}
@@ -42,7 +42,7 @@ export function SettingsGlyph({ active = false, hover = true }: { active?: boole
         className={clsx(
           'absolute -right-3 z-0 transition-[transform,color] duration-500 ease-out',
           hover && 'group-hover:translate-x-1',
-          active ? 'text-text-primary' : clsx('text-text-secondary', hover && 'group-hover:text-text-primary'),
+          active ? 'text-ha-blue' : clsx('text-text-secondary', hover && 'group-hover:text-text-primary'),
         )}
       />
     </span>

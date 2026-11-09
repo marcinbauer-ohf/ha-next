@@ -23,6 +23,15 @@ import {
 } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { clsx } from 'clsx';
+import { READING } from '@/lib/utils';
+
+// HA's weather conditions are ids ("partlycloudy", "windy-variant"); the chip
+// says them as words. Anything not listed already reads as one ("sunny", "fog").
+const WEATHER_WORDS: Record<string, string> = {
+  partlycloudy: 'partly cloudy', 'clear-night': 'clear', 'lightning-rainy': 'stormy',
+  'snowy-rainy': 'sleet', 'windy-variant': 'windy', exceptional: 'unusual',
+};
+const weatherLabel = (condition: string) => WEATHER_WORDS[condition] ?? condition;
 import { arePeoplePresenceEqual, selectPeoplePresence } from '@/lib/homeassistant/selectors';
 import { CONTENT_MAX, CONTENT_GUTTER } from '@/lib/layout';
 import { EnergyGlance, AutomationsGlance, SummaryGlance } from '../glances';
@@ -129,7 +138,7 @@ export function useLiveSummaryItems(areaEntities?: HassEntities, areaSensors?: A
         id: 'weather' as GlanceId,
         icon: mdiWeatherPartlyCloudy,
         title: 'Weather',
-        state: weatherTemp != null ? `${weatherTemp}° ${weather.state}` : weather.state,
+        state: weatherTemp != null ? `${weatherTemp}° ${weatherLabel(weather.state)}` : weatherLabel(weather.state),
         color: 'default' as const,
       }] : []),
       // Batteries only earn a chip in a home that has them, and only shout
@@ -296,8 +305,12 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
         'flex items-center rounded-full whitespace-nowrap flex-shrink-0',
         CHIP_PRESS,
         translucent ? TRANSLUCENT_CHIP_FILL : OPAQUE_CHIP_FILL,
-        // sm matches SummaryCard's compact chip: same fixed height and padding.
-        isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-2.5' : 'gap-ha-2 px-ha-2 h-10'
+        // sm matches SummaryCard's chip: same 40px height, 8px to the text and
+        // 14 at the round end. Only the left inset differs — the 28px avatar
+        // stack (24 + its 2px ring) hugs the pill at its own (40 − 28) / 2 = 6px
+        // where the chips' 32px badge takes 4. No badge and no lift here: the
+        // faces are the glyph, and presence is not an on/off state.
+        isLg ? 'gap-ha-3 px-ha-4 py-ha-3' : isMd ? 'gap-ha-2 px-ha-3 py-2.5' : 'gap-2.5 pl-2.5 pr-[18px] h-12'
       )}>
         <div className={clsx(
           'flex flex-shrink-0',
@@ -312,35 +325,40 @@ export function PeopleBadge({ compact = false, size = 'sm', variant, translucent
                 size={isLg ? 'md' : isMd ? 'sm' : 'xs'}
                 className={clsx(
                   'ring-2 ring-surface-low flex-shrink-0 bg-surface-default',
-                  isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-6 h-6'
+                  isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-7 h-7'
                 )}
               />
             ))
           ) : (
             <div className={clsx(
               'rounded-full bg-surface-mid flex items-center justify-center flex-shrink-0',
-              isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-6 h-6'
+              isLg ? 'w-10 h-10' : isMd ? 'w-8 h-8' : 'w-7 h-7'
             )}>
               <span className={clsx('text-ha-blue font-bold leading-none', isLg ? 'text-lg' : isMd ? 'text-base' : 'text-xs')}>?</span>
             </div>
           )}
         </div>
+        {/* sm follows SummaryCard's chip: label 13/600 primary over the
+            status 13/400 secondary, two 16px lines in the 40px pill. md/lg keep
+            the small label over a big value. */}
         <div className={clsx(
-          'flex flex-col items-start leading-tight flex-shrink-0',
-          isLg ? 'pr-ha-3' : isMd ? 'pr-ha-2' : 'pr-ha-1'
+          'flex flex-col items-start flex-shrink-0',
+          isLg ? 'pr-ha-3 leading-tight' : isMd ? 'pr-ha-2 leading-tight' : 'leading-4'
         )}>
           <span className={clsx(
-            translucent ? 'text-white/70' : 'text-text-secondary',
-            isLg ? 'text-sm' : isMd ? 'text-xs' : 'text-[12px]'
+            isLg || isMd
+              ? [translucent ? 'text-white/70' : 'text-text-secondary', isLg ? 'text-sm' : 'text-xs']
+              : ['text-xs font-semibold', translucent ? 'text-white' : 'text-text-primary'],
           )}>
             People
           </span>
           <span className={clsx(
-            'font-mono font-medium text-left',
-            translucent ? 'text-white' : 'text-text-primary',
-            isLg ? 'text-xl' : isMd ? 'text-base' : 'text-[13px]'
+            'text-left',
+            isLg || isMd
+              ? ['font-semibold', translucent ? 'text-white' : 'text-text-primary', isLg ? 'text-xl' : 'text-base']
+              : ['text-xs font-normal', translucent ? 'text-white/70' : 'text-text-secondary'],
           )}>
-            {presenceLabel(resolvedPeopleHome.length)}
+            {(() => { const label = presenceLabel(resolvedPeopleHome.length); const m = READING.test(label) && label.match(/^(\S+)(.*)$/); return m ? <><span className="font-mono">{m[1]}</span>{m[2]}</> : label; })()}
           </span>
         </div>
       </button>
@@ -457,7 +475,7 @@ export function AreaSummaryRow({ entities, areaName, areaSensors }: { entities: 
       style={style}
       className="mb-ha-4 -mx-ha-1 overflow-x-auto overscroll-x-contain scrollbar-hide px-ha-1 lg:overflow-visible"
     >
-      <div className="flex w-max items-center gap-ha-2 lg:w-full lg:flex-wrap">
+      <div className="flex w-max items-center gap-ha-3 lg:w-full lg:flex-wrap">
         {items.map((item) => (
           <SummaryGlance key={item.title} item={item} scope={scope} compact />
         ))}
@@ -569,7 +587,7 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
       ref={chipsRef}
       data-section-key="__summaries__"
       className={clsx(
-        'pt-ha-3 pb-0 w-full relative',
+        'pt-ha-3 pb-ha-3 w-full relative',
         // Desktop-only: on a phone the same chips live in the Home Center, so
         // the dashboard opens on the devices instead of a two-row chip block.
         'hidden lg:block',
@@ -595,9 +613,9 @@ export function MobileSummaryRow({ fullBleed = false, noSticky = false, extraCon
           style={chipsFadeStyle}
           className="overflow-x-auto overscroll-x-contain scrollbar-hide lg:overflow-visible"
         >
-          <div className="flex flex-col gap-ha-2 w-max p-1 lg:flex-row lg:flex-wrap lg:items-center lg:w-full">
+          <div className="flex flex-col gap-ha-3 w-max p-1 lg:flex-row lg:flex-wrap lg:items-center lg:w-full">
             {chipRows.map((row, i) => (
-              <div key={i} className="flex items-center gap-ha-2 lg:contents">{row}</div>
+              <div key={i} className="flex items-center gap-ha-3 lg:contents">{row}</div>
             ))}
           </div>
         </div>

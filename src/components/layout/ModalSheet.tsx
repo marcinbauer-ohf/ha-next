@@ -12,6 +12,8 @@ import { SheetGrabber } from '../ui/SheetGrabber';
 import { ContainedSheetContext } from './containedSheet';
 
 interface ModalSheetProps {
+  /** Desktop: hang the dialog from a fixed line near the top instead of centring it. */
+  anchorTop?: boolean;
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
@@ -42,7 +44,7 @@ const SHEET_SPRING = { type: 'spring' as const, stiffness: 380, damping: 36, mas
  * Desktop: centered floating card with scrim.
  * Mobile: bottom sheet that springs up; the grabber pill drags to dismiss.
  */
-export function ModalSheet({ open, onClose, children, maxWidth = 560, transitionKey, label, contained = false }: ModalSheetProps) {
+export function ModalSheet({ open, onClose, children, maxWidth = 560, transitionKey, label, contained = false, anchorTop = false }: ModalSheetProps) {
   // The screensaver clears anything sitting over the main UI. Since most modals
   // and surfaces ride on ModalSheet, this covers them in one place.
   useCloseOnScreensaver(open, onClose);
@@ -177,7 +179,10 @@ export function ModalSheet({ open, onClose, children, maxWidth = 560, transition
             // Contained: a drawer rising from the panel's bottom edge, inside
             // the panel's clip. Everywhere else: viewport-wide bottom sheet.
             asSheet ? 'absolute dashboard-panel-clip items-end' : 'fixed inset-0 items-end',
-            !sheetOnDesktop && 'lg:items-center',
+            // Centred, unless the dialog changes height as you use it: then it
+            // hangs from a fixed line near the top, so growing or shrinking moves
+            // only its bottom edge instead of re-centring under the pointer.
+            !sheetOnDesktop && (anchorTop ? 'lg:items-start lg:pt-[10vh]' : 'lg:items-center'),
           )}
           style={{ zIndex: 200 + below }}
         >

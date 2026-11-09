@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import {
-  mdiAccountMultiple,
   mdiBattery,
   mdiBattery50,
   mdiBatteryAlertVariantOutline,
@@ -137,11 +136,6 @@ function useScopedEntities(config: SummaryConfig): {
         }
       : { entities: home, config, scope: null }
   ), [home, scope, config]);
-}
-
-/** "3 of 12" style qualifier, built once so every dialog phrases it the same. */
-function ofLine(count: number, total: number, noun: string): string {
-  return `${count} of ${total} ${noun}`;
 }
 
 // ── Lights ───────────────────────────────────────────────────────────────────
@@ -306,7 +300,7 @@ export function ClimateDetail({ onClose }: { onClose: () => void }) {
           numeric
           value={average !== null ? average.toFixed(1) : '—'}
           unit={unit}
-          // One fact, not a ・-chain: humidity has its own column in the strip
+          // One fact, not a ·-chain: humidity has its own column in the strip
           // below, so this line is free to be the spread and nothing else.
           // A range needs two ends: one thermometer has no spread.
           meta={warmest && coolest && warmest.value !== coolest.value
@@ -831,7 +825,7 @@ export function BatteryDetail({ onClose }: { onClose: () => void }) {
           value={readings.length > 0 ? String(Math.round(readings[0].level)) : '—'}
           unit={readings.length > 0 ? '%' : undefined}
           // Leads on the cell that dies first, which is the reason to open this
-          // — it used to be third in a ・-chain behind two figures the strip
+          // — it used to be third in a ·-chain behind two figures the strip
           // below already carries.
           meta={soonest
             ? `${soonest.label} runs out in ${soonest.state}`
@@ -921,7 +915,7 @@ export function PeopleDetail({ onClose }: { onClose: () => void }) {
   }));
 
   return (
-    <DialogFrame onClose={onClose} size="large">
+    <DialogFrame onClose={onClose}>
       {/* Two columns on a desktop: where everyone is, then who is where. They
           stack on a phone, map first — it's the faster read of the two. */}
       <div className="flex flex-col gap-ha-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-ha-3">
@@ -929,19 +923,9 @@ export function PeopleDetail({ onClose }: { onClose: () => void }) {
             missing instead, and how to fix it. */}
         {trackable.length > 0 ? <PeopleMapPanel /> : <PresenceSetup onClose={onClose} />}
         <div className="flex min-w-0 flex-col gap-ha-2">
-          <DialogCard>
-            <DialogHero
-              icon={mdiAccountMultiple}
-              subject="People"
-              tone={home.length > 0 ? 'active' : 'neutral'}
-              value={String(home.length)}
-              unit="home"
-              meta={trackable.length === 0
-                ? 'Nothing is reporting a location yet'
-                : away.length > 0 ? `${away.map(friendlyName).join(', ')} away` : ofLine(home.length, people.length, 'people')}
-            />
-          </DialogCard>
-          <DetailRows title="Everyone" rows={rows} empty="No people are set up in Home Assistant yet." />
+          {/* No hero: "4 home" over a list of four people marked Home said it
+              twice. The list is the reading; its title carries the count. */}
+          <DetailRows title={people.length === 0 ? 'People' : `${home.length} of ${people.length} home`} rows={rows} empty="No people are set up in Home Assistant yet." />
         </div>
       </div>
     </DialogFrame>

@@ -16,23 +16,35 @@ import { NavChevron } from '../ui/NavChevron';
  * the card instead of a list row. It reads `--dct-pad` directly, so a card
  * padding tuned in the card tuner takes the heading with it.
  */
-export function SectionHeader({ title, href }: { title: string; href?: string }) {
+export function SectionHeader({ title, href, leading, trailing }: {
+  title: string;
+  href?: string;
+  /** A badge ahead of the title — for a section that is a notice, not a room. */
+  leading?: React.ReactNode;
+  /** Controls on the row's right edge (a "more" menu). */
+  trailing?: React.ReactNode;
+}) {
+  const heading = (
+    <>
+      {leading}
+      <span className={`truncate text-xl font-semibold tracking-tight text-text-primary transition-colors ${href ? 'group-hover:text-ha-blue' : ''}`}>{title}</span>
+      {href && <NavChevron size={20} className="text-text-tertiary group-hover:text-ha-blue" />}
+    </>
+  );
   return (
     <div
-      className="-mx-ha-1 pr-ha-1 py-ha-2"
+      className="-mx-ha-1 flex items-center gap-ha-2 pr-ha-1 pt-ha-2 pb-ha-3"
       // The negative margin gives the link a little bleed for its hit area, so
       // the card's inset has to be added back on top of it.
-      style={{ paddingLeft: 'calc(var(--ha-space-1) + var(--dct-pad, calc(10px * var(--ha-density, 1))))' }}
+      style={{ paddingLeft: 'calc(var(--ha-space-1) + var(--dct-pad, calc(12px * var(--ha-density, 1))))' }}
       data-section-header
     >
       {href ? (
-        <Link href={href} prefetch={false} className="flex items-center gap-1 group w-fit">
-          <span className="text-lg font-semibold text-text-primary group-hover:text-ha-blue transition-colors">{title}</span>
-          <NavChevron size={18} className="text-text-tertiary group-hover:text-ha-blue" />
-        </Link>
+        <Link href={href} prefetch={false} className={`flex w-fit min-w-0 items-center group ${leading ? 'gap-2.5' : 'gap-1'}`}>{heading}</Link>
       ) : (
-        <span className="text-lg font-semibold text-text-primary">{title}</span>
+        <span className={`flex min-w-0 items-center ${leading ? 'gap-2.5' : 'gap-1'}`}>{heading}</span>
       )}
+      {trailing && <span className="ml-auto flex shrink-0 items-center">{trailing}</span>}
     </div>
   );
 }

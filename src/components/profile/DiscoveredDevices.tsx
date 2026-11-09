@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { mdiChevronDown, mdiClose, mdiEyeOffOutline } from '@mdi/js';
+import { mdiChevronDown, mdiClose, mdiDotsVertical, mdiEyeOffOutline, mdiOpenInNew } from '@mdi/js';
+import { useRouter } from 'next/navigation';
 import { Icon, SectionLabel, Button, IconButton, IntegrationLogo } from '../ui';
+import { ContextMenu } from '../ui/ContextMenu';
+import { useToast } from '@/contexts';
 import { useHomeAssistant } from '@/hooks';
 import { useIntegrationCatalog } from '@/hooks/useIntegrationCatalog';
 import {
@@ -21,6 +24,7 @@ import {
   discoveryFromFlow,
   getServerVerdictVersion,
   getVerdictVersion,
+  announceIgnored,
   setDiscoveryVerdict,
   subscribeVerdicts,
   type Discovery,
@@ -122,6 +126,23 @@ function DeviceFace({ device, size, glyph }: { device: Discovery; size: string; 
 }
 
 /**
+ * "Not mine", in one place: Home Assistant's own ignore when the home is live
+ * (so it stops being rediscovered), the local verdict either way (it is what
+ * empties the find out of every list), and a small toast that says which of the
+ * two things just happened — ignored, not merely dismissed.
+ */
+function useIgnoreDiscovery() {
+  const { connected } = useHomeAssistant();
+  const { showToast } = useToast();
+  // `quiet` for a batch: the caller says it once for the lot.
+  return (id: string, title: string, quiet = false) => {
+    if (connected) void ignoreFlow(id, title);
+    setDiscoveryVerdict(id, 'ignored');
+    if (!quiet) announceIgnored(showToast, title);
+  };
+}
+
+/**
  * A find, and the only two answers to it: set it up, or say it isn't yours.
  * "Not mine" is the quiet one — an ignore you can take back from the section at
  * the bottom of the same store, so it never needs a confirmation.
@@ -137,6 +158,7 @@ function DiscoveryCard({
   onSetUp?: (d: Discovery) => void;
 }) {
   const [setup, setSetup] = useState(false);
+  const ignore = useIgnoreDiscovery();
   return (
     <div className="flex flex-col gap-ha-3 rounded-ha-2xl border border-ha-blue/20 bg-ha-blue/[0.06] p-ha-4">
       <div className="flex items-start gap-ha-3">
@@ -168,13 +190,7 @@ function DiscoveryCard({
           size="sm"
           variant="ghost"
           icon={mdiClose}
-          onClick={() => {
-            // Home Assistant's own ignore, so it stops being rediscovered. The
-            // local verdict goes down either way: it's what empties the card out
-            // of the shelf, and what tells the ignored list to re-read.
-            if (live) void ignoreFlow(device.id, device.title);
-            setDiscoveryVerdict(device.id, 'ignored');
-          }}
+          onClick={() => ignore(device.id, device.title)}
         >
           Not mine
         </Button>
@@ -426,6 +442,7 @@ function pendingFace(row: PendingRow): Discovery {
 export function PendingActions({ row, size = 'sm' }: { row: PendingRow; size?: 'sm' }) {
   const { connected } = useHomeAssistant();
   const [setup, setSetup] = useState(false);
+  const ignore = useIgnoreDiscovery();
 
   if (row.kind === 'ignored') {
     return (
@@ -462,8 +479,7 @@ export function PendingActions({ row, size = 'sm' }: { row: PendingRow; size?: '
         size="sm"
         onClick={(e) => {
           e.stopPropagation();
-          if (connected) void ignoreFlow(row.id, row.title);
-          setDiscoveryVerdict(row.id, 'ignored');
+          ignore(row.id, row.title);
         }}
       />
       {setup && row.discovery && (
@@ -623,12 +639,66 @@ export function PendingDeviceSection({ columns }: { columns: number }) {
   // Admin-only, like that page: a non-admin following it would just bounce to
   // the settings root, so they get the plain heading.
   const { isAdmin } = useHomeAssistant();
+  const router = useRouter();
+  const ignore = useIgnoreDiscovery();
+  const { showToast } = useToast();
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   if (found.length === 0) return null;
   const cols: PendingRow[][] = Array.from({ length: Math.max(1, columns) }, () => []);
   found.forEach((row, i) => cols[i % cols.length].push(row));
+  const devicesHref = isAdmin ? getSettingsHref('devices') : undefined;
   return (
     <div data-section-key="__found__" data-section-title="Found in your home" className="ha-found-panel">
-      <SectionHeader title="Found in your home" href={isAdmin ? getSettingsHref('devices') : undefined} />
+      {/* The heading says what this tray is before the cards do: an accent
+          disc with how many are waiting (the only colour here), the title — and
+          the things you can do to the whole lot behind the dots. */}
+      <SectionHeader
+        title="Found in your home"
+        href={devicesHref}
+        // The count is the badge: a filled accent disc with how many are
+        // waiting, which says "new" before the words do and costs the row no
+        // extra width on a phone.
+        leading={
+          <span
+            aria-label={found.length === 1 ? '1 new device' : `${found.length} new devices`}
+            className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-ha-blue px-2 font-mono text-sm font-semibold text-white"
+          >
+            {found.length}
+          </span>
+        }
+        trailing={
+          <IconButton
+            icon={mdiDotsVertical}
+            label="More"
+            size="md"
+            tone="quiet"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setMenu({ x: r.right - 200, y: r.bottom + 4 });
+            }}
+          />
+        }
+      />
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          actions={[
+            ...(devicesHref ? [{ label: 'See all in Devices', icon: mdiOpenInNew, onSelect: () => router.push(devicesHref) }] : []),
+            {
+              label: found.length === 1 ? 'Ignore it' : `Ignore all ${found.length}`,
+              icon: mdiEyeOffOutline,
+              separator: !!devicesHref,
+              onSelect: () => {
+                const many = found.length > 1;
+                found.forEach((row) => ignore(row.id, row.title, many));
+                if (many) announceIgnored(showToast, `${found.length} devices`);
+              },
+            },
+          ]}
+        />
+      )}
       <div className="flex items-start gap-ha-4">
         {cols.map((col, ci) => (
           <div key={ci} className="flex min-w-0 flex-1 flex-col gap-ha-4">

@@ -4,6 +4,13 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(inputs);
 }
 
+/**
+ * A state is set in mono only when it is a *reading* — "100%", "22.3°", "3 on".
+ * "Off", "Home", "All locked" are words, and words in mono read as log output.
+ * The one rule for list rows, device cards and summary chips.
+ */
+export const READING = /^[-+]?[0-9]/;
+
 export function formatEntityState(state: string, unit?: string): string {
   if (state === 'unavailable') return 'Unavailable';
   if (state === 'unknown') return 'Unknown';

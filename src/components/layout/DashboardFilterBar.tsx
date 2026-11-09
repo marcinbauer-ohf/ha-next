@@ -12,7 +12,7 @@ import { Icon } from '@/components/ui/Icon';
 import { CATEGORY_ORDER, CATEGORY_TITLES, CATEGORY_ICONS, type DeviceCategory } from '@/lib/homeassistant/entityHelpers';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { GlowCanvas } from '@/components/ui/GlowCanvas';
-import { useMobileNavOpen } from '@/lib/mobileNavOpenBus';
+import { useElementById } from '@/hooks/useElementById';
 
 export type DashboardGroupBy = 'area' | 'type' | 'category';
 export type DashboardListMapView = 'list' | 'map';
@@ -190,14 +190,22 @@ export function DashboardFilterBar({
 
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  // The opened mobile bottom-nav sheet dims the UI; this FAB floats above its
-  // scrim, so fade it out while the sheet is up and back in after.
-  const navOpen = useMobileNavOpen();
-  const fabRef = useRef<HTMLDivElement>(null);
+  const fabRef = useRef<HTMLSpanElement>(null);
+  // Where the mobile popover hangs: just above the filter button, on the
+  // screen's right gutter. Read once, on the tap that opens it.
+  const [anchor, setAnchor] = useState<{ bottom: number } | null>(null);
+  const toggleMobile = () => {
+    const r = fabRef.current?.getBoundingClientRect();
+    if (r) setAnchor({ bottom: window.innerHeight - r.top + 8 });
+    setOpen(o => !o);
+  };
   const popoverRef = useRef<HTMLDivElement>(null);
   // Clip layer for the desktop pill — same on-top portal layer FilterGlow uses
   // (#toast-glow-root), so the pill's drop shadow is clipped to the grey panel.
   const [glowRoot, setGlowRoot] = useState<HTMLElement | null>(null);
+  // The bottom nav's floating-action slot — the filter button lives there on a
+  // phone, beside the plus.
+  const topSlot = useElementById('mobile-fab-filter');
 
   useEffect(() => {
     setGlowRoot(document.getElementById('toast-glow-root'));
@@ -387,76 +395,48 @@ export function DashboardFilterBar({
 
       {glowRoot ? createPortal(desktopPill, glowRoot) : desktopPill}
 
-      {/* Mobile: compact FAB bottom-left + popover above it. */}
-      <div
-        ref={fabRef}
-        className={`lg:hidden fixed z-[66] transition-opacity duration-150 ease-out ${
-          navOpen ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'
-        }`}
-        style={{
-          left: 'var(--spacing-edge, 12px)',
-          bottom: 'calc(var(--mobile-nav-height, 6rem) + var(--ha-space-2, 0.5rem))',
-        }}
-      >
-        <AnimatePresence>
-          {open && (
-            <motion.div
-              ref={popoverRef}
-              key="filter-popover"
-              initial={{ opacity: 0, y: 12, scale: 0.94 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.96 }}
-              transition={POPOVER_SPRING}
-              style={{ transformOrigin: 'bottom left' }}
-              className="absolute bottom-full mb-ha-2 left-0 w-[min(78vw,20rem)] rounded-ha-3xl bg-surface-default/95 border border-surface-low/50 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] p-ha-4"
-            >
-              {optionGroups}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* One pill surface (matches the corner toast's height). Filter glyph on
-            the left opens the popover; while filtering, the surface grows to the
-            right to reveal a divider + X that clears in one tap. The whole thing
-            is anchored bottom-left, so growth never nudges the filter glyph. */}
-        <div
-          className={`flex items-center rounded-ha-3xl border p-ha-2 transition-colors shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] ${
-            open || activeFilterCount > 0
-              ? 'border-ha-blue/40 bg-fill-primary-normal text-ha-blue'
-              : 'border-surface-low/50 bg-surface-default/95 text-text-secondary'
-          }`}
-        >
+      {/* Mobile: a small floating button bottom-right, beside the plus, riding
+          on the nav bar (the slot lives in MobileNav and drops with the bar
+          when it tucks away). A dot marks an active filter; the popover rises
+          from the button and carries the reset. */}
+      {topSlot && createPortal(
+        <span ref={fabRef} className="relative inline-flex lg:hidden">
           <button
             type="button"
             aria-label="Filters"
             aria-expanded={open}
-            onClick={() => setOpen(o => !o)}
-            className="flex h-9 w-9 items-center justify-center"
+            onClick={toggleMobile}
+            className={`flex h-12 w-12 items-center justify-center rounded-ha-2xl border bg-surface-default shadow-[0_10px_30px_-12px_rgba(0,0,0,0.45)] transition-[color,transform] active:scale-95 motion-reduce:active:scale-100 ${
+              open || activeFilterCount > 0 ? 'border-ha-blue/40 text-ha-blue' : 'border-text-primary/[0.08] text-text-secondary'
+            }`}
           >
-            <Icon path={mdiFilterOutline} size={22} />
+            <Icon path={mdiFilterOutline} size={24} />
           </button>
-          <AnimatePresence initial={false}>
-            {activeFilterCount > 0 && (
-              <motion.button
-                key="filter-clear"
-                type="button"
-                aria-label="Clear filters"
-                onClick={resetFilters}
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 'auto', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                className="flex items-center overflow-hidden"
-              >
-                <span className="mx-ha-1 h-6 w-px shrink-0 bg-ha-blue/30" />
-                <span className="flex h-9 w-9 items-center justify-center">
-                  <Icon path={mdiClose} size={22} />
-                </span>
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
+          {activeFilterCount > 0 && (
+            <span aria-hidden className="pointer-events-none absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-ha-blue ring-2 ring-surface-default" />
+          )}
+        </span>,
+        topSlot,
+      )}
+      {topSlot && createPortal(
+        <AnimatePresence>
+          {open && anchor && (
+            <motion.div
+              ref={popoverRef}
+              key="filter-popover"
+              initial={{ opacity: 0, y: 8, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.97 }}
+              transition={POPOVER_SPRING}
+              style={{ transformOrigin: 'bottom right', bottom: anchor.bottom, right: 'var(--spacing-edge, 12px)' }}
+              className="lg:hidden fixed z-[66] w-[min(78vw,20rem)] max-h-[calc(100dvh-12rem)] overflow-y-auto scrollbar-hide rounded-ha-3xl bg-surface-default border border-text-primary/[0.06] shadow-[0_8px_32px_-4px_rgba(0,0,0,0.35),0_2px_8px_rgba(0,0,0,0.08)] p-ha-4"
+            >
+              {optionGroups}
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </>
   );
 }

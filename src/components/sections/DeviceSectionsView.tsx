@@ -185,9 +185,9 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
               style={{ scrollMarginTop: 'calc(var(--app-topbar-clear, 0px) + var(--dashboard-sticky-top, 0px) + 3rem + var(--ha-space-2))' }}
             >
               <SectionHeader title={section.title} href={section.href} />
-              <div className="flex gap-ha-3 items-start">
+              <div className="flex gap-ha-3 lg:gap-ha-4 items-start">
                 {colArrays.map((col, ci) => (
-                  <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3">
+                  <div key={ci} className="flex-1 min-w-0 flex flex-col gap-ha-3 lg:gap-ha-4">
                     {col.map(device => (
                       <div
                         key={device.id}
@@ -204,7 +204,7 @@ export function DeviceSectionsView({ sections }: DeviceSectionsViewProps) {
         })}
       </div>
 
-      <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel} maxWidth={620} transitionKey={panelMode}>
+      <ModalSheet open={!!selectedDevice && (panelMode === 'entity' || panelMode === 'edit')} onClose={closePanel} maxWidth={620} transitionKey={panelMode} anchorTop>
         {selectedDevice && panelMode === 'entity' && allPanelEntities.length > 0 && (
           <EntityDetailPanel
             initialEntityId={selectedEntityId ?? allPanelEntities[0].entityId}

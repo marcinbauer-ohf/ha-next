@@ -5,11 +5,12 @@ import { clsx } from 'clsx';
 import { mdiArrowLeft, mdiCheck, mdiClose, mdiCogOutline, mdiRestart } from '@mdi/js';
 import { Icon } from '../ui/Icon';
 import { Avatar } from '../ui/Avatar';
-import { Button, Dropdown, HALoader, IconButton, iconButtonClass, ListSection, RollingNumericValue, SectionLabel, SelectChip, ToggleSwitch } from '../ui';
+import { Button, Dropdown, HALoader, IconBadge, type IconBadgeTone, IconButton, iconButtonClass, ListSection, RollingNumericValue, SectionLabel, SelectChip, ToggleSwitch } from '../ui';
 import { Sparkline } from '../ui/Sparkline';
 import { useHomeAssistant } from '@/hooks';
 import { useScrollFades } from '@/hooks/useScrollFades';
 import { useContainedSheet } from '../layout/containedSheet';
+import { READING } from '@/lib/utils';
 import { mergeStatistics, type EnergyBucket } from '@/lib/energyStatistics';
 import type { SelectChipOption } from '../ui/SelectChip';
 
@@ -24,6 +25,7 @@ import type { SelectChipOption } from '../ui/SelectChip';
 //   DialogHero    the band: what it is, what it reads, what you can do about it
 //   DialogTile    one figure with its label — the row of numbers under the hero
 //   DetailRows    the entities behind the figure, with their live state
+//   GroupLabel    the sentence-case heading over any of the dialogs' lists
 //   IntroStep     the empty state a summary opens on before it has anything:
 //                 one big glyph, what it's for, and the way in
 //   SetupStep     "which of your things feed this", one SelectChip per slot
@@ -39,7 +41,7 @@ import type { SelectChipOption } from '../ui/SelectChip';
 export const sheetHeaderButton = iconButtonClass({ size: 'lg' });
 
 /** The horizontal inset every sheet uses — header and body on the same edge. */
-export const SHEET_PAD = 'px-ha-4';
+export const SHEET_PAD = 'px-ha-5 lg:px-ha-6';
 
 /**
  * The one header. Close (or back) on the left, eyebrow over a large name in the
@@ -59,6 +61,7 @@ export function SheetHeader({
   titleHint,
   actions,
   className,
+  quietTitle,
 }: {
   eyebrow?: string;
   title: string;
@@ -72,9 +75,12 @@ export function SheetHeader({
   /** The right side. Use <IconButton size="lg"> (or `sheetHeaderButton` for a link). */
   actions?: React.ReactNode;
   className?: string;
+  /** A smaller title, for a sheet whose headline is the reading under it (the device dialog). */
+  quietTitle?: boolean;
 }) {
+  const titleSize = quietTitle ? 'text-base lg:text-lg' : 'text-xl lg:text-2xl';
   return (
-    <div className={clsx('flex shrink-0 items-start justify-between gap-ha-2 pb-ha-2 pt-ha-2 lg:pt-ha-4', SHEET_PAD, className)}>
+    <div className={clsx('flex shrink-0 items-start justify-between gap-ha-2 pb-ha-3 pt-ha-3 lg:pt-ha-5', SHEET_PAD, className)}>
       <IconButton
         icon={onBack ? mdiArrowLeft : mdiClose}
         label={onBack ? 'Back' : 'Close'}
@@ -82,7 +88,7 @@ export function SheetHeader({
         onClick={onBack ?? onClose}
       />
       <div className="min-w-0 flex-1">
-        {eyebrow && <p className="mb-0.5 truncate text-sm leading-none text-text-tertiary">{eyebrow}</p>}
+        {eyebrow && <p className="mb-1 truncate text-xs font-medium leading-none text-text-tertiary">{eyebrow}</p>}
         {/* An empty title is a deliberate one: the store puts its name in the big
             search field below instead of saying it twice. */}
         {!title ? null : onTitleClick ? (
@@ -90,12 +96,12 @@ export function SheetHeader({
             type="button"
             onClick={onTitleClick}
             title={titleHint}
-            className="block max-w-full truncate text-left text-xl font-bold leading-tight text-text-primary lg:text-2xl"
+            className={clsx('block max-w-full truncate text-left font-semibold leading-tight tracking-tight text-text-primary', titleSize)}
           >
             {title}
           </button>
         ) : (
-          <p className="truncate text-xl font-bold leading-tight text-text-primary lg:text-2xl">{title}</p>
+          <p className={clsx('truncate font-semibold leading-tight tracking-tight text-text-primary', titleSize)}>{title}</p>
         )}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-ha-1">{actions}</div>}
@@ -114,8 +120,11 @@ export function DialogFrame({
   headerless = false,
   stickyTop,
   aside,
+  quietTitle,
   children,
 }: {
+  /** See SheetHeader. */
+  quietTitle?: boolean;
   /**
    * Both optional, and the summary dialogs pass neither: a chip you just tapped
    * doesn't need the dialog to repeat its own name back at you. The header stays
@@ -134,8 +143,11 @@ export function DialogFrame({
   /**
    * 'large' takes the whole height the sheet allows, for a dialog you browse
    * rather than read — the stores. Phones are already near-full either way.
+   * 'fit' is as tall as its content and no taller (capped like 'default'):
+   * the device dialog, where a bare switch and a twelve-entity vacuum should
+   * not share one slab of empty surface.
    */
-  size?: 'default' | 'large';
+  size?: 'default' | 'large' | 'fit';
   /**
    * No header at all — for content that is its own heading (a store's big search
    * field). Closing is still covered: Escape, the scrim, and on phones the
@@ -168,7 +180,14 @@ export function DialogFrame({
         'flex flex-col overflow-hidden',
         inSheet
           ? 'h-auto max-h-full'
-          : clsx('h-[min(70dvh,760px)]', size === 'large' ? 'lg:h-[min(90vh,1000px)]' : 'lg:h-[min(85vh,780px)]'),
+          : size === 'fit'
+            ? 'max-h-[min(80dvh,760px)] lg:max-h-[min(88vh,900px)]'
+            // 'default' is as tall as what it has to say, up to the height
+            // every dialog used to be pinned to: a sheet with a reading and four
+            // rows was parking half a screen of empty surface under them.
+            : size === 'large'
+              ? 'h-[min(70dvh,760px)] lg:h-[min(90vh,1000px)]'
+              : 'max-h-[min(70dvh,760px)] lg:max-h-[min(85vh,780px)]',
       )}
     >
       {/* A header only when it has something to say. Give it no words, no way
@@ -182,6 +201,7 @@ export function DialogFrame({
           onClose={onClose}
           onBack={onBack}
           actions={action}
+          quietTitle={quietTitle}
         />
       )}
 
@@ -215,7 +235,7 @@ export function DialogFrame({
         <div
           ref={attach}
           className={clsx(
-            'h-full overflow-y-auto scrollbar-hide py-ha-2',
+            'h-full overflow-y-auto scrollbar-hide pt-ha-2 pb-ha-5',
             // With no header and no sticky band, the body carries the top inset.
             headerless && !stickyTop && 'pt-ha-3 lg:pt-ha-5',
             SHEET_PAD,
@@ -223,7 +243,7 @@ export function DialogFrame({
         >
           <div
             className={clsx(
-              'flex w-full flex-col gap-ha-4',
+              'flex w-full flex-col gap-ha-5',
               // items-start so the chart column keeps its own height instead of
               // stretching to match a long list beside it.
               aside && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-ha-4',
@@ -280,10 +300,12 @@ const TONE_INK: Record<DialogTone, string> = {
   warn: 'text-yellow-500',
 };
 
-/** The rail down the hero's leading edge. Only the two tones worth a glance. */
-const TONE_RAIL: Partial<Record<DialogTone, string>> = {
-  good: 'bg-green-500',
-  warn: 'bg-yellow-500',
+/** The hero's badge wears the tone — colour lives in the badge, as on a card. */
+const TONE_BADGE: Record<DialogTone, IconBadgeTone> = {
+  neutral: 'default',
+  active: 'primary',
+  good: 'success',
+  warn: 'warning',
 };
 
 /**
@@ -352,29 +374,33 @@ export function DialogHero({
    */
   stamp?: string | null;
 }) {
-  const rail = TONE_RAIL[tone];
   return (
-    <div className="relative flex w-full items-start gap-ha-3 overflow-hidden rounded-ha-2xl bg-surface-default px-ha-4 py-ha-4">
-      {rail && <span aria-hidden className={clsx('absolute inset-y-ha-3 left-0 w-1 rounded-r-full transition-colors', rail)} />}
-      <Icon path={icon} size={26} className={clsx('mt-1 shrink-0 transition-colors', TONE_INK[tone])} />
+    // Same anatomy as the device dialog's hero, so a chip's sheet and a card's
+    // sheet read as one family: a 48px badge that carries the tone, the subject
+    // in sentence case, the reading at 34/600, one quiet line under it. 16px
+    // inset all round, 12 from badge to text.
+    <div className="relative flex w-full items-center gap-3 rounded-ha-2xl bg-surface-default p-4">
+      <IconBadge icon={icon} size={48} tone={TONE_BADGE[tone]} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         {subject && (
-          <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{subject}</span>
+          <span className="truncate text-xs leading-4 text-text-secondary">{subject}</span>
         )}
-        <span className="flex min-w-0 items-baseline gap-1.5">
+        <span className="flex min-w-0 items-baseline gap-1">
           <RollingNumericValue
             value={value}
             className={clsx(
-              'text-3xl font-bold leading-tight capitalize text-text-primary lg:text-4xl',
+              // No `capitalize`: the value rolls per character, and capitalising
+              // each character's own box turned "Secure" into "SECURE".
+              'text-[34px] font-semibold leading-tight tracking-tight text-text-primary',
               numeric && 'font-mono',
             )}
           />
-          {unit && <span className="shrink-0 text-base font-medium text-text-secondary">{unit}</span>}
+          {unit && <span className={clsx('shrink-0 text-sm text-text-secondary', numeric && 'font-mono')}>{unit}</span>}
         </span>
         {(stamp || meta) && (
           <span className={clsx(
-            'mt-1 truncate text-sm',
+            'truncate text-xs leading-4',
             stamp ? 'font-semibold text-ha-blue' : 'text-text-secondary',
           )}>
             {stamp || meta}
@@ -427,15 +453,15 @@ export interface DialogTileSpec {
  */
 export function DialogTile({ label, value, unit, numeric = true, tone }: DialogTileSpec) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 bg-surface-default px-ha-3 py-ha-3">
-      <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">{label}</span>
+    <div className="flex min-w-0 flex-col gap-0.5 bg-surface-default px-4 py-3">
+      <span className="truncate text-xs leading-4 text-text-secondary">{label}</span>
       <span className="flex items-baseline gap-1">
         <span className={clsx(
-          'truncate text-xl font-bold',
+          'truncate text-xl font-semibold tracking-tight',
           numeric && 'font-mono tabular-nums',
           tone ? TONE_INK[tone] : 'text-text-primary',
         )}>{value}</span>
-        {unit && <span className="shrink-0 text-xs font-medium text-text-secondary">{unit}</span>}
+        {unit && <span className={clsx('shrink-0 text-xs text-text-secondary', numeric && 'font-mono')}>{unit}</span>}
       </span>
     </div>
   );
@@ -466,33 +492,62 @@ export interface DetailRow {
   picture?: string;
   initials?: string;
   onToggle?: () => void;
+  /** Tapping the row makes it the dialog's subject (the device dialog's entity list). */
+  onSelect?: () => void;
+  /** The row that is the subject right now. */
+  selected?: boolean;
 }
 
 /**
- * A row's state is mono only when it is a *reading* — "100%", "22.3°", "3 days".
- * "Off", "Home", "Docked" are words, and words set in mono read as log output.
+ * A list's heading, in sentence case: 13/600 secondary. Worn as the *child* of
+ * SectionLabel (or as a ListSection `title`), both of which are shared app-wide
+ * and still uppercase-tracked — the span wins by inheritance instead of racing
+ * the label's own utilities for the last word in the stylesheet.
  */
-const READING = /^[-+]?[0-9]/;
+export function GroupLabel({ children }: { children: React.ReactNode }) {
+  return <span className="font-semibold normal-case tracking-normal text-text-secondary">{children}</span>;
+}
 
-/** The entities behind the figure. Rides the dialog's own scroll — no nested scrollport. */
+/**
+ * The entities behind the figure. Rides the dialog's own scroll — no nested
+ * scrollport. The heading sits closer to its rows than to whatever is above it
+ * (body gap + 4 over it, 8 under it), so it reads as the list's title rather
+ * than as a caption floating between two blocks.
+ */
 export function DetailRows({ title, rows, empty }: { title: string; rows: DetailRow[]; empty?: string }) {
   return (
-    <div className="w-full">
-      <SectionLabel inset>{title}</SectionLabel>
+    <div className="w-full pt-ha-1">
+      <SectionLabel inset><GroupLabel>{title}</GroupLabel></SectionLabel>
       <div className="mt-ha-2">
         <ListSection>
           {rows.length === 0 ? (
             <p className="px-ha-4 py-ha-3 text-sm text-text-tertiary">{empty ?? 'Nothing here.'}</p>
           ) : rows.map((row) => (
-            <div key={row.id} className="flex items-center gap-ha-3 px-ha-4 py-ha-2">
+            // A div with a button role rather than a <button>: the switch on the
+            // right is a button of its own, and buttons don't nest.
+            // 48 tall, glyph-to-name 12: room inside a row is fixed px (density
+            // scales the space between things, not the things).
+            <div
+              key={row.id}
+              role={row.onSelect ? 'button' : undefined}
+              tabIndex={row.onSelect ? 0 : undefined}
+              aria-current={row.selected ? 'true' : undefined}
+              onClick={row.onSelect}
+              onKeyDown={row.onSelect ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.onSelect!(); } } : undefined}
+              className={clsx(
+                'flex min-h-12 items-center gap-3 px-ha-4 py-1 outline-none',
+                row.onSelect && 'cursor-pointer transition-colors hover:bg-surface-mid focus-visible:bg-surface-mid',
+                row.selected && 'bg-surface-mid/60',
+              )}
+            >
               {row.picture !== undefined || row.initials !== undefined ? (
                 <Avatar src={row.picture} initials={row.initials ?? '?'} size="xs" className="shrink-0" />
               ) : (
-                <Icon path={row.icon ?? ''} size={18} className={clsx('shrink-0', row.active ? 'text-ha-blue' : 'text-text-tertiary')} />
+                <Icon path={row.icon ?? ''} size={20} className={clsx('shrink-0', row.selected ? 'text-ha-blue' : row.active ? 'text-green-600' : 'text-text-tertiary')} />
               )}
-              <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{row.label}</span>
+              <span className={clsx('min-w-0 flex-1 truncate text-sm text-text-primary', row.selected && 'font-semibold')}>{row.label}</span>
               <span className={clsx(
-                'shrink-0 text-sm capitalize text-text-secondary',
+                'shrink-0 text-right text-sm capitalize text-text-secondary',
                 READING.test(row.state) && 'font-mono tabular-nums',
               )}>{row.state}</span>
               {row.onToggle && <ToggleSwitch on={!!row.active} onToggle={row.onToggle} size="sm" />}

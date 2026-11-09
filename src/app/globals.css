@@ -98,6 +98,13 @@
      at it so the grown edge can't come out a different colour than the chip. */
   --ha-chip-fill: var(--ha-color-surface-default);
 
+  /* Depth. Two steps, both soft and offset (light from above): `rest` lifts a
+     surface that is ON or needs a look; `lift` is the same object under the
+     pointer. Off/neutral surfaces get none — the page stays flat and the few
+     things that are on stand up out of it. */
+  --ha-shadow-rest: 0 1px 2px rgb(0 0 0 / 0.05), 0 4px 12px rgb(0 0 0 / 0.06);
+  --ha-shadow-lift: 0 2px 4px rgb(0 0 0 / 0.06), 0 10px 24px rgb(0 0 0 / 0.09);
+
   /* HA Text Colors */
   --ha-color-text-primary: #141414;
   --ha-color-text-secondary: #5e5e5e;
@@ -210,6 +217,11 @@
   --ha-color-text-secondary: #bdbdbd;
   --ha-color-text-tertiary: #808080;
   --ha-color-text-disabled: #666666;
+
+  /* Depth in the dark: shadows barely read on a near-black page, so they go
+     deeper and a 1px top highlight does the lifting. */
+  --ha-shadow-rest: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 2px 8px rgb(0 0 0 / 0.35);
+  --ha-shadow-lift: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 10px 24px rgb(0 0 0 / 0.45);
 
   /* HA Fill Colors - Dark. Rich enough that primary/danger/success read as
      intentional colour rather than muddy grey-brown, but the primary pair is
@@ -1000,6 +1012,17 @@
 
 [data-theme="teenage"] [data-component="StatusBar"] {
   border-top: 1px solid var(--ha-teenage-chrome-border) !important;
+}
+
+/* Bottom nav open, second beat: hold the pill at its closed width while the
+   sheet grows tall (the delay), then widen to the screen. `both` keeps the
+   from-value during the delay and the to-value after. */
+@keyframes ha-nav-pill-widen {
+  from { max-width: var(--nav-pill-closed-w); }
+  to { max-width: 100%; }
+}
+.ha-nav-pill-widen {
+  animation: ha-nav-pill-widen 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.28s both;
 }
 
 [data-theme="teenage"] [data-component="MobileNav"] .mobile-nav-pill {
@@ -2383,6 +2406,19 @@ html {
   box-shadow: 0 0 0 4px var(--ha-card-grow, var(--ha-color-surface-low));
 }
 
+/* Resting depth for a surface that is on (see --ha-shadow-rest). A lifted card
+   keeps its depth under the hover band rather than trading one for the other. */
+.ha-lift {
+  box-shadow: var(--ha-shadow-rest);
+}
+.ha-lift.ha-card-grow:hover {
+  box-shadow: 0 0 0 4px var(--ha-card-grow, var(--ha-color-surface-low)), var(--ha-shadow-lift);
+}
+[data-theme="eink"] .ha-lift,
+[data-theme="eink"] .ha-lift.ha-card-grow:hover {
+  box-shadow: none !important;
+}
+
 /* Edit mode's blue ring rides the GROWN edge. It can't be an inset ring on a
    child: that sits at the card's un-grown border box and is clipped by the
    card's `overflow-hidden`, so it read as a border 4px inside the hovered edge.
@@ -2415,6 +2451,19 @@ html {
   box-shadow:
     0 0 0 3px var(--ha-hover-grow, var(--ha-color-surface-low)),
     0 0 0 4px var(--ha-hover-grow-edge, transparent);
+}
+
+/* A lifted chip keeps its depth under the band (same reason as the card's
+   `.ha-lift.ha-card-grow:hover`): without this the hover rule above replaces
+   the resting shadow and an "on" chip goes flat exactly when you point at it. */
+.ha-lift.ha-hover-grow:hover {
+  box-shadow:
+    0 0 0 3px var(--ha-hover-grow, var(--ha-color-surface-low)),
+    0 0 0 4px var(--ha-hover-grow-edge, transparent),
+    var(--ha-shadow-lift);
+}
+[data-theme="eink"] .ha-lift.ha-hover-grow:hover {
+  box-shadow: none !important;
 }
 
 /* Card flash — pulses a glowing ring on the card a hint scrolled you to. */
@@ -2723,21 +2772,23 @@ html[data-reduce-transparency] *::after {
   -webkit-backdrop-filter: none !important;
 }
 
-/* The "Found in your home" section sits on its own panel — a notch darker than
-   the page, so what the home found reads as a separate tray rather than more of
-   the dashboard. One value works in both themes: mixing the page surface toward
-   black darkens the light ramp and deepens the dark one. Full-bleed by the edge
-   padding it then pays back as its own, so the cards inside stay on the same
-   left edge as the cards above. */
+/* The "Found in your home" section sits on its own tray: the page surface with
+   a breath of the accent in it and an accent hairline, so what the home found
+   reads as a notice set apart from the rooms above — not as one more room.
+   Full-bleed by the edge padding it then pays back as its own, so the cards
+   inside stay on the same left edge as the cards above; a section's worth of
+   room over it so it never looks like the tail of the last room. */
 .ha-found-panel {
+  margin-top: var(--ha-space-4);
   margin-inline: calc(-1 * var(--ha-edge-padding));
-  padding: var(--ha-space-1) var(--ha-edge-padding) var(--ha-edge-padding);
+  padding: var(--ha-space-2) var(--ha-edge-padding) var(--ha-edge-padding);
   border-radius: var(--ha-radius-3xl);
-  background: color-mix(in srgb, var(--ha-color-surface-lower) 90%, #000);
+  background: color-mix(in srgb, var(--ha-color-surface-lower) 94%, var(--ha-color-blue));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ha-color-blue) 28%, transparent);
 }
 
 /* On phones the bleed reaches the screen edges, so the corners have nothing to
    round against — square it off. */
 @media (max-width: 1023px) {
-  .ha-found-panel { border-radius: 0; }
+  .ha-found-panel { border-radius: 0; box-shadow: inset 0 1px 0 0 color-mix(in srgb, var(--ha-color-blue) 28%, transparent), inset 0 -1px 0 0 color-mix(in srgb, var(--ha-color-blue) 28%, transparent); }
 }

@@ -67,6 +67,29 @@ export function HomeModeCard() {
   );
 }
 
+/**
+ * How many things in Home Center want a look — the count on its nav tab. Only
+ * sections the user keeps visible count; a healthy home shows nothing.
+ */
+export function HomeCenterAttentionCount({ className }: { className?: string }) {
+  const { activityData, visibleSections } = useHomeCenterStatusData();
+  const { notifications } = useNotificationCenter();
+  const counts: Partial<Record<HomeCenterSectionId, number>> = {
+    notifications: activityData.activeNotifications.length + notifications.length,
+    updates: activityData.activeUpdates.length,
+    repairs: activityData.repairs.length,
+    issues: activityData.offlineDevices.length,
+    battery: activityData.lowBatteryDevices.length,
+  };
+  const total = visibleSections.reduce((n, id) => n + (counts[id] ?? 0), 0);
+  if (total === 0) return null;
+  return (
+    <span className={`flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-semibold leading-none text-white ring-2 ring-surface-default ${className ?? ''}`}>
+      {total > 9 ? '9+' : total}
+    </span>
+  );
+}
+
 export function HomeCenterPillIndicators({
   size = 20,
   max,

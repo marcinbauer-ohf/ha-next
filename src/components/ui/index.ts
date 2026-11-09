@@ -1,4 +1,5 @@
 export { Icon } from './Icon';
+export { IconBadge, type IconBadgeTone } from './IconBadge';
 export { useIconSet, setIconSet, getIconSet, ICON_SETS, type IconSet } from './iconSet';
 export { NavChevron } from './NavChevron';
 export { CountBadge } from './CountBadge';

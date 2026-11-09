@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { useElementById } from '@/hooks/useElementById';
 import { useRouter, usePathname } from 'next/navigation';
 import { Icon } from '../ui/Icon';
 import { IconButton } from '../ui/IconButton';
@@ -125,7 +127,7 @@ export function TopBar() {
         text={title}
         direction={titleDirection}
         reverse={titleReverse}
-        className={`${subtitle ? 'text-lg' : 'text-xl'} font-semibold text-text-primary capitalize`}
+        className={`${subtitle ? 'text-xl' : 'text-2xl'} font-semibold text-text-primary capitalize`}
       />
       {sectionCrumbLine}
     </div>
@@ -159,7 +161,7 @@ export function TopBar() {
   // page like Home and a subtitled/breadcrumbed one like Settings. Standalone
   // gets the larger 2xl size; eyebrow/breadcrumb shapes use xl.
   const desktopStandalone = !hasTrail && !subtitle;
-  const desktopTitleSize = desktopStandalone ? 'text-xl' : 'text-lg';
+  const desktopTitleSize = 'text-xl';
   const desktopTitleContent = (
     // min-w-0 + truncate: the row caps this block at the centred search pill's
     // left edge (half the row, less half the pill), so a long title ellipsises
@@ -196,6 +198,7 @@ export function TopBar() {
   // coloured like the sidebar's arrange pencil rather than the 24px actions.
   // One pencil, two jobs: on a dashboard it toggles layout edit mode; on a page
   // that claims it (a room → its area settings) it opens that page's editor.
+  const fabSlot = useElementById('mobile-fab-add');
   const pencilTarget = editAction
     ? { icon: mdiPencil, label: editAction.label, onClick: editAction.onClick }
     : isDashboardPage && !isEditing
@@ -275,7 +278,7 @@ export function TopBar() {
             past the content edge. */}
         <div
           className="flex items-center gap-ha-3 transition-[padding] duration-300 ease-out"
-          style={{ paddingLeft: showBack ? undefined : `calc(${immersiveMode ? '0px' : 'var(--ha-space-3)'} + var(--dct-pad, calc(10px * var(--ha-density, 1))))` }}
+          style={{ paddingLeft: showBack ? undefined : `calc(${immersiveMode ? '0px' : 'var(--ha-space-3)'} + var(--dct-pad, calc(12px * var(--ha-density, 1))))` }}
         >
           {showBack && (
             <button
@@ -332,19 +335,23 @@ export function TopBar() {
               <Icon path={primaryAction.icon} size={24} />
             </button>
           )}
-          {!isEditing && isAdmin && (
+          {/* The plus is a floating button on a phone: bottom-right, riding on
+              the nav bar (see the slot in MobileNav), where the thumb is. */}
+          {!isEditing && isAdmin && fabSlot && createPortal(
             <button
               onClick={() => setAddMenuOpen(true)}
-              className={`p-ha-2 rounded-ha-xl transition-colors ${
+              aria-label="Add"
+              className={`flex h-12 w-12 items-center justify-center rounded-ha-2xl shadow-[0_10px_30px_-12px_rgba(0,0,0,0.45)] transition-transform active:scale-95 motion-reduce:active:scale-100 ${
                 theme === 'glass'
-                    ? 'bg-ha-blue/20 text-ha-blue hover:bg-ha-blue/30 border border-white/10'
+                    ? 'bg-ha-blue/20 text-ha-blue border border-white/10'
                   : theme === 'teenage'
-                    ? 'bg-[#d48e42] text-[#161616] hover:bg-[#c07d36] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_6px_12px_-8px_rgba(0,0,0,0.6)] border border-[#b0712e]'
-                  : 'bg-ha-blue text-white hover:bg-ha-blue/90'
+                    ? 'bg-[#d48e42] text-[#161616] border border-[#b0712e]'
+                  : 'bg-ha-blue text-white'
               }`}
             >
               <Icon path={mdiPlus} size={24} />
-            </button>
+            </button>,
+            fabSlot,
           )}
         </div>
       </div>

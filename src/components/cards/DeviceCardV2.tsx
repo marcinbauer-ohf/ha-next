@@ -2,14 +2,18 @@
 
 import { useRef, useCallback, useState, memo } from 'react';
 import { clsx } from 'clsx';
-import { mdiPower, mdiAlertCircleOutline, mdiPencil, mdiBattery, mdiBattery10, mdiBattery20, mdiBattery30, mdiBattery40, mdiBattery50, mdiBattery60, mdiBattery70, mdiBattery80, mdiBattery90, mdiBatteryAlertVariantOutline } from '@mdi/js';
+import { mdiPower, mdiAlertCircleOutline, mdiPencil, mdiBatteryAlertVariantOutline } from '@mdi/js';
 import { Icon } from '../ui/Icon';
+import { IconBadge } from '../ui/IconBadge';
 import { RollingNumericValue } from '../ui/RollingNumericValue';
 import { EntityMiniSparkline, type MiniSparklinePoint } from '../ui/EntityMiniSparkline';
 import { ToggleSwitch } from '../ui/ToggleSwitch';
 import { useDebugFlags } from '@/contexts';
 import { lowBatteryAt, useSummaryConfig } from '@/lib/summaryConfig';
 import { formatHoverTime } from './EntityDetailPanel';
+import { READING } from '@/lib/utils';
+
+const stateFont = (state: string) => (READING.test(state) ? 'var(--font-mono)' : 'var(--font-sans)');
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,21 +46,16 @@ export interface DeviceCardV2Entity {
   /** Accessible label / tooltip describing `corner`. */
   cornerLabel?: string;
   /**
-   * Extra facts about the state, shown after it separated by "・" — a light's
+   * Extra facts about the state, shown after it separated by "·" — a light's
    * colour, a speaker's source, a thermostat's setpoint. See `stateExtras`.
    */
   details?: string[];
   /** A colour worth a dot before the state (a light's current colour). */
   dotColor?: string;
-  /** Charge level 0–100 for battery-powered devices — draws a small cell at the far right of the state line. */
+  /** Charge level 0–100 for battery-powered devices — a red badge on the icon's top-left corner once it runs low. */
   battery?: number;
 }
 
-const BATTERY_STEPS = [mdiBattery10, mdiBattery20, mdiBattery30, mdiBattery40, mdiBattery50, mdiBattery60, mdiBattery70, mdiBattery80, mdiBattery90, mdiBattery];
-function batteryIcon(level: number, low: boolean): string {
-  if (low) return mdiBatteryAlertVariantOutline;
-  return BATTERY_STEPS[Math.min(9, Math.max(0, Math.round(level / 10) - 1))];
-}
 
 /**
  * Does this entity have a curve worth drawing on the card? A unit is the obvious
@@ -170,7 +169,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         <p
           className={clsx('font-medium leading-none truncate ha-card-marquee mb-ha-1', showFeed ? 'text-white/75' : 'text-text-tertiary')}
           style={{
-            fontSize: 'var(--dct-area-size, calc(12px * var(--ha-type-scale, 1)))',
+            fontSize: 'var(--dct-area-size, max(13px, calc(13px * var(--ha-type-scale, 1))))',
             textTransform: 'var(--dct-area-transform, none)' as 'none',
             letterSpacing: 'var(--dct-area-tracking, normal)',
           }}
@@ -184,10 +183,20 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         style={{ fontSize: 'var(--dct-name-size, calc(15px * var(--ha-type-scale, 1)))', fontWeight: 'var(--dct-name-weight, 600)' }}
       >{primary.name}</p>
       {isUnavailable ? (
-        <div className="flex items-baseline gap-1.5 mt-1">
-          <span className="text-[12px] font-bold uppercase tracking-[0.12em] text-amber-500/90">Offline</span>
+        // Same gap and same line box as the state row below, so an offline
+        // card is exactly as tall as the card beside it — the 12px badge text
+        // is shorter than the 13px state line, and its own `mt-1` was wider
+        // than the state gap.
+        <div
+          className="flex items-center gap-1.5"
+          style={{
+            marginTop: 'var(--dct-state-gap, calc(1px * var(--ha-density, 1)))',
+            minHeight: 'calc(var(--dct-state-size, max(13px, calc(13px * var(--ha-type-scale, 1)))) * 1.5)',
+          }}
+        >
+          <span className="text-xs font-bold uppercase tracking-[0.12em] text-amber-500/90">Offline</span>
           {formatUnavailableDuration(primary.lastChanged) && (
-            <span className="text-[12px] font-medium font-mono text-amber-500/60">
+            <span className="text-xs font-medium text-amber-500/60">
               {formatUnavailableDuration(primary.lastChanged) === 'just now'
                 ? 'just now'
                 : `for ${formatUnavailableDuration(primary.lastChanged)}`}
@@ -204,10 +213,10 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           style={{ marginTop: 'var(--dct-state-gap, calc(1px * var(--ha-density, 1)))' }}
         >
           <p
-            className={clsx('min-w-0 flex-1 font-medium truncate ha-card-marquee', showFeed ? 'text-white/85' : 'text-text-secondary')}
+            className={clsx('min-w-0 flex-1 truncate ha-card-marquee', showFeed ? 'text-white/85' : 'text-text-secondary')}
             style={{
-              fontSize: 'var(--dct-state-size, calc(13px * var(--ha-type-scale, 1)))',
-              fontFamily: 'var(--dct-state-font, var(--font-mono))',
+              fontSize: 'var(--dct-state-size, max(13px, calc(13px * var(--ha-type-scale, 1))))',
+              fontFamily: `var(--dct-state-font, ${hoverPoint ? 'var(--font-mono)' : stateFont(primary.state)})`,
             }}
           >
             <span data-marquee>
@@ -224,50 +233,63 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
               {/* Extra facts ride the same line, dot-separated — the state alone
                   ("On") rarely says enough about a light or a speaker. */}
               {!hoverPoint && primary.details?.map(d => (
-                <span key={d} className={clsx('ml-1.5', showFeed ? 'text-white/60' : 'text-text-tertiary')}>
-                  ・{d}
+                <span key={d} className={showFeed ? 'text-white/60' : 'text-text-tertiary'}>
+                  {' · '}{d}
                 </span>
               ))}
               {hoverPoint?.ts != null && (
-                <span className={clsx('ml-1.5 text-[11px] font-semibold uppercase tracking-wide', showFeed ? 'text-white/60' : 'text-text-tertiary')}>
+                <span className={clsx('ml-1.5 text-xs font-semibold uppercase tracking-wide', showFeed ? 'text-white/60' : 'text-text-tertiary')}>
                   {formatHoverTime(hoverPoint.ts)}
                 </span>
               )}
             </span>
           </p>
-          {/* Battery-powered devices keep the state line's far right edge, red
-              once the charge dips under the Home Center's low threshold. */}
-          {!hoverPoint && primary.battery != null && (
-            <span
-              className={clsx('shrink-0 inline-flex items-center', primary.battery <= batteryLow ? 'text-red-500' : showFeed ? 'text-white/60' : 'text-text-tertiary')}
-              title={`Battery ${Math.round(primary.battery)}%`}
-            >
-              <Icon path={batteryIcon(primary.battery, primary.battery <= batteryLow)} size={14} />
-            </span>
-          )}
         </div>
       )}
     </div>
   );
 
-  // Icon glyph to the LEFT of the name/state text, HA tile-card order — bare,
-  // no badge circle, just a state tint. It stands down for a product render or a
-  // camera feed (two images fight), but an offline alert always keeps the slot.
-  const iconBadge = (isUnavailable || (!showThumb && !showFeed)) && (
-    <Icon
-      path={isUnavailable ? mdiAlertCircleOutline : primary.icon}
-      size={24}
-      exact
-      className={clsx(
-        'shrink-0',
-        isUnavailable
-          ? 'text-amber-500'
-          : primary.active && primary.toggleable
-            ? 'text-green-500'
-            : 'text-text-secondary',
-      )}
-    />
+  // Icon badge to the LEFT of the name/state text, HA tile-card order. The badge
+  // is the one place the card shows colour: green when on, amber when offline,
+  // grey otherwise; the surface behind it stays white. It stands down for a
+  // product render or a camera feed (two images fight), but an offline alert
+  // always keeps the slot, so an offline picture card wears the amber badge too.
+  // 40px on the control tier, glyph 20 inside it: 40 + 12px padding top and
+  // bottom is exactly the imageless card's 64px line, so the badge costs no
+  // height there.
+  // A battery only speaks up when it needs changing: a small red badge on the
+  // icon's top-left corner. A healthy cell says nothing — the level lives in
+  // the device dialog and Home Center.
+  const lowBattery = primary.battery != null && primary.battery <= batteryLow;
+  const batteryBadge = lowBattery && (
+    <span
+      role="img"
+      aria-label={`Battery low, ${Math.round(primary.battery!)}%`}
+      title={`Battery low · ${Math.round(primary.battery!)}%`}
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 text-white ring-2 ring-surface-default"
+    >
+      <Icon path={mdiBatteryAlertVariantOutline} size={14} exact />
+    </span>
   );
+  const hasIconBadge = isUnavailable || (!showThumb && !showFeed);
+  const iconBadge = hasIconBadge ? (
+    <span className="relative inline-flex shrink-0">
+      <IconBadge
+        icon={isUnavailable ? mdiAlertCircleOutline : primary.icon}
+        size={40}
+        tone={isUnavailable ? 'warning' : primary.active && primary.toggleable ? 'success' : 'default'}
+      />
+      {batteryBadge && <span className="absolute -left-1.5 -top-1.5">{batteryBadge}</span>}
+    </span>
+  // A picture card has no icon to pin it to, so the badge takes the icon's place.
+  ) : batteryBadge;
+  // On things stand up, off things lie flat: a resting shadow marks a card that
+  // is on, in place of the green wash it used to wear. Not while editing or
+  // selected — `.ha-lift` is a box-shadow declared after `.ha-selected` and
+  // `.ha-card-grow-ring` in globals.css, so it would erase the selection ring
+  // and the edit ring. Offline cards keep their amber inset ring instead, which
+  // is also a box-shadow and would lose to it.
+  const lifted = !isUnavailable && !editMode && !selected && !!primary.active && !!primary.toggleable;
 
   const handlePointerDown = useCallback(() => {
     if (!onLongPress) return;
@@ -295,27 +317,24 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
       onPointerUp={cancelLongPress}
       onPointerLeave={cancelLongPress}
       onPointerCancel={cancelLongPress}
-      // The grow band's paint: a tinted card grows in its own tint, everything
-      // else in the hover surface the rule already defaults to.
+      // The grow band's paint: an offline card grows in its own amber, everything
+      // else (on cards included — they are white now, the badge carries the
+      // green) in the hover surface the rule already defaults to.
       //
       // Flattened with color-mix rather than passed as the tint itself. The
       // card's tint is translucent and sits on the card's own opaque
       // surface-default, but the band is painted on the page behind the card —
-      // so the same `green-500/16` came out a different colour in the band than
-      // in the card body, and the "grown" edge read as a second layer around
-      // the card instead of as the card being bigger. Mixing the tint into
-      // surface-default here is what the body already composites to.
-      // Percentages track the `hover:` tints on the primary block below.
+      // so the same `amber-500/11` would come out a different colour in the band
+      // than in the card body, and the "grown" edge would read as a second layer
+      // around the card instead of as the card being bigger. Mixing the tint into
+      // surface-default here is what the body already composites to. The
+      // percentage tracks the `hover:` tint on the primary block below.
       style={
         isUnavailable
           // No --color-amber-500 mapping in the theme, so this is Tailwind's own
           // amber-500 — the same value `bg-amber-500/[0.11]` resolves to.
           ? { '--ha-card-grow': 'color-mix(in srgb, #f59e0b 11%, var(--ha-color-surface-default))' } as React.CSSProperties
-          : !editMode && primary.active && primary.toggleable
-            // Themed token, not a hard-coded green: `bg-green-500` resolves to
-            // --ha-color-green-500, which every theme repaints.
-            ? { '--ha-card-grow': 'color-mix(in srgb, var(--ha-color-green-500) 16%, var(--ha-color-surface-default))' } as React.CSSProperties
-            : undefined
+          : undefined
       }
       className={clsx(
         // The hover grow: a 4px box-shadow spread, coloured to match whatever the
@@ -337,6 +356,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         editMode && 'ha-card-grow-ring cursor-grab active:cursor-grabbing select-none',
         selected && 'ha-selected',
         !selected && lastOpened && 'ha-last-opened',
+        lifted && 'ha-lift',
         isUnavailable && 'ring-2 ring-inset ring-amber-500/40',
         className,
       )}
@@ -365,10 +385,15 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
         // density — (base + gap) stays a whole multiple of the row height.
         style={{ padding: 'var(--dct-pad, calc(12px * var(--ha-density, 1)))' }}
         className={clsx(
-          'flex flex-col justify-between relative overflow-hidden transition-colors',
+          // Press answers within the frame: the block sinks 2% under the finger
+          // (not while editing, where a press starts a drag). A press that lands
+          // on the switch is the switch's, not the card's,
+          // so `:has(button:active)` keeps the block still for it.
+          'flex flex-col justify-between relative overflow-hidden transition-[background-color,scale] duration-200 ease-out',
+          !editMode && 'motion-safe:[&:active:not(:has(button:active))]:scale-[0.98]',
           hasSecondary ? 'rounded-t-ha-2xl' : 'rounded-ha-2xl',
           // Vertical rhythm: the masonry stacks cards in flex columns with a
-          // 12px gap, so a card's *slot* is height + 12. Keep every slot a whole
+          // 12px gap (16 from lg), so a card's *slot* is height + gap. Keep every slot a whole
           // multiple of the 48px secondary-row height and each card boundary
           // lands on the same 48px lattice in every column — a card with N extra
           // rows sits exactly N rows lower than its neighbour instead of drifting
@@ -377,16 +402,17 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
           // (192+16 = 4x52) back when it ran three wide; at four columns the card
           // is ~320px instead of ~434px, and the extra row read as dead space
           // above the render rather than room for it.
-          // Desktop is tighter again: 120px on a 44px row lattice (120+12 = 3x44),
+          // Desktop is tighter again: 116px on a 44px row lattice (116+16 = 3x44),
           // which is why the secondary rows shrink to 44 there too — the lattice
           // only holds while (base + 16) is a whole multiple of the row height.
           // Staying on 52 would have meant the next step down, 88px, and that is
           // too short: it squashes the product render, and a card you glance at
           // from across a room needs the picture.
           // Imageless (debug flag): no render to make room for, so the card is
-          // only as tall as its own content plus padding — the glyph/switch row
-          // and the name/reading row on a phone (~103px), one tile-card line from
-          // md up (64px), where the floor below stops binding. It leaves the 48px
+          // only as tall as its own content plus padding — the badge/switch row
+          // and the name/reading row on a phone (~111px), one tile-card line from
+          // md up (64px: the 40px badge plus padding), where the floor below
+          // stops binding. It leaves the 48px
           // lattice, which is fine because every imageless card shares the same
           // base: the *differences* between neighbours are still whole secondary
           // rows, so columns keep lining up.
@@ -406,15 +432,16 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             // setting the card's height, well past the 132px floor. Anywhere a
             // card is wide enough for its render to out-measure the floor needs
             // the definite height, and that starts at the tablet.
-            : 'min-h-[var(--dct-min-h,calc(132px*var(--ha-density,1)))] md:min-h-0 md:h-[var(--dct-min-h,calc(120px*var(--ha-density,1)))]',
+            : 'min-h-[var(--dct-min-h,calc(132px*var(--ha-density,1)))] md:min-h-0 md:h-[var(--dct-min-h,calc(116px*var(--ha-density,1)))]',
           //
+          // On and off share the white surface: colour lives in the badge, and
+          // an on card says so with `ha-lift` on the card itself. Offline keeps
+          // its amber wash — it is an alert, not a state.
           editMode
             ? 'bg-surface-default hover:bg-surface-low'
             : isUnavailable
               ? 'bg-amber-500/[0.07] hover:bg-amber-500/[0.11] active:bg-amber-500/[0.15] cursor-pointer'
-              : primary.active && primary.toggleable
-                ? 'bg-green-500/10 hover:bg-green-500/[0.16] active:bg-green-500/20 cursor-pointer'
-                : 'bg-surface-default hover:bg-surface-low active:bg-surface-mid cursor-pointer',
+              : 'bg-surface-default hover:bg-surface-low active:bg-surface-mid cursor-pointer',
         )}
         onClick={primary.onClick}
       >
@@ -451,21 +478,28 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
             reserves that width, because a ~263px card has enough left over for
             the name. */}
 
-        {/* Phone: two rows. The glyph and the switch take the first one, pushed
+        {/* Phone: two rows. The badge and the switch take the first one, pushed
             to opposite edges, and the name and reading get the whole width of the
-            second — a 171px two-column card cannot fit a 24px glyph, a name and a
+            second — a 171px two-column card cannot fit a 40px badge, a name and a
             52px switch on one line without cutting the name to five characters.
-            Anything wider unwraps to the HA tile-card order (glyph, name/state,
+            Anything wider unwraps to the HA tile-card order (badge, name/state,
             switch) on a single line: `md:contents` drops this wrapper out of
-            layout so the glyph and the switch become items of the row itself,
+            layout so the badge and the switch become items of the row itself,
             and the `md:order-*` steps put them back around the name. The switch
             is `md`, matching the card's own height break — a tablet lays out two
             columns like the phone but at twice the width, so its ~400px card has
             room for the single line the stack exists to avoid. */}
-        <div className="relative z-[2] flex flex-col gap-ha-2 md:flex-row md:items-center md:gap-ha-3">
-          <div className="flex items-center gap-ha-3 md:contents">
+        <div className="relative z-[2] flex flex-col gap-ha-2 md:flex-row md:items-center md:gap-2.5">
+          {/* `min-h-[32px]`: the switch's own height, held whether or not the
+              card has one. Without it the control row is as tall as whatever it
+              happens to carry — 0 with nothing —
+              and two picture cards side by side end up different heights. A
+              card with the 40px badge is 40 here, the switch centred against
+              it. `md:contents` drops the box on wider layouts, where the row is
+              the name line and sets its own height. */}
+          <div className="flex min-h-[32px] items-center gap-2.5 md:contents">
             {iconBadge}
-            {/* `ml-auto`, not `justify-between`: an image card has no glyph, and
+            {/* `ml-auto`, not `justify-between`: an image card has no badge, and
                 a lone switch in a `justify-between` row would sit on the left. */}
             {hasPrimaryControl && (
               <ToggleSwitch on={primary.active} onToggle={primary.onToggle!} className="ml-auto md:order-3" />
@@ -532,23 +566,27 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                   // 44px there to match the shorter card's lattice (see the
                   // card-height note above). The tuner's `--dct-row-h` still
                   // overrides both.
-                  'flex min-h-[var(--dct-row-h,calc(48px*var(--ha-density,1)))] items-center gap-ha-3 px-ha-3 border-t border-surface-lower transition-colors lg:min-h-[var(--dct-row-h,calc(44px*var(--ha-density,1)))]',
+                  'flex min-h-[var(--dct-row-h,calc(48px*var(--ha-density,1)))] items-center gap-2.5 px-ha-3 border-t border-surface-lower transition-colors lg:min-h-[var(--dct-row-h,calc(44px*var(--ha-density,1)))]',
                   entityUnavailable
                     ? 'opacity-50 cursor-default'
+                    // No green wash on an on row: the row's own green glyph (md+)
+                    // and its switch already say it, one signal per fact.
                     : editMode
                       ? 'hover:bg-surface-low'
-                      : entity.active && entity.toggleable
-                        ? 'cursor-pointer bg-green-500/10 hover:bg-green-500/[0.16] active:bg-green-500/20'
-                        : 'cursor-pointer hover:bg-surface-low',
+                      : 'cursor-pointer hover:bg-surface-low',
                 )}
                 onClick={entityUnavailable ? undefined : entity.onClick}
               >
                 {entity.size !== 'sm' && (
                   <Icon
                     path={entity.icon}
-                    size={18}
+                    size={20}
                     exact
                     className={clsx(
+                      // A bare 20px glyph, no badge: the same icon tier as the
+                      // top row's badge glyph, with the same fixed 10px to its
+                      // label. A badge per row would stack a circle on every
+                      // line and outweigh the device's own badge above them.
                       // No row icons on a phone: a secondary row has to fit a
                       // name, a graph and a value (or a switch) into a
                       // half-screen card, and the icon is the part that carries
@@ -589,7 +627,7 @@ function DeviceCardV2Component({ primary, secondary, selected, lastOpened, editM
                     {hasHistory(entity) && entity.chart !== false && <EntityMiniSparkline entityId={entity.entityId} tiny />}
                     <RollingNumericValue
                       value={entity.state}
-                      className="text-sm font-medium font-mono text-text-secondary shrink-0"
+                      className={clsx('text-sm font-medium text-text-secondary shrink-0', READING.test(entity.state) && 'font-mono')}
                     />
                   </>
                 )}

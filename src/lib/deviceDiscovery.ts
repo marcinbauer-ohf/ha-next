@@ -7,6 +7,7 @@ import {
   mdiGraphOutline,
   mdiHexagonMultiple,
   mdiUsbPort,
+  mdiEyeOffOutline,
 } from '@mdi/js';
 import type { ToastOptions } from '@/contexts/ToastContext';
 
@@ -51,12 +52,25 @@ export function announceDiscovery(showToast: ShowToast, d: DiscoverableDevice) {
     subtitle: `${d.manufacturer} ${d.model} • ${d.protocol} • Strong`,
     // Tap the whole toast to enter setup — no separate button needed.
     onClick: () => {},
+    // ✕ on a find is an answer, not a shrug: it means "not mine". Say so, so
+    // it doesn't look like the device was merely waved away for later.
+    onClose: () => announceIgnored(showToast, d.name),
     // Left untouched for 20s: dismiss and pulse the status-bar command center so
     // the discovery isn't lost — it lives on in the home's status surface.
     idleDismiss: 20000,
     // Keep it in settings → Notifications after dismissal so it can still be
     // acted on; tapping the toast (enter setup) clears it.
     persist: true,
+  });
+}
+
+/** The small confirmation after a find is ignored — by its ✕, or "Not mine". */
+export function announceIgnored(showToast: ShowToast, name: string) {
+  showToast({
+    icon: mdiEyeOffOutline,
+    title: `Ignoring ${name}`,
+    subtitle: 'Bring it back any time from Devices',
+    duration: 4000,
   });
 }
 
